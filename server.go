@@ -1,7 +1,7 @@
 package main
 
 import (
-	"embed"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.7"
+const APP_VERSION = "1.0.8"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
