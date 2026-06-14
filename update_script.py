@@ -3,16 +3,16 @@ import os
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.3"', 'APP_VERSION = "1.0.4"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.3";', 'const APP_VERSION = "1.0.4";')
+        ("server.go", 'APP_VERSION = "1.0.4"', 'APP_VERSION = "1.0.5"'),
+        ("frontend/index.html", 'const APP_VERSION = "1.0.4";', 'const APP_VERSION = "1.0.5";')
     ]
     
     # 2. Define File Patches (Target exact string mapping)
     patches = {
         "Dockerfile": [
             (
-                "RUN gomobile build -target=android -androidapi 21 -javapkg net.basov.goomn.fdroid -o bin/goomn.apk server.go main_android.go",
-                "RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk server.go main_android.go"
+                "RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk server.go main_android.go",
+                "RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk ."
             )
         ]
     }
@@ -50,9 +50,9 @@ def update_application():
         print(f"Patched: {filename}")
 
     # 3. Output Standardized Git Commit Message
-    commit_msg = """fix(build): remove invalid -javapkg flag from gomobile build command
+    commit_msg = """fix(build): pass package directory to gomobile build instead of individual go files
 
-Version bumped to 1.0.4"""
+Version bumped to 1.0.5"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":

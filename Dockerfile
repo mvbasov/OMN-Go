@@ -36,4 +36,4 @@ RUN go get golang.org/x/mobile@latest && go mod tidy
 RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop server.go main_desktop.go
 
 # Android APK (Under 5MB, No AppCompat)
-RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk server.go main_android.go
+RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk .
