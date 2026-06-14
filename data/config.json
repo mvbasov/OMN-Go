@@ -1,0 +1,5 @@
+{
+  "server_port": 8080,
+  "admin_password": "admin_secret_changeme",
+  "guest_password": "guest_secret_changeme"
+}

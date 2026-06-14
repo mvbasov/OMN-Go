@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoOMN Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>const APP_VERSION = "1.0.0";</script>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen flex flex-col font-sans">
+    
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded shadow-lg w-96">
+            <h2 class="text-2xl font-bold mb-4">GoOMN Login</h2>
+            <input type="password" id="pwdInput" class="w-full border p-2 mb-4 rounded" placeholder="Admin or Guest Password">
+            <button onclick="login()" class="w-full bg-blue-600 text-white p-2 rounded">Enter</button>
+        </div>
+    </div>
+
+    <!-- Main UI -->
+    <div class="flex flex-1 overflow-hidden" id="mainUI" style="display:none;">
+        <div class="w-64 bg-gray-800 text-white p-4 flex flex-col">
+            <h1 class="text-xl font-bold mb-6">GoOMN <span class="text-xs text-gray-400">v1.0.0</span></h1>
+            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="bg-indigo-600 p-2 rounded mb-2 w-full admin-only">Quick Note</button>
+            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="bg-teal-600 p-2 rounded mb-4 w-full admin-only">Add Bookmark</button>
+            <div class="flex-1 overflow-y-auto">
+                <p class="text-gray-400 text-sm">Notes list placeholder...</p>
+            </div>
+        </div>
+
+        <div class="flex-1 p-6 relative">
+            <div class="flex h-full gap-4">
+                <textarea id="editor" class="w-1/2 h-full border rounded p-4 font-mono admin-only" placeholder="Markdown content... Drag images here to upload."></textarea>
+                <div id="preview" class="w-1/2 h-full border rounded p-4 bg-white overflow-y-auto prose max-w-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Note Modal -->
+    <div id="quickPanel" class="hidden absolute top-20 left-1/3 w-1/3 bg-white border shadow-xl p-4 rounded z-40">
+        <h3 class="font-bold mb-2">Quick Note</h3>
+        <textarea id="quickText" class="w-full h-32 border p-2 mb-2"></textarea>
+        <button onclick="submitQuickNote()" class="bg-blue-600 text-white px-4 py-2 rounded">Append to QuickNotes.md</button>
+    </div>
+
+    <!-- Bookmark Modal -->
+    <div id="bmPanel" class="hidden absolute top-20 right-10 w-1/3 bg-white border shadow-xl p-4 rounded z-40">
+        <h3 class="font-bold mb-2">Ingest Bookmark</h3>
+        <input id="bmUrl" class="w-full border p-2 mb-2" placeholder="URL">
+        <input id="bmTitle" class="w-full border p-2 mb-2" placeholder="Title">
+        <input id="bmTags" class="w-full border p-2 mb-2" placeholder="Tags (comma separated)">
+        <textarea id="bmNotes" class="w-full border p-2 mb-2 h-16" placeholder="Notes"></textarea>
+        <button onclick="submitBookmark()" class="bg-blue-600 text-white px-4 py-2 rounded">Inject to Bookmarks.html</button>
+    </div>
+
+    <script>
+        // Init preview updates
+        document.getElementById('editor').addEventListener('input', (e) => {
+            document.getElementById('preview').innerHTML = marked.parse(e.target.value);
+        });
+
+        // Image Drag & Drop
+        const editor = document.getElementById('editor');
+        editor.addEventListener('dragover', e => e.preventDefault());
+        editor.addEventListener('drop', async e => {
+            e.preventDefault();
+            if(e.dataTransfer.files.length > 0) {
+                const fd = new FormData();
+                fd.append('image', e.dataTransfer.files[0]);
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                if(res.ok) {
+                    const text = await res.text();
+                    const cursor = editor.selectionStart;
+                    editor.value = editor.value.substring(0, cursor) + text + editor.value.substring(cursor);
+                    editor.dispatchEvent(new Event('input'));
+                }
+            }
+        });
+
+        async function login() {
+            const pwd = document.getElementById('pwdInput').value;
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'password=' + encodeURIComponent(pwd)
+            });
+            if(res.ok) {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainUI').style.display = 'flex';
+                checkRole();
+            } else {
+                alert('Invalid Password');
+            }
+        }
+
+        function checkRole() {
+            if(document.cookie.includes('session_role=guest')) {
+                document.querySelectorAll('.admin-only').forEach(el => el.disabled = true);
+                editor.readOnly = true;
+                editor.placeholder = "Read-only mode (Guest)";
+            }
+        }
+
+        async function submitQuickNote() {
+            const fd = new URLSearchParams();
+            fd.append('note', document.getElementById('quickText').value);
+            const res = await fetch('/api/quick', { method: 'POST', body: fd });
+            if(res.ok) {
+                document.getElementById('quickText').value = '';
+                document.getElementById('quickPanel').classList.add('hidden');
+            }
+        }
+
+        async function submitBookmark() {
+            const fd = new URLSearchParams();
+            fd.append('url', document.getElementById('bmUrl').value);
+            fd.append('title', document.getElementById('bmTitle').value);
+            fd.append('tags', document.getElementById('bmTags').value);
+            fd.append('notes', document.getElementById('bmNotes').value);
+            const res = await fetch('/api/bookmark', { method: 'POST', body: fd });
+            if(res.ok) {
+                document.getElementById('bmPanel').classList.add('hidden');
+                document.querySelectorAll('#bmPanel input, #bmPanel textarea').forEach(el => el.value = '');
+            }
+        }
+    </script>
+</body>
+</html>
