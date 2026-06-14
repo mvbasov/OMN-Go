@@ -21,12 +21,32 @@ RUN yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-34" "build-tools;33.0.2" "ndk;25.2.9519653"
 
 # Install GoMobile
-RUN git clone --depth 1 https://github.com/golang/mobile.git /tmp/mobile && \
-    sed -i 's/<uses-sdk.*/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\/>/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
-    sed -i 's/uses-permission.*INTERNET.*/&\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" \/>/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
-    cd /tmp/mobile/cmd/gomobile && \
-    go install . && \
-    gomobile init
+RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
+
+# Intercept AAPT to guarantee SDK Target 34 at the lowest compiler level
+RUN printf '#!/bin/bash\n\
+new_args=()\n\
+skip=0\n\
+for arg in "$@"; do\n\
+  if [ $skip -eq 1 ]; then skip=0; continue; fi\n\
+  if [[ "$arg" == "--target-sdk-version" ]] || [[ "$arg" == "--min-sdk-version" ]]; then\n\
+    skip=1\n\
+  elif [[ "$arg" == --target-sdk-version=* ]] || [[ "$arg" == --min-sdk-version=* ]]; then\n\
+    continue\n\
+  else\n\
+    new_args+=("$arg")\n\
+  fi\n\
+done\n\
+if [[ "${new_args[0]}" == "package" ]] || [[ "${new_args[0]}" == "link" ]]; then\n\
+  new_args+=("--min-sdk-version" "21" "--target-sdk-version" "34")\n\
+fi\n\
+COMMAND_NAME=$(basename "$0")\n\
+exec /opt/android/build-tools/33.0.2/${COMMAND_NAME}.real "${new_args[@]}"\n' > /tmp/aapt_wrapper.sh && \
+    chmod +x /tmp/aapt_wrapper.sh && \
+    mv /opt/android/build-tools/33.0.2/aapt /opt/android/build-tools/33.0.2/aapt.real && \
+    cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt && \
+    mv /opt/android/build-tools/33.0.2/aapt2 /opt/android/build-tools/33.0.2/aapt2.real && \
+    cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt2
 
 # STAGE 2: Dependency Lock
 WORKDIR /app
