@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.1"
+const APP_VERSION = "1.0.2"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -57,7 +57,7 @@ func initStorage() {
 	// 3. Init Default Notes
 	welcomePath := filepath.Join(storageDir, "Welcome.md")
 	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!"
+		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!\n\n- [Help](Welcome)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
 		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
 	}
 
@@ -175,6 +175,22 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
 }
 
+func handleGetNote(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		name = "Welcome"
+	}
+	if !strings.HasSuffix(name, ".md") {
+		name += ".md"
+	}
+	data, err := os.ReadFile(filepath.Join(storageDir, filepath.Clean(name)))
+	if err != nil {
+		w.Write([]byte("*(File not found)*"))
+		return
+	}
+	w.Write(data)
+}
+
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "frontend/index.html")
 }
@@ -188,6 +204,7 @@ func runServer() {
 	mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 	mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
 	mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
+	mux.HandleFunc("/api/note", handleGetNote)
 	
 	port := fmt.Sprintf(":%d", appConfig.ServerPort)
 	log.Printf("GoOMN Backend running on %s", port)
