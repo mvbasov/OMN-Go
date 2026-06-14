@@ -22,9 +22,8 @@ RUN yes | sdkmanager --licenses && \
 
 # Install GoMobile
 RUN git clone --depth 1 https://github.com/golang/mobile.git /tmp/mobile && \
-    sed -i 's/targetSdkVersion="29"/targetSdkVersion="34"/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
-    sed -i 's/minSdkVersion="{{.MinSDK}}"/minSdkVersion="21"/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
-    sed -i -E 's/(Name: ([a-zA-Z.]+)\{Space: nsAndroid, Local: "minSdkVersion"\}, Value: )[^}]+(\},)/\1"21"\3\n\t\t\t\t{Name: \2{Space: nsAndroid, Local: "targetSdkVersion"}, Value: "34"},/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
+    sed -i 's/<uses-sdk.*/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\/>/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
+    sed -i 's/uses-permission.*INTERNET.*/&\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" \/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" \/>/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
     cd /tmp/mobile/cmd/gomobile && \
     go install . && \
     gomobile init
