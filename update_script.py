@@ -1,81 +1,66 @@
 import os
-import re
 
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.7"', 'APP_VERSION = "1.0.8"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.7";', 'const APP_VERSION = "1.0.8";')
+        ("server.go", 'APP_VERSION = "1.0.8"', 'APP_VERSION = "1.0.9"'),
+        ("frontend/index.html", 'const APP_VERSION = "1.0.8";', 'const APP_VERSION = "1.0.9";')
     ]
     
-    # 2. Define File Patches
+    for filepath, old_val, new_val in version_replacements:
+        if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                content = f.read()
+            if old_val in content:
+                content = content.replace(old_val, new_val)
+                with open(filepath, 'w') as f:
+                    f.write(content)
+            elif new_val not in content:
+                raise ValueError(f"Could not find '{old_val}' in {filepath}")
+    
+    # 2. Define File Patches (Target exact string mapping)
     patches = {
-        # Intentionally left empty. The fixes for server.go are handled safely 
-        # via the regex cleanup block below to repair the dirty file state.
+        "Dockerfile": [
+            (
+                'RUN gomobile build -target=android -androidapi 34 -o bin/goomn.apk .',
+                'RUN gomobile build -target=android -androidapi 33 -o bin/goomn.apk .'
+            )
+        ]
     }
 
-    # Execute version updates safely (idempotent)
-    for filename, old_str, new_str in version_replacements:
-        if os.path.exists(filename):
-            with open(filename, 'r', encoding='utf-8') as f:
-                content = f.read()
-            if old_str in content:
-                content = content.replace(old_str, new_str)
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(content)
-
-    # --- Repair duplicated injection states (Fixes the redeclaration bugs) ---
-    if os.path.exists("server.go"):
-        with open("server.go", 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # 1. Collapse multiple go:embed variable declarations down to just ONE
-        # (Using \r? to account for Windows/Docker CRLF bridging)
-        content = re.sub(
-            r'(//go:embed frontend/index\.html\r?\nvar frontendHTML \[\]byte\r?\n+)+', 
-            '//go:embed frontend/index.html\nvar frontendHTML []byte\n\n', 
-            content
-        )
-                         
-        # 2. Fix the embed import to use the blank identifier (agnostic to \n vs \r\n)
-        content = re.sub(r'^[ \t]*"embed"[ \t]*$', '\t_ "embed"', content, flags=re.MULTILINE)
-        
-        # 3. Collapse multiple blank embed imports into one just in case
-        content = re.sub(r'(^[ \t]*_[ \t]+"embed"[ \t]*\r?\n)+', '\t_ "embed"\n', content, flags=re.MULTILINE)
-        
-        with open("server.go", 'w', encoding='utf-8') as f:
-            f.write(content)
-        print("Patched: server.go (Cleaned up imports and line endings)")
-    # -------------------------------------------------------------------------
-                
-    # Execute patching sequentially
-    for filename, file_patches in patches.items():
-        if not os.path.exists(filename):
-            print(f"Skipping {filename}: File not found.")
+    # Execute updates sequentially
+    for filepath, file_patches in patches.items():
+        if not os.path.exists(filepath):
+            print(f"Warning: {filepath} not found, skipping patch.")
             continue
             
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r') as f:
             content = f.read()
-        
-        for idx, (old_str, new_str) in enumerate(file_patches):
-            # Check for new_str FIRST to prevent substring duplication loops on multiple runs
-            if new_str in content:
-                print(f"[{filename}] Patch target #{idx} is already applied. Skipping.")
-            elif old_str in content:
-                content = content.replace(old_str, new_str)
-            else:
-                raise ValueError(f"Could not find patch target #{idx} in {filename}:\n{old_str[:100]}...")
-                
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(content)
             
-        print(f"Patched: {filename}")
+        for old_block, new_block in file_patches:
+            if old_block in content:
+                content = content.replace(old_block, new_block)
+            elif new_block in content:
+                # Idempotency: Already patched
+                continue
+            else:
+                raise ValueError(f"Target block not found in {filepath}:\n{old_block}")
+                
+        with open(filepath, 'w') as f:
+            f.write(content)
 
     # 3. Output Standardized Git Commit Message
-    commit_msg = """fix(core): properly assign blank identifier to embed import handling CRLF endings
+    commit_msg = """build(android): fix gomobile NDK version bounds
 
-Version bumped to 1.0.8"""
+Downgraded -androidapi constraint from 34 to 33 to match NDK 25 
+platform boundaries (19..33). This resolves the build failure while 
+still satisfying Android 14 minimum target requirements to avoid 
+the 'older version' warning.
+
+Version bumped to 1.0.9"""
+    
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
+    print("\nPatch applied successfully! You can now re-run your docker build.")
 
 if __name__ == "__main__":
     update_application()
