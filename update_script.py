@@ -3,8 +3,8 @@ import os
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.11"', 'APP_VERSION = "1.0.12"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.11";', 'const APP_VERSION = "1.0.12";')
+        ("server.go", 'APP_VERSION = "1.0.12"', 'APP_VERSION = "1.0.13"'),
+        ("frontend/index.html", 'const APP_VERSION = "1.0.12";', 'const APP_VERSION = "1.0.13";')
     ]
     
     for filepath, old_val, new_val in version_replacements:
@@ -18,12 +18,12 @@ def update_application():
             elif new_val not in content:
                 print(f"Warning: Could not find '{old_val}' in {filepath}")
     
-    # 2. Patch AndroidManifest.xml to remove API 29+ attributes
+    # 2. Patch Dockerfile to forcibly inject targetSdkVersion into gomobile's AST engine
     patches = {
-        "AndroidManifest.xml": [
+        "Dockerfile": [
             (
-                '<application android:label="GoOMN" android:hasFragileUserData="true" android:requestLegacyExternalStorage="true">',
-                '<application android:label="GoOMN">'
+                'RUN git clone --depth 1 https://github.com/golang/mobile.git /tmp/mobile && \\\n    sed -i \'s/targetSdkVersion="29"/targetSdkVersion="34"/g\' /tmp/mobile/cmd/gomobile/build_androidapp.go && \\\n    cd /tmp/mobile/cmd/gomobile && \\\n    go install . && \\\n    gomobile init',
+                'RUN git clone --depth 1 https://github.com/golang/mobile.git /tmp/mobile && \\\n    sed -i \'s/targetSdkVersion="29"/targetSdkVersion="34"/g\' /tmp/mobile/cmd/gomobile/build_androidapp.go && \\\n    sed -i \'s/minSdkVersion="{{.MinSDK}}"/minSdkVersion="21"/g\' /tmp/mobile/cmd/gomobile/build_androidapp.go && \\\n    sed -i -E \'s/(Name: ([a-zA-Z.]+)\\{Space: nsAndroid, Local: "minSdkVersion"\\}, Value: )[^}]+(\\},)/\\1"21"\\3\\n\\t\\t\\t\\t{Name: \\2{Space: nsAndroid, Local: "targetSdkVersion"}, Value: "34"},/g\' /tmp/mobile/cmd/gomobile/build_androidapp.go && \\\n    cd /tmp/mobile/cmd/gomobile && \\\n    go install . && \\\n    gomobile init'
             )
         ]
     }
@@ -50,15 +50,16 @@ def update_application():
             f.write(content)
 
     # 3. Output Standardized Git Commit Message
-    commit_msg = """build(android): fix AAPT attribute parsing error for API 21
+    commit_msg = """build(android): brutally enforce min/target SDK via AST sed injection
 
-Removed 'android:hasFragileUserData' and 'android:requestLegacyExternalStorage' 
-from the custom AndroidManifest.xml. These attributes were introduced in 
-Android 10 (API 29) and caused the gomobile resource compiler (AAPT) to fail 
-when building against -androidapi 21. Removing them allows the APK to compile 
-successfully while maintaining compatibility with older devices.
+Because gomobile omits the targetSdkVersion attribute when dynamically injecting 
+limits into a custom AndroidManifest.xml, Android natively defaults the target 
+SDK down to the fallback minimum SDK (resulting in 16). This patch extends the 
+previous gomobile sed hack to directly intercept its XML AST generator and 
+explicitly hardcode both minSdkVersion="21" and targetSdkVersion="34" into 
+the final merged manifest structure.
 
-Version bumped to 1.0.12"""
+Version bumped to 1.0.13"""
     
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
     print("\nPatch applied successfully! You can now re-run your docker build.")
