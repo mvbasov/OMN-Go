@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,13 +14,16 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.5"
+const APP_VERSION = "1.0.6"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
 	AdminPassword string `json:"admin_password"`
 	GuestPassword string `json:"guest_password"`
 }
+
+//go:embed frontend/index.html
+var frontendHTML []byte
 
 var (
 	storageDir  string
@@ -192,7 +196,8 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "frontend/index.html")
+	w.Header().Set("Content-Type", "text/html")
+	w.Write(frontendHTML)
 }
 
 func runServer() {

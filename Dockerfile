@@ -18,7 +18,7 @@ ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-too
 
 # Accept licenses and install platform dependencies
 RUN yes | sdkmanager --licenses && \
-    sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+    sdkmanager "platforms;android-34" "build-tools;33.0.2" "ndk;25.2.9519653"
 
 # Install GoMobile
 RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
@@ -36,4 +36,4 @@ RUN go get golang.org/x/mobile@latest && go mod tidy
 RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop server.go main_desktop.go
 
 # Android APK (Under 5MB, No AppCompat)
-RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk .
+RUN gomobile build -target=android -androidapi 34 -o bin/goomn.apk .
