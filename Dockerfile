@@ -23,32 +23,48 @@ RUN yes | sdkmanager --licenses && \
 # Install GoMobile
 RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
 
-# Intercept AAPT to guarantee SDK Target 34 at the lowest compiler level
+# Intercept AAPT and completely overwrite the intermediate manifest before compilation
 RUN printf '#!/bin/bash\n\
 MANIFEST_PATH=""\n\
-get_next=0\n\
 for arg in "$@"; do\n\
-    if [ $get_next -eq 1 ]; then\n\
+    if [[ "$arg" == *"AndroidManifest.xml" ]]; then\n\
         MANIFEST_PATH="$arg"\n\
-        get_next=0\n\
-    elif [[ "$arg" == "-M" ]] || [[ "$arg" == "--manifest" ]]; then\n\
-        get_next=1\n\
-    elif [[ "$arg" == --manifest=* ]]; then\n\
-        MANIFEST_PATH="${arg#*=}"\n\
+        break\n\
     fi\n\
 done\n\
 if [ -n "$MANIFEST_PATH" ] && [ -f "$MANIFEST_PATH" ]; then\n\
-    sed -i '\''s/<uses-sdk[^>]*>/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\\/>/g'\'' "$MANIFEST_PATH"\n\
-    if ! grep -q "uses-sdk" "$MANIFEST_PATH"; then\n\
-        sed -i '\''s/<application/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\\/> <application/g'\'' "$MANIFEST_PATH"\n\
-    fi\n\
+    cat << '"'"'EOF'"'"' > "$MANIFEST_PATH"\n\
+<?xml version="1.0" encoding="utf-8"?>\n\
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n\
+    package="net.basov.goomn"\n\
+    android:versionCode="1"\n\
+    android:versionName="1.0.17">\n\
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"/>\n\
+    <uses-permission android:name="android.permission.INTERNET" />\n\
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n\
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n\
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n\
+    <application android:label="GoOMN">\n\
+        <activity android:name="org.golang.app.GoNativeActivity"\n\
+            android:label="GoOMN"\n\
+            android:configChanges="orientation|keyboardHidden|screenSize"\n\
+            android:exported="true">\n\
+            <meta-data android:name="android.app.lib_name" android:value="goomn" />\n\
+            <intent-filter>\n\
+                <action android:name="android.intent.action.MAIN" />\n\
+                <category android:name="android.intent.category.LAUNCHER" />\n\
+            </intent-filter>\n\
+        </activity>\n\
+    </application>\n\
+</manifest>\n\
+EOF\n\
 fi\n\
 COMMAND_NAME=$(basename "$0")\n\
 exec /opt/android/build-tools/33.0.2/${COMMAND_NAME}.real "$@"\n' > /tmp/aapt_wrapper.sh && \
     chmod +x /tmp/aapt_wrapper.sh && \
-    mv /opt/android/build-tools/33.0.2/aapt /opt/android/build-tools/33.0.2/aapt.real && \
+    mv /opt/android/build-tools/33.0.2/aapt /opt/android/build-tools/33.0.2/aapt.real || true && \
     cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt && \
-    mv /opt/android/build-tools/33.0.2/aapt2 /opt/android/build-tools/33.0.2/aapt2.real && \
+    mv /opt/android/build-tools/33.0.2/aapt2 /opt/android/build-tools/33.0.2/aapt2.real || true && \
     cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt2
 
 # STAGE 2: Dependency Lock
