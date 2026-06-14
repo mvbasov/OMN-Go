@@ -2,10 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="net.basov.goomn"
     android:versionCode="1"
-    android:versionName="1.0.10">
-    
-    <!-- Force targetSdkVersion to 34 to satisfy Android 14 requirements -->
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+    android:versionName="1.0.11">
     
     <!-- Network and Storage Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />

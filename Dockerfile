@@ -21,7 +21,11 @@ RUN yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-34" "build-tools;33.0.2" "ndk;25.2.9519653"
 
 # Install GoMobile
-RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
+RUN git clone --depth 1 https://github.com/golang/mobile.git /tmp/mobile && \
+    sed -i 's/targetSdkVersion="29"/targetSdkVersion="34"/g' /tmp/mobile/cmd/gomobile/build_androidapp.go && \
+    cd /tmp/mobile/cmd/gomobile && \
+    go install . && \
+    gomobile init
 
 # STAGE 2: Dependency Lock
 WORKDIR /app
@@ -36,4 +40,4 @@ RUN go get golang.org/x/mobile@latest && go mod tidy
 RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop server.go main_desktop.go
 
 # Android APK (Under 5MB, No AppCompat)
-RUN gomobile build -target=android -androidapi 33 -o bin/goomn.apk .
+RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk .
