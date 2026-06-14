@@ -1,5 +1,5 @@
 # STAGE 1: Toolchains & Cache
-FROM golang:1.22-bookworm AS builder
+FROM golang:1.25-bookworm AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -21,15 +21,16 @@ RUN yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
 # Install GoMobile
-RUN git clone https://github.com/golang/mobile.git /tmp/mobile && cd /tmp/mobile && git checkout 76ac68780225 && cd cmd/gomobile && go install . && gomobile init
+RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
 
 # STAGE 2: Dependency Lock
 WORKDIR /app
 COPY go.mod ./
-RUN go mod tidy && go mod download
+RUN go mod download || true
 
 # STAGE 3: Build & Pack
 COPY . .
+RUN go get golang.org/x/mobile@latest && go mod tidy
 
 # Desktop Binary (Linux example)
 RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop server.go main_desktop.go
