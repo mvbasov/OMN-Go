@@ -3,34 +3,16 @@ import os
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.2"', 'APP_VERSION = "1.0.3"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.2";', 'const APP_VERSION = "1.0.3";')
+        ("server.go", 'APP_VERSION = "1.0.3"', 'APP_VERSION = "1.0.4"'),
+        ("frontend/index.html", 'const APP_VERSION = "1.0.3";', 'const APP_VERSION = "1.0.4";')
     ]
     
     # 2. Define File Patches (Target exact string mapping)
     patches = {
-        "go.mod": [
-            (
-                "go 1.22",
-                "go 1.25"
-            ),
-            (
-                "require golang.org/x/mobile v0.0.0-20231127183840-76ac68780225",
-                ""
-            )
-        ],
         "Dockerfile": [
             (
-                "FROM golang:1.22-bookworm AS builder",
-                "FROM golang:1.25-bookworm AS builder"
-            ),
-            (
-                "RUN git clone https://github.com/golang/mobile.git /tmp/mobile && cd /tmp/mobile && git checkout 76ac68780225 && cd cmd/gomobile && go install . && gomobile init",
-                "RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init"
-            ),
-            (
-                "COPY go.mod ./\nRUN go mod tidy && go mod download\n\n# STAGE 3: Build & Pack\nCOPY . .",
-                "COPY go.mod ./\nRUN go mod download || true\n\n# STAGE 3: Build & Pack\nCOPY . .\nRUN go get golang.org/x/mobile@latest && go mod tidy"
+                "RUN gomobile build -target=android -androidapi 21 -javapkg net.basov.goomn.fdroid -o bin/goomn.apk server.go main_android.go",
+                "RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk server.go main_android.go"
             )
         ]
     }
@@ -68,9 +50,9 @@ def update_application():
         print(f"Patched: {filename}")
 
     # 3. Output Standardized Git Commit Message
-    commit_msg = """build(core): bump go version to 1.25 in builder and cleanly fetch gomobile latest
+    commit_msg = """fix(build): remove invalid -javapkg flag from gomobile build command
 
-Version bumped to 1.0.3"""
+Version bumped to 1.0.4"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
