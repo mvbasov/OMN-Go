@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.0"
+const APP_VERSION = "1.0.1"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -67,11 +67,9 @@ func initStorage() {
 		os.WriteFile(quickPath, []byte(quickContent), 0644)
 	}
 
-	bmPath := filepath.Join(storageDir, "Bookmarks.html")
+	bmPath := filepath.Join(storageDir, "Bookmarks.md")
 	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
-		bmContent := `<script>bookmarks = [
-<!-- Don't edit body below this line -->
-];</script>`
+		bmContent := "Title: Bookmarks\nDate: 2026-06-14 12:00:00\nCategory: Links\n\n"
 		os.WriteFile(bmPath, []byte(bmContent), 0644)
 	}
 }
@@ -144,25 +142,16 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	tags := r.FormValue("tags")
 	notes := r.FormValue("notes")
 	
-	path := filepath.Join(storageDir, "Bookmarks.html")
-	data, _ := os.ReadFile(path)
-	
-	marker := "<script>bookmarks = [\n<!-- Don't edit body below this line -->"
+	path := filepath.Join(storageDir, "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	
-	tagsArr := strings.Split(tags, ",")
-	tagsJSON, _ := json.Marshal(tagsArr)
+	entry := fmt.Sprintf("\n- [%s](%s) | Tags: %s | Notes: %s | Added: %s\n", title, url, tags, notes, timestamp)
 	
-	newEntry := fmt.Sprintf(`    {
-      "date": "%s",
-      "url": "%s",
-      "title": "%s",
-      "tags": %s,
-      "notes": ["%s"]
-    },`, timestamp, url, title, string(tagsJSON), notes)
-	
-	replaced := strings.Replace(string(data), marker, marker+"\n"+newEntry, 1)
-	os.WriteFile(path, []byte(replaced), 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err == nil {
+		defer f.Close()
+		f.WriteString(entry)
+	}
 	w.Write([]byte("Saved"))
 }
 

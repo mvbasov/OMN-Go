@@ -21,7 +21,7 @@ RUN yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
 
 # Install GoMobile
-RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
+RUN go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20231127183840-76ac68780225 && gomobile init
 
 # STAGE 2: Dependency Lock
 WORKDIR /app
