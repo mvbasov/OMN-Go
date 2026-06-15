@@ -26,7 +26,7 @@
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.24";</script>
+    <script>const APP_VERSION = "1.0.25";</script>
 </head>
 <body>
     
@@ -52,6 +52,7 @@
 
         <div class="content-area">
             <div class="toolbar">
+                <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;">Save Note</button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only">Edit Mode</button>
             </div>
             <textarea id="editor" class="admin-only" placeholder="Markdown content... Drag images here to upload."></textarea>
@@ -116,12 +117,14 @@
                 editor.style.display = 'block';
                 preview.style.display = 'none';
                 btn.innerText = 'View Mode';
+                document.getElementById('saveBtn').style.display = 'block';
                 currentMode = 'edit';
             } else {
                 editor.style.display = 'none';
                 preview.style.display = 'block';
                 preview.innerHTML = marked.parse(editor.value || '*(Empty content)*');
                 btn.innerText = 'Edit Mode';
+                document.getElementById('saveBtn').style.display = 'none';
                 currentMode = 'view';
             }
         }
@@ -164,8 +167,21 @@
             if(document.cookie.includes('session_role=guest')) {
                 document.querySelectorAll('.admin-only').forEach(el => {
                     if(el.tagName === 'BUTTON' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') el.disabled = true;
-                    if(el.id === 'toggleBtn' || el.id === 'editor') el.style.display = 'none';
+                    if(el.id === 'toggleBtn' || el.id === 'editor' || el.id === 'saveBtn') el.style.display = 'none';
                 });
+            }
+        }
+
+        async function saveNote() {
+            const fd = new URLSearchParams();
+            fd.append('name', currentNote);
+            fd.append('content', document.getElementById('editor').value);
+            const res = await fetch('/api/save', { method: 'POST', body: fd });
+            if(res.ok) {
+                alert('Note saved!');
+                toggleMode();
+            } else {
+                alert('Failed to save!');
             }
         }
 

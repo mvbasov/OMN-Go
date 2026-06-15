@@ -3,6 +3,5 @@ go.mod
 main_desktop.go
 doc/prompt.md
 doc/next_turn.md
-frontend/
 backend/
 android/

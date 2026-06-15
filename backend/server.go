@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.24"
+const APP_VERSION = "1.0.25"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -189,10 +189,27 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := os.ReadFile(filepath.Join(storageDir, filepath.Clean(name)))
 	if err != nil {
-		w.Write([]byte("*(File not found)*"))
+		title := strings.TrimSuffix(name, ".md")
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n", title, timestamp)
+		w.Write([]byte(newContent))
 		return
 	}
 	w.Write(data)
+}
+
+func handleSaveNote(w http.ResponseWriter, r *http.Request) {
+	name := r.FormValue("name")
+	content := r.FormValue("content")
+	if name == "" {
+		return
+	}
+	if !strings.HasSuffix(name, ".md") {
+		name += ".md"
+	}
+	path := filepath.Join(storageDir, filepath.Clean(name))
+	os.WriteFile(path, []byte(content), 0644)
+	w.Write([]byte("Saved"))
 }
 
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +228,7 @@ func StartServer() {
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
 		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
 		mux.HandleFunc("/api/note", handleGetNote)
+		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		
 		port := fmt.Sprintf(":%d", appConfig.ServerPort)
 		log.Printf("GoOMN Backend running on %s", port)
