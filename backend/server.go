@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.35"
+const APP_VERSION = "1.0.36"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`

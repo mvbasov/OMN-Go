@@ -25,8 +25,25 @@
         .panel input, .panel textarea, .panel button { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
+    <link rel="stylesheet" href="/css/highlight.default.min.css">
     <script src="/js/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.35";</script>
+    <script src="/js/highlight.min.js"></script>
+    <script>
+        const eHlJs = 'true';
+        marked.setOptions({
+            gfm: true,
+            xhtml: true
+        });
+
+        if ('true' == eHlJs) {
+            marked.setOptions({
+                highlight: function (code) {
+                    return hljs.highlightAuto(code).value;
+                }
+            });
+        }
+    </script>
+    <script>const APP_VERSION = "1.0.36";</script>
 </head>
 <body>
     

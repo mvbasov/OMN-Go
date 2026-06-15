@@ -1,11 +1,36 @@
 import os
 import re
+import urllib.request
 
 def update_application():
+    # 0. Download highlight.js and css locally for offline mode
+    frontend_js_dir = "backend/frontend/js"
+    frontend_css_dir = "backend/frontend/css"
+    os.makedirs(frontend_js_dir, exist_ok=True)
+    os.makedirs(frontend_css_dir, exist_ok=True)
+    
+    hljs_js_path = os.path.join(frontend_js_dir, "highlight.min.js")
+    if not os.path.exists(hljs_js_path):
+        print("Downloading highlight.min.js for offline syntax highlighting...")
+        try:
+            urllib.request.urlretrieve("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js", hljs_js_path)
+            print("[+] Successfully downloaded highlight.min.js")
+        except Exception as e:
+            print(f"Failed to download highlight.min.js: {e}")
+
+    hljs_css_path = os.path.join(frontend_css_dir, "highlight.default.min.css")
+    if not os.path.exists(hljs_css_path):
+        print("Downloading highlight.default.min.css...")
+        try:
+            urllib.request.urlretrieve("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css", hljs_css_path)
+            print("[+] Successfully downloaded highlight.default.min.css")
+        except Exception as e:
+            print(f"Failed to download highlight.default.min.css: {e}")
+
     # 1. Bump Global Application Version
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.0.34"', 'APP_VERSION = "1.0.35"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.34";', 'const APP_VERSION = "1.0.35";')
+        ("backend/server.go", 'APP_VERSION = "1.0.35"', 'APP_VERSION = "1.0.36"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.35";', 'const APP_VERSION = "1.0.36";')
     ]
     
     for filepath, old, new in version_replacements:
@@ -22,8 +47,8 @@ def update_application():
         with open(gradle_path, 'r', encoding='utf-8') as f:
             gradle_content = f.read()
         
-        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10035', gradle_content)
-        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.35"', gradle_content)
+        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10036', gradle_content)
+        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.36"', gradle_content)
         
         with open(gradle_path, 'w', encoding='utf-8') as f:
             f.write(gradle_content)
@@ -32,72 +57,26 @@ def update_application():
     patches = {
         "backend/frontend/index.html": [
             (
-                # Part 1: Re-enable JS injection
-                r'''        function executeScripts(container) {
-            return; // Experiment: Temporarily disabled script evaluation
-            const scripts = container.querySelectorAll('script');''',
-                r'''        function executeScripts(container) {
-            const scripts = container.querySelectorAll('script');'''
-            ),
-            (
-                # Part 2: Introduce safe path resolving and force View Mode on navigation
-                r'''        async function loadNoteInternal(name, hash) {
-            currentNote = name;
-            const res = await fetch('/api/note?name=' + encodeURIComponent(name));''',
-                r'''        function resolvePath(current, target) {
-            if (target.startsWith('/')) {
-                target = target.substring(1);
-            } else {
-                let parts = current.split('/');
-                parts.pop();
-                target = (parts.length > 0 ? parts.join('/') + '/' : '') + target;
-            }
-            let segments = target.split('/');
-            let result = [];
-            for (let seg of segments) {
-                if (seg === '.' || seg === '') continue;
-                if (seg === '..') {
-                    if (result.length > 0) result.pop();
-                } else {
-                    result.push(seg);
-                }
-            }
-            return result.join('/');
-        }
+                # Inject highlight.js, its default theme, and initialize the requested marked options
+                r'''<script src="/js/marked.min.js"></script>''',
+                r'''<link rel="stylesheet" href="/css/highlight.default.min.css">
+    <script src="/js/marked.min.js"></script>
+    <script src="/js/highlight.min.js"></script>
+    <script>
+        const eHlJs = 'true';
+        marked.setOptions({
+            gfm: true,
+            xhtml: true
+        });
 
-        async function loadNoteInternal(name, hash) {
-            currentNote = name;
-            if (currentMode === 'edit') {
-                document.getElementById('editor').style.display = 'none';
-                document.getElementById('preview').style.display = 'block';
-                document.getElementById('toggleBtn').innerText = 'Edit Mode';
-                document.getElementById('saveBtn').style.display = 'none';
-                document.getElementById('metaToggleBtn').style.display = 'none';
-                document.getElementById('metadataPanel').classList.add('hidden');
-                currentMode = 'view';
-            }
-            const res = await fetch('/api/note?name=' + encodeURIComponent(name));'''
-            ),
-            (
-                # Part 3: Map link interceptor logic to the new resolvePath abstraction
-                r'''                    if (!file && hash) {
-                        let el = document.getElementById(hash);
-                        if(el) el.scrollIntoView();
-                        return;
-                    }
-                    if (!file) file = currentNote;
-                    loadNote(file, hash);''',
-                r'''                    if (!file && hash) {
-                        let el = document.getElementById(hash);
-                        if(el) el.scrollIntoView();
-                        return;
-                    }
-                    if (!file) {
-                        file = currentNote;
-                    } else {
-                        file = resolvePath(currentNote, file);
-                    }
-                    loadNote(file, hash);'''
+        if ('true' == eHlJs) {
+            marked.setOptions({
+                highlight: function (code) {
+                    return hljs.highlightAuto(code).value;
+                }
+            });
+        }
+    </script>'''
             )
         ]
     }
@@ -116,17 +95,16 @@ def update_application():
                 f.write(content)
 
     # 4. Output Standardized Git Commit Message
-    commit_msg = """feat(navigation): add relative link resolution and restore JS injection
+    commit_msg = """feat(markdown): configure marked.js with GFM and highlight.js
 
-- Restored JS execution block inside innerHTML note loading to ensure embedded scripts like Bookmarker.js function normally.
-- Implemented frontend path resolution logic to safely handle `../` relative links, bounding traversals so they cannot escape the root directory.
-- Differentiated root links (`/filename.md`) from local links (`filename.md`) during path evaluation.
-- Enforced automatic UI fallback to Preview Mode whenever a navigation event or hardware back-button press occurs while currently inside Edit Mode.
-- Bumped Android versionCode to 10035
+- Downloaded and embedded local copies of highlight.min.js and default CSS for offline syntax highlighting
+- Injected marked.setOptions to enable GitHub Flavored Markdown (gfm) and xhtml compliance
+- Configured automatic syntax highlighting via hljs.highlightAuto when eHlJs parameter is enabled
+- Bumped Android versionCode to 10036
 
-Version bumped to 1.0.35"""
+Version bumped to 1.0.36"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]\n")
-    print("Application successfully updated to v1.0.35!")
+    print("Application successfully updated to v1.0.36!")
 
 if __name__ == "__main__":
     update_application()
