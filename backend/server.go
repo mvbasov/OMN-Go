@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.22"
+const APP_VERSION = "1.0.23"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -201,8 +201,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartServer() {
+	initStorage() // Execute synchronously to ensure config is loaded instantly
 	go func() {
-		initStorage()
 		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
@@ -216,4 +216,9 @@ func StartServer() {
 		log.Printf("GoOMN Backend running on %s", port)
 		http.ListenAndServe(port, connectionMiddleware(mux))
 	}()
+}
+
+// GetServerPort safely exposes the configured port for frontend wrappers
+func GetServerPort() int {
+	return appConfig.ServerPort
 }

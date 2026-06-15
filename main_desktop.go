@@ -16,7 +16,7 @@ func main() {
 	
 	// Wait for server to bind
 	time.Sleep(500 * time.Millisecond)
-	url := fmt.Sprintf("http://localhost:%d", appConfig.ServerPort)
+	url := fmt.Sprintf("http://localhost:%d", backend.GetServerPort())
 	
 	var err error
 	switch runtime.GOOS {
