@@ -1,7 +1,8 @@
 package backend
 
 import (
-	_ "embed"
+	"embed"
+	"io/fs"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.29"
+const APP_VERSION = "1.0.30"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -25,14 +26,8 @@ type Config struct {
 //go:embed frontend/index.html
 var frontendHTML []byte
 
-//go:embed frontend/marked.min.js
-var markedJS []byte
-
-//go:embed frontend/Bookmarker.js
-var bookmarkerJS []byte
-
-//go:embed frontend/Bookmarker.css
-var bookmarkerCSS []byte
+//go:embed frontend/js frontend/css
+var staticFS embed.FS
 
 var (
 	storageDir  string
@@ -52,6 +47,15 @@ func initStorage() {
 		log.Fatalf("Failed to create storage: %v", err)
 	}
 
+	mdDir := filepath.Join(storageDir, "md")
+	os.MkdirAll(mdDir, 0755)
+
+	// Migrate existing .md files recursively
+	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
+	for _, f := range files {
+		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
+	}
+
 	// 2. Init Config
 	configPath := filepath.Join(storageDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -68,19 +72,19 @@ func initStorage() {
 	}
 
 	// 3. Init Default Notes
-	welcomePath := filepath.Join(storageDir, "Welcome.md")
+	welcomePath := filepath.Join(mdDir, "Welcome.md")
 	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
 		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!\n\n- [Help](Welcome)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
 		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
 	}
 
-	quickPath := filepath.Join(storageDir, "QuickNotes.md")
+	quickPath := filepath.Join(mdDir, "QuickNotes.md")
 	if _, err := os.Stat(quickPath); os.IsNotExist(err) {
 		quickContent := "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n"
 		os.WriteFile(quickPath, []byte(quickContent), 0644)
 	}
 
-	bmPath := filepath.Join(storageDir, "Bookmarks.md")
+	bmPath := filepath.Join(mdDir, "Bookmarks.md")
 	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
 		bmContent := `Title: Incoming bookmarks
 Date: 2023-01-13 13:59:15
@@ -180,7 +184,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	if note == "" {
 		return
 	}
-	path := filepath.Join(storageDir, "QuickNotes.md")
+	path := filepath.Join(storageDir, "md", "QuickNotes.md")
 	data, _ := os.ReadFile(path)
 	lines := strings.Split(string(data), "\n")
 	
@@ -206,7 +210,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	tags := r.FormValue("tags")
 	notes := r.FormValue("notes")
 	
-	path := filepath.Join(storageDir, "Bookmarks.md")
+	path := filepath.Join(storageDir, "md", "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	
 	tagsList := []string{}
@@ -277,7 +281,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasSuffix(name, ".md") {
 		name += ".md"
 	}
-	data, err := os.ReadFile(filepath.Join(storageDir, filepath.Clean(name)))
+	data, err := os.ReadFile(filepath.Join(storageDir, "md", filepath.Clean(name)))
 	if err != nil {
 		title := strings.TrimSuffix(name, ".md")
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -297,24 +301,10 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasSuffix(name, ".md") {
 		name += ".md"
 	}
-	path := filepath.Join(storageDir, filepath.Clean(name))
+	path := filepath.Join(storageDir, "md", filepath.Clean(name))
+	os.MkdirAll(filepath.Dir(path), 0755)
 	os.WriteFile(path, []byte(content), 0644)
 	w.Write([]byte("Saved"))
-}
-
-func serveMarked(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
-	w.Write(markedJS)
-}
-
-func serveBookmarkerJS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
-	w.Write(bookmarkerJS)
-}
-
-func serveBookmarkerCSS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/css")
-	w.Write(bookmarkerCSS)
 }
 
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
@@ -328,9 +318,9 @@ func StartServer() {
 		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
-		mux.HandleFunc("/marked.min.js", serveMarked)
-		mux.HandleFunc("/js/Bookmarker.js", serveBookmarkerJS)
-		mux.HandleFunc("/css/Bookmarker.css", serveBookmarkerCSS)
+		fSys, _ := fs.Sub(staticFS, "frontend")
+		mux.Handle("/js/", http.FileServer(http.FS(fSys)))
+		mux.Handle("/css/", http.FileServer(http.FS(fSys)))
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))

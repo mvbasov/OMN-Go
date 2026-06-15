@@ -3,10 +3,34 @@ import re
 import shutil
 
 def update_application():
+    # 0. Migrate Static Assets to clean subdirectories
+    frontend_dir = "backend/frontend"
+    js_dir = os.path.join(frontend_dir, "js")
+    css_dir = os.path.join(frontend_dir, "css")
+    
+    os.makedirs(js_dir, exist_ok=True)
+    os.makedirs(css_dir, exist_ok=True)
+    
+    # Move JS files safely
+    for js_file in ["marked.min.js", "Bookmarker.js"]:
+        src = os.path.join(frontend_dir, js_file)
+        dst = os.path.join(js_dir, js_file)
+        if os.path.exists(src) and not os.path.exists(dst):
+            shutil.move(src, dst)
+            print(f"[+] Relocated {js_file} to {js_dir}/")
+            
+    # Move CSS file safely
+    css_file = "Bookmarker.css"
+    src = os.path.join(frontend_dir, css_file)
+    dst = os.path.join(css_dir, css_file)
+    if os.path.exists(src) and not os.path.exists(dst):
+        shutil.move(src, dst)
+        print(f"[+] Relocated {css_file} to {css_dir}/")
+
     # 1. Bump Global Application Version
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.0.28"', 'APP_VERSION = "1.0.29"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.28";', 'const APP_VERSION = "1.0.29";')
+        ("backend/server.go", 'APP_VERSION = "1.0.29"', 'APP_VERSION = "1.0.30"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.29";', 'const APP_VERSION = "1.0.30";')
     ]
     
     for filepath, old, new in version_replacements:
@@ -23,55 +47,117 @@ def update_application():
         with open(gradle_path, 'r', encoding='utf-8') as f:
             gradle_content = f.read()
         
-        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10029', gradle_content)
-        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.29"', gradle_content)
+        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10030', gradle_content)
+        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.30"', gradle_content)
         
         with open(gradle_path, 'w', encoding='utf-8') as f:
             f.write(gradle_content)
 
-    # 3. Handle Bookmarker.js and Bookmarker.css Integration
-    frontend_dir = "backend/frontend"
-    os.makedirs(frontend_dir, exist_ok=True)
-    
-    for f in ["Bookmarker.js", "Bookmarker.css"]:
-        src = f
-        dst = os.path.join(frontend_dir, f)
-        if os.path.exists(src):
-            shutil.copy(src, dst)
-            print(f"[+] Embedded {f} into {frontend_dir}/")
-        elif not os.path.exists(dst):
-            # Fallback stub generation to prevent compiler panics if the user hasn't moved the files
-            with open(dst, 'w') as stub:
-                stub.write(f"/* Missing {f} */")
-            print(f"[!] Warning: {f} not found in root. Created empty stub in {frontend_dir}/ to prevent build failure.")
-
-    # 4. Patch server.go to embed the CSS/JS files and update Bookmarks template
-    server_path = "backend/server.go"
-    if os.path.exists(server_path):
-        with open(server_path, 'r', encoding='utf-8') as f:
-            server_content = f.read()
-
-        # Inject Embed variables
-        server_content = server_content.replace(
-            r'''//go:embed frontend/marked.min.js
-var markedJS []byte''',
-            r'''//go:embed frontend/marked.min.js
+    # 3. Define File Patches
+    patches = {
+        "backend/frontend/index.html": [
+            (
+                r'''<script src="/marked.min.js"></script>''',
+                r'''<script src="/js/marked.min.js"></script>'''
+            )
+        ],
+        "backend/server.go": [
+            (
+                # Inject io/fs library required for recursive FileServer serving
+                r'''import (
+	_ "embed"''',
+                r'''import (
+	"embed"
+	"io/fs"'''
+            ),
+            (
+                # Change raw byte arrays to a seamless recursive embed filesystem
+                r'''//go:embed frontend/marked.min.js
 var markedJS []byte
 
 //go:embed frontend/Bookmarker.js
 var bookmarkerJS []byte
 
 //go:embed frontend/Bookmarker.css
-var bookmarkerCSS []byte'''
-        )
+var bookmarkerCSS []byte''',
+                r'''//go:embed frontend/js frontend/css
+var staticFS embed.FS'''
+            ),
+            (
+                # Generate 'md' directory and auto-migrate legacy files on boot
+                r'''	// 1. Create Isolated Storage
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		log.Fatalf("Failed to create storage: %v", err)
+	}
 
-        # Inject Handlers
-        server_content = server_content.replace(
-            r'''func serveMarked(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
-	w.Write(markedJS)
-}''',
-            r'''func serveMarked(w http.ResponseWriter, r *http.Request) {
+	// 2. Init Config''',
+                r'''	// 1. Create Isolated Storage
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		log.Fatalf("Failed to create storage: %v", err)
+	}
+
+	mdDir := filepath.Join(storageDir, "md")
+	os.MkdirAll(mdDir, 0755)
+
+	// Migrate existing .md files recursively
+	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
+	for _, f := range files {
+		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
+	}
+
+	// 2. Init Config'''
+            ),
+            (
+                # Redirect default notes output to the new 'md' directory
+                r'''	// 3. Init Default Notes
+	welcomePath := filepath.Join(storageDir, "Welcome.md")''',
+                r'''	// 3. Init Default Notes
+	welcomePath := filepath.Join(mdDir, "Welcome.md")'''
+            ),
+            (
+                r'''	quickPath := filepath.Join(storageDir, "QuickNotes.md")''',
+                r'''	quickPath := filepath.Join(mdDir, "QuickNotes.md")'''
+            ),
+            (
+                r'''	bmPath := filepath.Join(storageDir, "Bookmarks.md")''',
+                r'''	bmPath := filepath.Join(mdDir, "Bookmarks.md")'''
+            ),
+            (
+                # Update QuickNotes Handler
+                r'''	path := filepath.Join(storageDir, "QuickNotes.md")
+	data, _ := os.ReadFile(path)''',
+                r'''	path := filepath.Join(storageDir, "md", "QuickNotes.md")
+	data, _ := os.ReadFile(path)'''
+            ),
+            (
+                # Update Bookmarks Handler
+                r'''	path := filepath.Join(storageDir, "Bookmarks.md")
+	timestamp := time.Now().Format("2006-01-02 15:04:05")''',
+                r'''	path := filepath.Join(storageDir, "md", "Bookmarks.md")
+	timestamp := time.Now().Format("2006-01-02 15:04:05")'''
+            ),
+            (
+                # Map standard note fetching to 'md' directory
+                r'''	data, err := os.ReadFile(filepath.Join(storageDir, filepath.Clean(name)))
+	if err != nil {
+		title := strings.TrimSuffix(name, ".md")''',
+                r'''	data, err := os.ReadFile(filepath.Join(storageDir, "md", filepath.Clean(name)))
+	if err != nil {
+		title := strings.TrimSuffix(name, ".md")'''
+            ),
+            (
+                # Ensure multi-level directories are generated automatically during save
+                r'''	path := filepath.Join(storageDir, filepath.Clean(name))
+	os.WriteFile(path, []byte(content), 0644)
+	w.Write([]byte("Saved"))''',
+                r'''	path := filepath.Join(storageDir, "md", filepath.Clean(name))
+	os.MkdirAll(filepath.Dir(path), 0755)
+	os.WriteFile(path, []byte(content), 0644)
+	w.Write([]byte("Saved"))'''
+            ),
+            (
+                # Remove deprecated hardcoded handlers
+                r'''func serveMarked(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript")
 	w.Write(markedJS)
 }
@@ -84,113 +170,49 @@ func serveBookmarkerJS(w http.ResponseWriter, r *http.Request) {
 func serveBookmarkerCSS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css")
 	w.Write(bookmarkerCSS)
-}'''
-        )
+}
 
-        # Inject Mux Routes
-        server_content = server_content.replace(
-            r'''		mux.HandleFunc("/marked.min.js", serveMarked)''',
-            r'''		mux.HandleFunc("/marked.min.js", serveMarked)
+func serveFrontend(w http.ResponseWriter, r *http.Request) {''',
+                r'''func serveFrontend(w http.ResponseWriter, r *http.Request) {'''
+            ),
+            (
+                # Replace legacy mux routes with the recursive FileServer endpoints
+                r'''		mux.HandleFunc("/marked.min.js", serveMarked)
 		mux.HandleFunc("/js/Bookmarker.js", serveBookmarkerJS)
-		mux.HandleFunc("/css/Bookmarker.css", serveBookmarkerCSS)'''
-        )
+		mux.HandleFunc("/css/Bookmarker.css", serveBookmarkerCSS)''',
+                r'''		fSys, _ := fs.Sub(staticFS, "frontend")
+		mux.Handle("/js/", http.FileServer(http.FS(fSys)))
+		mux.Handle("/css/", http.FileServer(http.FS(fSys)))'''
+            )
+        ]
+    }
 
-        # Replace legacy Bookmarks.md initialization string with exact specified HTML/JSON Hybrid
-        old_bm = r'''	bmContent := "Title: Bookmarks\nDate: 2026-06-14 12:00:00\nCategory: Links\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];</script>"'''
-        new_bm = r'''	bmContent := `Title: Incoming bookmarks
-Date: 2023-01-13 13:59:15
-Modified: 2025-11-01 11:03:46
-Author: Mikhail Basov
-Tags: Bookmarks
-
-<script>bookmarks = [
-<!-- Don't edit body below this line -->
-  {
-    "date": "2025-11-06 02:52:09",
-    "url": "https://youtube.com/shorts/0pI2KHl7gCU?si=9M_DqeVBxmuyHiTC",
-    "title": "Tapping 16th note rhythms🥁 #music #musiclesson #musictutorial #learnmusi...",
-    "tags": [
-      "Music",
-      "Mathematics",
-      "YouTube short",
-    ],
-    "notes": [
-    ]
-  },
-  {
-    "date": "2025-11-05 15:44:25",
-    "url": "https://www.reddit.com/r/ErgoMechKeyboards/comments/1ol49i6/printyl_mx_keycap_optimized_for_3d_printer/",
-    "title": "printyl: MX keycap optimized for 3d printer, inspired on dactyl : r/ErgoMechKeyboards",
-    "tags": [
-      "Reddit",
-      "Keyboard",
-      "3D model",
-    ],
-    "notes": [
-    ]
-  },
-  {
-    "date": "2023-01-22 22:22:22",
-    "url": "/default/BookmarkerHelp.html",
-    "title": "Help about this bookmark page",
-    "tags": [
-      "OMN",
-      "Local pages",
-      "Help"
-    ],
-    "notes": [
-      "File format described on this page also"
-    ]
-  }
-];
-</script>
-  
-<!-- end of bookmarks definition -->
-    
-<link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
-<script type="text/javascript" src="/js/Bookmarker.js"></script>`'''
-        server_content = server_content.replace(old_bm, new_bm)
-
-        with open(server_path, 'w', encoding='utf-8') as f:
-            f.write(server_content)
-
-    # 5. Patch Dockerfile for internal keystore generation
-    dockerfile_path = "Dockerfile" if os.path.exists("Dockerfile") else "Dockerfile.txt"
-    if os.path.exists(dockerfile_path):
-        with open(dockerfile_path, 'r', encoding='utf-8') as f:
-            df_content = f.read()
-        
-        # Inject standard bash "if file doesn't exist" validation and keytool command inline right before gradle
-        df_content = re.sub(
-            r'RUN cd android && gradle assembleRelease',
-            r'RUN cd android && if [ ! -f app/goomn.keystore ]; then keytool -genkey -v -keystore app/goomn.keystore -alias goomn -keyalg RSA -keysize 2048 -validity 10000 -storepass goomn123 -keypass goomn123 -dname "CN=GoOMN, O=Basov"; fi && gradle assembleRelease',
-            df_content
-        )
-        with open(dockerfile_path, 'w', encoding='utf-8') as f:
-            f.write(df_content)
-
-    # 6. Delete old Bookmarks.md stubs to force regeneration with the new template
-    for storage_dir in ["data", "android/app/media/net.basov.goomn"]:
-        bm_path = os.path.join(storage_dir, "Bookmarks.md")
-        if os.path.exists(bm_path):
-            with open(bm_path, 'r', encoding='utf-8') as f:
+    # Execute Patches Sequentially
+    for filepath_target, file_patches in patches.items():
+        if os.path.exists(filepath_target):
+            with open(filepath_target, 'r', encoding='utf-8') as f:
                 content = f.read()
-            # If the file contains the old placeholder, nuke it so `server.go` builds the new script layout
-            if "Title: Bookmarks" in content and "2026-06-14 12:00:00" in content:
-                os.remove(bm_path)
-                print(f"[+] Removed outdated stub: {bm_path}")
+            for old, new in file_patches:
+                if old in content:
+                    content = content.replace(old, new)
+                elif new not in content:
+                    print(f"Warning: Could not find patch target in {filepath_target}:\n{old[:50]}...")
+            with open(filepath_target, 'w', encoding='utf-8') as f:
+                f.write(content)
 
-    # 7. Output Standardized Git Commit Message
-    commit_msg = """feat(bookmarks): implement rich bookmark rendering and docker keystore gen
+    # 4. Output Standardized Git Commit Message
+    commit_msg = """refactor(storage): restructure data directories and static routing
 
-- Integrated Bookmarker.js and Bookmarker.css directly into Go backend via //go:embed
-- Updated initial Bookmarks.md payload to match the rigorous HTML/JSON hybrid specification
-- Added automatic in-container keystore generation to Dockerfile to prevent CI/CD signing failures
-- Bumped Android versionCode to 10029
+- Migrated all markdown storage to dedicated `md/` subdirectories
+- Built backwards-compatible migration routine to auto-move existing `.md` files from legacy root directories on boot
+- Relocated JS and CSS assets into frontend `js/` and `css/` subdirectories
+- Transitioned static asset serving to Go's `embed.FS` and `http.FileServer` to natively support infinite subdirectory recursion mapping
+- Added `os.MkdirAll` into the Save Note API to gracefully handle creation of nested markdown folders
+- Bumped Android versionCode to 10030
 
-Version bumped to 1.0.29"""
+Version bumped to 1.0.30"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]\n")
-    print("Application successfully updated to v1.0.29!")
+    print("Application successfully updated to v1.0.30!")
 
 if __name__ == "__main__":
     update_application()
