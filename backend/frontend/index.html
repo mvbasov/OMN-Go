@@ -58,7 +58,7 @@
             }
         });
     </script>
-    <script>const APP_VERSION = "1.0.49";</script>
+    <script>const APP_VERSION = "1.0.50";</script>
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
 </head>
@@ -425,7 +425,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('goomn-version-footer');
-            let v = '1.0.49';
+            let v = '1.0.50';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'GoOMN v' + v;
         });
@@ -454,7 +454,7 @@
 
                 const header = document.createElement('div');
                 header.style.cssText = 'padding:10px; background:#333; color:#fff; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #555; font-weight:bold;';
-                header.innerHTML = '<span>JS Console Output</span><button id="goomn-console-close" style="background:#ff5555; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">Close</button>';
+                header.innerHTML = '<span>JS Console Output</span><div><button id="goomn-console-clear" style="background:#888; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-right:8px;">Clear</button><button id="goomn-console-close" style="background:#ff5555; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">Close</button></div>';
 
                 logsContainer = document.createElement('div');
                 logsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px; white-space:pre-wrap; word-break:break-all; font-size:12px; line-height:1.4;';
@@ -466,11 +466,14 @@
                 document.getElementById('goomn-console-close').onclick = () => {
                     consoleModal.style.display = 'none';
                 };
-                document.getElementById('goomn-console-clear').onclick = () => {
-                    logs = [];
-                    if (logsContainer) logsContainer.innerHTML = '';
-                    if (consoleBtn) consoleBtn.innerText = 'Console (0)';
-                };
+                let clrBtn = document.getElementById('goomn-console-clear');
+                if (clrBtn) {
+                    clrBtn.onclick = () => {
+                        logs = [];
+                        if (logsContainer) logsContainer.innerHTML = '';
+                        if (consoleBtn) consoleBtn.innerText = 'Console (0)';
+                    };
+                }
 
                 // 2. Create Activation Button
                 consoleBtn = document.createElement('button');
