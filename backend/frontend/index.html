@@ -59,6 +59,8 @@
         });
     </script>
     <script>const APP_VERSION = "1.0.42";</script>
+    <link rel="stylesheet" href="/css/highlight.default.min.css">
+    <link rel="stylesheet" href="/css/katex.min.css">
 </head>
 <body>
     
@@ -375,6 +377,47 @@
                 alert('Saved!');
             }
         }
+    </script>
+
+    <!-- Code & Math Formatting Assets -->
+    <script src="/js/highlight.min.js"></script>
+    <script src="/js/katex.min.js"></script>
+    <script src="/js/auto-render.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 1. Hook Highlight.js into Marked parser globally
+            if (window.marked && window.hljs) {
+                window.marked.setOptions({
+                    highlight: function(code, lang) {
+                        const language = window.hljs.getLanguage(lang) ? lang : 'plaintext';
+                        return window.hljs.highlight(code, { language }).value;
+                    },
+                    langPrefix: 'hljs language-'
+                });
+            }
+            
+            // 2. Setup Auto-Rendering for KaTeX via MutationObserver
+            // This guarantees Math renders regardless of how you inject the Markdown!
+            const previewNode = document.getElementById('preview') || document.body;
+            let renderTimeout;
+            const observer = new MutationObserver(() => {
+                clearTimeout(renderTimeout);
+                renderTimeout = setTimeout(() => {
+                    if (window.renderMathInElement) {
+                        renderMathInElement(previewNode, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\(', right: '\)', display: false},
+                                {left: '\[', right: '\]', display: true}
+                            ],
+                            throwOnError: false
+                        });
+                    }
+                }, 50);
+            });
+            observer.observe(previewNode, { childList: true, subtree: true });
+        });
     </script>
 </body>
 </html>

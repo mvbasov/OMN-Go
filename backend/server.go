@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.43"
+const APP_VERSION = "1.0.44"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -342,6 +342,9 @@ func StartServer() {
 	mime.AddExtensionType(".jpeg", "image/jpeg")
 	mime.AddExtensionType(".gif", "image/gif")
 	mime.AddExtensionType(".json", "application/json")
+	mime.AddExtensionType(".woff", "font/woff")
+	mime.AddExtensionType(".woff2", "font/woff2")
+	mime.AddExtensionType(".ttf", "font/ttf")
 
 	go func() {
 		
@@ -373,6 +376,7 @@ func StartServer() {
 		}
 
 		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
+		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
 		mux.Handle("/css/", serveStrict(".css", "text/css"))
 		mux.Handle("/json/", serveStrict(".json", "application/json"))
 		

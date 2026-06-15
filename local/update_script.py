@@ -1,116 +1,42 @@
 import os
+import re
 
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.42"', 'APP_VERSION = "1.0.43"')
+        ("server.go", 'APP_VERSION = "1.0.43"', 'APP_VERSION = "1.0.44"'),
+        ("frontend/index.html", 'APP_VERSION = "1.0.43"', 'APP_VERSION = "1.0.44"')
     ]
     
     # 2. Define File Patches (Target exact string mapping)
     patches = {
         "server.go": [
-            # Patch 1: Inject "mime" into imports
+            # Patch 1: Add Font MIME types
             (
-                r'''	"log"
-	"net/http"''',
-                r'''	"log"
-	"mime"
-	"net/http"'''
-            ),
-            
-            # Patch 2: Add handleUploadJSON right under handleUpload
-            (
-                r'''	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
-}''',
-                r'''	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
-}
+                r'''	mime.AddExtensionType(".json", "application/json")
 
-func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
-	r.ParseMultipartForm(10 << 20) // 10MB
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Upload failed", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	jsonDir := filepath.Join(storageDir, "user_json")
-	os.MkdirAll(jsonDir, 0755)
-	
-	destPath := filepath.Join(jsonDir, header.Filename)
-	dest, _ := os.Create(destPath)
-	defer dest.Close()
-	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
-}'''
-            ),
-            
-            # Patch 3: Force global MIME types for minimal Docker environments
-            (
-                r'''func StartServer() {
-	initStorage() // Execute synchronously to ensure config is loaded instantly
 	go func() {''',
-                r'''func StartServer() {
-	initStorage() // Execute synchronously to ensure config is loaded instantly
-	
-	// Fallback MIME types for minimal Docker containers
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".png", "image/png")
-	mime.AddExtensionType(".jpg", "image/jpeg")
-	mime.AddExtensionType(".jpeg", "image/jpeg")
-	mime.AddExtensionType(".gif", "image/gif")
-	mime.AddExtensionType(".json", "application/json")
+                r'''	mime.AddExtensionType(".json", "application/json")
+	mime.AddExtensionType(".woff", "font/woff")
+	mime.AddExtensionType(".woff2", "font/woff2")
+	mime.AddExtensionType(".ttf", "font/ttf")
 
 	go func() {'''
             ),
             
-            # Patch 4: Add Directory-based Content-Type routing and fix /images/
+            # Patch 2: Add specific route for /css/fonts/ to bypass the .css lock
             (
                 r'''		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))
-		mux.Handle("/json/", serveStrict(".json", "application/json"))
-		mux.HandleFunc("/login", handleLogin)
-		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
-		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
-		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
-		mux.HandleFunc("/api/note", handleGetNote)
-		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))''',
+		mux.Handle("/css/", serveStrict(".css", "text/css"))''',
                 r'''		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))
-		mux.Handle("/json/", serveStrict(".json", "application/json"))
-		
-		// Config for files handling Content-type by served directories
-		serveStorageDir := func(subDir, cType string) http.Handler {
-			dirPath := filepath.Join(storageDir, subDir)
-			os.MkdirAll(dirPath, 0755)
-			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if cType != "" {
-					w.Header().Set("Content-Type", cType)
-				}
-				fsHandler.ServeHTTP(w, r)
-			})
-		}
-		
-		mux.Handle("/images/", serveStorageDir("images", ""))
-		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
-
-		mux.HandleFunc("/login", handleLogin)
-		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
-		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
-		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
-		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
-		mux.HandleFunc("/api/note", handleGetNote)
-		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))'''
+		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
+		mux.Handle("/css/", serveStrict(".css", "text/css"))'''
             )
         ]
     }
 
     # Execute Version Bump
     for filepath, old_v, new_v in version_replacements:
-        # Fallback to backend/ directory from v1.0.22 restructuring
         actual_path = filepath if os.path.exists(filepath) else f"backend/{filepath}"
         if os.path.exists(actual_path):
             with open(actual_path, 'r', encoding='utf-8') as f:
@@ -119,17 +45,15 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
                 with open(actual_path, 'w', encoding='utf-8') as f:
                     f.write(content.replace(old_v, new_v))
 
-    # Execute Updates Sequentially with Newline Normalization
+    # Execute Backend Patches Sequentially with Newline Normalization
     for filepath, file_patches in patches.items():
         actual_path = filepath if os.path.exists(filepath) else f"backend/{filepath}"
         if not os.path.exists(actual_path):
-            print(f"Skipping {actual_path} - file not found.")
             continue
 
         with open(actual_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Normalize newlines for strict matching
         original_newlines = "\r\n" if "\r\n" in content else "\n"
         normalized_content = content.replace("\r\n", "\n")
 
@@ -144,21 +68,82 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
             else:
                 raise ValueError(f"Target string not found in {actual_path}:\n{old_norm}")
 
-        # Restore original newlines to respect system structure
         final_content = normalized_content.replace("\n", original_newlines)
 
         with open(actual_path, 'w', encoding='utf-8') as f:
             f.write(final_content)
         print(f"Successfully patched {actual_path}")
 
-    # 3. Output Standardized Git Commit Message
-    commit_msg = """feat(backend): configure directory-based content types and add JSON uploads
-    
-- Implement `/images/` static serving explicitly routed to isolated storage
-- Configure global `mime.AddExtensionType` fallbacks for minimal Docker instances
-- Add `handleUploadJSON` API endpoint backing directly to `/user_json/`
+    # 3. HTML Injection Logic (Smart DOM Mutation approach)
+    html_path = "frontend/index.html" if os.path.exists("frontend/index.html") else "backend/frontend/index.html"
+    if os.path.exists(html_path):
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # Inject CSS before </head>
+        if 'katex.min.css' not in html_content:
+            css_inject = '    <link rel="stylesheet" href="/css/highlight.default.min.css">\n    <link rel="stylesheet" href="/css/katex.min.css">\n</head>'
+            html_content = re.sub(r'(?i)</head>', css_inject, html_content)
+        
+        # Inject JS before </body>
+        if 'katex.min.js' not in html_content:
+            js_inject = """
+    <!-- Code & Math Formatting Assets -->
+    <script src="/js/highlight.min.js"></script>
+    <script src="/js/katex.min.js"></script>
+    <script src="/js/auto-render.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 1. Hook Highlight.js into Marked parser globally
+            if (window.marked && window.hljs) {
+                window.marked.setOptions({
+                    highlight: function(code, lang) {
+                        const language = window.hljs.getLanguage(lang) ? lang : 'plaintext';
+                        return window.hljs.highlight(code, { language }).value;
+                    },
+                    langPrefix: 'hljs language-'
+                });
+            }
+            
+            // 2. Setup Auto-Rendering for KaTeX via MutationObserver
+            // This guarantees Math renders regardless of how you inject the Markdown!
+            const previewNode = document.getElementById('preview') || document.body;
+            let renderTimeout;
+            const observer = new MutationObserver(() => {
+                clearTimeout(renderTimeout);
+                renderTimeout = setTimeout(() => {
+                    if (window.renderMathInElement) {
+                        renderMathInElement(previewNode, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\\\\(', right: '\\\\)', display: false},
+                                {left: '\\\\[', right: '\\\\]', display: true}
+                            ],
+                            throwOnError: false
+                        });
+                    }
+                }, 50);
+            });
+            observer.observe(previewNode, { childList: true, subtree: true });
+        });
+    </script>
+</body>"""
+            html_content = re.sub(r'(?i)</body>', js_inject, html_content)
+        
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        print(f"Successfully injected KaTeX & Highlight.js into {html_path}")
 
-Version bumped to 1.0.43"""
+    # 4. Output Standardized Git Commit Message
+    commit_msg = """feat(frontend): implement KaTeX and Highlight.js rendering offline
+    
+- Add global MIME types for `.woff` and `.woff2` font files.
+- Create specific `serveStrict` route for `/css/fonts/` to bypass the `.css` extension lock.
+- Inject highlight.js and katex resources into `index.html`.
+- Implement DOM MutationObserver to automatically render math without altering core markdown logic.
+
+Version bumped to 1.0.44"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
