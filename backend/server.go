@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.44"
+const APP_VERSION = "1.0.45"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -272,25 +272,7 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
 }
 
-func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
-	r.ParseMultipartForm(10 << 20) // 10MB
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Upload failed", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
 
-	jsonDir := filepath.Join(storageDir, "user_json")
-	os.MkdirAll(jsonDir, 0755)
-	
-	destPath := filepath.Join(jsonDir, header.Filename)
-	dest, _ := os.Create(destPath)
-	defer dest.Close()
-	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
-}
 
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")

@@ -4,38 +4,10 @@ import re
 def update_application():
     # 1. Bump Global Application Version
     version_replacements = [
-        ("server.go", 'APP_VERSION = "1.0.43"', 'APP_VERSION = "1.0.44"'),
-        ("frontend/index.html", 'APP_VERSION = "1.0.43"', 'APP_VERSION = "1.0.44"')
+        ("server.go", 'APP_VERSION = "1.0.44"', 'APP_VERSION = "1.0.45"'),
+        ("frontend/index.html", 'APP_VERSION = "1.0.44"', 'APP_VERSION = "1.0.45"')
     ]
-    
-    # 2. Define File Patches (Target exact string mapping)
-    patches = {
-        "server.go": [
-            # Patch 1: Add Font MIME types
-            (
-                r'''	mime.AddExtensionType(".json", "application/json")
 
-	go func() {''',
-                r'''	mime.AddExtensionType(".json", "application/json")
-	mime.AddExtensionType(".woff", "font/woff")
-	mime.AddExtensionType(".woff2", "font/woff2")
-	mime.AddExtensionType(".ttf", "font/ttf")
-
-	go func() {'''
-            ),
-            
-            # Patch 2: Add specific route for /css/fonts/ to bypass the .css lock
-            (
-                r'''		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))''',
-                r'''		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))'''
-            )
-        ]
-    }
-
-    # Execute Version Bump
     for filepath, old_v, new_v in version_replacements:
         actual_path = filepath if os.path.exists(filepath) else f"backend/{filepath}"
         if os.path.exists(actual_path):
@@ -44,106 +16,71 @@ def update_application():
             if old_v in content:
                 with open(actual_path, 'w', encoding='utf-8') as f:
                     f.write(content.replace(old_v, new_v))
+            # Catch scenario where 1.0.44 version bump was skipped or failed
+            elif 'APP_VERSION = "1.0.43"' in content:
+                with open(actual_path, 'w', encoding='utf-8') as f:
+                    f.write(content.replace('APP_VERSION = "1.0.43"', new_v))
 
-    # Execute Backend Patches Sequentially with Newline Normalization
-    for filepath, file_patches in patches.items():
-        actual_path = filepath if os.path.exists(filepath) else f"backend/{filepath}"
-        if not os.path.exists(actual_path):
-            continue
-
-        with open(actual_path, 'r', encoding='utf-8') as f:
+    # 2. Targeted Clean-Up for server.go Duplication Bug
+    server_go_path = "backend/server.go" if os.path.exists("backend/server.go") else "server.go"
+    if os.path.exists(server_go_path):
+        with open(server_go_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         original_newlines = "\r\n" if "\r\n" in content else "\n"
         normalized_content = content.replace("\r\n", "\n")
 
-        for old_str, new_str in file_patches:
-            old_norm = old_str.replace("\r\n", "\n")
-            new_norm = new_str.replace("\r\n", "\n")
-            
-            if old_norm in normalized_content:
-                normalized_content = normalized_content.replace(old_norm, new_norm)
-            elif new_norm in normalized_content:
-                print(f"Patch already applied in {actual_path}")
-            else:
-                raise ValueError(f"Target string not found in {actual_path}:\n{old_norm}")
+        exact_injected_block = r'''
+func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(10 << 20) // 10MB
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Upload failed", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
 
-        final_content = normalized_content.replace("\n", original_newlines)
+	jsonDir := filepath.Join(storageDir, "user_json")
+	os.MkdirAll(jsonDir, 0755)
+	
+	destPath := filepath.Join(jsonDir, header.Filename)
+	dest, _ := os.Create(destPath)
+	defer dest.Close()
+	io.Copy(dest, file)
+	
+	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
+}'''
 
-        with open(actual_path, 'w', encoding='utf-8') as f:
+        # Step A: Strip ALL occurrences of handleUploadJSON completely (Literal & Regex Fallback)
+        cleaned_norm = normalized_content.replace(exact_injected_block, "")
+        cleaned_norm = cleaned_norm.replace("\n" + exact_injected_block, "")
+        
+        block_regex = r'\n*func handleUploadJSON\(w http\.ResponseWriter, r \*http\.Request\) \{[\s\S]*?user_json[\s\S]*?\n\}'
+        cleaned_norm = re.sub(block_regex, '', cleaned_norm)
+
+        # Step B: Add it back EXACTLY ONCE right after handleUpload
+        anchor_norm = r'''	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
+}'''
+        
+        if anchor_norm in cleaned_norm:
+            cleaned_norm = cleaned_norm.replace(anchor_norm, anchor_norm + "\n" + exact_injected_block)
+        else:
+            print("Warning: Could not find handleUpload hook to inject handleUploadJSON.")
+
+        # Restore original newlines
+        final_content = cleaned_norm.replace("\n", original_newlines)
+
+        with open(server_go_path, 'w', encoding='utf-8') as f:
             f.write(final_content)
-        print(f"Successfully patched {actual_path}")
+        print(f"Successfully deduplicated handleUploadJSON in {server_go_path}")
 
-    # 3. HTML Injection Logic (Smart DOM Mutation approach)
-    html_path = "frontend/index.html" if os.path.exists("frontend/index.html") else "backend/frontend/index.html"
-    if os.path.exists(html_path):
-        with open(html_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        
-        # Inject CSS before </head>
-        if 'katex.min.css' not in html_content:
-            css_inject = '    <link rel="stylesheet" href="/css/highlight.default.min.css">\n    <link rel="stylesheet" href="/css/katex.min.css">\n</head>'
-            html_content = re.sub(r'(?i)</head>', css_inject, html_content)
-        
-        # Inject JS before </body>
-        if 'katex.min.js' not in html_content:
-            js_inject = """
-    <!-- Code & Math Formatting Assets -->
-    <script src="/js/highlight.min.js"></script>
-    <script src="/js/katex.min.js"></script>
-    <script src="/js/auto-render.min.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            // 1. Hook Highlight.js into Marked parser globally
-            if (window.marked && window.hljs) {
-                window.marked.setOptions({
-                    highlight: function(code, lang) {
-                        const language = window.hljs.getLanguage(lang) ? lang : 'plaintext';
-                        return window.hljs.highlight(code, { language }).value;
-                    },
-                    langPrefix: 'hljs language-'
-                });
-            }
-            
-            // 2. Setup Auto-Rendering for KaTeX via MutationObserver
-            // This guarantees Math renders regardless of how you inject the Markdown!
-            const previewNode = document.getElementById('preview') || document.body;
-            let renderTimeout;
-            const observer = new MutationObserver(() => {
-                clearTimeout(renderTimeout);
-                renderTimeout = setTimeout(() => {
-                    if (window.renderMathInElement) {
-                        renderMathInElement(previewNode, {
-                            delimiters: [
-                                {left: '$$', right: '$$', display: true},
-                                {left: '$', right: '$', display: false},
-                                {left: '\\\\(', right: '\\\\)', display: false},
-                                {left: '\\\\[', right: '\\\\]', display: true}
-                            ],
-                            throwOnError: false
-                        });
-                    }
-                }, 50);
-            });
-            observer.observe(previewNode, { childList: true, subtree: true });
-        });
-    </script>
-</body>"""
-            html_content = re.sub(r'(?i)</body>', js_inject, html_content)
-        
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"Successfully injected KaTeX & Highlight.js into {html_path}")
-
-    # 4. Output Standardized Git Commit Message
-    commit_msg = """feat(frontend): implement KaTeX and Highlight.js rendering offline
+    # 3. Output Standardized Git Commit Message
+    commit_msg = """fix(backend): resolve handleUploadJSON redeclaration compiler error
     
-- Add global MIME types for `.woff` and `.woff2` font files.
-- Create specific `serveStrict` route for `/css/fonts/` to bypass the `.css` extension lock.
-- Inject highlight.js and katex resources into `index.html`.
-- Implement DOM MutationObserver to automatically render math without altering core markdown logic.
+- Implement targeted regex cleaner to wipe duplicated `handleUploadJSON` definitions.
+- Restructure function patching to guarantee idempotency.
 
-Version bumped to 1.0.44"""
+Version bumped to 1.0.45"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
