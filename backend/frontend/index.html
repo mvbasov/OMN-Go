@@ -58,7 +58,7 @@
             }
         });
     </script>
-    <script>const APP_VERSION = "1.0.37";</script>
+    <script>const APP_VERSION = "1.0.38";</script>
 </head>
 <body>
     
@@ -126,11 +126,7 @@
                 const newScript = document.createElement('script');
                 Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
                 newScript.async = false;
-                if (oldScript.innerHTML) {
-                    let code = oldScript.innerHTML;
-                    code = code.replace(/\bconst\s+/g, 'var ').replace(/\blet\s+/g, 'var ');
-                    newScript.appendChild(document.createTextNode(code));
-                }
+                if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                 oldScript.parentNode.replaceChild(newScript, oldScript);
             });
         }

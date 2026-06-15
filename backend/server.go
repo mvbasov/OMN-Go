@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.37"
+const APP_VERSION = "1.0.38"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -332,8 +332,6 @@ func StartServer() {
 					if err == nil {
 						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
 						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						js = strings.ReplaceAll(js, "const ", "var ")
-						js = strings.ReplaceAll(js, "let ", "var ")
 						w.Write([]byte(js))
 						return
 					}
