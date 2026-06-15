@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="net.basov.goomn"
     android:versionCode="10018"
-    android:versionName="1.0.18">
+    android:versionName="1.0.19">
     
     <!-- Network and Storage Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />

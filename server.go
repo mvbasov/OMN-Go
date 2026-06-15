@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.18"
+const APP_VERSION = "1.0.19"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -33,7 +33,7 @@ var (
 
 func initStorage() {
 	if runtime.GOOS == "android" {
-		storageDir = "/storage/emulated/0/Media/net.basov.goomn"
+		storageDir = "/storage/emulated/0/Android/media/net.basov.goomn"
 	} else {
 		storageDir = "./data"
 	}
