@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.42"
+const APP_VERSION = "1.0.43"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -251,6 +252,46 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
 }
 
+func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(10 << 20) // 10MB
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Upload failed", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	jsonDir := filepath.Join(storageDir, "user_json")
+	os.MkdirAll(jsonDir, 0755)
+	
+	destPath := filepath.Join(jsonDir, header.Filename)
+	dest, _ := os.Create(destPath)
+	defer dest.Close()
+	io.Copy(dest, file)
+	
+	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
+}
+
+func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(10 << 20) // 10MB
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Upload failed", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	jsonDir := filepath.Join(storageDir, "user_json")
+	os.MkdirAll(jsonDir, 0755)
+	
+	destPath := filepath.Join(jsonDir, header.Filename)
+	dest, _ := os.Create(destPath)
+	defer dest.Close()
+	io.Copy(dest, file)
+	
+	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
+}
+
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -292,6 +333,16 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
+	
+	// Fallback MIME types for minimal Docker containers
+	mime.AddExtensionType(".svg", "image/svg+xml")
+	mime.AddExtensionType(".webp", "image/webp")
+	mime.AddExtensionType(".png", "image/png")
+	mime.AddExtensionType(".jpg", "image/jpeg")
+	mime.AddExtensionType(".jpeg", "image/jpeg")
+	mime.AddExtensionType(".gif", "image/gif")
+	mime.AddExtensionType(".json", "application/json")
+
 	go func() {
 		
 		mux := http.NewServeMux()
@@ -324,10 +375,28 @@ func StartServer() {
 		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
 		mux.Handle("/css/", serveStrict(".css", "text/css"))
 		mux.Handle("/json/", serveStrict(".json", "application/json"))
+		
+		// Config for files handling Content-type by served directories
+		serveStorageDir := func(subDir, cType string) http.Handler {
+			dirPath := filepath.Join(storageDir, subDir)
+			os.MkdirAll(dirPath, 0755)
+			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if cType != "" {
+					w.Header().Set("Content-Type", cType)
+				}
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+		
+		mux.Handle("/images/", serveStorageDir("images", ""))
+		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
+
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
 		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
+		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
 		mux.HandleFunc("/api/note", handleGetNote)
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		
