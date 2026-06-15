@@ -25,8 +25,8 @@
         .panel input, .panel textarea, .panel button { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.25";</script>
+    <script src="/marked.min.js"></script>
+    <script>const APP_VERSION = "1.0.26";</script>
 </head>
 <body>
     
@@ -103,6 +103,9 @@
                 if(href && !href.startsWith('http')) {
                     e.preventDefault();
                     loadNote(href);
+                } else if (href && href.startsWith('http')) {
+                    e.preventDefault();
+                    window.open(href, '_blank');
                 }
             }
         });

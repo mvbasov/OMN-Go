@@ -10,12 +10,22 @@ android {
         applicationId "net.basov.goomn"
         minSdk 24
         targetSdk 34
-        versionCode 10024
-        versionName "1.0.24"
+        versionCode 10026
+        versionName "1.0.26"
     }
 
+    signingConfigs {
+        release {
+            signingConfig signingConfigs.release
+            storeFile file('goomn.keystore')
+            storePassword 'goomn123'
+            keyAlias 'goomn'
+            keyPassword 'goomn123'
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

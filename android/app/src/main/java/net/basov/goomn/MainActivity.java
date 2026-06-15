@@ -24,7 +24,20 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    if (!url.contains("localhost")) {
+                        view.getContext().startActivity(
+                            new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        );
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
 
         setContentView(webView);
 

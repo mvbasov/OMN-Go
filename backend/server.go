@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.25"
+const APP_VERSION = "1.0.26"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -24,6 +24,9 @@ type Config struct {
 
 //go:embed frontend/index.html
 var frontendHTML []byte
+
+//go:embed frontend/marked.min.js
+var markedJS []byte
 
 var (
 	storageDir  string
@@ -73,7 +76,7 @@ func initStorage() {
 
 	bmPath := filepath.Join(storageDir, "Bookmarks.md")
 	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
-		bmContent := "Title: Bookmarks\nDate: 2026-06-14 12:00:00\nCategory: Links\n\n"
+		bmContent := "Title: Bookmarks\nDate: 2026-06-14 12:00:00\nCategory: Links\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];</script>"
 		os.WriteFile(bmPath, []byte(bmContent), 0644)
 	}
 }
@@ -149,12 +152,42 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(storageDir, "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	
-	entry := fmt.Sprintf("\n- [%s](%s) | Tags: %s | Notes: %s | Added: %s\n", title, url, tags, notes, timestamp)
+	tagsList := []string{}
+	for _, t := range strings.Split(tags, ",") {
+		if trimmed := strings.TrimSpace(t); trimmed != "" {
+			tagsList = append(tagsList, trimmed)
+		}
+	}
+	notesList := []string{}
+	if trimmed := strings.TrimSpace(notes); trimmed != "" {
+		notesList = append(notesList, trimmed)
+	}
 	
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	type BM struct {
+		Date  string   `json:"date"`
+		Url   string   `json:"url"`
+		Title string   `json:"title"`
+		Tags  []string `json:"tags"`
+		Notes []string `json:"notes"`
+	}
+	bm := BM{Date: timestamp, Url: url, Title: title, Tags: tagsList, Notes: notesList}
+	bmJson, _ := json.MarshalIndent(bm, "  ", "  ")
+	entry := "  " + string(bmJson) + ",\n"
+	
+	data, err := os.ReadFile(path)
 	if err == nil {
-		defer f.Close()
-		f.WriteString(entry)
+		content := string(data)
+		marker := "<!-- Don't edit body below this line -->\n"
+		idx := strings.Index(content, marker)
+		if idx != -1 {
+			insertPos := idx + len(marker)
+			newContent := content[:insertPos] + entry + content[insertPos:]
+			os.WriteFile(path, []byte(newContent), 0644)
+		} else {
+			f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+			defer f.Close()
+			f.WriteString("\n" + entry)
+		}
 	}
 	w.Write([]byte("Saved"))
 }
@@ -212,6 +245,11 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Saved"))
 }
 
+func serveMarked(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Write(markedJS)
+}
+
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write(frontendHTML)
@@ -223,6 +261,7 @@ func StartServer() {
 		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
+		mux.HandleFunc("/marked.min.js", serveMarked)
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
