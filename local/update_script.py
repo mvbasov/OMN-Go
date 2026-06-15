@@ -1,36 +1,11 @@
 import os
 import re
-import urllib.request
 
 def update_application():
-    # 0. Download highlight.js and css locally for offline mode
-    frontend_js_dir = "backend/frontend/js"
-    frontend_css_dir = "backend/frontend/css"
-    os.makedirs(frontend_js_dir, exist_ok=True)
-    os.makedirs(frontend_css_dir, exist_ok=True)
-    
-    hljs_js_path = os.path.join(frontend_js_dir, "highlight.min.js")
-    if not os.path.exists(hljs_js_path):
-        print("Downloading highlight.min.js for offline syntax highlighting...")
-        try:
-            urllib.request.urlretrieve("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js", hljs_js_path)
-            print("[+] Successfully downloaded highlight.min.js")
-        except Exception as e:
-            print(f"Failed to download highlight.min.js: {e}")
-
-    hljs_css_path = os.path.join(frontend_css_dir, "highlight.default.min.css")
-    if not os.path.exists(hljs_css_path):
-        print("Downloading highlight.default.min.css...")
-        try:
-            urllib.request.urlretrieve("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css", hljs_css_path)
-            print("[+] Successfully downloaded highlight.default.min.css")
-        except Exception as e:
-            print(f"Failed to download highlight.default.min.css: {e}")
-
     # 1. Bump Global Application Version
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.0.35"', 'APP_VERSION = "1.0.36"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.35";', 'const APP_VERSION = "1.0.36";')
+        ("backend/server.go", 'APP_VERSION = "1.0.36"', 'APP_VERSION = "1.0.37"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.36";', 'const APP_VERSION = "1.0.37";')
     ]
     
     for filepath, old, new in version_replacements:
@@ -47,8 +22,8 @@ def update_application():
         with open(gradle_path, 'r', encoding='utf-8') as f:
             gradle_content = f.read()
         
-        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10036', gradle_content)
-        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.36"', gradle_content)
+        gradle_content = re.sub(r'versionCode\s+\d+', 'versionCode 10037', gradle_content)
+        gradle_content = re.sub(r'versionName\s+".*?"', 'versionName "1.0.37"', gradle_content)
         
         with open(gradle_path, 'w', encoding='utf-8') as f:
             f.write(gradle_content)
@@ -57,26 +32,80 @@ def update_application():
     patches = {
         "backend/frontend/index.html": [
             (
-                # Inject highlight.js, its default theme, and initialize the requested marked options
-                r'''<script src="/js/marked.min.js"></script>''',
-                r'''<link rel="stylesheet" href="/css/highlight.default.min.css">
-    <script src="/js/marked.min.js"></script>
-    <script src="/js/highlight.min.js"></script>
-    <script>
-        const eHlJs = 'true';
-        marked.setOptions({
-            gfm: true,
-            xhtml: true
-        });
-
-        if ('true' == eHlJs) {
+                # Add marked.use custom renderer to generate ID anchor slugs from Header Text
+                r'''        if ('true' == eHlJs) {
             marked.setOptions({
                 highlight: function (code) {
                     return hljs.highlightAuto(code).value;
                 }
             });
         }
+    </script>''',
+                r'''        if ('true' == eHlJs) {
+            marked.setOptions({
+                highlight: function (code) {
+                    return hljs.highlightAuto(code).value;
+                }
+            });
+        }
+
+        marked.use({
+            renderer: {
+                heading(text, level, raw) {
+                    if (typeof text === 'object') {
+                        const token = text;
+                        const content = this.parser.parseInline(token.tokens);
+                        const id = (token.text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                        return `<h${token.depth} id="${id}">${content}</h${token.depth}>\n`;
+                    }
+                    const id = text.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    return `<h${level} id="${id}">${text}</h${level}>\n`;
+                }
+            }
+        });
     </script>'''
+            ),
+            (
+                # Downgrade top-level inline let/const variables to var dynamically to bypass SPA redeclaration errors
+                r'''        function executeScripts(container) {
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.async = false;
+                if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+        }''',
+                r'''        function executeScripts(container) {
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.async = false;
+                if (oldScript.innerHTML) {
+                    let code = oldScript.innerHTML;
+                    code = code.replace(/\bconst\s+/g, 'var ').replace(/\blet\s+/g, 'var ');
+                    newScript.appendChild(document.createTextNode(code));
+                }
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+        }'''
+            )
+        ],
+        "backend/server.go": [
+            (
+                # Remove restrictive IIFE wrapper on Bookmarker.js and dynamically patch const/let to var
+                r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						w.Write([]byte("(function(){\n" + js + "\n})();"))
+						return''',
+                r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						js = strings.ReplaceAll(js, "const ", "var ")
+						js = strings.ReplaceAll(js, "let ", "var ")
+						w.Write([]byte(js))
+						return'''
             )
         ]
     }
@@ -95,16 +124,16 @@ def update_application():
                 f.write(content)
 
     # 4. Output Standardized Git Commit Message
-    commit_msg = """feat(markdown): configure marked.js with GFM and highlight.js
+    commit_msg = """feat(markdown): implement heading id slugs and resolve javascript re-evaluation crashes
 
-- Downloaded and embedded local copies of highlight.min.js and default CSS for offline syntax highlighting
-- Injected marked.setOptions to enable GitHub Flavored Markdown (gfm) and xhtml compliance
-- Configured automatic syntax highlighting via hljs.highlightAuto when eHlJs parameter is enabled
-- Bumped Android versionCode to 10036
+- Overrode marked.js core renderer to automatically generate HTML header `id` attributes dynamically from the header text content.
+- Replaced the restrictive backend IIFE wrapper on Bookmarker.js with a smart regex parser that downgrades `const` and `let` declarations to `var`. This prevents fatal "already declared" SyntaxErrors when navigating between pages without breaking global `onclick` function bindings.
+- Applied the identical `var` downgrade to all inline Markdown `<script>` tag blocks executed by `executeScripts`.
+- Bumped Android versionCode to 10037
 
-Version bumped to 1.0.36"""
+Version bumped to 1.0.37"""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]\n")
-    print("Application successfully updated to v1.0.36!")
+    print("Application successfully updated to v1.0.37!")
 
 if __name__ == "__main__":
     update_application()

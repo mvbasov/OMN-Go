@@ -42,8 +42,23 @@
                 }
             });
         }
+
+        marked.use({
+            renderer: {
+                heading(text, level, raw) {
+                    if (typeof text === 'object') {
+                        const token = text;
+                        const content = this.parser.parseInline(token.tokens);
+                        const id = (token.text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                        return `<h${token.depth} id="${id}">${content}</h${token.depth}>\n`;
+                    }
+                    const id = text.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    return `<h${level} id="${id}">${text}</h${level}>\n`;
+                }
+            }
+        });
     </script>
-    <script>const APP_VERSION = "1.0.36";</script>
+    <script>const APP_VERSION = "1.0.37";</script>
 </head>
 <body>
     
@@ -111,7 +126,11 @@
                 const newScript = document.createElement('script');
                 Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
                 newScript.async = false;
-                if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                if (oldScript.innerHTML) {
+                    let code = oldScript.innerHTML;
+                    code = code.replace(/\bconst\s+/g, 'var ').replace(/\blet\s+/g, 'var ');
+                    newScript.appendChild(document.createTextNode(code));
+                }
                 oldScript.parentNode.replaceChild(newScript, oldScript);
             });
         }
