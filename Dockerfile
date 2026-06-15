@@ -23,49 +23,7 @@ RUN yes | sdkmanager --licenses && \
 # Install GoMobile
 RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
 
-# Intercept AAPT and completely overwrite the intermediate manifest before compilation
-RUN printf '#!/bin/bash\n\
-MANIFEST_PATH=""\n\
-for arg in "$@"; do\n\
-    if [[ "$arg" == *"AndroidManifest.xml" ]]; then\n\
-        MANIFEST_PATH="$arg"\n\
-        break\n\
-    fi\n\
-done\n\
-if [ -n "$MANIFEST_PATH" ] && [ -f "$MANIFEST_PATH" ]; then\n\
-    cat << '"'"'EOF'"'"' > "$MANIFEST_PATH"\n\
-<?xml version="1.0" encoding="utf-8"?>\n\
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n\
-    package="net.basov.goomn"\n\
-    android:versionCode="1"\n\
-    android:versionName="1.0.17">\n\
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"/>\n\
-    <uses-permission android:name="android.permission.INTERNET" />\n\
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n\
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n\
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n\
-    <application android:label="GoOMN">\n\
-        <activity android:name="org.golang.app.GoNativeActivity"\n\
-            android:label="GoOMN"\n\
-            android:configChanges="orientation|keyboardHidden|screenSize"\n\
-            android:exported="true">\n\
-            <meta-data android:name="android.app.lib_name" android:value="goomn" />\n\
-            <intent-filter>\n\
-                <action android:name="android.intent.action.MAIN" />\n\
-                <category android:name="android.intent.category.LAUNCHER" />\n\
-            </intent-filter>\n\
-        </activity>\n\
-    </application>\n\
-</manifest>\n\
-EOF\n\
-fi\n\
-COMMAND_NAME=$(basename "$0")\n\
-exec /opt/android/build-tools/33.0.2/${COMMAND_NAME}.real "$@"\n' > /tmp/aapt_wrapper.sh && \
-    chmod +x /tmp/aapt_wrapper.sh && \
-    mv /opt/android/build-tools/33.0.2/aapt /opt/android/build-tools/33.0.2/aapt.real || true && \
-    cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt && \
-    mv /opt/android/build-tools/33.0.2/aapt2 /opt/android/build-tools/33.0.2/aapt2.real || true && \
-    cp /tmp/aapt_wrapper.sh /opt/android/build-tools/33.0.2/aapt2
+
 
 # STAGE 2: Dependency Lock
 WORKDIR /app
@@ -80,4 +38,13 @@ RUN go get golang.org/x/mobile@latest && go mod tidy
 RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop server.go main_desktop.go
 
 # Android APK (Under 5MB, No AppCompat)
-RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk .
+# Android APK - Built normally, then post-processed with Apktool to inject targetSdkVersion
+RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk . && \
+    wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /tmp/apktool.jar && \
+    java -jar /tmp/apktool.jar d bin/goomn.apk -o /tmp/apk_decoded && \
+    sed -i -E 's/<uses-sdk[^>]*>/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\/>/g' /tmp/apk_decoded/AndroidManifest.xml && \
+    java -jar /tmp/apktool.jar b /tmp/apk_decoded -o /tmp/goomn_unsigned.apk && \
+    /opt/android/build-tools/33.0.2/zipalign -v -p 4 /tmp/goomn_unsigned.apk /tmp/goomn_aligned.apk && \
+    keytool -genkey -v -keystore /tmp/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" && \
+    /opt/android/build-tools/33.0.2/apksigner sign --ks /tmp/debug.keystore --ks-pass pass:android --key-pass pass:android --out bin/goomn.apk /tmp/goomn_aligned.apk && \
+    rm -rf /tmp/apktool.jar /tmp/apk_decoded /tmp/goomn_unsigned.apk /tmp/goomn_aligned.apk /tmp/debug.keystore
