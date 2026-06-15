@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.41"
+const APP_VERSION = "1.0.42"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -74,7 +74,7 @@ func initStorage() {
 	// 3. Init Default Notes
 	welcomePath := filepath.Join(mdDir, "Welcome.md")
 	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!\n\n- [Help](Welcome)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
+		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
 		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
 	}
 
@@ -93,48 +93,22 @@ func initStorage() {
 	bmPath := filepath.Join(mdDir, "Bookmarks.md")
 	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
 		bmContent := `Title: Incoming bookmarks
-Date: 2023-01-13 13:59:15
-Modified: 2025-11-01 11:03:46
-Author: Mikhail Basov
+Date: 2026-06-15 20:00:00
+Author: 
 Tags: Bookmarks
 
 <script>bookmarks = [
 <!-- Don't edit body below this line -->
   {
-    "date": "2025-11-06 02:52:09",
-    "url": "https://youtube.com/shorts/0pI2KHl7gCU?si=9M_DqeVBxmuyHiTC",
-    "title": "Tapping 16th note rhythms🥁 #music #musiclesson #musictutorial #learnmusi...",
-    "tags": [
-      "Music",
-      "Mathematics",
-      "YouTube short",
-    ],
-    "notes": [
-    ]
-  },
-  {
-    "date": "2025-11-05 15:44:25",
-    "url": "https://www.reddit.com/r/ErgoMechKeyboards/comments/1ol49i6/printyl_mx_keycap_optimized_for_3d_printer/",
-    "title": "printyl: MX keycap optimized for 3d printer, inspired on dactyl : r/ErgoMechKeyboards",
-    "tags": [
-      "Reddit",
-      "Keyboard",
-      "3D model",
-    ],
-    "notes": [
-    ]
-  },
-  {
     "date": "2023-01-22 22:22:22",
-    "url": "/default/BookmarkerHelp.html",
-    "title": "Help about this bookmark page",
+    "url": "Welcome",
+    "title": "The start page",
     "tags": [
-      "OMN",
-      "Local pages",
-      "Help"
+      "GoOMN",
+      "Local pages"
     ],
     "notes": [
-      "File format described on this page also"
+      "This application start page"
     ]
   }
 ];
