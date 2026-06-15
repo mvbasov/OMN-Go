@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.30"
+const APP_VERSION = "1.0.31"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -26,7 +26,7 @@ type Config struct {
 //go:embed frontend/index.html
 var frontendHTML []byte
 
-//go:embed frontend/js frontend/css
+//go:embed frontend/js frontend/css frontend/json
 var staticFS embed.FS
 
 var (
@@ -319,8 +319,22 @@ func StartServer() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
 		fSys, _ := fs.Sub(staticFS, "frontend")
-		mux.Handle("/js/", http.FileServer(http.FS(fSys)))
-		mux.Handle("/css/", http.FileServer(http.FS(fSys)))
+		
+		serveStrict := func(ext, cType string) http.Handler {
+			fsHandler := http.FileServer(http.FS(fSys))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, ext) {
+					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Content-Type", cType)
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+
+		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
+		mux.Handle("/css/", serveStrict(".css", "text/css"))
+		mux.Handle("/json/", serveStrict(".json", "application/json"))
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
