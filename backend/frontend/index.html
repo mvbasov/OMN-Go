@@ -26,7 +26,7 @@
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
     <script src="/js/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.31";</script>
+    <script>const APP_VERSION = "1.0.32";</script>
 </head>
 <body>
     
@@ -86,12 +86,24 @@
     <script>
         let currentNote = 'Welcome';
         
+        function executeScripts(container) {
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.async = false;
+                if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+        }
+
         async function loadNote(name) {
             currentNote = name;
             const res = await fetch('/api/note?name=' + encodeURIComponent(name));
             const text = await res.text();
             document.getElementById('editor').value = text;
             document.getElementById('preview').innerHTML = marked.parse(text);
+            executeScripts(document.getElementById('preview'));
         }
 
         window.onload = () => loadNote('Welcome');
@@ -126,6 +138,7 @@
                 editor.style.display = 'none';
                 preview.style.display = 'block';
                 preview.innerHTML = marked.parse(editor.value || '*(Empty content)*');
+                executeScripts(preview);
                 btn.innerText = 'Edit Mode';
                 document.getElementById('saveBtn').style.display = 'none';
                 currentMode = 'view';

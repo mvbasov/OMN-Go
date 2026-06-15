@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.31"
+const APP_VERSION = "1.0.32"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -238,11 +238,9 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(path)
 	if err == nil {
 		content := string(data)
-		marker := "<!-- Don't edit body below this line -->\n"
-		idx := strings.Index(content, marker)
-		if idx != -1 {
-			insertPos := idx + len(marker)
-			newContent := content[:insertPos] + entry + content[insertPos:]
+		marker := "<!-- Don't edit body below this line -->"
+		if strings.Contains(content, marker) {
+			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
 			os.WriteFile(path, []byte(newContent), 0644)
 		} else {
 			f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
@@ -328,6 +326,17 @@ func StartServer() {
 					return
 				}
 				w.Header().Set("Content-Type", cType)
+				
+				if r.URL.Path == "/js/Bookmarker.js" {
+					data, err := fs.ReadFile(fSys, "js/Bookmarker.js")
+					if err == nil {
+						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						w.Write([]byte("(function(){\n" + js + "\n})();"))
+						return
+					}
+				}
+				
 				fsHandler.ServeHTTP(w, r)
 			})
 		}
