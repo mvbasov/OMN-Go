@@ -8,10 +8,11 @@ import (
 	"os/exec"
 	"runtime"
 	"time"
+	"net.basov.goomn/backend"
 )
 
 func main() {
-	go runServer()
+	backend.StartServer()
 	
 	// Wait for server to bind
 	time.Sleep(500 * time.Millisecond)

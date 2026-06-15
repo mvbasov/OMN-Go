@@ -1,0 +1,2 @@
+rootProject.name = "GoOMN"
+include ':app'

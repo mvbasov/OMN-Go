@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	_ "embed"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.21"
+const APP_VERSION = "1.0.22"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -200,18 +200,20 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Write(frontendHTML)
 }
 
-func runServer() {
-	initStorage()
-	
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", serveFrontend)
-	mux.HandleFunc("/login", handleLogin)
-	mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
-	mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
-	mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
-	mux.HandleFunc("/api/note", handleGetNote)
-	
-	port := fmt.Sprintf(":%d", appConfig.ServerPort)
-	log.Printf("GoOMN Backend running on %s", port)
-	http.ListenAndServe(port, connectionMiddleware(mux))
+func StartServer() {
+	go func() {
+		initStorage()
+		
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", serveFrontend)
+		mux.HandleFunc("/login", handleLogin)
+		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
+		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
+		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
+		mux.HandleFunc("/api/note", handleGetNote)
+		
+		port := fmt.Sprintf(":%d", appConfig.ServerPort)
+		log.Printf("GoOMN Backend running on %s", port)
+		http.ListenAndServe(port, connectionMiddleware(mux))
+	}()
 }
