@@ -47,4 +47,4 @@ RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop main_desktop.go
 # Android APK - Webview Wrapper via Gradle & gomobile bind
 RUN go get -tool golang.org/x/mobile/cmd/gobind && go mod tidy && mkdir -p android/app/libs && gomobile bind -target=android -androidapi 24 -javapkg net.basov.goomn -o android/app/libs/goomn.aar ./backend
 
-RUN cd android && gradle assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../bin/goomn.apk
+RUN cd android && if [ ! -f app/goomn.keystore ]; then keytool -genkey -v -keystore app/goomn.keystore -alias goomn -keyalg RSA -keysize 2048 -validity 10000 -storepass goomn123 -keypass goomn123 -dname "CN=GoOMN, O=Basov"; fi && gradle assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../bin/goomn.apk

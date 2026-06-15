@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.28"
+const APP_VERSION = "1.0.29"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -27,6 +27,12 @@ var frontendHTML []byte
 
 //go:embed frontend/marked.min.js
 var markedJS []byte
+
+//go:embed frontend/Bookmarker.js
+var bookmarkerJS []byte
+
+//go:embed frontend/Bookmarker.css
+var bookmarkerCSS []byte
 
 var (
 	storageDir  string
@@ -76,7 +82,58 @@ func initStorage() {
 
 	bmPath := filepath.Join(storageDir, "Bookmarks.md")
 	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
-		bmContent := "Title: Bookmarks\nDate: 2026-06-14 12:00:00\nCategory: Links\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];</script>"
+		bmContent := `Title: Incoming bookmarks
+Date: 2023-01-13 13:59:15
+Modified: 2025-11-01 11:03:46
+Author: Mikhail Basov
+Tags: Bookmarks
+
+<script>bookmarks = [
+<!-- Don't edit body below this line -->
+  {
+    "date": "2025-11-06 02:52:09",
+    "url": "https://youtube.com/shorts/0pI2KHl7gCU?si=9M_DqeVBxmuyHiTC",
+    "title": "Tapping 16th note rhythms🥁 #music #musiclesson #musictutorial #learnmusi...",
+    "tags": [
+      "Music",
+      "Mathematics",
+      "YouTube short",
+    ],
+    "notes": [
+    ]
+  },
+  {
+    "date": "2025-11-05 15:44:25",
+    "url": "https://www.reddit.com/r/ErgoMechKeyboards/comments/1ol49i6/printyl_mx_keycap_optimized_for_3d_printer/",
+    "title": "printyl: MX keycap optimized for 3d printer, inspired on dactyl : r/ErgoMechKeyboards",
+    "tags": [
+      "Reddit",
+      "Keyboard",
+      "3D model",
+    ],
+    "notes": [
+    ]
+  },
+  {
+    "date": "2023-01-22 22:22:22",
+    "url": "/default/BookmarkerHelp.html",
+    "title": "Help about this bookmark page",
+    "tags": [
+      "OMN",
+      "Local pages",
+      "Help"
+    ],
+    "notes": [
+      "File format described on this page also"
+    ]
+  }
+];
+</script>
+  
+<!-- end of bookmarks definition -->
+    
+<link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
+<script type="text/javascript" src="/js/Bookmarker.js"></script>`
 		os.WriteFile(bmPath, []byte(bmContent), 0644)
 	}
 }
@@ -250,6 +307,16 @@ func serveMarked(w http.ResponseWriter, r *http.Request) {
 	w.Write(markedJS)
 }
 
+func serveBookmarkerJS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Write(bookmarkerJS)
+}
+
+func serveBookmarkerCSS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/css")
+	w.Write(bookmarkerCSS)
+}
+
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write(frontendHTML)
@@ -262,6 +329,8 @@ func StartServer() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
 		mux.HandleFunc("/marked.min.js", serveMarked)
+		mux.HandleFunc("/js/Bookmarker.js", serveBookmarkerJS)
+		mux.HandleFunc("/css/Bookmarker.css", serveBookmarkerCSS)
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))

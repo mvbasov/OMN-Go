@@ -1,0 +1,64 @@
+/**
+ * Version: 0.17a 2025-07-01 15:12:26
+**/
+body {
+  background-color: ivory;
+}
+div#searchBox {
+  width: 95%;
+  padding-top: 0.5em;
+  margin: 0.3em;
+}
+input#searchInput {
+  margin: 0.1em;
+  border-radius: 0.5em;
+}
+div#content button.colexp {
+  width: 29%;
+  border-radius: 0.5em;
+  outline: none;
+  margin: 0.1em;
+}
+div#buttons {
+  width: 90%;
+  padding-top: 0.5em;
+  margin: 0.3em;
+}
+div#tagsCloud {
+  margin: 0.3em;
+  display: none;
+}
+div#bmlist {
+  overflow-y: scroll;
+  height: 580px;
+}
+div#content button.tag {
+  border-radius: 0.5rem;
+  outline: none;
+}
+div#content button.tagSpecial {
+  background: #f002;
+}
+div#content button.details {
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 1.1em;
+}
+span#counter {
+  cursor:pointer;
+  color:blue;
+  text-decoration:underline;
+}
+span.spanDate {
+   font-size: 0.6rem;
+}
+a + span {
+   display: none;
+}
+a:focus + span {
+  display: inline;
+}
+span#bVersion {
+  font-size: 0.3em;
+}
