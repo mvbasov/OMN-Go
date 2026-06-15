@@ -31,7 +31,7 @@ def update_application():
         with open(gradle_path, 'w', encoding='utf-8') as f:
             f.write(gradle_content)
 
-    # 3. Define File Patches
+    # 3. Define Frontend File Patches
     patches = {
         "backend/frontend/index.html": [
             (
@@ -61,41 +61,10 @@ def update_application():
             });
         }'''
             )
-        ],
-        "backend/server.go": [
-            (
-                # Remove dirty regex hack from Bookmarker.js backend server pipeline
-                r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						js = strings.ReplaceAll(js, "const ", "var ")
-						js = strings.ReplaceAll(js, "let ", "var ")
-						w.Write([]byte(js))
-						return''',
-                r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						w.Write([]byte(js))
-						return'''
-            ),
-            (
-                # Add ScriptRules.md generation to server startup routines and link it in Welcome.md
-                r'''	welcomePath := filepath.Join(mdDir, "Welcome.md")
-	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		os.WriteFile(welcomePath, []byte("Title: Welcome to GoOMN\nDate: 2026-06-14\nCategory: System\n\n# Welcome to GoOMN\n\nThis is your offline-first, locally-hosted Markdown editor.\n\n- [Quick Notes](QuickNotes.md)\n- [Bookmarks](Bookmarks.md)\n\nNavigate using valid relative links."), 0644)
-	}''',
-                r'''	welcomePath := filepath.Join(mdDir, "Welcome.md")
-	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		os.WriteFile(welcomePath, []byte("Title: Welcome to GoOMN\nDate: 2026-06-14\nCategory: System\n\n# Welcome to GoOMN\n\nThis is your offline-first, locally-hosted Markdown editor.\n\n- [Quick Notes](QuickNotes.md)\n- [Bookmarks](Bookmarks.md)\n- [Scripting Rules](ScriptRules.md)\n\nNavigate using valid relative links."), 0644)
-	}
-
-	rulesPath := filepath.Join(mdDir, "ScriptRules.md")
-	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
-		os.WriteFile(rulesPath, []byte("Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for GoOMN\n\nBecause GoOMN is a Single Page Application (SPA), the global `window` scope persists between page loads. To avoid `SyntaxError: Identifier has already been declared` when scripts are re-evaluated, authors must follow these rules:\n\n### Rule 1: Isolate variables using Block Scopes or IIFEs\nNever leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).\n\n"''' + "\n" + ticks + '''javascript\n{\n    const myLocalVar = "Safe!";\n    let counter = 0;\n}\n''' + ticks + '''\n\n### Rule 2: Explicitly attach required globals to `window`\nIf a function is needed for an HTML `onclick` event, attach it directly to the `window` object.\n\n''' + ticks + '''javascript\nwindow.doSomething = function() {\n    alert("This works safely on reload!");\n};\n''' + ticks + '''\n\n### Rule 3: Use the OR (`||`) operator for global state\nCheck if global config objects exist before creating them so user state is preserved.\n\n''' + ticks + '''javascript\nwindow.myAppConfig = window.myAppConfig || { version: "1.0" };\n''' + ticks + '''\n\n### Rule 4: Use `var` for raw top-level variables\nIf you must declare top-level variables, use `var` because the JS engine allows `var` to be redeclared infinitely without throwing an error."), 0644)
-	}'''
-            )
         ]
     }
 
-    # Execute Patches Sequentially
+    # Execute Frontend Patches
     for filepath_target, file_patches in patches.items():
         if os.path.exists(filepath_target):
             with open(filepath_target, 'r', encoding='utf-8') as f:
@@ -108,7 +77,43 @@ def update_application():
             with open(filepath_target, 'w', encoding='utf-8') as f:
                 f.write(content)
 
-    # 4. Push updates to Host files immediately so the user doesn't have to delete their storage dir to trigger the backend init
+    # 4. Patch backend/server.go using robust string replacements and regex
+    server_path = "backend/server.go"
+    if os.path.exists(server_path):
+        with open(server_path, 'r', encoding='utf-8') as f:
+            server_content = f.read()
+
+        # Remove Bookmarker.js backend hack securely
+        old_js_hack = r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						js = strings.ReplaceAll(js, "const ", "var ")
+						js = strings.ReplaceAll(js, "let ", "var ")
+						w.Write([]byte(js))
+						return'''
+        new_js_hack = r'''						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						w.Write([]byte(js))
+						return'''
+        if old_js_hack in server_content:
+            server_content = server_content.replace(old_js_hack, new_js_hack)
+
+        # Update Welcome.md payload safely via regex to avoid exact multi-line match errors
+        server_content = re.sub(r'(\- \[Bookmarks\]\(Bookmarks\.md\))', r'\1\n- [Scripting Rules](ScriptRules.md)', server_content)
+
+        # Inject ScriptRules.md creation anchoring reliably before the QuickNotes initialization
+        rules_injection = """
+	rulesPath := filepath.Join(mdDir, "ScriptRules.md")
+	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
+		os.WriteFile(rulesPath, []byte("Title: JS Scripting Rules\\nDate: 2026-06-15\\nCategory: System\\n\\n# JavaScript Guidelines for GoOMN\\n\\nBecause GoOMN is a Single Page Application (SPA), the global `window` scope persists between page loads. To avoid `SyntaxError: Identifier has already been declared` when scripts are re-evaluated, authors must follow these rules:\\n\\n### Rule 1: Isolate variables using Block Scopes or IIFEs\\nNever leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).\\n\\n""" + ticks + """javascript\\n{\\n    const myLocalVar = \\"Safe!\\";\\n    let counter = 0;\\n}\\n""" + ticks + """\\n\\n### Rule 2: Explicitly attach required globals to `window`\\nIf a function is needed for an HTML `onclick` event, attach it directly to the `window` object.\\n\\n""" + ticks + """javascript\\nwindow.doSomething = function() {\\n    alert(\\"This works safely on reload!\\");\\n};\\n""" + ticks + """\\n\\n### Rule 3: Use the OR (`||`) operator for global state\\nCheck if global config objects exist before creating them so user state is preserved.\\n\\n""" + ticks + """javascript\\nwindow.myAppConfig = window.myAppConfig || { version: \\"1.0\\" };\\n""" + ticks + """\\n\\n### Rule 4: Use `var` for raw top-level variables\\nIf you must declare top-level variables, use `var` because the JS engine allows `var` to be redeclared infinitely without throwing an error."), 0644)
+	}
+"""
+        if 'rulesPath := filepath.Join(mdDir, "ScriptRules.md")' not in server_content:
+            server_content = server_content.replace('quickPath := filepath.Join(mdDir, "QuickNotes.md")', rules_injection + '\n\tquickPath := filepath.Join(mdDir, "QuickNotes.md")')
+
+        with open(server_path, 'w', encoding='utf-8') as f:
+            f.write(server_content)
+
+    # 5. Push updates to Host files immediately so the user doesn't have to delete their storage dir to trigger the backend init
     for storage_dir in ["data/md", "android/app/media/net.basov.goomn/md"]:
         welcome_path = os.path.join(storage_dir, "Welcome.md")
         if os.path.exists(welcome_path):
@@ -124,12 +129,12 @@ def update_application():
             with open(rules_path, "w", encoding="utf-8") as f:
                 f.write("Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for GoOMN\n\nBecause GoOMN is a Single Page Application (SPA), the global `window` scope persists between page loads. To avoid `SyntaxError: Identifier has already been declared` when scripts are re-evaluated, authors must follow these rules:\n\n### Rule 1: Isolate variables using Block Scopes or IIFEs\nNever leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).\n\n" + ticks + "javascript\n{\n    const myLocalVar = \"Safe!\";\n    let counter = 0;\n}\n" + ticks + "\n\n### Rule 2: Explicitly attach required globals to `window`\nIf a function is needed for an HTML `onclick` event, attach it directly to the `window` object.\n\n" + ticks + "javascript\nwindow.doSomething = function() {\n    alert(\"This works safely on reload!\");\n};\n" + ticks + "\n\n### Rule 3: Use the OR (`||`) operator for global state\nCheck if global config objects exist before creating them so user state is preserved.\n\n" + ticks + "javascript\nwindow.myAppConfig = window.myAppConfig || { version: \"1.0\" };\n" + ticks + "\n\n### Rule 4: Use `var` for raw top-level variables\nIf you must declare top-level variables, use `var` because the JS engine allows `var` to be redeclared infinitely without throwing an error.")
 
-    # 5. Output Standardized Git Commit Message
+    # 6. Output Standardized Git Commit Message
     commit_msg = """refactor(markdown): decouple dirty js injection hacks and enforce strict authoring rules
 
 - Stripped out all backend and frontend regex routines that forcefully converted user `const`/`let` inputs to `var`.
 - Restored standard ES6 evaluation semantics inside the `executeScripts` pipeline and `Bookmarker.js` serving route.
-- Intercepted backend storage initialization to dynamically bootstrap `ScriptRules.md` payload.
+- Intercepted backend storage initialization to dynamically bootstrap `ScriptRules.md` payload using resilient regex.
 - Injected `[Scripting Rules]` navigation links directly into standard `Welcome.md` UI so users are natively educated on avoiding SPA global scope conflicts.
 - Bumped Android versionCode to 10038
 

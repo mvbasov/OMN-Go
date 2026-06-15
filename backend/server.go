@@ -78,6 +78,12 @@ func initStorage() {
 		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
 	}
 
+	
+	rulesPath := filepath.Join(mdDir, "ScriptRules.md")
+	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
+		os.WriteFile(rulesPath, []byte("Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for GoOMN\n\nBecause GoOMN is a Single Page Application (SPA), the global `window` scope persists between page loads. To avoid `SyntaxError: Identifier has already been declared` when scripts are re-evaluated, authors must follow these rules:\n\n### Rule 1: Isolate variables using Block Scopes or IIFEs\nNever leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).\n\n```javascript\n{\n    const myLocalVar = \"Safe!\";\n    let counter = 0;\n}\n```\n\n### Rule 2: Explicitly attach required globals to `window`\nIf a function is needed for an HTML `onclick` event, attach it directly to the `window` object.\n\n```javascript\nwindow.doSomething = function() {\n    alert(\"This works safely on reload!\");\n};\n```\n\n### Rule 3: Use the OR (`||`) operator for global state\nCheck if global config objects exist before creating them so user state is preserved.\n\n```javascript\nwindow.myAppConfig = window.myAppConfig || { version: \"1.0\" };\n```\n\n### Rule 4: Use `var` for raw top-level variables\nIf you must declare top-level variables, use `var` because the JS engine allows `var` to be redeclared infinitely without throwing an error."), 0644)
+	}
+
 	quickPath := filepath.Join(mdDir, "QuickNotes.md")
 	if _, err := os.Stat(quickPath); os.IsNotExist(err) {
 		quickContent := "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n"
