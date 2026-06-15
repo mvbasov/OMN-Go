@@ -1,15 +1,14 @@
 import os
-import re
 
 def update_application():
-    print("Fixing appConfig scope in Desktop main (Version 1.0.23)")
+    print("Fixing Go 1.25 tool dependencies for gomobile bind (Version 1.0.24)")
 
     # 1. Bump Global Application Version
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.0.22"', 'APP_VERSION = "1.0.23"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.22";', 'const APP_VERSION = "1.0.23";'),
-        ("android/app/build.gradle", 'versionCode 10022', 'versionCode 10023'),
-        ("android/app/build.gradle", 'versionName "1.0.22"', 'versionName "1.0.23"')
+        ("backend/server.go", 'APP_VERSION = "1.0.23"', 'APP_VERSION = "1.0.24"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.0.23";', 'const APP_VERSION = "1.0.24";'),
+        ("android/app/build.gradle", 'versionCode 10023', 'versionCode 10024'),
+        ("android/app/build.gradle", 'versionName "1.0.23"', 'versionName "1.0.24"')
     ]
     
     for filepath, old_val, new_val in version_replacements:
@@ -23,66 +22,36 @@ def update_application():
             elif new_val not in content:
                 print(f"Warning: Could not find '{old_val}' in {filepath}")
 
-    # 2. Patch backend/server.go to expose ServerPort and initialize storage synchronously
-    if os.path.exists("backend/server.go"):
-        with open("backend/server.go", "r") as f:
+    # 2. Patch Dockerfile to explicitly register the gobind tool dependency
+    if os.path.exists("Dockerfile"):
+        with open("Dockerfile", "r") as f:
             content = f.read()
+            
+        old_cmd = 'RUN mkdir -p android/app/libs && gomobile bind -target=android -androidapi 24 -javapkg net.basov.goomn -o android/app/libs/goomn.aar ./backend'
+        new_cmd = 'RUN go get -tool golang.org/x/mobile/cmd/gobind && go mod tidy && mkdir -p android/app/libs && gomobile bind -target=android -androidapi 24 -javapkg net.basov.goomn -o android/app/libs/goomn.aar ./backend'
         
-        old_start_server = """func StartServer() {
-\tgo func() {
-\t\tinitStorage()"""
-        
-        new_start_server = """func StartServer() {
-\tinitStorage() // Execute synchronously to ensure config is loaded instantly
-\tgo func() {"""
-        
-        if old_start_server in content:
-            content = content.replace(old_start_server, new_start_server)
-
-        old_end_server = """\t\thttp.ListenAndServe(port, connectionMiddleware(mux))
-\t}()
-}"""
-        
-        new_end_server = """\t\thttp.ListenAndServe(port, connectionMiddleware(mux))
-\t}()
-}
-
-// GetServerPort safely exposes the configured port for frontend wrappers
-func GetServerPort() int {
-\treturn appConfig.ServerPort
-}"""
-        
-        if old_end_server in content:
-            content = content.replace(old_end_server, new_end_server)
-
-        with open("backend/server.go", "w") as f:
-            f.write(content)
-        print("Patched backend/server.go to expose GetServerPort().")
-
-    # 3. Patch main_desktop.go to use the exposed GetServerPort
-    if os.path.exists("main_desktop.go"):
-        with open("main_desktop.go", "r") as f:
-            content = f.read()
-        
-        if "appConfig.ServerPort" in content:
-            content = content.replace("appConfig.ServerPort", "backend.GetServerPort()")
-            with open("main_desktop.go", "w") as f:
+        if old_cmd in content:
+            content = content.replace(old_cmd, new_cmd)
+            with open("Dockerfile", "w") as f:
                 f.write(content)
-            print("Patched main_desktop.go to use backend.GetServerPort().")
+            print("Patched Dockerfile with explicit gobind tool dependency.")
+        elif new_cmd in content:
+            print("Dockerfile is already patched with the gobind tool dependency.")
+        else:
+            print("Warning: Could not find gomobile bind command in Dockerfile.")
 
-    # 4. Output Standardized Git Commit Message
-    commit_msg = """fix(desktop): resolve undefined appConfig compilation error
+    # 3. Output Standardized Git Commit Message
+    commit_msg = """build(android): add missing gobind tool dependency for Go 1.25
     
-Moving the server logic into the `backend` package isolated the `appConfig` 
-variable, causing `main_desktop.go` to fail compilation when trying to read 
-the ServerPort for the browser auto-launch sequence.
+Go 1.25 introduces strict tool dependency tracking in go.mod. 
+The gomobile bind command failed because golang.org/x/mobile/cmd/gobind 
+was not explicitly tracked as a tool in the module dependency graph. 
 
-This patch modifies `backend/server.go` to expose a `GetServerPort()` 
-function and moves `initStorage()` out of the asynchronous goroutine block 
-so the configuration is parsed immediately upon startup. `main_desktop.go` 
-was updated to query this new exposed function.
+This patch updates the Dockerfile to run the required `go get -tool` 
+directive immediately prior to the bind execution to satisfy the new 
+module graph requirements.
 
-Version bumped to 1.0.23"""
+Version bumped to 1.0.24"""
     
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
     print("\nPatch applied successfully! Re-run your docker build command.")
