@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.0.38"
+const APP_VERSION = "1.0.39"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -203,7 +203,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	entry := fmt.Sprintf("\n---\n#### %s\n%s\n", timestamp, note)
+	entry := fmt.Sprintf("\n---\n##### %s\n%s\n", timestamp, note)
 	
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	os.WriteFile(path, []byte(strings.Join(newContent, "\n")), 0644)
