@@ -26,7 +26,7 @@
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
     <script src="/js/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.34";</script>
+    <script>const APP_VERSION = "1.0.35";</script>
 </head>
 <body>
     
@@ -89,7 +89,6 @@
         let currentNote = 'Welcome';
         
         function executeScripts(container) {
-            return; // Experiment: Temporarily disabled script evaluation
             const scripts = container.querySelectorAll('script');
             scripts.forEach(oldScript => {
                 const newScript = document.createElement('script');
@@ -144,8 +143,38 @@
             }
         }
 
+        function resolvePath(current, target) {
+            if (target.startsWith('/')) {
+                target = target.substring(1);
+            } else {
+                let parts = current.split('/');
+                parts.pop();
+                target = (parts.length > 0 ? parts.join('/') + '/' : '') + target;
+            }
+            let segments = target.split('/');
+            let result = [];
+            for (let seg of segments) {
+                if (seg === '.' || seg === '') continue;
+                if (seg === '..') {
+                    if (result.length > 0) result.pop();
+                } else {
+                    result.push(seg);
+                }
+            }
+            return result.join('/');
+        }
+
         async function loadNoteInternal(name, hash) {
             currentNote = name;
+            if (currentMode === 'edit') {
+                document.getElementById('editor').style.display = 'none';
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('toggleBtn').innerText = 'Edit Mode';
+                document.getElementById('saveBtn').style.display = 'none';
+                document.getElementById('metaToggleBtn').style.display = 'none';
+                document.getElementById('metadataPanel').classList.add('hidden');
+                currentMode = 'view';
+            }
             const res = await fetch('/api/note?name=' + encodeURIComponent(name));
             const text = await res.text();
             document.getElementById('editor').value = text;
@@ -181,7 +210,11 @@
                         if(el) el.scrollIntoView();
                         return;
                     }
-                    if (!file) file = currentNote;
+                    if (!file) {
+                        file = currentNote;
+                    } else {
+                        file = resolvePath(currentNote, file);
+                    }
                     loadNote(file, hash);
                 } else if (href && href.startsWith('http')) {
                     e.preventDefault();
