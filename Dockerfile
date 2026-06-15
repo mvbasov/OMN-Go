@@ -43,8 +43,8 @@ RUN gomobile build -target=android -androidapi 21 -o bin/goomn.apk . && \
     wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /tmp/apktool.jar && \
     java -jar /tmp/apktool.jar d bin/goomn.apk -o /tmp/apk_decoded && \
     perl -0777 -pi -e 's/<uses-sdk[^>]*>/<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"\/>/gs' /tmp/apk_decoded/AndroidManifest.xml && \
-    sed -i -E 's/android:versionCode="[0-9]+"/android:versionCode="10019"/g' /tmp/apk_decoded/AndroidManifest.xml && \
-    sed -i -E "s/versionCode: '[0-9]+'/versionCode: '10019'/g" /tmp/apk_decoded/apktool.yml && \
+    sed -i -E 's/android:versionCode="[0-9]+"/android:versionCode="10020"/g' /tmp/apk_decoded/AndroidManifest.xml && \
+    sed -i -E "s/versionCode: '[0-9]+'/versionCode: '10020'/g" /tmp/apk_decoded/apktool.yml && \
     java -jar /tmp/apktool.jar b /tmp/apk_decoded -o /tmp/goomn_unsigned.apk && \
     /opt/android/build-tools/33.0.2/zipalign -v -p 4 /tmp/goomn_unsigned.apk /tmp/goomn_aligned.apk && \
     keytool -genkey -v -keystore /tmp/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" && \

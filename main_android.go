@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
+	"time"
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/event/lifecycle"
 	"golang.org/x/mobile/event/paint"
@@ -12,6 +14,13 @@ import (
 
 func main() {
 	go runServer()
+
+	// Automatically launch the Android default browser to view the UI
+	go func() {
+		time.Sleep(1 * time.Second)
+		url := fmt.Sprintf("http://localhost:%d", appConfig.ServerPort)
+		exec.Command("am", "start", "-a", "android.intent.action.VIEW", "-d", url).Start()
+	}()
 
 	// High-performance canvas avoiding AppCompat.
 	// Render a color block to represent Server Status due to 5MB size constraints
