@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.goomn"
         minSdk 24
         targetSdk 34
-        versionCode 10050
-        versionName "1.0.50"
+        versionCode 10100
+        versionName "1.1.0"
     }
 
     signingConfigs {
