@@ -26,7 +26,7 @@
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
     <script src="/js/marked.min.js"></script>
-    <script>const APP_VERSION = "1.0.33";</script>
+    <script>const APP_VERSION = "1.0.34";</script>
 </head>
 <body>
     
@@ -89,6 +89,7 @@
         let currentNote = 'Welcome';
         
         function executeScripts(container) {
+            return; // Experiment: Temporarily disabled script evaluation
             const scripts = container.querySelectorAll('script');
             scripts.forEach(oldScript => {
                 const newScript = document.createElement('script');
@@ -110,37 +111,78 @@
             
             const metaPanel = document.getElementById('metadataPanel');
             const metaBtn = document.getElementById('metaToggleBtn');
-            if (header) {
-                metaPanel.innerText = header;
-                metaBtn.style.display = 'block';
-            } else {
-                metaPanel.innerText = '';
-                metaBtn.style.display = 'none';
-                metaPanel.classList.add('hidden');
-            }
+            
+            metaPanel.innerText = `[File: ${currentNote}]\n\n` + (header || 'No Metadata Found');
+            metaBtn.style.display = 'block';
+            if (!header) metaPanel.classList.add('hidden');
             
             const preview = document.getElementById('preview');
             preview.innerHTML = marked.parse(body || '*(Empty content)*');
             executeScripts(preview);
         }
 
-        async function loadNote(name) {
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.note) {
+                let fullHash = window.location.hash.substring(1);
+                let scrollHash = fullHash.includes('#') ? fullHash.split('#')[1] : null;
+                if (currentNote !== e.state.note) {
+                    loadNoteInternal(e.state.note, scrollHash);
+                } else if (scrollHash) {
+                    let el = document.getElementById(scrollHash);
+                    if (el) el.scrollIntoView();
+                }
+            }
+        });
+
+        async function loadNote(name, hash) {
+            history.pushState({note: name}, "", "#" + name + (hash ? "#" + hash : ""));
+            if (currentNote !== name) {
+                await loadNoteInternal(name, hash);
+            } else if (hash) {
+                let el = document.getElementById(hash);
+                if (el) el.scrollIntoView();
+            }
+        }
+
+        async function loadNoteInternal(name, hash) {
             currentNote = name;
             const res = await fetch('/api/note?name=' + encodeURIComponent(name));
             const text = await res.text();
             document.getElementById('editor').value = text;
             renderView(text);
+            if (hash) {
+                setTimeout(() => {
+                    let el = document.getElementById(hash);
+                    if (el) el.scrollIntoView();
+                }, 100);
+            }
         }
 
-        window.onload = () => loadNote('Welcome');
+        window.onload = () => {
+            let fullHash = window.location.hash.substring(1);
+            let startNote = fullHash.split('#')[0] || 'Welcome';
+            let scrollHash = fullHash.includes('#') ? fullHash.split('#')[1] : null;
+            history.replaceState({note: startNote}, "", "#" + (fullHash || 'Welcome'));
+            loadNoteInternal(startNote, scrollHash);
+        };
 
         // Intercept Markdown links to load internally
         document.getElementById('preview').addEventListener('click', (e) => {
-            if(e.target.tagName === 'A') {
-                const href = e.target.getAttribute('href');
-                if(href && !href.startsWith('http')) {
+            let target = e.target.closest('a');
+            if(target) {
+                const href = target.getAttribute('href');
+                if(href && !href.startsWith('http') && !href.startsWith('javascript:')) {
                     e.preventDefault();
-                    loadNote(href);
+                    let pathAndQuery = href.split('#')[0];
+                    let file = pathAndQuery.split('?')[0]; 
+                    let hash = href.includes('#') ? href.substring(href.indexOf('#') + 1) : null;
+                    if (!file && hash) {
+                        let el = document.getElementById(hash);
+                        if(el) el.scrollIntoView();
+                        return;
+                    }
+                    if (!file) file = currentNote;
+                    loadNote(file, hash);
                 } else if (href && href.startsWith('http')) {
                     e.preventDefault();
                     window.open(href, '_blank');
@@ -216,9 +258,25 @@
         }
 
         async function saveNote() {
+            let content = document.getElementById('editor').value;
+            const parts = content.split(/(?:\r?\n){2,}/);
+            if (parts.length > 0 && /^[A-Za-z0-9_-]+:/.test(parts[0])) {
+                let headerLines = parts[0].split(/\r?\n/);
+                let modIdx = headerLines.findIndex(l => l.startsWith('Modified:'));
+                let now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                if (modIdx !== -1) {
+                    headerLines[modIdx] = `Modified: ${now}`;
+                } else {
+                    headerLines.push(`Modified: ${now}`);
+                }
+                parts[0] = headerLines.join('\n');
+                content = parts.join('\n\n');
+                document.getElementById('editor').value = content;
+            }
+
             const fd = new URLSearchParams();
             fd.append('name', currentNote);
-            fd.append('content', document.getElementById('editor').value);
+            fd.append('content', content);
             const res = await fetch('/api/save', { method: 'POST', body: fd });
             if(res.ok) {
                 alert('Note saved!');
