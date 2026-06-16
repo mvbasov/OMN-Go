@@ -25,6 +25,15 @@ public class MainActivity extends Activity {
         // Start the Go Backend Server from the gomobile .aar
         Backend.startServer();
 
+        // Acquire partial wake lock to keep the Go server alive in the background
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
+            android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "OMNGo::ServerWakeLock");
+            wl.acquire();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         // Initialize WebView
         webView = new WebView(this);
         WebSettings webSettings = webView.getSettings();
@@ -62,7 +71,7 @@ public class MainActivity extends Activity {
                 }
 
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    if (!url.contains("localhost")) {
+                    if (!url.contains("localhost") && !url.contains("127.0.0.1")) {
                         view.getContext().startActivity(
                             new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                         );
