@@ -55,7 +55,7 @@ func initStorage() {
 
 	// 1. Create Isolated Storage
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
-		log.Fatalf("Failed to create storage: %v", err)
+		log.Printf("Failed to create storage: %v", err)
 	}
 
 	mdDir := filepath.Join(storageDir, "md")
@@ -97,6 +97,9 @@ func initStorage() {
 	} else {
 		data, _ := os.ReadFile(configPath)
 		json.Unmarshal(data, &appConfig)
+		if appConfig.ServerPort == 0 {
+			appConfig.ServerPort = 8080
+		}
 		if appConfig.MimeTypes == nil {
 			appConfig.MimeTypes = map[string]string{
 				".css":   "text/css",
@@ -746,6 +749,11 @@ func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
 	
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Recovered from panic in server: %v", r)
+			}
+		}()
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
 

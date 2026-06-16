@@ -16,6 +16,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Ensure Android OS mounts scoped storage directories for native C/Go access
+        java.io.File[] mediaDirs = getExternalMediaDirs();
+        if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
+            mediaDirs[0].mkdirs();
+        }
+
         // Start the Go Backend Server from the gomobile .aar
         Backend.startServer();
 
