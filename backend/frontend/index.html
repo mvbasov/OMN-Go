@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.19";
+        const APP_VERSION = "1.2.20";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -157,6 +157,28 @@
                 currentMode = 'view';
             }
         }
+
+        // Global Drag & Drop for URLs (Bookmarks)
+        document.body.addEventListener('dragover', e => {
+            if (!e.target.closest('#editor')) e.preventDefault();
+        });
+        document.body.addEventListener('drop', e => {
+            if (e.target.closest('#editor')) return;
+            const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                e.preventDefault();
+                document.getElementById('bmUrl').value = url;
+                document.getElementById('bmTitle').value = '';
+                const html = e.dataTransfer.getData('text/html');
+                if (html) {
+                    const match = html.match(/<a[^>]*>(.*?)<\/a>/i);
+                    if (match && match[1]) {
+                        document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
+                    }
+                }
+                document.getElementById('bmPanel').classList.remove('hidden');
+            }
+        });
 
         // Image Drag & Drop
         const editor = document.getElementById('editor');
@@ -263,6 +285,14 @@
 
         window.onload = () => {
             checkSession();
+            
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('share_url')) {
+                document.getElementById('bmUrl').value = params.get('share_url');
+                document.getElementById('bmTitle').value = params.get('share_title') || '';
+                document.getElementById('bmPanel').classList.remove('hidden');
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            }
             if (window.hljs) {
                 document.querySelectorAll('#preview pre code').forEach((block) => {
                     hljs.highlightElement(block);
@@ -325,7 +355,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.2.19';
+            let v = '1.2.20';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });

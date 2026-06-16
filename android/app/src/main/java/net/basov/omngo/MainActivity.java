@@ -88,7 +88,19 @@ public class MainActivity extends Activity {
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                webView.loadUrl("http://127.0.0.1:8080");
+                String startUrl = "http://127.0.0.1:8080/Welcome.html";
+                android.content.Intent intent = getIntent();
+                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+                    String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+                    String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+                    if (sharedText != null) {
+                        startUrl += "?share_url=" + android.net.Uri.encode(sharedText);
+                        if (sharedSubject != null) {
+                            startUrl += "&share_title=" + android.net.Uri.encode(sharedSubject);
+                        }
+                    }
+                }
+                webView.loadUrl(startUrl);
             }
         }, 1000); // 1 second delay
     }
@@ -98,6 +110,25 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1001 && webView != null) {
             webView.reload(); // Refresh view when returning from external editor
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+            String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+            String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+            if (sharedText != null && webView != null) {
+                String title = sharedSubject != null ? sharedSubject : "";
+                String js = "javascript:(function(){" +
+                    "document.getElementById('bmUrl').value = decodeURIComponent('" + android.net.Uri.encode(sharedText) + "');" +
+                    "document.getElementById('bmTitle').value = decodeURIComponent('" + android.net.Uri.encode(title) + "');" +
+                    "document.getElementById('bmPanel').classList.remove('hidden');" +
+                    "})();";
+                webView.evaluateJavascript(js, null);
+            }
         }
     }
 
