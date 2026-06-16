@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10210
-        versionName "1.2.10"
+        versionCode 10211
+        versionName "1.2.11"
     }
 
     signingConfigs {
@@ -37,4 +37,9 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
+}
+
+// Suppress deprecated API usage notes during compilation (e.g. WebViewClient URL loading)
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ["-Xlint:-deprecation"]
 }

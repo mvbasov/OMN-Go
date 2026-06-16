@@ -1,15 +1,15 @@
 import os
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.10 KaTeX SSR Initialization Fix...")
+    print("[*] Initiating OMN-Go V1.2.11 Compiler Warning Suppression...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.9"', 'APP_VERSION = "1.2.10"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.9";', 'const APP_VERSION = "1.2.10";'),
-        ("backend/frontend/index.html", "let v = '1.2.9';", "let v = '1.2.10';"),
-        ("android/app/build.gradle", "versionCode 10209", "versionCode 10210"),
-        ("android/app/build.gradle", 'versionName "1.2.9"', 'versionName "1.2.10"')
+        ("backend/server.go", 'APP_VERSION = "1.2.10"', 'APP_VERSION = "1.2.11"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.10";', 'const APP_VERSION = "1.2.11";'),
+        ("backend/frontend/index.html", "let v = '1.2.10';", "let v = '1.2.11';"),
+        ("android/app/build.gradle", "versionCode 10210", "versionCode 10211"),
+        ("android/app/build.gradle", 'versionName "1.2.10"', 'versionName "1.2.11"')
     ]
 
     for filepath, old_val, new_val in version_replacements:
@@ -22,51 +22,40 @@ def update_application():
                     f.write(content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch index.html to explicitly render math on window.onload
-    index_html = "backend/frontend/index.html"
-    if os.path.exists(index_html):
-        with open(index_html, "r", encoding="utf-8") as f:
-            html_content = f.read()
+    # 2. Patch build.gradle to suppress Java compiler deprecation warnings
+    build_gradle = "android/app/build.gradle"
+    if os.path.exists(build_gradle):
+        with open(build_gradle, "r", encoding="utf-8") as f:
+            gradle_content = f.read()
 
-        old_onload_target = """            if (window.hljs) {
-                document.querySelectorAll('#preview pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            }"""
+        old_deps = """dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
+}"""
 
-        # We use raw strings (r"") to ensure the backslashes for KaTeX escape sequences stay intact
-        new_onload_target = r"""            if (window.hljs) {
-                document.querySelectorAll('#preview pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            }
-            if (window.renderMathInElement) {
-                renderMathInElement(document.getElementById('preview') || document.body, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ],
-                    throwOnError: false
-                });
-            }"""
+        new_deps = """dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
+}
 
-        if old_onload_target in html_content:
-            html_content = html_content.replace(old_onload_target, new_onload_target)
-            with open(index_html, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            print(f"  [+] Injected explicit KaTeX trigger into window.onload in {index_html}")
-        elif "renderMathInElement(document.getElementById('preview')" in html_content:
-            print(f"  [=] Explicit KaTeX trigger already exists in {index_html}")
+// Suppress deprecated API usage notes during compilation (e.g. WebViewClient URL loading)
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ["-Xlint:-deprecation"]
+}"""
+
+        if old_deps in gradle_content:
+            gradle_content = gradle_content.replace(old_deps, new_deps)
+            with open(build_gradle, "w", encoding="utf-8") as f:
+                f.write(gradle_content)
+            print(f"  [+] Injected compiler warning suppression into {build_gradle}")
+        elif "-Xlint:-deprecation" in gradle_content:
+            print(f"  [=] Compiler warnings already suppressed in {build_gradle}")
         else:
-            print(f"  [-] Could not find target block to patch inside {index_html}")
+            print(f"  [-] Could not find the dependencies block to patch inside {build_gradle}")
 
-    commit_msg = """fix(frontend): explicitly render KaTeX on window.onload for SSR
+    commit_msg = """build(android): suppress javac deprecation warnings
 
-- Added explicit `renderMathInElement` execution during the `window.onload` sequence.
-- Resolved issue where Server-Side Rendered (SSR) HTML bypassed the MutationObserver, leaving initial `$$...$$` blocks unparsed.
-- Bumped application to V1.2.10 (Android 10210)."""
+- Added `-Xlint:-deprecation` to `JavaCompile` tasks in app/build.gradle.
+- Silenced compilation notes regarding legacy `shouldOverrideUrlLoading` without altering the pristine MainActivity.java source code.
+- Bumped application to V1.2.11 (Android 10211)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
