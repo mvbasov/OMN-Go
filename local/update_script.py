@@ -1,16 +1,15 @@
 import os
-import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.20 Share Intents & Drag/Drop Fixes...")
+    print("[*] Initiating OMN-Go V1.2.21 Smart Share Router Update...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.19"', 'APP_VERSION = "1.2.20"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.19";', 'const APP_VERSION = "1.2.20";'),
-        ("backend/frontend/index.html", "let v = '1.2.19';", "let v = '1.2.20';"),
-        ("android/app/build.gradle", "versionCode 10219", "versionCode 10220"),
-        ("android/app/build.gradle", 'versionName "1.2.19"', 'versionName "1.2.20"')
+        ("backend/server.go", 'APP_VERSION = "1.2.20"', 'APP_VERSION = "1.2.21"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.20";', 'const APP_VERSION = "1.2.21";'),
+        ("backend/frontend/index.html", "let v = '1.2.20';", "let v = '1.2.21';"),
+        ("android/app/build.gradle", "versionCode 10220", "versionCode 10221"),
+        ("android/app/build.gradle", 'versionName "1.2.20"', 'versionName "1.2.21"')
     ]
 
     for filepath, old_val, new_val in version_replacements:
@@ -23,38 +22,84 @@ def update_application():
                     f.write(content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch AndroidManifest.xml (Add singleTask and ACTION_SEND filter)
-    manifest_path = "android/app/src/main/AndroidManifest.xml"
-    if os.path.exists(manifest_path):
-        with open(manifest_path, "r", encoding="utf-8") as f:
-            manifest_content = f.read()
-        
-        if 'android:launchMode="singleTask"' not in manifest_content:
-            manifest_content = manifest_content.replace('android:exported="true"', 'android:exported="true"\n            android:launchMode="singleTask"')
-            
-        send_filter = '''            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-        </activity>'''
-        
-        if 'android.intent.action.SEND' not in manifest_content:
-            manifest_content = manifest_content.replace('</activity>', send_filter)
-            print("  [+] Added singleTask launchMode and ACTION_SEND intent filter to Manifest.")
-            
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            f.write(manifest_content)
+    # 2. Patch index.html (Inject Smart Routing Logic)
+    index_html = "backend/frontend/index.html"
+    if os.path.exists(index_html):
+        with open(index_html, "r", encoding="utf-8") as f:
+            html_content = f.read()
 
-    # 3. Patch MainActivity.java (Handle Intent on Boot and onNewIntent)
+        # A. Inject window.handleShare function
+        old_onload_start = "window.onload = () => {"
+        new_handle_share = """window.handleShare = function(text, subject) {
+            text = text || '';
+            subject = subject || '';
+            
+            // Regex to find the first valid URL
+            const urlMatch = text.match(/(https?:\\/\\/[^\\s]+)/) || subject.match(/(https?:\\/\\/[^\\s]+)/);
+            
+            if (urlMatch) {
+                // URL Found -> Route to Bookmark Panel
+                const url = urlMatch[0];
+                document.getElementById('bmUrl').value = url;
+                
+                let title = subject;
+                if (!title || title.includes(url)) {
+                    title = text.replace(url, '').trim();
+                }
+                if (!title) title = "Shared Link";
+                
+                document.getElementById('bmTitle').value = title;
+                document.getElementById('bmPanel').classList.remove('hidden');
+                document.getElementById('quickPanel').classList.add('hidden');
+            } else {
+                // No URL -> Route to Quick Note Panel
+                let content = '';
+                if (subject) content += subject + "\\n\\n";
+                if (text) content += text;
+                
+                document.getElementById('quickText').value = content.trim();
+                document.getElementById('quickPanel').classList.remove('hidden');
+                document.getElementById('bmPanel').classList.add('hidden');
+            }
+        };
+
+        window.onload = () => {"""
+        
+        if old_onload_start in html_content and "window.handleShare = function" not in html_content:
+            html_content = html_content.replace(old_onload_start, new_handle_share)
+            print("  [+] Injected window.handleShare logic into index.html")
+
+        # B. Wire URL Parameters to new logic
+        old_url_params = """            const params = new URLSearchParams(window.location.search);
+            if (params.has('share_url')) {
+                document.getElementById('bmUrl').value = params.get('share_url');
+                document.getElementById('bmTitle').value = params.get('share_title') || '';
+                document.getElementById('bmPanel').classList.remove('hidden');
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            }"""
+        
+        new_url_params = """            const params = new URLSearchParams(window.location.search);
+            if (params.has('share_text') || params.has('share_subject')) {
+                window.handleShare(params.get('share_text'), params.get('share_subject'));
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            }"""
+
+        if old_url_params in html_content:
+            html_content = html_content.replace(old_url_params, new_url_params)
+            print("  [+] Rewired boot query parameters to handleShare in index.html")
+
+        with open(index_html, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+
+    # 3. Patch MainActivity.java to pass raw parameters to JS instead of pre-formatting
     main_activity = "android/app/src/main/java/net/basov/omngo/MainActivity.java"
     if os.path.exists(main_activity):
         with open(main_activity, "r", encoding="utf-8") as f:
             java_content = f.read()
 
         # Fix Boot-up URL loading
-        old_run = 'webView.loadUrl("http://127.0.0.1:8080");'
-        new_run = '''String startUrl = "http://127.0.0.1:8080/Welcome.html";
+        old_run = """String startUrl = "http://127.0.0.1:8080/Welcome.html";
                 android.content.Intent intent = getIntent();
                 if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
@@ -66,19 +111,24 @@ def update_application():
                         }
                     }
                 }
-                webView.loadUrl(startUrl);'''
+                webView.loadUrl(startUrl);"""
         
+        new_run = """String startUrl = "http://127.0.0.1:8080/Welcome.html";
+                android.content.Intent intent = getIntent();
+                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+                    String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+                    String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+                    startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") + 
+                                "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
+                }
+                webView.loadUrl(startUrl);"""
+
         if old_run in java_content:
             java_content = java_content.replace(old_run, new_run)
-            print("  [+] Wired Android Boot Intent to pass URL parameters to WebView.")
+            print("  [+] Rewired Java boot intent to pass raw text/subject URL parameters.")
 
-        # Add onNewIntent for background resume
-        old_back = '    @Override\n    public void onBackPressed() {'
-        new_intent_logic = '''    @Override
-    protected void onNewIntent(android.content.Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+        # Fix onNewIntent execution
+        old_intent_logic = """        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
             String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
             String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
             if (sharedText != null && webView != null) {
@@ -90,90 +140,33 @@ def update_application():
                     "})();";
                 webView.evaluateJavascript(js, null);
             }
-        }
-    }
+        }"""
 
-    @Override
-    public void onBackPressed() {'''
+        new_intent_logic = """        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+            String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+            String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+            if (webView != null) {
+                String tText = sharedText != null ? android.net.Uri.encode(sharedText) : "";
+                String tSubj = sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "";
+                String js = "javascript:(function(){ if(window.handleShare) window.handleShare(decodeURIComponent('" + tText + "'), decodeURIComponent('" + tSubj + "')); })();";
+                webView.evaluateJavascript(js, null);
+            }
+        }"""
 
-        if old_back in java_content and "onNewIntent" not in java_content:
-            java_content = java_content.replace(old_back, new_intent_logic)
-            print("  [+] Added onNewIntent to dynamically inject shared links via JavaScript.")
+        if old_intent_logic in java_content:
+            java_content = java_content.replace(old_intent_logic, new_intent_logic)
+            print("  [+] Upgraded Java onNewIntent to securely trigger window.handleShare.")
 
         with open(main_activity, "w", encoding="utf-8") as f:
             f.write(java_content)
 
-    # 4. Patch index.html (Handle Query Params and Desktop Drag/Drop)
-    index_html = "backend/frontend/index.html"
-    if os.path.exists(index_html):
-        with open(index_html, "r", encoding="utf-8") as f:
-            html_content = f.read()
+    commit_msg = """feat(integration): intelligent share routing for bookmarks and quick notes
 
-        # Fix Desktop Drag/Drop
-        old_drag = '''        // Image Drag & Drop
-        const editor = document.getElementById('editor');
-        editor.addEventListener('dragover', e => e.preventDefault());'''
-        
-        new_drag = '''        // Global Drag & Drop for URLs (Bookmarks)
-        document.body.addEventListener('dragover', e => {
-            if (!e.target.closest('#editor')) e.preventDefault();
-        });
-        document.body.addEventListener('drop', e => {
-            if (e.target.closest('#editor')) return;
-            const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                e.preventDefault();
-                document.getElementById('bmUrl').value = url;
-                document.getElementById('bmTitle').value = '';
-                const html = e.dataTransfer.getData('text/html');
-                if (html) {
-                    const match = html.match(/<a[^>]*>(.*?)<\\/a>/i);
-                    if (match && match[1]) {
-                        document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
-                    }
-                }
-                document.getElementById('bmPanel').classList.remove('hidden');
-            }
-        });
-
-        // Image Drag & Drop
-        const editor = document.getElementById('editor');
-        editor.addEventListener('dragover', e => e.preventDefault());'''
-        
-        if old_drag in html_content:
-            html_content = html_content.replace(old_drag, new_drag)
-            print("  [+] Attached global URL Drag & Drop logic for Desktop browsers.")
-
-        # Fix Boot Query Parameter Read
-        old_onload = '''        window.onload = () => {
-            checkSession();'''
-        
-        new_onload = '''        window.onload = () => {
-            checkSession();
-            
-            const params = new URLSearchParams(window.location.search);
-            if (params.has('share_url')) {
-                document.getElementById('bmUrl').value = params.get('share_url');
-                document.getElementById('bmTitle').value = params.get('share_title') || '';
-                document.getElementById('bmPanel').classList.remove('hidden');
-                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-            }'''
-            
-        if old_onload in html_content:
-            html_content = html_content.replace(old_onload, new_onload)
-            print("  [+] Wired window.onload to parse ?share_url parameters.")
-
-        with open(index_html, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-    commit_msg = """feat(integration): android share intents and desktop url drag-drop
-
-- Appended `android:launchMode="singleTask"` to Manifest, ensuring OMN-Go is reused from the background instead of spawning duplicate server crash instances.
-- Exposed Android `ACTION_SEND` intent filter for `text/plain` types allowing native OS "Share To" functionality.
-- Upgraded `MainActivity.java` to read `EXTRA_TEXT` and `EXTRA_SUBJECT` on boot via HTTP query parameters.
-- Overwrote `onNewIntent` in Java to dynamically execute JavaScript and overlay the Bookmark panel when sharing links to an already-running instance.
-- Attached a global `dragover` / `drop` listener to `index.html` allowing Desktop users to drag URLs from other browser tabs directly onto the app to open the Bookmark UI.
-- Bumped application to V1.2.20 (Android 10220)."""
+- Extracted routing decisions out of Android Java string templates and moved them to a dedicated `window.handleShare` Javascript function in `index.html`.
+- Implemented smart Regex URL detection. If a shared intent contains `http://` or `https://` anywhere in its text, it auto-routes to the Bookmark Panel.
+- If a shared intent (like highlighted text) lacks a URL, it securely injects the payload directly into the Quick Note UI.
+- Rewrote Android's `MainActivity.java` `onCreate` and `onNewIntent` to pass the `EXTRA_TEXT` and `EXTRA_SUBJECT` primitives agnostically to the frontend.
+- Bumped application to V1.2.21 (Android 10221)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 

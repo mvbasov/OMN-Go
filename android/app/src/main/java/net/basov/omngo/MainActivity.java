@@ -93,12 +93,8 @@ public class MainActivity extends Activity {
                 if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
                     String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
-                    if (sharedText != null) {
-                        startUrl += "?share_url=" + android.net.Uri.encode(sharedText);
-                        if (sharedSubject != null) {
-                            startUrl += "&share_title=" + android.net.Uri.encode(sharedSubject);
-                        }
-                    }
+                    startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") + 
+                                "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
                 }
                 webView.loadUrl(startUrl);
             }
@@ -120,13 +116,10 @@ public class MainActivity extends Activity {
         if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
             String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
             String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
-            if (sharedText != null && webView != null) {
-                String title = sharedSubject != null ? sharedSubject : "";
-                String js = "javascript:(function(){" +
-                    "document.getElementById('bmUrl').value = decodeURIComponent('" + android.net.Uri.encode(sharedText) + "');" +
-                    "document.getElementById('bmTitle').value = decodeURIComponent('" + android.net.Uri.encode(title) + "');" +
-                    "document.getElementById('bmPanel').classList.remove('hidden');" +
-                    "})();";
+            if (webView != null) {
+                String tText = sharedText != null ? android.net.Uri.encode(sharedText) : "";
+                String tSubj = sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "";
+                String js = "javascript:(function(){ if(window.handleShare) window.handleShare(decodeURIComponent('" + tText + "'), decodeURIComponent('" + tSubj + "')); })();";
                 webView.evaluateJavascript(js, null);
             }
         }

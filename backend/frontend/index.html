@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.20";
+        const APP_VERSION = "1.2.21";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -283,14 +283,45 @@
             }
         }
 
+        window.handleShare = function(text, subject) {
+            text = text || '';
+            subject = subject || '';
+            
+            // Regex to find the first valid URL
+            const urlMatch = text.match(/(https?:\/\/[^\s]+)/) || subject.match(/(https?:\/\/[^\s]+)/);
+            
+            if (urlMatch) {
+                // URL Found -> Route to Bookmark Panel
+                const url = urlMatch[0];
+                document.getElementById('bmUrl').value = url;
+                
+                let title = subject;
+                if (!title || title.includes(url)) {
+                    title = text.replace(url, '').trim();
+                }
+                if (!title) title = "Shared Link";
+                
+                document.getElementById('bmTitle').value = title;
+                document.getElementById('bmPanel').classList.remove('hidden');
+                document.getElementById('quickPanel').classList.add('hidden');
+            } else {
+                // No URL -> Route to Quick Note Panel
+                let content = '';
+                if (subject) content += subject + "\n\n";
+                if (text) content += text;
+                
+                document.getElementById('quickText').value = content.trim();
+                document.getElementById('quickPanel').classList.remove('hidden');
+                document.getElementById('bmPanel').classList.add('hidden');
+            }
+        };
+
         window.onload = () => {
             checkSession();
             
             const params = new URLSearchParams(window.location.search);
-            if (params.has('share_url')) {
-                document.getElementById('bmUrl').value = params.get('share_url');
-                document.getElementById('bmTitle').value = params.get('share_title') || '';
-                document.getElementById('bmPanel').classList.remove('hidden');
+            if (params.has('share_text') || params.has('share_subject')) {
+                window.handleShare(params.get('share_text'), params.get('share_subject'));
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             }
             if (window.hljs) {
@@ -355,7 +386,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.2.20';
+            let v = '1.2.21';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
