@@ -79,7 +79,7 @@ public class MainActivity extends Activity {
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                webView.loadUrl("http://localhost:8080");
+                webView.loadUrl("http://127.0.0.1:8080");
             }
         }, 1000); // 1 second delay
     }

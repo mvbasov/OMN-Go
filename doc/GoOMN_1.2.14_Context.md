@@ -1,8 +1,4 @@
-Here is the current state of the GoOMN project. We are currently at Version 1.1.0 (Android version code 10100).
-
-Recently, we migrated the Android app to a Java WebView wrapper using a Dockerized Gradle build (eliminating the old 5MB APK limit while strictly keeping NO AppCompat). We also added offline support for KaTeX and Highlight.js, implemented a dynamic JS Console Interceptor UI with a Clear button, and fixed directory-based Content-Type routing.
-
-Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format.
+Here is the current state of the GoOMN project. We are currently at Version 1.2.14 (Android version code 10100).
 
 
 ### doc/initial_prompt.md START

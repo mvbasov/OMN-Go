@@ -23,7 +23,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.14"
+const APP_VERSION = "1.2.15"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -767,9 +767,20 @@ func StartServer() {
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 		
-		port := fmt.Sprintf(":%d", appConfig.ServerPort)
-		log.Printf("OMN-Go Backend running on %s", port)
-		http.ListenAndServe(port, connectionMiddleware(mux))
+		if appConfig.ServerPort <= 0 {
+			appConfig.ServerPort = 8080
+		}
+		
+		bindAddr := fmt.Sprintf("127.0.0.1:%d", appConfig.ServerPort)
+		if runtime.GOOS != "android" {
+			bindAddr = fmt.Sprintf(":%d", appConfig.ServerPort)
+		}
+		
+		log.Printf("OMN-Go Backend running on %s", bindAddr)
+		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
+		if err != nil {
+			log.Printf("FATAL: Server crashed: %v", err)
+		}
 	}()
 }
 
