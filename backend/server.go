@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -23,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.18"
+const APP_VERSION = "1.2.19"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -422,8 +423,22 @@ func connectionMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func isLocalConnection(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
 func authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Automatically bypass authorization for internal OS/WebView connections
+		if isLocalConnection(r) {
+			next(w, r)
+			return
+		}
+
 		cookie, err := r.Cookie("session_role")
 		if err != nil || (requireAdmin && cookie.Value != "admin") || (!requireAdmin && cookie.Value != "admin" && cookie.Value != "guest") {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
