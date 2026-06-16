@@ -34,7 +34,7 @@ FILES=(
     "android/build.gradle"
     "android/settings.gradle"
     "android/app/build.gradle"
-    "android/app/src/main/java/net/basov/goomn/MainActivity.java"
+    "android/app/src/main/java/net/basov/omngo/MainActivity.java"
     "android/app/src/main/AndroidManifest.xml"
 )
 

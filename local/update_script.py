@@ -2,15 +2,15 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.5 Compiler Escaping Fix...")
+    print("[*] Initiating OMN-Go V1.2.6 Goldmark Engine Overhaul...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.4"', 'APP_VERSION = "1.2.5"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.4";', 'const APP_VERSION = "1.2.5";'),
-        ("backend/frontend/index.html", "let v = '1.2.4';", "let v = '1.2.5';"),
-        ("android/app/build.gradle", "versionCode 10204", "versionCode 10205"),
-        ("android/app/build.gradle", 'versionName "1.2.4"', 'versionName "1.2.5"')
+        ("backend/server.go", 'APP_VERSION = "1.2.5"', 'APP_VERSION = "1.2.6"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.5";', 'const APP_VERSION = "1.2.6";'),
+        ("backend/frontend/index.html", "let v = '1.2.5';", "let v = '1.2.6';"),
+        ("android/app/build.gradle", "versionCode 10205", "versionCode 10206"),
+        ("android/app/build.gradle", 'versionName "1.2.5"', 'versionName "1.2.6"')
     ]
 
     for filepath, old_val, new_val in version_replacements:
@@ -25,125 +25,116 @@ def update_application():
             else:
                 print(f"  [-] Version string not found in {filepath} (Already updated?)")
 
-    # 2. Repair handleSaveNote and handleGetNote using lambda-masked RegEx
+    # 2. Patch Dockerfile to fetch Goldmark
+    dockerfile = "Dockerfile"
+    if os.path.exists(dockerfile):
+        with open(dockerfile, "r", encoding="utf-8") as f:
+            d_content = f.read()
+        
+        old_go_get = "RUN go get golang.org/x/mobile@latest && go mod tidy"
+        new_go_get = "RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy"
+        
+        if old_go_get in d_content:
+            d_content = d_content.replace(old_go_get, new_go_get)
+            with open(dockerfile, "w", encoding="utf-8") as f:
+                f.write(d_content)
+            print("  [+] Appended Goldmark fetch to Dockerfile compilation chain.")
+
+    # 3. Patch server.go to replace manual parsing with Goldmark Engine
     server_go = "backend/server.go"
     if os.path.exists(server_go):
         with open(server_go, "r", encoding="utf-8") as f:
             server_code = f.read()
-        
-        # Pure copy of the required logic with standard Python multiline strings
-        new_save_note = '''func handleSaveNote(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	content := r.FormValue("content")
-	if name == "" {
-		return
+
+        # A. Replace Import Block
+        new_imports = r"""import (
+	"bytes"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"mime"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
+)"""
+        server_code = re.sub(r'import \((.*?)\)', lambda _: new_imports, server_code, count=1, flags=re.DOTALL)
+
+        # B. Replace Render Logic Block (from renderMarkdownToHTML down to compilePageWithBody definition)
+        new_engine = r"""var mdParser = goldmark.New(
+	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithParserOptions(
+		parser.WithAutoHeadingID(),
+	),
+	goldmark.WithRendererOptions(
+		html.WithHardWraps(),
+		html.WithUnsafe(), // CRITICAL: Allows raw Bookmarks.md scripts to execute
+	),
+)
+
+func renderMarkdownToHTML(mdContent []byte) string {
+	contentStr := string(mdContent)
+	mathBlocks := make(map[string]string)
+	counter := 0
+
+	// Protect complex KaTeX Math blocks from markdown emphasis corruption
+	contentStr = regexp.MustCompile(`(?s)\$\$.*?\$\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
+		placeholder := fmt.Sprintf("OMN_MATH_BLOCK_%d", counter)
+		mathBlocks[placeholder] = m
+		counter++
+		return placeholder
+	})
+	contentStr = regexp.MustCompile(`\$[^\$]+\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
+		placeholder := fmt.Sprintf("OMN_MATH_INLINE_%d", counter)
+		mathBlocks[placeholder] = m
+		counter++
+		return placeholder
+	})
+
+	var buf bytes.Buffer
+	if err := mdParser.Convert([]byte(contentStr), &buf); err != nil {
+		return string(mdContent)
+	}
+	htmlStr := buf.String()
+
+	// Restore math blocks natively for the offline KaTeX frontend
+	for placeholder, original := range mathBlocks {
+		htmlStr = strings.ReplaceAll(htmlStr, placeholder, original)
 	}
 
-	content = strings.ReplaceAll(content, "\\r\\n", "\\n")
+	// Remap static browsing links natively
+	htmlStr = regexp.MustCompile(`href="([^"http#:]+)\.md"`).ReplaceAllString(htmlStr, `href="$1.html"`)
+	htmlStr = regexp.MustCompile(`href="([^"\.#:]+)"`).ReplaceAllString(htmlStr, `href="$1.html"`)
+	return htmlStr
+}
 
-	var path string
-	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
-		cleanName := strings.TrimSuffix(name, ".html")
-		if !strings.HasSuffix(cleanName, ".md") {
-			cleanName += ".md"
-		}
-		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
-		
-		parts := strings.Split(content, "\\n\\n")
-		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "\\n")
-			modIdx := -1
-			for i, l := range headerLines {
-				if strings.HasPrefix(l, "Modified:") {
-					modIdx = i
-					break
-				}
-			}
-			now := time.Now().Format("2006-01-02 15:04:05")
-			if modIdx != -1 {
-				headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
-			} else {
-				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
-			}
-			parts[0] = strings.Join(headerLines, "\\n")
-			content = strings.Join(parts, "\\n\\n")
-		}
+\g<1>"""
 
-		os.MkdirAll(filepath.Dir(path), 0755)
-		os.WriteFile(path, []byte(content), 0644)
+        # Rip out the old manual engine functions securely
+        server_code = re.sub(r'func renderMarkdownToHTML\(mdContent \[\]byte\) string \{.*?(func compilePage\(name string, mdContent \[\]byte\) \[\]byte \{)', new_engine, server_code, flags=re.DOTALL)
 
-		htmlPath := filepath.Join(storageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
-		os.MkdirAll(filepath.Dir(htmlPath), 0755)
-		compiled := compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))
-		os.WriteFile(htmlPath, compiled, 0644)
-
-	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
-		os.MkdirAll(filepath.Dir(path), 0755)
-		os.WriteFile(path, []byte(content), 0644)
-	}
-
-	w.Write([]byte("Saved"))
-}'''
-        
-        # The 'lambda _:' completely disables Python's internal backslash evaluation
-        server_code = re.sub(r'func handleSaveNote\(w http\.ResponseWriter, r \*http\.Request\) \{.*?w\.Write\(\[\]byte\("Saved"\)\)\n}', lambda _: new_save_note, server_code, flags=re.DOTALL)
-        
-        new_get_note = '''func handleGetNote(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		name = "Welcome"
-	}
-	
-	var path string
-	var data []byte
-	var err error
-
-	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
-		cleanName := strings.TrimSuffix(name, ".html")
-		if !strings.HasSuffix(cleanName, ".md") {
-			cleanName += ".md"
-		}
-		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
-		data, err = os.ReadFile(path)
-		if err != nil {
-			embedPath := "frontend/md/" + cleanName
-			data, err = staticFS.ReadFile(embedPath)
-			if err != nil {
-				title := strings.TrimSuffix(cleanName, ".md")
-				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s\\nDate: %s\\nCategory: Notes\\n\\n# %s\\n\\nStart editing this page!", title, timestamp, title)
-				os.MkdirAll(filepath.Dir(path), 0755)
-				os.WriteFile(path, []byte(newContent), 0644)
-				data = []byte(newContent)
-			} else {
-				os.MkdirAll(filepath.Dir(path), 0755)
-				os.WriteFile(path, data, 0644)
-			}
-		}
-	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
-		data, err = os.ReadFile(path)
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-	}
-	w.Write(data)
-}'''
-        
-        # Same lambda shield mechanism applied here
-        server_code = re.sub(r'func handleGetNote\(w http\.ResponseWriter, r \*http\.Request\) \{.*?w\.Write\(data\)\n}', lambda _: new_get_note, server_code, flags=re.DOTALL)
-
-        with open("backend/server.go", "w", encoding="utf-8") as f:
+        with open(server_go, "w", encoding="utf-8") as f:
             f.write(server_code)
-        print("  [+] Cleaned and re-injected handleSaveNote and handleGetNote flawlessly.")
+        print("  [+] Injected robust Goldmark engine and math isolation into server.go.")
 
-    commit_msg = '''fix(compiler): repair literal newlines caused by regex string escaping
+    commit_msg = """feat(parser): replace custom markdown engine with Goldmark
 
-- Fixed Go compilation errors ("newline in string") by neutralizing Python `re.sub` replacement string parsing using lambda functions.
-- Repaired `handleSaveNote` and `handleGetNote` string payloads (`\\n` and `\\r\\n` injections) returning them to valid Go syntax.
-- Bumped application to V1.2.5 (Android 10205).'''
+- Integrated github.com/yuin/goldmark replacing manual line-parsing engine.
+- Configured html.WithUnsafe() allowing raw Bookmarks.md script arrays to execute seamlessly.
+- Wrote regex pre-processor to securely isolate KaTeX $$ blocks, preventing goldmark from accidentally rendering math underscores as italics.
+- Preserved native href mapping for completely serverless .html browsing.
+- Bumped application to V1.2.6 (Android 10206)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 

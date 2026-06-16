@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -15,9 +16,14 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.5"
+const APP_VERSION = "1.2.6"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -102,137 +108,51 @@ func initStorage() {
 	precompileAllPages()
 }
 
+var mdParser = goldmark.New(
+	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithParserOptions(
+		parser.WithAutoHeadingID(),
+	),
+	goldmark.WithRendererOptions(
+		html.WithHardWraps(),
+		html.WithUnsafe(), // CRITICAL: Allows raw Bookmarks.md scripts to execute
+	),
+)
+
 func renderMarkdownToHTML(mdContent []byte) string {
-	lines := strings.Split(string(mdContent), "\n")
-	var html strings.Builder
-	inList := false
-	inCodeBlock := false
-	var codeLang string
+	contentStr := string(mdContent)
+	mathBlocks := make(map[string]string)
+	counter := 0
 
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Code blocks
-		if strings.HasPrefix(trimmed, "```") {
-			if inCodeBlock {
-				html.WriteString("</code></pre>\n")
-				inCodeBlock = false
-			} else {
-				codeLang = strings.TrimPrefix(trimmed, "```")
-				if codeLang == "" {
-					codeLang = "plaintext"
-				}
-				html.WriteString(fmt.Sprintf("<pre><code class=\"language-%s\">", codeLang))
-				inCodeBlock = true
-			}
-			continue
-		}
-
-		if inCodeBlock {
-			escaped := htmlEscape(line)
-			html.WriteString(escaped + "\n")
-			continue
-		}
-
-		// Lists
-		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
-			if !inList {
-				html.WriteString("<ul>\n")
-				inList = true
-			}
-			content := trimmed[2:]
-			html.WriteString(fmt.Sprintf("<li>%s</li>\n", renderInlineMarkdown(content)))
-			continue
-		} else {
-			if inList {
-				html.WriteString("</ul>\n")
-				inList = false
-			}
-		}
-
-		// Headings
-		if strings.HasPrefix(trimmed, "#") {
-			level := 0
-			for level < len(trimmed) && trimmed[level] == '#' {
-				level++
-			}
-			if level > 0 && level < len(trimmed) && trimmed[level] == ' ' {
-				content := trimmed[level+1:]
-				id := strings.ToLower(strings.Join(strings.Fields(content), "-"))
-				id = strings.Map(func(r rune) rune {
-					if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-						return r
-					}
-					return -1
-				}, id)
-				html.WriteString(fmt.Sprintf("<h%d id=\"%s\">%s</h%d>\n", level, id, renderInlineMarkdown(content), level))
-				continue
-			}
-		}
-
-		// Blank lines
-		if trimmed == "" {
-			html.WriteString("<br/>\n")
-			continue
-		}
-
-		// Horizontal rule
-		if trimmed == "---" {
-			html.WriteString("<hr/>\n")
-			continue
-		}
-
-		// Regular paragraph
-		html.WriteString(fmt.Sprintf("<p>%s</p>\n", renderInlineMarkdown(line)))
-	}
-
-	if inList {
-		html.WriteString("</ul>\n")
-	}
-	if inCodeBlock {
-		html.WriteString("</code></pre>\n")
-	}
-
-	return html.String()
-}
-
-func htmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, "\"", "&quot;")
-	return s
-}
-
-func renderInlineMarkdown(s string) string {
-	// Bold (**text** or __text__)
-	s = regexp.MustCompile(`\*\*(.*?)\*\*`).ReplaceAllString(s, "<strong>$1</strong>")
-	s = regexp.MustCompile(`__(.*?)__`).ReplaceAllString(s, "<strong>$1</strong>")
-
-	// Italics (*text* or _text_)
-	s = regexp.MustCompile(`\*(.*?)\*`).ReplaceAllString(s, "<em>$1</em>")
-	s = regexp.MustCompile(`_(.*?)_`).ReplaceAllString(s, "<em>$1</em>")
-
-	// Inline Code (`code`)
-	s = regexp.MustCompile("`(.*?)`").ReplaceAllString(s, "<code>$1</code>")
-
-	// Links [label](url)
-	s = regexp.MustCompile(`\[(.*?)\]\((.*?)\)`).ReplaceAllStringFunc(s, func(m string) string {
-		parts := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`).FindStringSubmatch(m)
-		if len(parts) == 3 {
-			label := parts[1]
-			url := parts[2]
-			if strings.HasSuffix(url, ".md") {
-				url = strings.TrimSuffix(url, ".md") + ".html"
-			} else if !strings.Contains(url, ".") && !strings.HasPrefix(url, "http") && !strings.HasPrefix(url, "#") {
-				url = url + ".html"
-			}
-			return fmt.Sprintf(`<a href="%s">%s</a>`, url, label)
-		}
-		return m
+	// Protect complex KaTeX Math blocks from markdown emphasis corruption
+	contentStr = regexp.MustCompile(`(?s)\$\$.*?\$\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
+		placeholder := fmt.Sprintf("OMN_MATH_BLOCK_%d", counter)
+		mathBlocks[placeholder] = m
+		counter++
+		return placeholder
+	})
+	contentStr = regexp.MustCompile(`\$[^\$]+\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
+		placeholder := fmt.Sprintf("OMN_MATH_INLINE_%d", counter)
+		mathBlocks[placeholder] = m
+		counter++
+		return placeholder
 	})
 
-	return s
+	var buf bytes.Buffer
+	if err := mdParser.Convert([]byte(contentStr), &buf); err != nil {
+		return string(mdContent)
+	}
+	htmlStr := buf.String()
+
+	// Restore math blocks natively for the offline KaTeX frontend
+	for placeholder, original := range mathBlocks {
+		htmlStr = strings.ReplaceAll(htmlStr, placeholder, original)
+	}
+
+	// Remap static browsing links natively
+	htmlStr = regexp.MustCompile(`href="([^"http#:]+)\.md"`).ReplaceAllString(htmlStr, `href="$1.html"`)
+	htmlStr = regexp.MustCompile(`href="([^"\.#:]+)"`).ReplaceAllString(htmlStr, `href="$1.html"`)
+	return htmlStr
 }
 
 func compilePage(name string, mdContent []byte) []byte {

@@ -37,7 +37,7 @@ RUN go mod download || true
 
 # STAGE 3: Build & Pack
 COPY . .
-RUN go get golang.org/x/mobile@latest && go mod tidy
+RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy
 
 # Desktop Binary (OMN-Go naming convention)
 RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go
