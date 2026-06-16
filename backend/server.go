@@ -23,7 +23,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.16"
+const APP_VERSION = "1.2.17"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -679,10 +679,14 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		htmlPath := filepath.Join(storageDir, "html", filepath.Clean(name+".html"))
+		mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
 
-		if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
-			mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
-			if _, err := os.Stat(mdPath); os.IsNotExist(err) {
+		htmlStat, errHtml := os.Stat(htmlPath)
+		mdStat, errMd := os.Stat(mdPath)
+
+		// Recompile if HTML is missing, OR if Markdown was modified more recently than HTML
+		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+			if os.IsNotExist(errMd) {
 				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 				if err == nil {
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
@@ -771,10 +775,7 @@ func StartServer() {
 			appConfig.ServerPort = 8080
 		}
 		
-		bindAddr := fmt.Sprintf("127.0.0.1:%d", appConfig.ServerPort)
-		if runtime.GOOS != "android" {
-			bindAddr = fmt.Sprintf(":%d", appConfig.ServerPort)
-		}
+		bindAddr := fmt.Sprintf("0.0.0.0:%d", appConfig.ServerPort)
 		
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
 		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))

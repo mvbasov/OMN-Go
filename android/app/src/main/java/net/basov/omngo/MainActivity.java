@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
                         intent.setDataAndType(android.net.Uri.fromFile(file), "text/plain");
                         intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         
-                        view.getContext().startActivity(android.content.Intent.createChooser(intent, "Edit Markdown File"));
+                        MainActivity.this.startActivityForResult(android.content.Intent.createChooser(intent, "Edit Markdown File"), 1001);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -91,6 +91,14 @@ public class MainActivity extends Activity {
                 webView.loadUrl("http://127.0.0.1:8080");
             }
         }, 1000); // 1 second delay
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1001 && webView != null) {
+            webView.reload(); // Refresh view when returning from external editor
+        }
     }
 
     @Override
