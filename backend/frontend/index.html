@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.9";
+        const APP_VERSION = "1.2.10";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -268,6 +268,17 @@
                     hljs.highlightElement(block);
                 });
             }
+            if (window.renderMathInElement) {
+                renderMathInElement(document.getElementById('preview') || document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
                 const tb = document.getElementById('toggleBtn');
                 if (tb) tb.style.display = 'none';
@@ -314,7 +325,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('goomn-version-footer');
-            let v = '1.2.9';
+            let v = '1.2.10';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
