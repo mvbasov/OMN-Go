@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.2.2"
+const APP_VERSION = "1.2.3"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -281,7 +281,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", string(mdContent))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
 
@@ -619,7 +619,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	var data []byte
 	var err error
 
-	if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
+	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
 		cleanName := strings.TrimSuffix(name, ".html")
 		if !strings.HasSuffix(cleanName, ".md") {
 			cleanName += ".md"
@@ -659,8 +659,11 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize textarea line endings to prevent Pelican header breakage
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+
 	var path string
-	if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
+	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
 		cleanName := strings.TrimSuffix(name, ".html")
 		if !strings.HasSuffix(cleanName, ".md") {
 			cleanName += ".md"

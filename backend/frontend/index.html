@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.2";
+        const APP_VERSION = "1.2.3";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -127,7 +127,7 @@
         let currentMode = 'view';
         async function toggleMode() {
             try {
-                const res = await fetch('/api/config');
+                const res = await fetch('/api/config', { cache: 'no-store' });
                 if (res.ok) {
                     const config = await res.json();
                     if (!config.use_internal_editor) {
@@ -310,7 +310,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('goomn-version-footer');
-            let v = '1.2.2';
+            let v = '1.2.3';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });

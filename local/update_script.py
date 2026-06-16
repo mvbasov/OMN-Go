@@ -1,15 +1,15 @@
 import os
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.2 Layout Engine Fix...")
+    print("[*] Initiating OMN-Go V1.2.3 Editor Save & Routing Fix...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.1"', 'APP_VERSION = "1.2.2"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.1";', 'const APP_VERSION = "1.2.2";'),
-        ("backend/frontend/index.html", "let v = '1.2.1';", "let v = '1.2.2';"),
-        ("android/app/build.gradle", 'versionCode 10201', 'versionCode 10202'),
-        ("android/app/build.gradle", 'versionName "1.2.1"', 'versionName "1.2.2"')
+        ("backend/server.go", 'APP_VERSION = "1.2.2"', 'APP_VERSION = "1.2.3"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.2";', 'const APP_VERSION = "1.2.3";'),
+        ("backend/frontend/index.html", "let v = '1.2.2';", "let v = '1.2.3';"),
+        ("android/app/build.gradle", 'versionCode 10202', 'versionCode 10203'),
+        ("android/app/build.gradle", 'versionName "1.2.2"', 'versionName "1.2.3"')
     ]
 
     for filepath, old_v, new_v in version_replacements:
@@ -24,172 +24,58 @@ def update_application():
             else:
                 print(f"  [-] Version string not found in {filepath} (Already updated?)")
 
-    # 2. Patch compilePage inside server.go
-    server_go = "backend/server.go"
-    if not os.path.exists(server_go):
-        raise ValueError(f"Missing mandatory file: {server_go}")
+    # 2. Define complex code block patches
+    patches = {
+        "backend/server.go": [
+            (
+                '\tname := r.FormValue("name")\n\tcontent := r.FormValue("content")\n\tif name == "" {\n\t\treturn\n\t}\n\n\tvar path string\n\tif strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {',
+                '\tname := r.FormValue("name")\n\tcontent := r.FormValue("content")\n\tif name == "" {\n\t\treturn\n\t}\n\n\t// Normalize textarea line endings to prevent Pelican header breakage\n\tcontent = strings.ReplaceAll(content, "\\r\\n", "\\n")\n\n\tvar path string\n\tif !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {'
+            ),
+            (
+                '\tvar path string\n\tvar data []byte\n\tvar err error\n\n\tif strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {',
+                '\tvar path string\n\tvar data []byte\n\tvar err error\n\n\tif !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {'
+            ),
+            (
+                '\tlayout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", string(mdContent))',
+                '\tlayout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))'
+            )
+        ],
+        "backend/frontend/index.html": [
+            (
+                "let currentMode = 'view';\n        async function toggleMode() {\n            try {\n                const res = await fetch('/api/config');\n                if (res.ok) {",
+                "let currentMode = 'view';\n        async function toggleMode() {\n            try {\n                const res = await fetch('/api/config', { cache: 'no-store' });\n                if (res.ok) {"
+            )
+        ]
+    }
 
-    with open(server_go, "r", encoding="utf-8") as f:
-        server_content = f.read()
+    # Execute patches safely
+    for filepath, file_patches in patches.items():
+        if not os.path.exists(filepath):
+            print(f"  [!] Missing file: {filepath}")
+            continue
+            
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        for old_str, new_str in file_patches:
+            if old_str in content:
+                content = content.replace(old_str, new_str)
+                print(f"  [+] Patched target in {filepath}")
+            elif new_str in content:
+                print(f"  [=] Target already patched in {filepath}")
+            else:
+                print(f"  [!] WARNING: Target string missing in {filepath}\n      Expected snippet: {old_str[:60]}...")
+                
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
 
-    # Target compilePage block
-    old_compile_page = """func compilePage(name string, mdContent []byte) []byte {
-	var headers []string
-	var bodyLines []string
-	inHeader := true
+    commit_msg = """fix(engine): resolve markdown save failures and external editor cache
 
-	lines := strings.Split(string(mdContent), "\\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if inHeader {
-			if trimmed == "" {
-				inHeader = false
-				continue
-			}
-			if strings.Contains(line, ":") {
-				headers = append(headers, line)
-			} else {
-				inHeader = false
-				bodyLines = append(bodyLines, line)
-			}
-		} else {
-			bodyLines = append(bodyLines, line)
-		}
-	}
-
-	renderedBody := renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\\n")))
-	metadataStr := strings.Join(headers, "\\n")
-
-	layout := string(frontendHTML)
-
-	title := "OMN-Go - " + name
-	for _, h := range headers {
-		if strings.HasPrefix(h, "Title:") {
-			title = strings.TrimSpace(strings.TrimPrefix(h, "Title:"))
-			break
-		}
-	}
-
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", string(mdContent))
-	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
-
-	return []byte(layout)
-}"""
-
-    new_compile_page = """func compilePage(name string, mdContent []byte) []byte {
-	return compilePageWithBody(name, mdContent, "")
-}
-
-func compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
-	var headers []string
-	var bodyLines []string
-	inHeader := true
-
-	lines := strings.Split(string(mdContent), "\\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if inHeader {
-			if trimmed == "" {
-				inHeader = false
-				continue
-			}
-			if strings.Contains(line, ":") {
-				headers = append(headers, line)
-			} else {
-				inHeader = false
-				bodyLines = append(bodyLines, line)
-			}
-		} else {
-			bodyLines = append(bodyLines, line)
-		}
-	}
-
-	renderedBody := customBody
-	if renderedBody == "" {
-		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\\n")))
-	}
-	metadataStr := strings.Join(headers, "\\n")
-
-	layout := string(frontendHTML)
-
-	title := "OMN-Go - " + name
-	for _, h := range headers {
-		if strings.HasPrefix(h, "Title:") {
-			title = strings.TrimSpace(strings.TrimPrefix(h, "Title:"))
-			break
-		}
-	}
-
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", string(mdContent))
-	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
-
-	return []byte(layout)
-}"""
-
-    # Target handleConfig block
-    old_handle_config = """		if name == "Config" {
-			w.Header().Set("Content-Type", "text/html")
-			compiled := compilePage("Config", []byte("Title: Config\\nCategory: Settings\\n\\n"))
-			body := getConfigPageBody()
-			htmlStr := strings.Replace(string(compiled), "<!-- OMN_GO_PREVIEW_BODY -->", body, 1)
-			w.Write([]byte(htmlStr))
-			return
-		}"""
-
-    new_handle_config = """		if name == "Config" {
-			w.Header().Set("Content-Type", "text/html")
-			body := getConfigPageBody()
-			compiled := compilePageWithBody("Config", []byte("Title: Config\\nCategory: Settings\\n\\n"), body)
-			w.Write(compiled)
-			return
-		}"""
-
-    # Target handleEditExternal block
-    old_edit_external = """	w.Header().Set("Content-Type", "text/html")
-	pageName := strings.TrimSuffix(cleanName, ".md")
-	compiledWait := compilePage(pageName, []byte(fmt.Sprintf("Title: Refresh %s\\nDate: %s\\nCategory: Action\\n\\n", pageName, time.Now().Format("2006-01-02 15:04:05"))))
-	
-	waitBody := getExternalEditPageBody(pageName)
-	htmlStr := strings.Replace(string(compiledWait), "<!-- OMN_GO_PREVIEW_BODY -->", waitBody, 1)
-	w.Write([]byte(htmlStr))"""
-
-    new_edit_external = """	w.Header().Set("Content-Type", "text/html")
-	pageName := strings.TrimSuffix(cleanName, ".md")
-	waitBody := getExternalEditPageBody(pageName)
-	compiledWait := compilePageWithBody(pageName, []byte(fmt.Sprintf("Title: Refresh %s\\nDate: %s\\nCategory: Action\\n\\n", pageName, time.Now().Format("2006-01-02 15:04:05"))), waitBody)
-	w.Write(compiledWait)"""
-
-    # Apply patches
-    patches = [
-        (old_compile_page, new_compile_page, "compilePageWithBody infrastructure"),
-        (old_handle_config, new_handle_config, "config page body generation"),
-        (old_edit_external, new_edit_external, "external edit waiting page body generation")
-    ]
-
-    for old_str, new_str, desc in patches:
-        if old_str in server_content:
-            server_content = server_content.replace(old_str, new_str)
-            print(f"  [+] Patched {desc} inside server.go")
-        elif new_str in server_content:
-            print(f"  [=] {desc} is already up to date inside server.go")
-        else:
-            raise ValueError(f"Failing to find replacement hook for: {desc}")
-
-    with open(server_go, "w", encoding="utf-8") as f:
-        f.write(server_content)
-
-    commit_msg = """fix(engine): resolve blank admin views by adding compilePageWithBody
-
-- Fixed blank 'Config' page on desktop by passing pre-rendered form straight to compilePageWithBody.
-- Fixed blank external editor refresh interface by bypassing secondary placeholder replacements.
-- Preserved Layout wrappers for both virtual system states.
-- Bumped application version to 1.2.2."""
+- Added cache: 'no-store' to the config fetch request to ensure the browser doesn't swallow external editor checks.
+- Altered server.go to recognize extensionless files (like 'Welcome') as Markdown notes, fixing the save bypass bug.
+- Normalized incoming CRLF line endings to prevent Pelican headers from being misidentified.
+- Added htmlEscape to raw MD injection to prevent unescaped characters breaking the editor textarea boundaries.
+- Bumped application version to 1.2.3 (Android 10203)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
