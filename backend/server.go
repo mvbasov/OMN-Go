@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.2.1"
+const APP_VERSION = "1.2.2"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -236,6 +236,10 @@ func renderInlineMarkdown(s string) string {
 }
 
 func compilePage(name string, mdContent []byte) []byte {
+	return compilePageWithBody(name, mdContent, "")
+}
+
+func compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
 	var headers []string
 	var bodyLines []string
 	inHeader := true
@@ -259,7 +263,10 @@ func compilePage(name string, mdContent []byte) []byte {
 		}
 	}
 
-	renderedBody := renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
+	renderedBody := customBody
+	if renderedBody == "" {
+		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
+	}
 	metadataStr := strings.Join(headers, "\n")
 
 	layout := string(frontendHTML)
@@ -443,11 +450,9 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html")
 	pageName := strings.TrimSuffix(cleanName, ".md")
-	compiledWait := compilePage(pageName, []byte(fmt.Sprintf("Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05"))))
-	
 	waitBody := getExternalEditPageBody(pageName)
-	htmlStr := strings.Replace(string(compiledWait), "<!-- OMN_GO_PREVIEW_BODY -->", waitBody, 1)
-	w.Write([]byte(htmlStr))
+	compiledWait := compilePageWithBody(pageName, []byte(fmt.Sprintf("Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05"))), waitBody)
+	w.Write(compiledWait)
 }
 
 // Simple connection tracker for Android WebView synchronization
@@ -713,10 +718,9 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		
 		if name == "Config" {
 			w.Header().Set("Content-Type", "text/html")
-			compiled := compilePage("Config", []byte("Title: Config\nCategory: Settings\n\n"))
 			body := getConfigPageBody()
-			htmlStr := strings.Replace(string(compiled), "<!-- OMN_GO_PREVIEW_BODY -->", body, 1)
-			w.Write([]byte(htmlStr))
+			compiled := compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
+			w.Write(compiled)
 			return
 		}
 
