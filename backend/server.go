@@ -23,7 +23,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.17"
+const APP_VERSION = "1.2.18"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -247,16 +247,20 @@ func precompileAllPages() {
 	htmlDir := filepath.Join(storageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
-	files, _ := filepath.Glob(filepath.Join(mdDir, "*.md"))
-	for _, f := range files {
-		content, err := os.ReadFile(f)
-		if err == nil {
-			name := strings.TrimSuffix(filepath.Base(f), ".md")
-			compiled := compilePage(name, content)
-			htmlPath := filepath.Join(htmlDir, name+".html")
-			os.WriteFile(htmlPath, compiled, 0644)
+	filepath.Walk(mdDir, func(f string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && strings.HasSuffix(f, ".md") {
+			content, err := os.ReadFile(f)
+			if err == nil {
+				relPath, _ := filepath.Rel(mdDir, f)
+				name := strings.TrimSuffix(filepath.ToSlash(relPath), ".md")
+				compiled := compilePage(name, content)
+				htmlPath := filepath.Join(htmlDir, filepath.Clean(name+".html"))
+				os.MkdirAll(filepath.Dir(htmlPath), 0755)
+				os.WriteFile(htmlPath, compiled, 0644)
+			}
 		}
-	}
+		return nil
+	})
 }
 
 func getConfigPageBody() string {
@@ -668,7 +672,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasSuffix(path, ".html") {
-		name := strings.TrimSuffix(filepath.Base(path), ".html")
+		name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
 		
 		if name == "Config" {
 			w.Header().Set("Content-Type", "text/html")
