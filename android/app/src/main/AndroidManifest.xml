@@ -6,7 +6,7 @@
     
     <application
         android:allowBackup="true"
-        android:label="GoOMN"
+        android:label="OMN-Go"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">

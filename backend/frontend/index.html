@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoOMN Editor</title>
+    <title>OMN-Go</title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f9f9f9; color: #333; }
         .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
@@ -58,7 +58,7 @@
             }
         });
     </script>
-    <script>const APP_VERSION = "1.1.0";</script>
+    <script>const APP_VERSION = "1.2.0";</script>
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
 </head>
@@ -67,7 +67,7 @@
     <!-- Login Overlay -->
     <div id="loginOverlay" class="overlay">
         <div class="modal">
-            <h2>GoOMN Login</h2>
+            <h2>OMN-Go Login</h2>
             <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
             <button onclick="login()">Enter</button>
         </div>
@@ -76,7 +76,7 @@
     <!-- Main UI -->
     <div id="mainUI">
         <div class="header">
-            <strong>GoOMN</strong>
+            <strong>OMN-Go</strong>
             <a href="#home" onclick="loadNote('Welcome')">Home</a>
             <a href="#help" onclick="loadNote('Welcome')">Help</a>
             <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
@@ -427,7 +427,7 @@
             const footer = document.getElementById('goomn-version-footer');
             let v = '1.1.0';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
-            if (footer) footer.innerText = 'GoOMN v' + v;
+            if (footer) footer.innerText = 'OMN-Go v' + v;
         });
     </script>
 

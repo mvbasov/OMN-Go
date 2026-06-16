@@ -16,12 +16,14 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.1.0"
+const APP_VERSION = "1.2.0"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
 	AdminPassword string `json:"admin_password"`
 	GuestPassword string `json:"guest_password"`
+	UseInternalEd bool   `json:"use_internal_editor"`
+	DesktopExtCmd string `json:"desktop_ext_cmd"`
 }
 
 //go:embed frontend/index.html
@@ -64,6 +66,8 @@ func initStorage() {
 			ServerPort:    8080,
 			AdminPassword: "admin_secret_changeme",
 			GuestPassword: "guest_secret_changeme",
+			UseInternalEd: true,
+			DesktopExtCmd: "subl",
 		}
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		os.WriteFile(configPath, data, 0644)
@@ -75,7 +79,7 @@ func initStorage() {
 	// 3. Init Default Notes
 	welcomePath := filepath.Join(mdDir, "Welcome.md")
 	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to GoOMN. Start editing!\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
+		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to OMN-Go. Start editing!\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
 		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
 	}
 
@@ -140,6 +144,21 @@ func authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+func handleConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(appConfig)
+		return
+	}
+	if r.Method == "POST" {
+		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+		data, _ := json.MarshalIndent(appConfig, "", "  ")
+		os.WriteFile(filepath.Join(storageDir, "config.json"), data, 0644)
+		w.Write([]byte("Config Saved"))
 	}
 }
 
@@ -379,6 +398,7 @@ func StartServer() {
 		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", handleLogin)
+		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
 		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
@@ -387,7 +407,7 @@ func StartServer() {
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		
 		port := fmt.Sprintf(":%d", appConfig.ServerPort)
-		log.Printf("GoOMN Backend running on %s", port)
+		log.Printf("OMN-Go Backend running on %s", port)
 		http.ListenAndServe(port, connectionMiddleware(mux))
 	}()
 }
