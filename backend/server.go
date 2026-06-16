@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.2.0"
+const APP_VERSION = "1.2.1"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -412,10 +412,33 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 	filePath := filepath.Join(storageDir, "md", cleanName)
 
-	cmd := exec.Command(appConfig.DesktopExtCmd, filePath)
-	err := cmd.Start()
-	if err != nil {
-		log.Printf("Failed to run external editor: %v", err)
+	var cmd *exec.Cmd
+	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
+	
+	if cmdStr == "" {
+		switch runtime.GOOS {
+		case "linux":
+			cmd = exec.Command("xdg-open", filePath)
+		case "windows":
+			cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", filePath)
+		case "darwin":
+			cmd = exec.Command("open", filePath)
+		}
+	} else {
+		parts := strings.Fields(cmdStr)
+		if len(parts) > 0 {
+			args := append(parts[1:], filePath)
+			cmd = exec.Command(parts[0], args...)
+		}
+	}
+
+	if cmd != nil {
+		err := cmd.Start()
+		if err != nil {
+			log.Printf("Failed to run external editor: %v", err)
+		}
+	} else {
+		log.Printf("Failed to run external editor: no command configured")
 	}
 
 	w.Header().Set("Content-Type", "text/html")
