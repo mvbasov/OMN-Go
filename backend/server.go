@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.2.4"
+const APP_VERSION = "1.2.5"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -632,13 +632,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s
-Date: %s
-Category: Notes
-
-# %s
-
-Start editing this page!", title, timestamp, title)
+				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte(newContent), 0644)
 				data = []byte(newContent)
@@ -665,9 +659,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content = strings.ReplaceAll(content, "
-", "
-")
+	content = strings.ReplaceAll(content, "\r\n", "\n")
 
 	var path string
 	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
@@ -677,12 +669,9 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
 		
-		parts := strings.Split(content, "
-
-")
+		parts := strings.Split(content, "\n\n")
 		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "
-")
+			headerLines := strings.Split(parts[0], "\n")
 			modIdx := -1
 			for i, l := range headerLines {
 				if strings.HasPrefix(l, "Modified:") {
@@ -696,11 +685,8 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			} else {
 				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
 			}
-			parts[0] = strings.Join(headerLines, "
-")
-			content = strings.Join(parts, "
-
-")
+			parts[0] = strings.Join(headerLines, "\n")
+			content = strings.Join(parts, "\n\n")
 		}
 
 		os.MkdirAll(filepath.Dir(path), 0755)
