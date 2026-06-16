@@ -1,4 +1,4 @@
-module net.basov.goomn
+module net.basov.omngo
 
 go 1.25
 

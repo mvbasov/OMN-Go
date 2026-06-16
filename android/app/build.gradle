@@ -3,15 +3,15 @@ plugins {
 }
 
 android {
-    namespace 'net.basov.goomn'
+    namespace 'net.basov.omngo'
     compileSdk 34
 
     defaultConfig {
-        applicationId "net.basov.goomn"
+        applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10203
-        versionName "1.2.3"
+        versionCode 10204
+        versionName "1.2.4"
     }
 
     signingConfigs {

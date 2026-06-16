@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.2.3"
+const APP_VERSION = "1.2.4"
 
 type Config struct {
 	ServerPort    int    `json:"server_port"`
@@ -41,7 +41,7 @@ var (
 
 func initStorage() {
 	if runtime.GOOS == "android" {
-		storageDir = "/storage/emulated/0/Android/media/net.basov.goomn"
+		storageDir = "/storage/emulated/0/Android/media/net.basov.omngo"
 	} else {
 		storageDir = "./data"
 	}
@@ -632,7 +632,13 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)
+				newContent := fmt.Sprintf("Title: %s
+Date: %s
+Category: Notes
+
+# %s
+
+Start editing this page!", title, timestamp, title)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte(newContent), 0644)
 				data = []byte(newContent)
@@ -659,8 +665,9 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize textarea line endings to prevent Pelican header breakage
-	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "
+", "
+")
 
 	var path string
 	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
@@ -670,10 +677,12 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
 		
-		// Pelican Header modification logic
-		parts := strings.Split(content, "\n\n")
+		parts := strings.Split(content, "
+
+")
 		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "\n")
+			headerLines := strings.Split(parts[0], "
+")
 			modIdx := -1
 			for i, l := range headerLines {
 				if strings.HasPrefix(l, "Modified:") {
@@ -687,14 +696,16 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			} else {
 				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
 			}
-			parts[0] = strings.Join(headerLines, "\n")
-			content = strings.Join(parts, "\n\n")
+			parts[0] = strings.Join(headerLines, "
+")
+			content = strings.Join(parts, "
+
+")
 		}
 
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
 
-		// Overwrite the dynamic server compiled HTML
 		htmlPath := filepath.Join(storageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
 		os.MkdirAll(filepath.Dir(htmlPath), 0755)
 		compiled := compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))

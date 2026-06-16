@@ -1,11 +1,11 @@
-package net.basov.goomn;
+package net.basov.omngo;
 
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import net.basov.goomn.backend.Backend;
+import net.basov.omngo.backend.Backend;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
                         android.os.StrictMode.setVmPolicy(builder.build());
 
-                        java.io.File file = new java.io.File("/storage/emulated/0/Android/media/net.basov.goomn/md/" + name + ".md");
+                        java.io.File file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name + ".md");
                         if (!file.exists()) {
                             file.getParentFile().mkdirs();
                             file.createNewFile();

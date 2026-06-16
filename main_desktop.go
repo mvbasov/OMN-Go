@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"time"
-	"net.basov.goomn/backend"
+	"net.basov.omngo/backend"
 )
 
 func main() {
