@@ -1,1 +1,1 @@
-docker build --no-cache -t goomn-builder .
+docker build --no-cache -t omn-go-builder .

@@ -1,1 +1,1 @@
-docker build -t goomn-builder .
+docker build -t omn-go-builder .

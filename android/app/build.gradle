@@ -10,16 +10,16 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10211
-        versionName "1.2.11"
+        versionCode 10214
+        versionName "1.2.14"
     }
 
     signingConfigs {
         release {
-            storeFile file('goomn.keystore')
-            storePassword 'goomn123'
-            keyAlias 'goomn'
-            keyPassword 'goomn123'
+            storeFile file('omn-go.keystore')
+            storePassword 'omn-go123'
+            keyAlias 'omn-go'
+            keyPassword 'omn-go123'
         }
     }
     buildTypes {

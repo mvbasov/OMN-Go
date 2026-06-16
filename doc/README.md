@@ -43,13 +43,13 @@ We leverage a highly optimized, multi-stage Docker environment to compile the An
 
 ```bash
 # Build the Docker image (caches toolchains in Stage 1, packages in Stage 2)
-docker build -t goomn-builder .
+docker build -t omn-go-builder .
 
 # Extract the compiled Desktop Binary and Android APK to your host
-docker create --name goomn-extract goomn-builder
-docker cp goomn-extract:/app/bin/ ./output-binaries/
-docker rm goomn-extract
+docker create --name omn-go-extract omn-go-builder
+docker cp omn-go-extract:/app/bin/ ./output-binaries/
+docker rm omn-go-extract
 
 # View your Android APK
-ls -lh ./output-binaries/goomn.apk
+ls -lh ./output-binaries/omngo.apk
 ```

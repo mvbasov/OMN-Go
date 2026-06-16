@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.11";
+        const APP_VERSION = "1.2.14";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -321,11 +321,11 @@
     </script>
 
     <!-- Small Version Footer -->
-    <div id="goomn-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
+    <div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const footer = document.getElementById('goomn-version-footer');
-            let v = '1.2.11';
+            const footer = document.getElementById('omn-go-version-footer');
+            let v = '1.2.14';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
@@ -348,12 +348,12 @@
                 if (consoleBtn) return;
 
                 consoleModal = document.createElement('div');
-                consoleModal.id = 'goomn-console-modal';
+                consoleModal.id = 'omn-go-console-modal';
                 consoleModal.style.cssText = 'display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#1e1e1e; color:#00ff00; z-index:10000; border:2px solid #555; border-radius:8px; flex-direction:column; font-family:monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5);';
 
                 const header = document.createElement('div');
                 header.style.cssText = 'padding:10px; background:#333; color:#fff; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #555; font-weight:bold;';
-                header.innerHTML = '<span>JS Console Output</span><div><button id="goomn-console-clear" style="background:#888; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-right:8px;">Clear</button><button id="goomn-console-close" style="background:#ff5555; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">Close</button></div>';
+                header.innerHTML = '<span>JS Console Output</span><div><button id="omn-go-console-clear" style="background:#888; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-right:8px;">Clear</button><button id="omn-go-console-close" style="background:#ff5555; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">Close</button></div>';
 
                 logsContainer = document.createElement('div');
                 logsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px; white-space:pre-wrap; word-break:break-all; font-size:12px; line-height:1.4;';
@@ -362,10 +362,10 @@
                 consoleModal.appendChild(logsContainer);
                 document.body.appendChild(consoleModal);
 
-                document.getElementById('goomn-console-close').onclick = () => {
+                document.getElementById('omn-go-console-close').onclick = () => {
                     consoleModal.style.display = 'none';
                 };
-                let clrBtn = document.getElementById('goomn-console-clear');
+                let clrBtn = document.getElementById('omn-go-console-clear');
                 if (clrBtn) {
                     clrBtn.onclick = () => {
                         logs = [];
@@ -375,7 +375,7 @@
                 }
 
                 consoleBtn = document.createElement('button');
-                consoleBtn.id = 'goomn-console-btn';
+                consoleBtn.id = 'omn-go-console-btn';
                 consoleBtn.innerText = 'Console (0)';
                 consoleBtn.style.cssText = 'margin-left:8px; padding:4px 8px; background:#ff9800; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:bold;';
                 consoleBtn.onclick = () => {

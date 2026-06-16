@@ -95,7 +95,7 @@ def update_application():
         print(RED + f"Warning: {server_path} not found!" + RESET)
 
     # 4. Physically update any existing Welcome.md files on disk to include ScriptRules.md
-    for storage_dir in ["data/md", "android/app/media/net.basov.goomn/md"]:
+    for storage_dir in ["data/md", "android/app/media/net.basov.omngo/md"]:
         welcome_path = os.path.join(storage_dir, "Welcome.md")
         if os.path.exists(welcome_path):
             with open(welcome_path, "r", encoding="utf-8") as f:

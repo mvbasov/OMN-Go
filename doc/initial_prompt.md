@@ -4,7 +4,7 @@ The project must use vanilla JavaScript/Tailwind HTML for the web interface, Go 
 
 ### 1. Storage, Package, & Initialization Constraints (F-Droid Ready)
 
-* **Package Frameworks:** Support `net.basov.goomn` (or `net.basov.goomn.fdroid` for F-Droid builds).
+* **Package Frameworks:** Support `net.basov.omngo` (or `net.basov.omngo.fdroid` for F-Droid builds).
 
 * **Storage Isolation:** On Android, strictly target the isolated media storage directory: `/storage/emulated/0/Android/media/[package_name]`. This ensures the application reads and writes its own files without triggering native Android runtime permission prompts or requesting broader file system access.
 
