@@ -23,14 +23,15 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.7"
+const APP_VERSION = "1.2.8"
 
 type Config struct {
-	ServerPort    int    `json:"server_port"`
-	AdminPassword string `json:"admin_password"`
-	GuestPassword string `json:"guest_password"`
-	UseInternalEd bool   `json:"use_internal_editor"`
-	DesktopExtCmd string `json:"desktop_ext_cmd"`
+	ServerPort    int               `json:"server_port"`
+	AdminPassword string            `json:"admin_password"`
+	GuestPassword string            `json:"guest_password"`
+	UseInternalEd bool              `json:"use_internal_editor"`
+	DesktopExtCmd string            `json:"desktop_ext_cmd"`
+	MimeTypes     map[string]string `json:"mime_types"`
 }
 
 //go:embed frontend/index.html
@@ -78,12 +79,34 @@ func initStorage() {
 			GuestPassword: "guest_secret_changeme",
 			UseInternalEd: true,
 			DesktopExtCmd: "subl",
+			MimeTypes: map[string]string{
+				".css":   "text/css",
+				".js":    "application/javascript",
+				".json":  "application/json",
+				".html":  "text/html",
+				".md":    "text/markdown",
+				".svg":   "image/svg+xml",
+				".png":   "image/png",
+				".jpg":   "image/jpeg",
+				".jpeg":  "image/jpeg",
+				".woff2": "font/woff2",
+			},
 		}
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		os.WriteFile(configPath, data, 0644)
 	} else {
 		data, _ := os.ReadFile(configPath)
 		json.Unmarshal(data, &appConfig)
+		if appConfig.MimeTypes == nil {
+			appConfig.MimeTypes = map[string]string{
+				".css":   "text/css",
+				".js":    "application/javascript",
+				".json":  "application/json",
+				".woff2": "font/woff2",
+			}
+			data, _ := json.MarshalIndent(appConfig, "", "  ")
+			os.WriteFile(configPath, data, 0644)
+		}
 	}
 
 	// 3. Init Default Notes from embedFS
@@ -682,9 +705,33 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Unified Content-Type Resolver based strictly on extension
+	ext := strings.ToLower(filepath.Ext(path))
+	mimeType, exists := appConfig.MimeTypes[ext]
+	if !exists {
+		mimeType = mime.TypeByExtension(ext)
+	}
+	if mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
+	}
+
+	// Priority 1: User's Local Storage Directory (data/css, data/js, etc)
 	filePath := filepath.Join(storageDir, filepath.Clean(path))
-	if _, err := os.Stat(filePath); err == nil {
+	if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
 		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	// Priority 2: Embedded Fallback Template Cache
+	embedPath := "frontend" + filepath.Clean(path)
+	if data, err := staticFS.ReadFile(embedPath); err == nil {
+		if path == "/js/Bookmarker.js" {
+			js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+			js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+			w.Write([]byte(js))
+			return
+		}
+		w.Write(data)
 		return
 	}
 
@@ -694,66 +741,9 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
 	
-	// Fallback MIME types for minimal Docker containers
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".png", "image/png")
-	mime.AddExtensionType(".jpg", "image/jpeg")
-	mime.AddExtensionType(".jpeg", "image/jpeg")
-	mime.AddExtensionType(".gif", "image/gif")
-	mime.AddExtensionType(".json", "application/json")
-	mime.AddExtensionType(".woff", "font/woff")
-	mime.AddExtensionType(".woff2", "font/woff2")
-	mime.AddExtensionType(".ttf", "font/ttf")
-
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
-		fSys, _ := embed.FS(staticFS), error(nil)
-		
-		serveStrict := func(ext, cType string) http.Handler {
-			fsHandler := http.FileServer(http.FS(fSys))
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if !strings.HasSuffix(r.URL.Path, ext) {
-					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
-					return
-				}
-				w.Header().Set("Content-Type", cType)
-				
-				if r.URL.Path == "/js/Bookmarker.js" {
-					data, err := staticFS.ReadFile("frontend/js/Bookmarker.js")
-					if err == nil {
-						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						w.Write([]byte(js))
-						return
-					}
-				}
-				
-				fsHandler.ServeHTTP(w, r)
-			})
-		}
-
-		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))
-		mux.Handle("/json/", serveStrict(".json", "application/json"))
-		
-		// Config for files handling Content-type by served directories
-		serveStorageDir := func(subDir, cType string) http.Handler {
-			dirPath := filepath.Join(storageDir, subDir)
-			os.MkdirAll(dirPath, 0755)
-			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if cType != "" {
-					w.Header().Set("Content-Type", cType)
-				}
-				fsHandler.ServeHTTP(w, r)
-			})
-		}
-		
-		mux.Handle("/images/", serveStorageDir("images", ""))
-		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
