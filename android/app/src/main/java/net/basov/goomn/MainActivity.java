@@ -27,6 +27,34 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && url.startsWith("omngo://edit")) {
+                    try {
+                        String name = url.substring(url.indexOf("?name=") + 6);
+                        if (name.contains("&")) {
+                            name = name.split("&")[0];
+                        }
+                        
+                        // Disable strict mode exposed file exceptions
+                        android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
+                        android.os.StrictMode.setVmPolicy(builder.build());
+
+                        java.io.File file = new java.io.File("/storage/emulated/0/Android/media/net.basov.goomn/md/" + name + ".md");
+                        if (!file.exists()) {
+                            file.getParentFile().mkdirs();
+                            file.createNewFile();
+                        }
+
+                        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_EDIT);
+                        intent.setDataAndType(android.net.Uri.fromFile(file), "text/plain");
+                        intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        
+                        view.getContext().startActivity(android.content.Intent.createChooser(intent, "Edit Markdown File"));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return true;
+                }
+
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
                     if (!url.contains("localhost")) {
                         view.getContext().startActivity(

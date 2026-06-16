@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OMN-Go</title>
+    <title><!-- OMN_GO_PAGE_TITLE --></title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f9f9f9; color: #333; }
         .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
         .modal { background: #fff; padding: 20px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
         .modal input, .modal button, .modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
         .modal button { background: #0056b3; color: white; border: none; cursor: pointer; border-radius: 4px; }
-        #mainUI { display: none; flex: 1; flex-direction: column; }
+        #mainUI { display: flex; flex: 1; flex-direction: column; }
         .header { background: #333; color: #fff; padding: 10px 20px; display: flex; gap: 15px; align-items: center; }
         .header a, .header button { color: #fff; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
         .header a:hover, .header button:hover { background: #555; }
@@ -26,46 +26,12 @@
         .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
     </style>
     <link rel="stylesheet" href="/css/highlight.default.min.css">
-    <script src="/js/marked.min.js"></script>
-    <script src="/js/highlight.min.js"></script>
-    <script>
-        const eHlJs = 'true';
-        marked.setOptions({
-            gfm: true,
-            xhtml: true
-        });
-
-        if ('true' == eHlJs) {
-            marked.setOptions({
-                highlight: function (code) {
-                    return hljs.highlightAuto(code).value;
-                }
-            });
-        }
-
-        marked.use({
-            renderer: {
-                heading(text, level, raw) {
-                    if (typeof text === 'object') {
-                        const token = text;
-                        const content = this.parser.parseInline(token.tokens);
-                        const id = (token.text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                        return `<h${token.depth} id="${id}">${content}</h${token.depth}>\n`;
-                    }
-                    const id = text.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                    return `<h${level} id="${id}">${text}</h${level}>\n`;
-                }
-            }
-        });
-    </script>
-    <script>const APP_VERSION = "1.2.0";</script>
-    <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
 </head>
 <body>
     
     <!-- Login Overlay -->
-    <div id="loginOverlay" class="overlay">
+    <div id="loginOverlay" class="overlay" style="display: none;">
         <div class="modal">
             <h2>OMN-Go Login</h2>
             <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
@@ -77,11 +43,12 @@
     <div id="mainUI">
         <div class="header">
             <strong>OMN-Go</strong>
-            <a href="#home" onclick="loadNote('Welcome')">Home</a>
-            <a href="#help" onclick="loadNote('Welcome')">Help</a>
+            <a href="/Welcome.html">Home</a>
+            <a href="/Welcome.html#help">Help</a>
             <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
             <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only">Add Bookmark</button>
-            <a href="#bookmarks" onclick="loadNote('Bookmarks')">Bookmarks</a>
+            <a href="/Bookmarks.html">Bookmarks</a>
+            <a href="/Config.html" style="background: #444; border-color: #666;">Config</a>
         </div>
 
         <div class="content-area">
@@ -90,9 +57,9 @@
                 <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;">Save Note</button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only">Edit Mode</button>
             </div>
-            <div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"></div>
-            <textarea id="editor" class="admin-only" placeholder="Markdown content... Drag images here to upload."></textarea>
-            <div id="preview">Loading...</div>
+            <div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"><!-- OMN_GO_METADATA_PANEL --></div>
+            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
+            <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>
         </div>
     </div>
 
@@ -120,8 +87,9 @@
     </div>
 
     <script>
-        let currentNote = 'Welcome';
-        
+        /* OMN_GO_PAGE_NAME_JS */
+        const APP_VERSION = "1.2.0";
+
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
             scripts.forEach(oldScript => {
@@ -133,132 +101,42 @@
             });
         }
 
-        function renderView(text) {
-            let header = '';
-            let body = text;
-            const parts = text.split(/(?:\r?\n){2,}/);
-            if (parts.length > 0 && /^[A-Za-z0-9_-]+:/.test(parts[0])) {
-                header = parts[0];
-                body = text.substring(header.length).replace(/^\s+/, '');
-            }
-            
-            const metaPanel = document.getElementById('metadataPanel');
-            const metaBtn = document.getElementById('metaToggleBtn');
-            
-            metaPanel.innerText = `[File: ${currentNote}]\n\n` + (header || 'No Metadata Found');
-            metaBtn.style.display = 'block';
-            if (!header) metaPanel.classList.add('hidden');
-            
-            const preview = document.getElementById('preview');
-            preview.innerHTML = marked.parse(body || '*(Empty content)*');
-            executeScripts(preview);
-        }
-
-        window.addEventListener('popstate', (e) => {
-            if (e.state && e.state.note) {
-                let fullHash = window.location.hash.substring(1);
-                let scrollHash = fullHash.includes('#') ? fullHash.split('#')[1] : null;
-                if (currentNote !== e.state.note) {
-                    loadNoteInternal(e.state.note, scrollHash);
-                } else if (scrollHash) {
-                    let el = document.getElementById(scrollHash);
-                    if (el) el.scrollIntoView();
-                }
-            }
-        });
-
-        async function loadNote(name, hash) {
-            history.pushState({note: name}, "", "#" + name + (hash ? "#" + hash : ""));
-            if (currentNote !== name) {
-                await loadNoteInternal(name, hash);
-            } else if (hash) {
-                let el = document.getElementById(hash);
-                if (el) el.scrollIntoView();
-            }
-        }
-
-        function resolvePath(current, target) {
-            if (target.startsWith('/')) {
-                target = target.substring(1);
-            } else {
-                let parts = current.split('/');
-                parts.pop();
-                target = (parts.length > 0 ? parts.join('/') + '/' : '') + target;
-            }
-            let segments = target.split('/');
-            let result = [];
-            for (let seg of segments) {
-                if (seg === '.' || seg === '') continue;
-                if (seg === '..') {
-                    if (result.length > 0) result.pop();
-                } else {
-                    result.push(seg);
-                }
-            }
-            return result.join('/');
-        }
-
-        async function loadNoteInternal(name, hash) {
-            currentNote = name;
-            if (currentMode === 'edit') {
-                document.getElementById('editor').style.display = 'none';
-                document.getElementById('preview').style.display = 'block';
-                document.getElementById('toggleBtn').innerText = 'Edit Mode';
-                document.getElementById('saveBtn').style.display = 'none';
-                document.getElementById('metaToggleBtn').style.display = 'none';
-                document.getElementById('metadataPanel').classList.add('hidden');
-                currentMode = 'view';
-            }
-            const res = await fetch('/api/note?name=' + encodeURIComponent(name));
-            const text = await res.text();
-            document.getElementById('editor').value = text;
-            renderView(text);
-            if (hash) {
-                setTimeout(() => {
-                    let el = document.getElementById(hash);
-                    if (el) el.scrollIntoView();
-                }, 100);
-            }
-        }
-
-        window.onload = () => {
-            let fullHash = window.location.hash.substring(1);
-            let startNote = fullHash.split('#')[0] || 'Welcome';
-            let scrollHash = fullHash.includes('#') ? fullHash.split('#')[1] : null;
-            history.replaceState({note: startNote}, "", "#" + (fullHash || 'Welcome'));
-            loadNoteInternal(startNote, scrollHash);
-        };
-
-        // Intercept Markdown links to load internally
+        // Intercept Markdown links for standard browser-side redirects
         document.getElementById('preview').addEventListener('click', (e) => {
             let target = e.target.closest('a');
             if(target) {
                 const href = target.getAttribute('href');
-                if(href && !href.startsWith('http') && !href.startsWith('javascript:')) {
-                    e.preventDefault();
-                    let pathAndQuery = href.split('#')[0];
-                    let file = pathAndQuery.split('?')[0]; 
-                    let hash = href.includes('#') ? href.substring(href.indexOf('#') + 1) : null;
-                    if (!file && hash) {
-                        let el = document.getElementById(hash);
-                        if(el) el.scrollIntoView();
-                        return;
+                if (href) {
+                    if (href.startsWith('http')) {
+                        e.preventDefault();
+                        window.open(href, '_blank');
+                    } else if (!href.startsWith('javascript:') && !href.startsWith('#')) {
+                        e.preventDefault();
+                        let cleanHref = href;
+                        if (cleanHref.endsWith('.md')) {
+                            cleanHref = cleanHref.substring(0, cleanHref.length - 3) + '.html';
+                        } else if (!cleanHref.includes('.')) {
+                            cleanHref = cleanHref + '.html';
+                        }
+                        window.location.href = cleanHref;
                     }
-                    if (!file) {
-                        file = currentNote;
-                    } else {
-                        file = resolvePath(currentNote, file);
-                    }
-                    loadNote(file, hash);
-                } else if (href && href.startsWith('http')) {
-                    e.preventDefault();
-                    window.open(href, '_blank');
                 }
             }
         });
 
         let currentMode = 'view';
-        function toggleMode() {
+        async function toggleMode() {
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const config = await res.json();
+                    if (!config.use_internal_editor) {
+                        window.location.href = '/api/edit-external?name=' + encodeURIComponent(currentNote);
+                        return;
+                    }
+                }
+            } catch(e) { console.error(e); }
+
             const editor = document.getElementById('editor');
             const preview = document.getElementById('preview');
             const btn = document.getElementById('toggleBtn');
@@ -274,7 +152,6 @@
             } else {
                 editor.style.display = 'none';
                 preview.style.display = 'block';
-                renderView(editor.value || '*(Empty content)*');
                 btn.innerText = 'Edit Mode';
                 document.getElementById('saveBtn').style.display = 'none';
                 currentMode = 'view';
@@ -326,28 +203,13 @@
 
         async function saveNote() {
             let content = document.getElementById('editor').value;
-            const parts = content.split(/(?:\r?\n){2,}/);
-            if (parts.length > 0 && /^[A-Za-z0-9_-]+:/.test(parts[0])) {
-                let headerLines = parts[0].split(/\r?\n/);
-                let modIdx = headerLines.findIndex(l => l.startsWith('Modified:'));
-                let now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-                if (modIdx !== -1) {
-                    headerLines[modIdx] = `Modified: ${now}`;
-                } else {
-                    headerLines.push(`Modified: ${now}`);
-                }
-                parts[0] = headerLines.join('\n');
-                content = parts.join('\n\n');
-                document.getElementById('editor').value = content;
-            }
-
             const fd = new URLSearchParams();
             fd.append('name', currentNote);
             fd.append('content', content);
             const res = await fetch('/api/save', { method: 'POST', body: fd });
             if(res.ok) {
                 alert('Note saved!');
-                toggleMode();
+                window.location.reload();
             } else {
                 alert('Failed to save!');
             }
@@ -361,6 +223,7 @@
                 document.getElementById('quickText').value = '';
                 document.getElementById('quickPanel').classList.add('hidden');
                 alert('Saved!');
+                window.location.reload();
             }
         }
 
@@ -375,8 +238,42 @@
                 document.getElementById('bmPanel').classList.add('hidden');
                 document.querySelectorAll('#bmPanel input, #bmPanel textarea').forEach(el => el.value = '');
                 alert('Saved!');
+                window.location.reload();
             }
         }
+
+        async function checkSession() {
+            // Unhide UI if role cookies exist
+            if (document.cookie.includes('session_role=')) {
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('mainUI').style.display = 'flex';
+                checkRole();
+            } else {
+                // Check if server is configured with public role or check backend
+                const test = await fetch('/api/config');
+                if (test.status === 401) {
+                    document.getElementById('loginOverlay').style.display = 'flex';
+                    document.getElementById('mainUI').style.display = 'none';
+                } else {
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    document.getElementById('mainUI').style.display = 'flex';
+                }
+            }
+        }
+
+        window.onload = () => {
+            checkSession();
+            if (window.hljs) {
+                document.querySelectorAll('#preview pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
+            let hash = window.location.hash;
+            if (hash) {
+                let el = document.getElementById(hash.substring(1));
+                if (el) el.scrollIntoView();
+            }
+        };
     </script>
 
     <!-- Code & Math Formatting Assets -->
@@ -385,19 +282,7 @@
     <script src="/js/auto-render.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            // 1. Hook Highlight.js into Marked parser globally
-            if (window.marked && window.hljs) {
-                window.marked.setOptions({
-                    highlight: function(code, lang) {
-                        const language = window.hljs.getLanguage(lang) ? lang : 'plaintext';
-                        return window.hljs.highlight(code, { language }).value;
-                    },
-                    langPrefix: 'hljs language-'
-                });
-            }
-            
-            // 2. Setup Auto-Rendering for KaTeX via MutationObserver
-            // This guarantees Math renders regardless of how you inject the Markdown!
+            // Setup Auto-Rendering for KaTeX via MutationObserver
             const previewNode = document.getElementById('preview') || document.body;
             let renderTimeout;
             const observer = new MutationObserver(() => {
@@ -425,7 +310,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('goomn-version-footer');
-            let v = '1.1.0';
+            let v = '1.2.0';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
@@ -447,7 +332,6 @@
             function initConsoleUI() {
                 if (consoleBtn) return;
 
-                // 1. Create Scrollable Modal
                 consoleModal = document.createElement('div');
                 consoleModal.id = 'goomn-console-modal';
                 consoleModal.style.cssText = 'display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#1e1e1e; color:#00ff00; z-index:10000; border:2px solid #555; border-radius:8px; flex-direction:column; font-family:monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5);';
@@ -475,7 +359,6 @@
                     };
                 }
 
-                // 2. Create Activation Button
                 consoleBtn = document.createElement('button');
                 consoleBtn.id = 'goomn-console-btn';
                 consoleBtn.innerText = 'Console (0)';
@@ -484,9 +367,8 @@
                     consoleModal.style.display = 'flex';
                 };
 
-                // 3. Intelligently locate the "metadata" element to snap next to it
                 let metadataEl = Array.from(document.querySelectorAll('*')).find(el => {
-                    if (el.children.length > 0) return false; // Focus on leaf nodes only
+                    if (el.children.length > 0) return false;
                     const text = (el.textContent || '').toLowerCase();
                     const id = (el.id || '').toLowerCase();
                     const cls = (el.className || '').toLowerCase();
@@ -496,7 +378,6 @@
                 if (metadataEl && metadataEl.parentNode) {
                     metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
                 } else {
-                    // Fallback: Drop it floating in the bottom-left if metadata isn't found
                     consoleBtn.style.position = 'fixed';
                     consoleBtn.style.bottom = '4px';
                     consoleBtn.style.left = '8px';
@@ -507,15 +388,11 @@
 
             function appendLog(type, args) {
                 logs.push({type, args});
-                
-                // Ensure the DOM is ready before trying to append UI elements
                 if (!document.body) {
                     window.addEventListener('DOMContentLoaded', () => appendLog(type, args));
                     return;
                 }
-
                 if (!consoleBtn) initConsoleUI();
-
                 consoleBtn.innerText = `Console (${logs.length})`;
 
                 if (logsContainer) {
@@ -537,7 +414,6 @@
                 }
             }
 
-            // 4. Override Native Console Functions
             console.log = function(...args) {
                 originalLog.apply(console, args);
                 appendLog('log', args);
@@ -554,8 +430,6 @@
                 originalInfo.apply(console, args);
                 appendLog('info', args);
             };
-            
-            // 5. Catch fatal uncaught errors automatically
             window.addEventListener('error', function(e) {
                 console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
             });

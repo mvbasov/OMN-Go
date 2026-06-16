@@ -2,7 +2,6 @@ package backend
 
 import (
 	"embed"
-	"io/fs"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +9,9 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ type Config struct {
 //go:embed frontend/index.html
 var frontendHTML []byte
 
-//go:embed frontend/js frontend/css frontend/json
+//go:embed frontend/js frontend/css frontend/json frontend/md
 var staticFS embed.FS
 
 var (
@@ -53,7 +54,10 @@ func initStorage() {
 	mdDir := filepath.Join(storageDir, "md")
 	os.MkdirAll(mdDir, 0755)
 
-	// Migrate existing .md files recursively
+	htmlDir := filepath.Join(storageDir, "html")
+	os.MkdirAll(htmlDir, 0755)
+
+	// Migrate legacy root md files recursively
 	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
 	for _, f := range files {
 		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
@@ -76,58 +80,354 @@ func initStorage() {
 		json.Unmarshal(data, &appConfig)
 	}
 
-	// 3. Init Default Notes
-	welcomePath := filepath.Join(mdDir, "Welcome.md")
-	if _, err := os.Stat(welcomePath); os.IsNotExist(err) {
-		welcomeContent := "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to OMN-Go. Start editing!\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)"
-		os.WriteFile(welcomePath, []byte(welcomeContent), 0644)
+	// 3. Init Default Notes from embedFS
+	initDefaultPage := func(fileName, defaultContent string) {
+		p := filepath.Join(mdDir, fileName)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			data, err := staticFS.ReadFile("frontend/md/" + fileName)
+			if err == nil {
+				os.WriteFile(p, data, 0644)
+			} else {
+				os.WriteFile(p, []byte(defaultContent), 0644)
+			}
+		}
 	}
 
-	
-	rulesPath := filepath.Join(mdDir, "ScriptRules.md")
-	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
-		os.WriteFile(rulesPath, []byte("Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for GoOMN\n\nBecause GoOMN is a Single Page Application (SPA), the global `window` scope persists between page loads. To avoid `SyntaxError: Identifier has already been declared` when scripts are re-evaluated, authors must follow these rules:\n\n### Rule 1: Isolate variables using Block Scopes or IIFEs\nNever leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).\n\n```javascript\n{\n    const myLocalVar = \"Safe!\";\n    let counter = 0;\n}\n```\n\n### Rule 2: Explicitly attach required globals to `window`\nIf a function is needed for an HTML `onclick` event, attach it directly to the `window` object.\n\n```javascript\nwindow.doSomething = function() {\n    alert(\"This works safely on reload!\");\n};\n```\n\n### Rule 3: Use the OR (`||`) operator for global state\nCheck if global config objects exist before creating them so user state is preserved.\n\n```javascript\nwindow.myAppConfig = window.myAppConfig || { version: \"1.0\" };\n```\n\n### Rule 4: Use `var` for raw top-level variables\nIf you must declare top-level variables, use `var` because the JS engine allows `var` to be redeclared infinitely without throwing an error."), 0644)
+	initDefaultPage("Welcome.md", "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to OMN-Go! Start editing.\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)")
+	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for OMN-Go\n\nBecause OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
+	initDefaultPage("QuickNotes.md", "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n")
+	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks\nDate: 2026-06-15 20:00:00\nAuthor: \nTags: Bookmarks\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];\n</script>")
+
+	// Precompile all notes to data/html/ at startup
+	precompileAllPages()
+}
+
+func renderMarkdownToHTML(mdContent []byte) string {
+	lines := strings.Split(string(mdContent), "\n")
+	var html strings.Builder
+	inList := false
+	inCodeBlock := false
+	var codeLang string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Code blocks
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeBlock {
+				html.WriteString("</code></pre>\n")
+				inCodeBlock = false
+			} else {
+				codeLang = strings.TrimPrefix(trimmed, "```")
+				if codeLang == "" {
+					codeLang = "plaintext"
+				}
+				html.WriteString(fmt.Sprintf("<pre><code class=\"language-%s\">", codeLang))
+				inCodeBlock = true
+			}
+			continue
+		}
+
+		if inCodeBlock {
+			escaped := htmlEscape(line)
+			html.WriteString(escaped + "\n")
+			continue
+		}
+
+		// Lists
+		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+			if !inList {
+				html.WriteString("<ul>\n")
+				inList = true
+			}
+			content := trimmed[2:]
+			html.WriteString(fmt.Sprintf("<li>%s</li>\n", renderInlineMarkdown(content)))
+			continue
+		} else {
+			if inList {
+				html.WriteString("</ul>\n")
+				inList = false
+			}
+		}
+
+		// Headings
+		if strings.HasPrefix(trimmed, "#") {
+			level := 0
+			for level < len(trimmed) && trimmed[level] == '#' {
+				level++
+			}
+			if level > 0 && level < len(trimmed) && trimmed[level] == ' ' {
+				content := trimmed[level+1:]
+				id := strings.ToLower(strings.Join(strings.Fields(content), "-"))
+				id = strings.Map(func(r rune) rune {
+					if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+						return r
+					}
+					return -1
+				}, id)
+				html.WriteString(fmt.Sprintf("<h%d id=\"%s\">%s</h%d>\n", level, id, renderInlineMarkdown(content), level))
+				continue
+			}
+		}
+
+		// Blank lines
+		if trimmed == "" {
+			html.WriteString("<br/>\n")
+			continue
+		}
+
+		// Horizontal rule
+		if trimmed == "---" {
+			html.WriteString("<hr/>\n")
+			continue
+		}
+
+		// Regular paragraph
+		html.WriteString(fmt.Sprintf("<p>%s</p>\n", renderInlineMarkdown(line)))
 	}
 
-	quickPath := filepath.Join(mdDir, "QuickNotes.md")
-	if _, err := os.Stat(quickPath); os.IsNotExist(err) {
-		quickContent := "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n"
-		os.WriteFile(quickPath, []byte(quickContent), 0644)
+	if inList {
+		html.WriteString("</ul>\n")
+	}
+	if inCodeBlock {
+		html.WriteString("</code></pre>\n")
 	}
 
-	bmPath := filepath.Join(mdDir, "Bookmarks.md")
-	if _, err := os.Stat(bmPath); os.IsNotExist(err) {
-		bmContent := `Title: Incoming bookmarks
-Date: 2026-06-15 20:00:00
-Author: 
-Tags: Bookmarks
+	return html.String()
+}
 
-<script>bookmarks = [
-<!-- Don't edit body below this line -->
-  {
-    "date": "2023-01-22 22:22:22",
-    "url": "Welcome",
-    "title": "The start page",
-    "tags": [
-      "GoOMN",
-      "Local pages"
-    ],
-    "notes": [
-      "This application start page"
-    ]
-  }
-];
-</script>
-  
-<!-- end of bookmarks definition -->
-    
-<link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
-<script type="text/javascript" src="/js/Bookmarker.js"></script>`
-		os.WriteFile(bmPath, []byte(bmContent), 0644)
+func htmlEscape(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	return s
+}
+
+func renderInlineMarkdown(s string) string {
+	// Bold (**text** or __text__)
+	s = regexp.MustCompile(`\*\*(.*?)\*\*`).ReplaceAllString(s, "<strong>$1</strong>")
+	s = regexp.MustCompile(`__(.*?)__`).ReplaceAllString(s, "<strong>$1</strong>")
+
+	// Italics (*text* or _text_)
+	s = regexp.MustCompile(`\*(.*?)\*`).ReplaceAllString(s, "<em>$1</em>")
+	s = regexp.MustCompile(`_(.*?)_`).ReplaceAllString(s, "<em>$1</em>")
+
+	// Inline Code (`code`)
+	s = regexp.MustCompile("`(.*?)`").ReplaceAllString(s, "<code>$1</code>")
+
+	// Links [label](url)
+	s = regexp.MustCompile(`\[(.*?)\]\((.*?)\)`).ReplaceAllStringFunc(s, func(m string) string {
+		parts := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`).FindStringSubmatch(m)
+		if len(parts) == 3 {
+			label := parts[1]
+			url := parts[2]
+			if strings.HasSuffix(url, ".md") {
+				url = strings.TrimSuffix(url, ".md") + ".html"
+			} else if !strings.Contains(url, ".") && !strings.HasPrefix(url, "http") && !strings.HasPrefix(url, "#") {
+				url = url + ".html"
+			}
+			return fmt.Sprintf(`<a href="%s">%s</a>`, url, label)
+		}
+		return m
+	})
+
+	return s
+}
+
+func compilePage(name string, mdContent []byte) []byte {
+	var headers []string
+	var bodyLines []string
+	inHeader := true
+
+	lines := strings.Split(string(mdContent), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if inHeader {
+			if trimmed == "" {
+				inHeader = false
+				continue
+			}
+			if strings.Contains(line, ":") {
+				headers = append(headers, line)
+			} else {
+				inHeader = false
+				bodyLines = append(bodyLines, line)
+			}
+		} else {
+			bodyLines = append(bodyLines, line)
+		}
+	}
+
+	renderedBody := renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
+	metadataStr := strings.Join(headers, "\n")
+
+	layout := string(frontendHTML)
+
+	title := "OMN-Go - " + name
+	for _, h := range headers {
+		if strings.HasPrefix(h, "Title:") {
+			title = strings.TrimSpace(strings.TrimPrefix(h, "Title:"))
+			break
+		}
+	}
+
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", string(mdContent))
+	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
+
+	return []byte(layout)
+}
+
+func precompileAllPages() {
+	mdDir := filepath.Join(storageDir, "md")
+	htmlDir := filepath.Join(storageDir, "html")
+	os.MkdirAll(htmlDir, 0755)
+
+	files, _ := filepath.Glob(filepath.Join(mdDir, "*.md"))
+	for _, f := range files {
+		content, err := os.ReadFile(f)
+		if err == nil {
+			name := strings.TrimSuffix(filepath.Base(f), ".md")
+			compiled := compilePage(name, content)
+			htmlPath := filepath.Join(htmlDir, name+".html")
+			os.WriteFile(htmlPath, compiled, 0644)
+		}
 	}
 }
 
-// Simple connection tracker for the Android Canvas requirement
+func getConfigPageBody() string {
+	return fmt.Sprintf(`
+<div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
+    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700; border-bottom: 2px solid #eaecef; padding-bottom: 10px;">Configuration Dashboard</h2>
+    <form id="configForm" onsubmit="saveConfig(event)" style="margin-top: 20px;">
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Server Port</label>
+            <input type="number" id="cfgPort" value="%d" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Admin Password</label>
+            <input type="password" id="cfgAdminPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
+            <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        </div>
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
+            <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
+        </div>
+        <div style="margin-bottom: 25px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Desktop External Editor Command</label>
+            <input type="text" id="cfgExtCmd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+            <small style="color: #666; display: block; margin-top: 5px;">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
+        </div>
+        <button type="submit" style="background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%%; font-size: 16px; transition: background 0.2s;">Save Configuration</button>
+    </form>
+</div>
+<script>
+    async function saveConfig(event) {
+        event.preventDefault();
+        const params = new URLSearchParams();
+        params.append("server_port", document.getElementById("cfgPort").value);
+        params.append("admin_password", document.getElementById("cfgAdminPwd").value);
+        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
+        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
+        params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
+
+        const res = await fetch("/api/config", { method: "POST", body: params });
+        if (res.ok) {
+            alert("Configuration saved successfully! Server port changes will take effect after restarting the application.");
+            window.location.reload();
+        } else {
+            alert("Failed to save configuration.");
+        }
+    }
+</script>
+`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,
+		func() string { if appConfig.UseInternalEd { return "checked" }; return "" }(),
+		appConfig.DesktopExtCmd)
+}
+
+func getExternalEditPageBody(name string) string {
+	return fmt.Sprintf(`
+<div style="max-width: 600px; margin: 40px auto; background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; text-align: center;">
+    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
+    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700;">Editing Externally</h2>
+    <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
+        We have launched <strong>%s</strong> to edit <code>%s.md</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated page.
+    </p>
+    <button onclick="window.location.href='/%s.html'" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+        Press after edit to refresh view
+    </button>
+</div>
+`, appConfig.DesktopExtCmd, name, name)
+}
+
+func handleConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(appConfig)
+		return
+	}
+	if r.Method == "POST" {
+		portStr := r.FormValue("server_port")
+		var port int
+		fmt.Sscanf(portStr, "%d", &port)
+		if port > 0 {
+			appConfig.ServerPort = port
+		}
+		appConfig.AdminPassword = r.FormValue("admin_password")
+		appConfig.GuestPassword = r.FormValue("guest_password")
+		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+
+		data, _ := json.MarshalIndent(appConfig, "", "  ")
+		configPath := filepath.Join(storageDir, "config.json")
+		os.WriteFile(configPath, data, 0644)
+		w.Write([]byte("Saved"))
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleEditExternal(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "Missing name", http.StatusBadRequest)
+		return
+	}
+
+	if runtime.GOOS == "android" {
+		w.Header().Set("Location", "omngo://edit?name="+name)
+		w.WriteHeader(http.StatusSeeOther)
+		return
+	}
+
+	cleanName := strings.TrimSuffix(name, ".html")
+	if !strings.HasSuffix(cleanName, ".md") {
+		cleanName += ".md"
+	}
+	filePath := filepath.Join(storageDir, "md", cleanName)
+
+	cmd := exec.Command(appConfig.DesktopExtCmd, filePath)
+	err := cmd.Start()
+	if err != nil {
+		log.Printf("Failed to run external editor: %v", err)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	pageName := strings.TrimSuffix(cleanName, ".md")
+	compiledWait := compilePage(pageName, []byte(fmt.Sprintf("Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05"))))
+	
+	waitBody := getExternalEditPageBody(pageName)
+	htmlStr := strings.Replace(string(compiledWait), "<!-- OMN_GO_PREVIEW_BODY -->", waitBody, 1)
+	w.Write([]byte(htmlStr))
+}
+
+// Simple connection tracker for Android WebView synchronization
 func connectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		activeConns++
@@ -144,21 +444,6 @@ func authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
 			return
 		}
 		next(w, r)
-	}
-}
-
-func handleConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(appConfig)
-		return
-	}
-	if r.Method == "POST" {
-		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
-		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
-		data, _ := json.MarshalIndent(appConfig, "", "  ")
-		os.WriteFile(filepath.Join(storageDir, "config.json"), data, 0644)
-		w.Write([]byte("Config Saved"))
 	}
 }
 
@@ -200,7 +485,13 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	entry := fmt.Sprintf("\n---\n##### %s\n%s\n", timestamp, note)
 	
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
-	os.WriteFile(path, []byte(strings.Join(newContent, "\n")), 0644)
+	fullMarkdown := strings.Join(newContent, "\n")
+	os.WriteFile(path, []byte(fullMarkdown), 0644)
+
+	// Update Dynamic Precompile instantly
+	compiled := compilePage("QuickNotes", []byte(fullMarkdown))
+	os.WriteFile(filepath.Join(storageDir, "html", "QuickNotes.html"), compiled, 0644)
+
 	w.Write([]byte("Saved"))
 }
 
@@ -242,10 +533,9 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(content, marker) {
 			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
 			os.WriteFile(path, []byte(newContent), 0644)
-		} else {
-			f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
-			defer f.Close()
-			f.WriteString("\n" + entry)
+			// Update Dynamic Precompile instantly
+			compiled := compilePage("Bookmarks", []byte(newContent))
+			os.WriteFile(filepath.Join(storageDir, "html", "Bookmarks.html"), compiled, 0644)
 		}
 	}
 	w.Write([]byte("Saved"))
@@ -291,23 +581,45 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
 }
 
-
-
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
 		name = "Welcome"
 	}
-	if !strings.HasSuffix(name, ".md") {
-		name += ".md"
-	}
-	data, err := os.ReadFile(filepath.Join(storageDir, "md", filepath.Clean(name)))
-	if err != nil {
-		title := strings.TrimSuffix(name, ".md")
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n", title, timestamp)
-		w.Write([]byte(newContent))
-		return
+	
+	var path string
+	var data []byte
+	var err error
+
+	if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
+		cleanName := strings.TrimSuffix(name, ".html")
+		if !strings.HasSuffix(cleanName, ".md") {
+			cleanName += ".md"
+		}
+		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
+		data, err = os.ReadFile(path)
+		if err != nil {
+			embedPath := "frontend/md/" + cleanName
+			data, err = staticFS.ReadFile(embedPath)
+			if err != nil {
+				title := strings.TrimSuffix(cleanName, ".md")
+				timestamp := time.Now().Format("2006-01-02 15:04:05")
+				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, []byte(newContent), 0644)
+				data = []byte(newContent)
+			} else {
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, data, 0644)
+			}
+		}
+	} else {
+		path = filepath.Join(storageDir, filepath.Clean(name))
+		data, err = os.ReadFile(path)
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
 	}
 	w.Write(data)
 }
@@ -318,18 +630,110 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		return
 	}
-	if !strings.HasSuffix(name, ".md") {
-		name += ".md"
+
+	var path string
+	if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
+		cleanName := strings.TrimSuffix(name, ".html")
+		if !strings.HasSuffix(cleanName, ".md") {
+			cleanName += ".md"
+		}
+		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
+		
+		// Pelican Header modification logic
+		parts := strings.Split(content, "\n\n")
+		if len(parts) > 0 && strings.Contains(parts[0], ":") {
+			headerLines := strings.Split(parts[0], "\n")
+			modIdx := -1
+			for i, l := range headerLines {
+				if strings.HasPrefix(l, "Modified:") {
+					modIdx = i
+					break
+				}
+			}
+			now := time.Now().Format("2006-01-02 15:04:05")
+			if modIdx != -1 {
+				headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
+			} else {
+				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
+			}
+			parts[0] = strings.Join(headerLines, "\n")
+			content = strings.Join(parts, "\n\n")
+		}
+
+		os.MkdirAll(filepath.Dir(path), 0755)
+		os.WriteFile(path, []byte(content), 0644)
+
+		// Overwrite the dynamic server compiled HTML
+		htmlPath := filepath.Join(storageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
+		os.MkdirAll(filepath.Dir(htmlPath), 0755)
+		compiled := compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))
+		os.WriteFile(htmlPath, compiled, 0644)
+
+	} else {
+		path = filepath.Join(storageDir, filepath.Clean(name))
+		os.MkdirAll(filepath.Dir(path), 0755)
+		os.WriteFile(path, []byte(content), 0644)
 	}
-	path := filepath.Join(storageDir, "md", filepath.Clean(name))
-	os.MkdirAll(filepath.Dir(path), 0755)
-	os.WriteFile(path, []byte(content), 0644)
+
 	w.Write([]byte("Saved"))
 }
 
 func serveFrontend(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.Write(frontendHTML)
+	path := r.URL.Path
+	if path == "/" || path == "/index.html" {
+		http.Redirect(w, r, "/Welcome.html", http.StatusSeeOther)
+		return
+	}
+
+	if strings.HasSuffix(path, ".html") {
+		name := strings.TrimSuffix(filepath.Base(path), ".html")
+		
+		if name == "Config" {
+			w.Header().Set("Content-Type", "text/html")
+			compiled := compilePage("Config", []byte("Title: Config\nCategory: Settings\n\n"))
+			body := getConfigPageBody()
+			htmlStr := strings.Replace(string(compiled), "<!-- OMN_GO_PREVIEW_BODY -->", body, 1)
+			w.Write([]byte(htmlStr))
+			return
+		}
+
+		htmlPath := filepath.Join(storageDir, "html", filepath.Clean(name+".html"))
+
+		if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
+			mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
+			if _, err := os.Stat(mdPath); os.IsNotExist(err) {
+				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
+				if err == nil {
+					os.MkdirAll(filepath.Dir(mdPath), 0755)
+					os.WriteFile(mdPath, embedData, 0644)
+				} else {
+					timestamp := time.Now().Format("2006-01-02 15:04:05")
+					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", name, timestamp, name)
+					os.MkdirAll(filepath.Dir(mdPath), 0755)
+					os.WriteFile(mdPath, []byte(defaultContent), 0644)
+				}
+			}
+
+			mdContent, err := os.ReadFile(mdPath)
+			if err == nil {
+				compiled := compilePage(name, mdContent)
+				os.MkdirAll(filepath.Dir(htmlPath), 0755)
+				os.WriteFile(htmlPath, compiled, 0644)
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		http.ServeFile(w, r, htmlPath)
+		return
+	}
+
+	filePath := filepath.Join(storageDir, filepath.Clean(path))
+	if _, err := os.Stat(filePath); err == nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 func StartServer() {
@@ -348,10 +752,9 @@ func StartServer() {
 	mime.AddExtensionType(".ttf", "font/ttf")
 
 	go func() {
-		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
-		fSys, _ := fs.Sub(staticFS, "frontend")
+		fSys, _ := embed.FS(staticFS), error(nil)
 		
 		serveStrict := func(ext, cType string) http.Handler {
 			fsHandler := http.FileServer(http.FS(fSys))
@@ -363,7 +766,7 @@ func StartServer() {
 				w.Header().Set("Content-Type", cType)
 				
 				if r.URL.Path == "/js/Bookmarker.js" {
-					data, err := fs.ReadFile(fSys, "js/Bookmarker.js")
+					data, err := staticFS.ReadFile("frontend/js/Bookmarker.js")
 					if err == nil {
 						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
 						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
@@ -398,13 +801,14 @@ func StartServer() {
 		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", handleLogin)
-		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
 		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
 		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
 		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
 		mux.HandleFunc("/api/note", handleGetNote)
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
+		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
+		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 		
 		port := fmt.Sprintf(":%d", appConfig.ServerPort)
 		log.Printf("OMN-Go Backend running on %s", port)

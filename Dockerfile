@@ -30,8 +30,6 @@ ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
 # Install GoMobile
 RUN go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
 
-
-
 # STAGE 2: Dependency Lock
 WORKDIR /app
 COPY go.mod ./
@@ -41,10 +39,10 @@ RUN go mod download || true
 COPY . .
 RUN go get golang.org/x/mobile@latest && go mod tidy
 
-# Desktop Binary (Linux example)
-RUN GOOS=linux GOARCH=amd64 go build -o bin/goomn-desktop main_desktop.go
+# Desktop Binary (OMN-Go naming convention)
+RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go
 
-# Android APK - Webview Wrapper via Gradle & gomobile bind
+# Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
 RUN go get -tool golang.org/x/mobile/cmd/gobind && go mod tidy && mkdir -p android/app/libs && gomobile bind -target=android -androidapi 24 -javapkg net.basov.goomn -o android/app/libs/goomn.aar ./backend
 
-RUN cd android && if [ ! -f app/goomn.keystore ]; then keytool -genkey -v -keystore app/goomn.keystore -alias goomn -keyalg RSA -keysize 2048 -validity 10000 -storepass goomn123 -keypass goomn123 -dname "CN=GoOMN, O=Basov"; fi && gradle assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../bin/goomn.apk
+RUN cd android && if [ ! -f app/goomn.keystore ]; then keytool -genkey -v -keystore app/goomn.keystore -alias goomn -keyalg RSA -keysize 2048 -validity 10000 -storepass goomn123 -keypass goomn123 -dname "CN=OMN-Go, O=Basov"; fi && gradle assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../bin/omn-go.apk
