@@ -2,13 +2,13 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.30 Core Architecture Refinements...")
+    print("[*] Initiating OMN-Go V1.2.31 Path Resolution Fix...")
 
     # 1. Version Bumps
     files_to_bump = {
-        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.30"'),
-        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.30"'),
-        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10230')
+        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.31"'),
+        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.31"'),
+        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10231')
     }
 
     for filepath, (pattern, replacement) in files_to_bump.items():
@@ -18,10 +18,10 @@ def update_application():
             new_content = re.sub(pattern, replacement, content)
             
             if "index.html" in filepath:
-                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.30';", new_content)
+                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.31';", new_content)
 
             if "build.gradle" in filepath:
-                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.30"', new_content)
+                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.31"', new_content)
 
             if new_content != content:
                 with open(filepath, "w", encoding="utf-8") as f:
@@ -39,21 +39,28 @@ def update_application():
         server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*fs\.Sub\(staticFS,\s*"frontend/html"\)', '', server_code)
         server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*embed\.FS\(staticFS\),\s*error\(nil\)', '', server_code)
         
-        # B. Fix legacy "frontend/md/" paths to unified embedFS path
-        if '"frontend/md/' in server_code:
-            server_code = server_code.replace('"frontend/md/', '"frontend/html/md/')
-            print("  [+] Enforced unified EmbedFS priority routing for frontend/html/md/.")
+        # B. Fix embed directive to explicitly bundle the separate md directory
+        old_embed = r'//go:embed frontend/html\nvar staticFS embed\.FS'
+        new_embed = '//go:embed frontend/html frontend/md\nvar staticFS embed.FS'
+        if re.search(old_embed, server_code):
+            server_code = re.sub(old_embed, new_embed, server_code)
+            print("  [+] Added frontend/md to staticFS embed directive.")
 
-        # C. Replace initDefaultPage logic to extract all MD files first
+        # Revert any incorrect "frontend/html/md" string paths back to "frontend/md"
+        if '"frontend/html/md' in server_code:
+            server_code = server_code.replace('"frontend/html/md', '"frontend/md')
+            print("  [+] Reverted incorrect frontend/html/md/ paths to match actual file tree.")
+
+        # C. Replace initDefaultPage logic to extract all MD files from the correct path
         init_pattern = r'// 3\. Init Default Notes.*?\n\tinitDefaultPage := func\(fileName, defaultContent string\) \{.*?\n\t\}'
         
         new_init_logic = '''	// 3. Extract all embedded MD files first
-	if entries, err := staticFS.ReadDir("frontend/html/md"); err == nil {
+	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
 				p := filepath.Join(mdDir, entry.Name())
 				if _, err := os.Stat(p); os.IsNotExist(err) {
-					if data, err := staticFS.ReadFile("frontend/html/md/" + entry.Name()); err == nil {
+					if data, err := staticFS.ReadFile("frontend/md/" + entry.Name()); err == nil {
 						os.WriteFile(p, data, 0644)
 					}
 				}
@@ -71,13 +78,13 @@ def update_application():
 
         new_server_code = re.sub(init_pattern, new_init_logic, server_code, flags=re.DOTALL)
         if new_server_code != server_code:
-            print("  [+] Overhauled initDefaultPage to dynamically extract all embedded Markdown templates.")
+            print("  [+] Overhauled initDefaultPage to dynamically extract embedded Markdown templates.")
             server_code = new_server_code
         else:
             print("  [-] Could not find initDefaultPage block to rewrite.")
 
         # D. Replace serveStrict with clean Lazy Extraction Router
-        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?\n\t\t\}'
+        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?fsHandler\.ServeHTTP\(w,\s*r\)\s*\}\)\s*\}'
         
         lazy_router_logic = '''serveStrict := func(ext, cType string) http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
@@ -117,13 +124,14 @@ def update_application():
         with open(server_go, "w", encoding="utf-8") as f:
             f.write(server_code)
 
-    commit_msg = """feat(core): dynamic markdown extraction and clean lazy routing
+    commit_msg = """feat(core): dynamic markdown extraction and correct embedFS pathing
 
-- Overhauled `initStorage` to dynamically iterate through all embedded `frontend/html/md/` Markdown files via `staticFS.ReadDir()` and extract them to the local disk.
-- Simplified `initDefaultPage` to serve purely as a hardcoded fallback generator for core system files (Welcome, ScriptRules, etc.) if they were somehow excluded from the `embedFS` binary.
-- Completely removed the legacy `Bookmarker.js` hot-patch interception in the `serveStrict` router, as the latest frontend design handles preview resolution natively.
+- Updated `go:embed` directive to explicitly bundle both `frontend/html` and `frontend/md` directories.
+- Rewrote `staticFS` internal paths to correctly point to `frontend/md/` matching the physical source tree.
+- Overhauled `initStorage` to dynamically iterate through all embedded Markdown files via `staticFS.ReadDir()` and extract them to the local disk.
+- Simplified `initDefaultPage` to serve purely as an emergency fallback generator.
 - Removed unused `io/fs` and `fSys` declarations to guarantee clean compilation.
-- Bumped application to V1.2.30 (Android 10230)."""
+- Bumped application to V1.2.31 (Android 10231)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
