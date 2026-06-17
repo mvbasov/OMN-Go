@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.33"
+const APP_VERSION = "1.2.34"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -145,7 +145,7 @@ func initStorage() {
 		}
 	}
 
-	initDefaultPage("Welcome.md", "Title: Welcome
+	initDefaultPage("Welcome.md", `Title: Welcome
 Date: 2026-06-14 12:00:00
 Category: System
 
@@ -154,20 +154,23 @@ Welcome to OMN-Go! Start editing.
 - [Help](Welcome)
 - [Scripting Rules](ScriptRules.md)
 - [Bookmarks](Bookmarks)
-- [Quick Notes](QuickNotes)")
-	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules
+- [Quick Notes](QuickNotes)`)
+
+	initDefaultPage("ScriptRules.md", `Title: JS Scripting Rules
 Date: 2026-06-15
 Category: System
 
 # JavaScript Guidelines for OMN-Go
 
-Because OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
-	initDefaultPage("QuickNotes.md", "Title: Quick Notes
+Because OMN-Go is rendered server-side, keep scripts wrapped in block scopes.`)
+
+	initDefaultPage("QuickNotes.md", `Title: Quick Notes
 Date: 2026-06-14 12:00:00
 Category: Log
 
-")
-	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks
+`)
+
+	initDefaultPage("Bookmarks.md", `Title: Incoming bookmarks
 Date: 2026-06-15 20:00:00
 Author: 
 Tags: Bookmarks
@@ -175,7 +178,7 @@ Tags: Bookmarks
 <script>bookmarks = [
 <!-- Don't edit body below this line -->
 ];
-</script>")
+</script>`)
 
 	// Precompile all notes to data/html/ at startup
 	precompileAllPages()
