@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"mime"
 	"net"
@@ -25,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.28"
+const APP_VERSION = "1.2.29"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -803,10 +802,10 @@ func StartServer() {
 		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
-		fSys, _ := fs.Sub(staticFS, "frontend/html")
-		
 		serveStrict := func(ext, cType string) http.Handler {
-			fsHandler := http.FileServer(http.FS(fSys))
+			physicalDir := filepath.Join(storageDir, "html")
+			fsHandler := http.FileServer(http.Dir(physicalDir))
+			
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if !strings.HasSuffix(r.URL.Path, ext) {
 					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
@@ -814,9 +813,21 @@ func StartServer() {
 				}
 				w.Header().Set("Content-Type", cType)
 				
+				// Calculate physical path
+				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
+				
+				// Lazy Extraction: Check if file exists on disk, if not, pull from embedFS
+				if _, err := os.Stat(physPath); os.IsNotExist(err) {
+					embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(r.URL.Path))
+					if data, err := staticFS.ReadFile(embedPath); err == nil {
+						os.MkdirAll(filepath.Dir(physPath), 0755)
+						os.WriteFile(physPath, data, 0644)
+					}
+				}
+				
+				// Hot-patch interception for Bookmarker.js reading from physical disk
 				if r.URL.Path == "/js/Bookmarker.js" {
-					data, err := staticFS.ReadFile("frontend/html/js/Bookmarker.js")
-					if err == nil {
+					if data, err := os.ReadFile(physPath); err == nil {
 						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
 						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
 						w.Write([]byte(js))
@@ -824,6 +835,7 @@ func StartServer() {
 					}
 				}
 				
+				// Serve the file dynamically from the physical directory
 				fsHandler.ServeHTTP(w, r)
 			})
 		}
