@@ -1,6 +1,7 @@
 Title: JS Scripting Rules
-Date: 2026-06-15
+Date: 2026-06-15 12:00:00
 Category: System
+Tags: Document
 
 # JavaScript Guidelines for OMN-Go
 

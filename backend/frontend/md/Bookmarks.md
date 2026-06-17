@@ -1,20 +1,21 @@
 Title: Bookmarks
 Date: 2026-06-15 20:00:00
-Author: 
-Tags: Bookmarks
 Modified: 2026-06-16 18:28:20
+Category: System
+Tags: Bookmarks
 
 <script>bookmarks = [
 <!-- Don't edit body below this line -->
   {
     "date": "2026-06-16 17:58:30",
-    "url": "t",
-    "title": "t",
+    "url": "Welcome",
+    "title": "This application welcome page",
     "tags": [
-      "t"
+      "Local",
+      "Bookmarks"
     ],
     "notes": [
-      "t"
+      "This is first bookmark"
     ]
   }
 ];
