@@ -1,8 +1,9 @@
-const bVersion = '0.17a 2025-07-01 15:12:26';
+const bVersion = '0.18g 2026-06-17 19:31:07';
 const duplicateTag = '!Duplicates';
 const noTagTag = '!NoTag';
 const config = {};
-const configKey = 'OMNBookmarkerConfig';
+const embedCont = document.querySelector('#preview');
+const configKey = 'OMNBookmarkerConfigG';
 if (typeof packgeName !== 'undefined' && packgeName)
   configKey = packageName.replace('\.','-') + '_' + configKey;
 let index = {};
@@ -71,6 +72,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
       span.innerHTML = '<br/>' + bm.url;
       li.appendChild(span);
       if (bm.date && bm.date !== '') {
+        li.setAttribute('id', bm.date.replace(':','').replace(' ','-'));
         li.appendChild(document.createElement('br'));
         let spanDate = document.createElement('span')
         txt = document.createTextNode('');
@@ -234,8 +236,7 @@ function display(bm, tag, search, duplicates) {
 
 function colexpall(state) {
   var allButtons =
-      document
-      .getElementById('content')
+      embedCont
       .getElementsByTagName('ul')[0]
       .getElementsByClassName('details');
   for(var x = 0; x < allButtons.length; x++) {
@@ -302,8 +303,7 @@ Search
   searchC.style = 'float: right;';
   searchD.appendChild(searchC);
 
-  var contentM = document.querySelector('#content');
-  contentM.insertBefore(searchD, contentM.firstChild);
+  embedCont.insertBefore(searchD, embedCont.firstChild);
 
 /*
 <div
