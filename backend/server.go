@@ -25,7 +25,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.26"
+const APP_VERSION = "1.2.27"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -782,14 +782,72 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
 	
+	// Fallback MIME types for minimal Docker containers
+	mime.AddExtensionType(".svg", "image/svg+xml")
+	mime.AddExtensionType(".webp", "image/webp")
+	mime.AddExtensionType(".png", "image/png")
+	mime.AddExtensionType(".jpg", "image/jpeg")
+	mime.AddExtensionType(".jpeg", "image/jpeg")
+	mime.AddExtensionType(".gif", "image/gif")
+	mime.AddExtensionType(".json", "application/json")
+	mime.AddExtensionType(".woff", "font/woff")
+	mime.AddExtensionType(".woff2", "font/woff2")
+	mime.AddExtensionType(".ttf", "font/ttf")
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Recovered from panic in server: %v", r)
 			}
 		}()
+		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
+		fSys, _ := fs.Sub(staticFS, "frontend/html")
+		
+		serveStrict := func(ext, cType string) http.Handler {
+			fsHandler := http.FileServer(http.FS(fSys))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, ext) {
+					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Content-Type", cType)
+				
+				if r.URL.Path == "/js/Bookmarker.js" {
+					data, err := staticFS.ReadFile("frontend/html/js/Bookmarker.js")
+					if err == nil {
+						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						w.Write([]byte(js))
+						return
+					}
+				}
+				
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+
+		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
+		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
+		mux.Handle("/css/", serveStrict(".css", "text/css"))
+		mux.Handle("/json/", serveStrict(".json", "application/json"))
+		
+		// Config for files handling Content-type by served directories
+		serveStorageDir := func(subDir, cType string) http.Handler {
+			dirPath := filepath.Join(storageDir, "html", subDir)
+			os.MkdirAll(dirPath, 0755)
+			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if cType != "" {
+					w.Header().Set("Content-Type", cType)
+				}
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+		
+		mux.Handle("/images/", serveStorageDir("images", ""))
+		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))

@@ -2,74 +2,158 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.26 Compiler Fix...")
+    print("[*] Initiating OMN-Go V1.2.27 Force Compiler Fix...")
 
-    # 1. Version Bumps (Handles both .24 and .25 states)
-    version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.25"', 'APP_VERSION = "1.2.26"'),
-        ("backend/server.go", 'APP_VERSION = "1.2.24"', 'APP_VERSION = "1.2.26"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.25";', 'const APP_VERSION = "1.2.26";'),
-        ("backend/frontend/index.html", "let v = '1.2.25';", "let v = '1.2.26';"),
-        ("backend/frontend/index.html", "let v = '1.2.24';", "let v = '1.2.26';"),
-        ("android/app/build.gradle", "versionCode 10225", "versionCode 10226"),
-        ("android/app/build.gradle", "versionCode 10224", "versionCode 10226"),
-        ("android/app/build.gradle", 'versionName "1.2.25"', 'versionName "1.2.26"'),
-        ("android/app/build.gradle", 'versionName "1.2.24"', 'versionName "1.2.26"')
-    ]
+    # 1. Robust Regex Version Bumps (catches ANY 1.2.x version)
+    files_to_bump = {
+        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.27"'),
+        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.27"'),
+        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10227')
+    }
 
-    for filepath, old_val, new_val in version_replacements:
+    for filepath, (pattern, replacement) in files_to_bump.items():
         if os.path.exists(filepath):
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
-            if old_val in content:
-                content = content.replace(old_val, new_val)
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(content)
-                print(f"  [+] Bumped version in {filepath}")
+            new_content = re.sub(pattern, replacement, content)
+            
+            # Special second pass for index.html 'let v'
+            if "index.html" in filepath:
+                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.27';", new_content)
 
-    # 2. Patch server.go using Regex
+            # Special second pass for build.gradle versionName
+            if "build.gradle" in filepath:
+                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.27"', new_content)
+
+            if new_content != content:
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                print(f"  [+] Force-bumped version in {filepath}")
+            else:
+                print(f"  [=] Version already updated in {filepath}")
+
+    # 2. Forcefully rewrite the StartServer block in server.go
     server_go = "backend/server.go"
     if os.path.exists(server_go):
         with open(server_go, "r", encoding="utf-8") as f:
             server_code = f.read()
 
-        # Fix A: Ensure 'io/fs' is imported cleanly
+        # A. Ensure 'io/fs' is imported
         if '"io/fs"' not in server_code:
             server_code = server_code.replace('"io"', '"io"\n\t"io/fs"')
             print("  [+] Imported 'io/fs' package.")
 
-        # Fix B: Use robust RegEx to force the injection of fs.Sub, bypassing any spacing/formatting issues
-        old_code = server_code
-        server_code = re.sub(
-            r'fSys\s*,\s*_\s*:=\s*[^\n]+', 
-            r'fSys, _ := fs.Sub(staticFS, "frontend/html")', 
-            server_code
-        )
+        # B. Rewrite StartServer completely to avoid regex misses
+        start_server_pattern = r'func StartServer\(\) \{.*?\n\t\}\(\)\n\}'
         
-        if old_code != server_code:
-            print("  [+] Regex successfully injected fs.Sub(), resolving the 'unused import' error.")
+        new_start_server = '''func StartServer() {
+	initStorage() // Execute synchronously to ensure config is loaded instantly
+	
+	// Fallback MIME types for minimal Docker containers
+	mime.AddExtensionType(".svg", "image/svg+xml")
+	mime.AddExtensionType(".webp", "image/webp")
+	mime.AddExtensionType(".png", "image/png")
+	mime.AddExtensionType(".jpg", "image/jpeg")
+	mime.AddExtensionType(".jpeg", "image/jpeg")
+	mime.AddExtensionType(".gif", "image/gif")
+	mime.AddExtensionType(".json", "application/json")
+	mime.AddExtensionType(".woff", "font/woff")
+	mime.AddExtensionType(".woff2", "font/woff2")
+	mime.AddExtensionType(".ttf", "font/ttf")
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Recovered from panic in server: %v", r)
+			}
+		}()
+		
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", serveFrontend)
+		fSys, _ := fs.Sub(staticFS, "frontend/html")
+		
+		serveStrict := func(ext, cType string) http.Handler {
+			fsHandler := http.FileServer(http.FS(fSys))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, ext) {
+					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
+					return
+				}
+				w.Header().Set("Content-Type", cType)
+				
+				if r.URL.Path == "/js/Bookmarker.js" {
+					data, err := staticFS.ReadFile("frontend/html/js/Bookmarker.js")
+					if err == nil {
+						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
+						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
+						w.Write([]byte(js))
+						return
+					}
+				}
+				
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+
+		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
+		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
+		mux.Handle("/css/", serveStrict(".css", "text/css"))
+		mux.Handle("/json/", serveStrict(".json", "application/json"))
+		
+		// Config for files handling Content-type by served directories
+		serveStorageDir := func(subDir, cType string) http.Handler {
+			dirPath := filepath.Join(storageDir, "html", subDir)
+			os.MkdirAll(dirPath, 0755)
+			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if cType != "" {
+					w.Header().Set("Content-Type", cType)
+				}
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+		
+		mux.Handle("/images/", serveStorageDir("images", ""))
+		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
+
+		mux.HandleFunc("/login", handleLogin)
+		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
+		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
+		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
+		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
+		mux.HandleFunc("/api/note", handleGetNote)
+		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
+		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
+		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
+		
+		if appConfig.ServerPort <= 0 {
+			appConfig.ServerPort = 8080
+		}
+		
+		bindAddr := fmt.Sprintf("0.0.0.0:%d", appConfig.ServerPort)
+		
+		log.Printf("OMN-Go Backend running on %s", bindAddr)
+		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
+		if err != nil {
+			log.Printf("FATAL: Server crashed: %v", err)
+		}
+	}()
+}'''
+
+        new_server_code = re.sub(start_server_pattern, new_start_server, server_code, flags=re.DOTALL)
+        
+        if new_server_code != server_code:
+            with open(server_go, "w", encoding="utf-8") as f:
+                f.write(new_server_code)
+            print("  [+] Forcefully rewrote StartServer() to guarantee fs.Sub injection.")
         else:
-            print("  [=] fs.Sub() already present or fSys pattern not found.")
+            print("  [-] Could not find StartServer block. Manual review may be needed.")
 
-        # Fix C: Re-apply V1.2.25 namespace routing fixes just in case they failed alongside fSys
-        server_code = re.sub(r'//go:embed frontend/.*', '//go:embed frontend/html', server_code)
-        server_code = server_code.replace('"frontend/md/', '"frontend/html/md/')
-        server_code = server_code.replace('"frontend/js/', '"frontend/html/js/')
-        
-        old_storage_dir = 'dirPath := filepath.Join(storageDir, subDir)'
-        new_storage_dir = 'dirPath := filepath.Join(storageDir, "html", subDir)'
-        if old_storage_dir in server_code:
-            server_code = server_code.replace(old_storage_dir, new_storage_dir)
-            print("  [+] Enforced static router mappings to data/html/")
+    commit_msg = """fix(compiler): rewrite server routing block to guarantee fs.Sub application
 
-        with open(server_go, "w", encoding="utf-8") as f:
-            f.write(server_code)
-
-    commit_msg = """fix(compiler): resolve unused io/fs import during EmbedFS unification
-
-- Used strict Regular Expressions to guarantee `fs.Sub()` injection, fixing the `imported and not used` Go compiler panic caused by code-formatting mismatches.
-- Ensured `frontend/html` directory mappings were reliably applied.
-- Bumped application to V1.2.26 (Android 10226)."""
+- Used wildcard Regular Expressions to bump version strings, catching edge cases where previous script runs failed or were skipped.
+- Rewrote the entire `StartServer` block in `server.go` to explicitly enforce `fs.Sub(staticFS, "frontend/html")` bypassing code formatting inconsistencies that broke previous regex attempts.
+- Bumped application to V1.2.27 (Android 10227)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
