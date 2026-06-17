@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.23"
+const APP_VERSION = "1.2.24"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -69,6 +69,16 @@ func initStorage() {
 	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
 	for _, f := range files {
 		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
+	}
+
+	// Migrate static directories inside html/
+	dirsToMove := []string{"images", "user_json", "css", "js", "json", "fonts"}
+	for _, d := range dirsToMove {
+		oldPath := filepath.Join(storageDir, d)
+		newPath := filepath.Join(htmlDir, d)
+		if stat, err := os.Stat(oldPath); err == nil && stat.IsDir() {
+			os.Rename(oldPath, newPath)
+		}
 	}
 
 	// 2. Init Config
@@ -551,7 +561,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	imgDir := filepath.Join(storageDir, "images")
+	imgDir := filepath.Join(storageDir, "html", "images")
 	os.MkdirAll(imgDir, 0755)
 	
 	destPath := filepath.Join(imgDir, header.Filename)
@@ -571,7 +581,7 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	jsonDir := filepath.Join(storageDir, "user_json")
+	jsonDir := filepath.Join(storageDir, "html", "user_json")
 	os.MkdirAll(jsonDir, 0755)
 	
 	destPath := filepath.Join(jsonDir, header.Filename)
@@ -615,7 +625,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
+		path = filepath.Join(storageDir, "html", filepath.Clean(name))
 		data, err = os.ReadFile(path)
 		if err != nil {
 			http.Error(w, "File not found", http.StatusNotFound)
@@ -671,7 +681,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		os.WriteFile(htmlPath, compiled, 0644)
 
 	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
+		path = filepath.Join(storageDir, "html", filepath.Clean(name))
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
 	}
@@ -741,8 +751,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", mimeType)
 	}
 
-	// Priority 1: User's Local Storage Directory (data/css, data/js, etc)
-	filePath := filepath.Join(storageDir, filepath.Clean(path))
+	// Priority 1: User's Local Storage Directory (data/html/css, data/html/js, etc)
+	filePath := filepath.Join(storageDir, "html", filepath.Clean(path))
 	if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
 		http.ServeFile(w, r, filePath)
 		return
