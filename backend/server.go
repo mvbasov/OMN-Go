@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.31"
+const APP_VERSION = "1.2.32"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -137,7 +137,7 @@ func initStorage() {
 		}
 	}
 
-	// 4. Init Default Notes fallback
+	// 4. Init Default Notes fallback (if embedFS fails)
 	initDefaultPage := func(fileName, defaultContent string) {
 		p := filepath.Join(mdDir, fileName)
 		if _, err := os.Stat(p); os.IsNotExist(err) {
@@ -145,10 +145,37 @@ func initStorage() {
 		}
 	}
 
-	initDefaultPage("Welcome.md", "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to OMN-Go! Start editing.\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)")
-	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for OMN-Go\n\nBecause OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
-	initDefaultPage("QuickNotes.md", "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n")
-	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks\nDate: 2026-06-15 20:00:00\nAuthor: \nTags: Bookmarks\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];\n</script>")
+	initDefaultPage("Welcome.md", "Title: Welcome
+Date: 2026-06-14 12:00:00
+Category: System
+
+Welcome to OMN-Go! Start editing.
+
+- [Help](Welcome)
+- [Scripting Rules](ScriptRules.md)
+- [Bookmarks](Bookmarks)
+- [Quick Notes](QuickNotes)")
+	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules
+Date: 2026-06-15
+Category: System
+
+# JavaScript Guidelines for OMN-Go
+
+Because OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
+	initDefaultPage("QuickNotes.md", "Title: Quick Notes
+Date: 2026-06-14 12:00:00
+Category: Log
+
+")
+	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks
+Date: 2026-06-15 20:00:00
+Author: 
+Tags: Bookmarks
+
+<script>bookmarks = [
+<!-- Don't edit body below this line -->
+];
+</script>")
 
 	// Precompile all notes to data/html/ at startup
 	precompileAllPages()

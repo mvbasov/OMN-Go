@@ -2,13 +2,13 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.31 Path Resolution Fix...")
+    print("[*] Initiating OMN-Go V1.2.32 Guaranteed Extraction Patch...")
 
     # 1. Version Bumps
     files_to_bump = {
-        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.31"'),
-        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.31"'),
-        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10231')
+        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.32"'),
+        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.32"'),
+        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10232')
     }
 
     for filepath, (pattern, replacement) in files_to_bump.items():
@@ -18,10 +18,10 @@ def update_application():
             new_content = re.sub(pattern, replacement, content)
             
             if "index.html" in filepath:
-                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.31';", new_content)
+                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.32';", new_content)
 
             if "build.gradle" in filepath:
-                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.31"', new_content)
+                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.32"', new_content)
 
             if new_content != content:
                 with open(filepath, "w", encoding="utf-8") as f:
@@ -51,10 +51,10 @@ def update_application():
             server_code = server_code.replace('"frontend/html/md', '"frontend/md')
             print("  [+] Reverted incorrect frontend/html/md/ paths to match actual file tree.")
 
-        # C. Replace initDefaultPage logic to extract all MD files from the correct path
-        init_pattern = r'// 3\. Init Default Notes.*?\n\tinitDefaultPage := func\(fileName, defaultContent string\) \{.*?\n\t\}'
+        # C. Replace initDefaultPage logic using an unbreakable Lookahead Regex
+        init_pattern = r'// 3\. (?:Init Default Notes|Extract all embedded).*?(?=\n\s*// Precompile all notes|\n\s*precompileAllPages)'
         
-        new_init_logic = '''	// 3. Extract all embedded MD files first
+        new_init_logic = '''// 3. Extract all embedded MD files first
 	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
@@ -68,13 +68,18 @@ def update_application():
 		}
 	}
 
-	// 4. Init Default Notes fallback
+	// 4. Init Default Notes fallback (if embedFS fails)
 	initDefaultPage := func(fileName, defaultContent string) {
 		p := filepath.Join(mdDir, fileName)
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			os.WriteFile(p, []byte(defaultContent), 0644)
 		}
-	}'''
+	}
+
+	initDefaultPage("Welcome.md", "Title: Welcome\\nDate: 2026-06-14 12:00:00\\nCategory: System\\n\\nWelcome to OMN-Go! Start editing.\\n\\n- [Help](Welcome)\\n- [Scripting Rules](ScriptRules.md)\\n- [Bookmarks](Bookmarks)\\n- [Quick Notes](QuickNotes)")
+	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules\\nDate: 2026-06-15\\nCategory: System\\n\\n# JavaScript Guidelines for OMN-Go\\n\\nBecause OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
+	initDefaultPage("QuickNotes.md", "Title: Quick Notes\\nDate: 2026-06-14 12:00:00\\nCategory: Log\\n\\n")
+	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks\\nDate: 2026-06-15 20:00:00\\nAuthor: \\nTags: Bookmarks\\n\\n<script>bookmarks = [\\n<!-- Don't edit body below this line -->\\n];\\n</script>")'''
 
         new_server_code = re.sub(init_pattern, new_init_logic, server_code, flags=re.DOTALL)
         if new_server_code != server_code:
@@ -83,8 +88,8 @@ def update_application():
         else:
             print("  [-] Could not find initDefaultPage block to rewrite.")
 
-        # D. Replace serveStrict with clean Lazy Extraction Router
-        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?fsHandler\.ServeHTTP\(w,\s*r\)\s*\}\)\s*\}'
+        # D. Replace serveStrict with clean Lazy Extraction Router using an unbreakable Lookahead Regex
+        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?(?=\n\s*mux\.Handle\("/js/")'
         
         lazy_router_logic = '''serveStrict := func(ext, cType string) http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
@@ -124,14 +129,12 @@ def update_application():
         with open(server_go, "w", encoding="utf-8") as f:
             f.write(server_code)
 
-    commit_msg = """feat(core): dynamic markdown extraction and correct embedFS pathing
+    commit_msg = """feat(core): resilient regex resolution for markdown extraction and lazy routing
 
-- Updated `go:embed` directive to explicitly bundle both `frontend/html` and `frontend/md` directories.
-- Rewrote `staticFS` internal paths to correctly point to `frontend/md/` matching the physical source tree.
-- Overhauled `initStorage` to dynamically iterate through all embedded Markdown files via `staticFS.ReadDir()` and extract them to the local disk.
-- Simplified `initDefaultPage` to serve purely as an emergency fallback generator.
-- Removed unused `io/fs` and `fSys` declarations to guarantee clean compilation.
-- Bumped application to V1.2.31 (Android 10231)."""
+- Redeployed `go:embed` directive and path adjustments.
+- Switched regex targeting strategy to Lookaheads to definitively capture and rewrite `initDefaultPage` and `serveStrict` regardless of source code formatting or prior modifications.
+- Restored the required `initDefaultPage(...)` calls alongside the automated `staticFS.ReadDir()` mass extraction, ensuring baseline functionality.
+- Bumped application to V1.2.32 (Android 10232)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
