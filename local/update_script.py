@@ -1,15 +1,16 @@
 import os
+import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.24 Directory Restructuring...")
+    print("[*] Initiating OMN-Go V1.2.25 EmbedFS & Data Unification...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.23"', 'APP_VERSION = "1.2.24"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.23";', 'const APP_VERSION = "1.2.24";'),
-        ("backend/frontend/index.html", "let v = '1.2.23';", "let v = '1.2.24';"),
-        ("android/app/build.gradle", "versionCode 10223", "versionCode 10224"),
-        ("android/app/build.gradle", 'versionName "1.2.23"', 'versionName "1.2.24"')
+        ("backend/server.go", 'APP_VERSION = "1.2.24"', 'APP_VERSION = "1.2.25"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.24";', 'const APP_VERSION = "1.2.25";'),
+        ("backend/frontend/index.html", "let v = '1.2.24';", "let v = '1.2.25';"),
+        ("android/app/build.gradle", "versionCode 10224", "versionCode 10225"),
+        ("android/app/build.gradle", 'versionName "1.2.24"', 'versionName "1.2.25"')
     ]
 
     for filepath, old_val, new_val in version_replacements:
@@ -22,61 +23,50 @@ def update_application():
                     f.write(content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch server.go to restructure directories
+    # 2. Patch server.go
     server_go = "backend/server.go"
     if os.path.exists(server_go):
         with open(server_go, "r", encoding="utf-8") as f:
             server_code = f.read()
 
-        replacements = [
-            # A. Add automated directory migration to initStorage()
-            (
-                '\t// Migrate legacy root md files recursively\n\tfiles, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))\n\tfor _, f := range files {\n\t\tos.Rename(f, filepath.Join(mdDir, filepath.Base(f)))\n\t}',
-                '\t// Migrate legacy root md files recursively\n\tfiles, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))\n\tfor _, f := range files {\n\t\tos.Rename(f, filepath.Join(mdDir, filepath.Base(f)))\n\t}\n\n\t// Migrate static directories inside html/\n\tdirsToMove := []string{"images", "user_json", "css", "js", "json", "fonts"}\n\tfor _, d := range dirsToMove {\n\t\toldPath := filepath.Join(storageDir, d)\n\t\tnewPath := filepath.Join(htmlDir, d)\n\t\tif stat, err := os.Stat(oldPath); err == nil && stat.IsDir() {\n\t\t\tos.Rename(oldPath, newPath)\n\t\t}\n\t}'
-            ),
-            # B. Move handleUpload output to html/images
-            (
-                '\timgDir := filepath.Join(storageDir, "images")\n\tos.MkdirAll(imgDir, 0755)',
-                '\timgDir := filepath.Join(storageDir, "html", "images")\n\tos.MkdirAll(imgDir, 0755)'
-            ),
-            # C. Move handleUploadJSON output to html/user_json
-            (
-                '\tjsonDir := filepath.Join(storageDir, "user_json")\n\tos.MkdirAll(jsonDir, 0755)',
-                '\tjsonDir := filepath.Join(storageDir, "html", "user_json")\n\tos.MkdirAll(jsonDir, 0755)'
-            ),
-            # D. Redirect handleGetNote fallback to html/
-            (
-                '\t} else {\n\t\tpath = filepath.Join(storageDir, filepath.Clean(name))\n\t\tdata, err = os.ReadFile(path)',
-                '\t} else {\n\t\tpath = filepath.Join(storageDir, "html", filepath.Clean(name))\n\t\tdata, err = os.ReadFile(path)'
-            ),
-            # E. Redirect handleSaveNote fallback to html/
-            (
-                '\t} else {\n\t\tpath = filepath.Join(storageDir, filepath.Clean(name))\n\t\tos.MkdirAll(filepath.Dir(path), 0755)',
-                '\t} else {\n\t\tpath = filepath.Join(storageDir, "html", filepath.Clean(name))\n\t\tos.MkdirAll(filepath.Dir(path), 0755)'
-            ),
-            # F. Remap serveFrontend static assets to html/
-            (
-                '\t// Priority 1: User\'s Local Storage Directory (data/css, data/js, etc)\n\tfilePath := filepath.Join(storageDir, filepath.Clean(path))',
-                '\t// Priority 1: User\'s Local Storage Directory (data/html/css, data/html/js, etc)\n\tfilePath := filepath.Join(storageDir, "html", filepath.Clean(path))'
-            )
-        ]
+        # A. Inject io/fs import for fs.Sub()
+        if '"io/fs"' not in server_code:
+            server_code = server_code.replace('"io"', '"io"\n\t"io/fs"')
+            print("  [+] Imported 'io/fs' package.")
 
-        for old_str, new_str in replacements:
-            if old_str in server_code:
-                server_code = server_code.replace(old_str, new_str)
-                print("  [+] Successfully applied a directory routing patch.")
-            else:
-                print(f"  [-] Could not find target string: {old_str[:50]}...")
+        # B. Update the global embed directive
+        server_code = re.sub(r'//go:embed frontend/.*', '//go:embed frontend/html', server_code)
+        print("  [+] Updated //go:embed directive to target frontend/html.")
+
+        # C. Update explicit staticFS.ReadFile path lookups
+        server_code = server_code.replace('"frontend/md/', '"frontend/html/md/')
+        server_code = server_code.replace('"frontend/js/', '"frontend/html/js/')
+        print("  [+] Rewrote staticFS.ReadFile paths to prepend html/.")
+
+        # D. Replace embed.FS with fs.Sub() to securely root the static HTTP server
+        old_fsys = 'fSys, _ := embed.FS(staticFS), error(nil)'
+        new_fsys = 'fSys, _ := fs.Sub(staticFS, "frontend/html")'
+        if old_fsys in server_code:
+            server_code = server_code.replace(old_fsys, new_fsys)
+            print("  [+] Configured static HTTP router to use fs.Sub(frontend/html).")
+
+        # E. Fix serveStorageDir bug from V1.2.24 (Route dynamic images/json to data/html/)
+        old_storage_dir = 'dirPath := filepath.Join(storageDir, subDir)'
+        new_storage_dir = 'dirPath := filepath.Join(storageDir, "html", subDir)'
+        if old_storage_dir in server_code:
+            server_code = server_code.replace(old_storage_dir, new_storage_dir)
+            print("  [+] Patched serveStorageDir to correctly serve dynamic files from data/html/.")
 
         with open(server_go, "w", encoding="utf-8") as f:
             f.write(server_code)
 
-    commit_msg = """feat(storage): restructure data directory keeping md and config at root
+    commit_msg = """refactor(storage): unify embedFS and physical data structure
 
-- Relocated static asset directories (`css`, `js`, `images`, `json`, `user_json`, `fonts`) strictly inside the `data/html/` subdirectory to declutter the root workspace.
-- Added automated startup migration logic to silently move existing root folders into `html/` so users lose zero local modifications.
-- Updated URL router and API saving/loading endpoints to dynamically point all non-Markdown file requests into the `html/` directory mapping.
-- Bumped application to V1.2.24 (Android 10224)."""
+- Updated `//go:embed` directive to bundle the unified `frontend/html/` directory instead of distinct root folders.
+- Updated internal `staticFS.ReadFile` paths to correctly target the new `frontend/html/` namespace.
+- Utilized `io/fs.Sub()` to safely root the fallback embedded `http.FileServer` to the nested HTML directory.
+- Fixed a minor bug from V1.2.24 where dynamic image and JSON serving didn't target the nested `html/` storage directories.
+- Bumped application to V1.2.25 (Android 10225)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 

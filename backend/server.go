@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"mime"
 	"net"
@@ -24,7 +25,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.24"
+const APP_VERSION = "1.2.25"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -35,10 +36,10 @@ type Config struct {
 	MimeTypes     map[string]string `json:"mime_types"`
 }
 
-//go:embed frontend/index.html
+//go:embed frontend/html
 var frontendHTML []byte
 
-//go:embed frontend/js frontend/css frontend/json frontend/md
+//go:embed frontend/html
 var staticFS embed.FS
 
 var (
@@ -127,7 +128,7 @@ func initStorage() {
 	initDefaultPage := func(fileName, defaultContent string) {
 		p := filepath.Join(mdDir, fileName)
 		if _, err := os.Stat(p); os.IsNotExist(err) {
-			data, err := staticFS.ReadFile("frontend/md/" + fileName)
+			data, err := staticFS.ReadFile("frontend/html/md/" + fileName)
 			if err == nil {
 				os.WriteFile(p, data, 0644)
 			} else {
@@ -610,7 +611,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
 		data, err = os.ReadFile(path)
 		if err != nil {
-			embedPath := "frontend/md/" + cleanName
+			embedPath := "frontend/html/md/" + cleanName
 			data, err = staticFS.ReadFile(embedPath)
 			if err != nil {
 				title := strings.TrimSuffix(cleanName, ".md")
@@ -716,7 +717,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		// Recompile if HTML is missing, OR if Markdown was modified more recently than HTML
 		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
 			if os.IsNotExist(errMd) {
-				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
+				embedData, err := staticFS.ReadFile("frontend/html/md/" + name + ".md")
 				if err == nil {
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
 					os.WriteFile(mdPath, embedData, 0644)
