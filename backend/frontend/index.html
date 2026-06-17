@@ -53,7 +53,7 @@
 
         <div class="content-area">
             <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: none; background: #17a2b8; color: white; border: none;">Metadata</button>
+                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;">Metadata</button>
                 <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;">Save Note</button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only">Edit Mode</button>
             </div>
@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.21";
+        const APP_VERSION = "1.2.22";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -154,6 +154,7 @@
                 preview.style.display = 'block';
                 btn.innerText = 'Edit Mode';
                 document.getElementById('saveBtn').style.display = 'none';
+                document.getElementById('metaToggleBtn').style.display = 'block';
                 currentMode = 'view';
             }
         }
@@ -386,7 +387,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.2.21';
+            let v = '1.2.22';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });

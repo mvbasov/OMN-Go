@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.21"
+const APP_VERSION = "1.2.22"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
