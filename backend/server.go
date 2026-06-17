@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.29"
+const APP_VERSION = "1.2.30"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -123,16 +123,25 @@ func initStorage() {
 		}
 	}
 
-	// 3. Init Default Notes from embedFS
+		// 3. Extract all embedded MD files first
+	if entries, err := staticFS.ReadDir("frontend/html/md"); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				p := filepath.Join(mdDir, entry.Name())
+				if _, err := os.Stat(p); os.IsNotExist(err) {
+					if data, err := staticFS.ReadFile("frontend/html/md/" + entry.Name()); err == nil {
+						os.WriteFile(p, data, 0644)
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Init Default Notes fallback
 	initDefaultPage := func(fileName, defaultContent string) {
 		p := filepath.Join(mdDir, fileName)
 		if _, err := os.Stat(p); os.IsNotExist(err) {
-			data, err := staticFS.ReadFile("frontend/html/md/" + fileName)
-			if err == nil {
-				os.WriteFile(p, data, 0644)
-			} else {
-				os.WriteFile(p, []byte(defaultContent), 0644)
-			}
+			os.WriteFile(p, []byte(defaultContent), 0644)
 		}
 	}
 

@@ -2,13 +2,13 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.29 Lazy Asset Extraction (Fixed)...")
+    print("[*] Initiating OMN-Go V1.2.30 Core Architecture Refinements...")
 
     # 1. Version Bumps
     files_to_bump = {
-        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.29"'),
-        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.29"'),
-        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10229')
+        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.30"'),
+        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.30"'),
+        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10230')
     }
 
     for filepath, (pattern, replacement) in files_to_bump.items():
@@ -18,37 +18,66 @@ def update_application():
             new_content = re.sub(pattern, replacement, content)
             
             if "index.html" in filepath:
-                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.29';", new_content)
+                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.30';", new_content)
 
             if "build.gradle" in filepath:
-                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.29"', new_content)
+                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.30"', new_content)
 
             if new_content != content:
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(new_content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch server.go to implement Lazy Extraction Strategy
+    # 2. Patch server.go
     server_go = "backend/server.go"
     if os.path.exists(server_go):
         with open(server_go, "r", encoding="utf-8") as f:
             server_code = f.read()
 
-        # A. Remove "io/fs" from imports to prevent compiler panics
+        # A. Remove "io/fs" and fSys to prevent compiler panics
         server_code = re.sub(r'\n\s*"io/fs"', '', server_code)
-        print("  [+] Removed 'io/fs' import to keep compiler clean.")
-
-        # B. Remove fSys declaration to prevent declared-and-not-used compiler panic
         server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*fs\.Sub\(staticFS,\s*"frontend/html"\)', '', server_code)
         server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*embed\.FS\(staticFS\),\s*error\(nil\)', '', server_code)
-
-        # C. Fix legacy "frontend/md/" paths so EmbedFS priority works
+        
+        # B. Fix legacy "frontend/md/" paths to unified embedFS path
         if '"frontend/md/' in server_code:
             server_code = server_code.replace('"frontend/md/', '"frontend/html/md/')
-            print("  [+] Restored EmbedFS priority by fixing the 'html' subdirectory path in fallback routers.")
+            print("  [+] Enforced unified EmbedFS priority routing for frontend/html/md/.")
 
-        # D. Replace serveStrict with the new Lazy Extraction Router (No Bookmarker JS hack)
-        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?fsHandler\.ServeHTTP\(w,\s*r\)\s*\}\)\s*\}'
+        # C. Replace initDefaultPage logic to extract all MD files first
+        init_pattern = r'// 3\. Init Default Notes.*?\n\tinitDefaultPage := func\(fileName, defaultContent string\) \{.*?\n\t\}'
+        
+        new_init_logic = '''	// 3. Extract all embedded MD files first
+	if entries, err := staticFS.ReadDir("frontend/html/md"); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				p := filepath.Join(mdDir, entry.Name())
+				if _, err := os.Stat(p); os.IsNotExist(err) {
+					if data, err := staticFS.ReadFile("frontend/html/md/" + entry.Name()); err == nil {
+						os.WriteFile(p, data, 0644)
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Init Default Notes fallback
+	initDefaultPage := func(fileName, defaultContent string) {
+		p := filepath.Join(mdDir, fileName)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			os.WriteFile(p, []byte(defaultContent), 0644)
+		}
+	}'''
+
+        new_server_code = re.sub(init_pattern, new_init_logic, server_code, flags=re.DOTALL)
+        if new_server_code != server_code:
+            print("  [+] Overhauled initDefaultPage to dynamically extract all embedded Markdown templates.")
+            server_code = new_server_code
+        else:
+            print("  [-] Could not find initDefaultPage block to rewrite.")
+
+        # D. Replace serveStrict with clean Lazy Extraction Router
+        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?\n\t\t\}'
         
         lazy_router_logic = '''serveStrict := func(ext, cType string) http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
@@ -79,22 +108,22 @@ def update_application():
 		}'''
         
         new_server_code = re.sub(serve_strict_pattern, lazy_router_logic, server_code, flags=re.DOTALL)
-        
         if new_server_code != server_code:
-            print("  [+] Rewired serveStrict router with clean Lazy Extraction logic.")
+            print("  [+] Removed Bookmarker.js hot-patch and deployed clean Lazy Router.")
+            server_code = new_server_code
         else:
             print("  [-] Could not find serveStrict block to rewrite.")
-            
+
         with open(server_go, "w", encoding="utf-8") as f:
-            f.write(new_server_code)
+            f.write(server_code)
 
-    commit_msg = """feat(core): implement lazy extraction proxy and embedfs path resolution
+    commit_msg = """feat(core): dynamic markdown extraction and clean lazy routing
 
-- Redesigned the `serveStrict` HTTP router to act as a clean, lazy-loading proxy. 
-- Removed legacy hot-patch interception for `Bookmarker.js` as the redesigned JS logic natively resolves its targets.
-- Updated all legacy `"frontend/md/"` paths inside `initDefaultPage`, `handleGetNote`, and `serveFrontend` to correctly target `"frontend/html/md/"`. This guarantees `embedFS` extraction takes priority over generating empty `.md` files.
-- Removed unused `io/fs` and `fSys` logic entirely, preventing compiler errors.
-- Bumped application to V1.2.29 (Android 10229)."""
+- Overhauled `initStorage` to dynamically iterate through all embedded `frontend/html/md/` Markdown files via `staticFS.ReadDir()` and extract them to the local disk.
+- Simplified `initDefaultPage` to serve purely as a hardcoded fallback generator for core system files (Welcome, ScriptRules, etc.) if they were somehow excluded from the `embedFS` binary.
+- Completely removed the legacy `Bookmarker.js` hot-patch interception in the `serveStrict` router, as the latest frontend design handles preview resolution natively.
+- Removed unused `io/fs` and `fSys` declarations to guarantee clean compilation.
+- Bumped application to V1.2.30 (Android 10230)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
