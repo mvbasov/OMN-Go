@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.22"
+const APP_VERSION = "1.2.23"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -222,7 +222,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	if renderedBody == "" {
 		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
-	metadataStr := strings.Join(headers, "\n")
+	metadataStr := fmt.Sprintf("File: %s.md\n%s", name, strings.Join(headers, "\n"))
 
 	layout := string(frontendHTML)
 

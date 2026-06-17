@@ -1,15 +1,15 @@
 import os
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.22 Metadata UI Fix...")
+    print("[*] Initiating OMN-Go V1.2.23 Metadata Filename Display Update...")
 
     # 1. Version Bumps
     version_replacements = [
-        ("backend/server.go", 'APP_VERSION = "1.2.21"', 'APP_VERSION = "1.2.22"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.21";', 'const APP_VERSION = "1.2.22";'),
-        ("backend/frontend/index.html", "let v = '1.2.21';", "let v = '1.2.22';"),
-        ("android/app/build.gradle", "versionCode 10221", "versionCode 10222"),
-        ("android/app/build.gradle", 'versionName "1.2.21"', 'versionName "1.2.22"')
+        ("backend/server.go", 'APP_VERSION = "1.2.22"', 'APP_VERSION = "1.2.23"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.2.22";', 'const APP_VERSION = "1.2.23";'),
+        ("backend/frontend/index.html", "let v = '1.2.22';", "let v = '1.2.23';"),
+        ("android/app/build.gradle", "versionCode 10222", "versionCode 10223"),
+        ("android/app/build.gradle", 'versionName "1.2.22"', 'versionName "1.2.23"')
     ]
 
     for filepath, old_val, new_val in version_replacements:
@@ -22,66 +22,32 @@ def update_application():
                     f.write(content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch index.html to fix Metadata button visibility logic
-    index_html = "backend/frontend/index.html"
-    if os.path.exists(index_html):
-        with open(index_html, "r", encoding="utf-8") as f:
-            html_content = f.read()
+    # 2. Patch server.go to inject filename into the metadata display
+    server_go = "backend/server.go"
+    if os.path.exists(server_go):
+        with open(server_go, "r", encoding="utf-8") as f:
+            server_code = f.read()
 
-        # Fix A: Remove 'display: none;' from the raw HTML so it shows on load
-        old_btn_html = '<button id="metaToggleBtn" onclick="document.getElementById(\'metadataPanel\').classList.toggle(\'hidden\')" style="display: none; background: #17a2b8; color: white; border: none;">Metadata</button>'
-        new_btn_html = '<button id="metaToggleBtn" onclick="document.getElementById(\'metadataPanel\').classList.toggle(\'hidden\')" style="display: block; background: #17a2b8; color: white; border: none;">Metadata</button>'
+        # Find the point where the headers array is joined into the metadataStr
+        old_meta_join = 'metadataStr := strings.Join(headers, "\\n")'
         
-        if old_btn_html in html_content:
-            html_content = html_content.replace(old_btn_html, new_btn_html)
-            print("  [+] Made Metadata button visible by default on page load.")
+        # Prepend the file name format using fmt.Sprintf
+        new_meta_join = 'metadataStr := fmt.Sprintf("File: %s.md\\n%s", name, strings.Join(headers, "\\n"))'
+        
+        if old_meta_join in server_code:
+            server_code = server_code.replace(old_meta_join, new_meta_join)
+            print("  [+] Appended dynamic filename display to the metadata panel compiler.")
+        else:
+            print("  [=] Filename display logic already patched or target string missing.")
 
-        # Fix B: Update toggleMode() to restore visibility when returning to View Mode
-        old_toggle_logic = """            if(currentMode === 'view') {
-                editor.style.display = 'block';
-                preview.style.display = 'none';
-                btn.innerText = 'View Mode';
-                document.getElementById('saveBtn').style.display = 'block';
-                document.getElementById('metaToggleBtn').style.display = 'none';
-                document.getElementById('metadataPanel').classList.add('hidden');
-                currentMode = 'edit';
-            } else {
-                editor.style.display = 'none';
-                preview.style.display = 'block';
-                btn.innerText = 'Edit Mode';
-                document.getElementById('saveBtn').style.display = 'none';
-                currentMode = 'view';
-            }"""
+        with open(server_go, "w", encoding="utf-8") as f:
+            f.write(server_code)
 
-        new_toggle_logic = """            if(currentMode === 'view') {
-                editor.style.display = 'block';
-                preview.style.display = 'none';
-                btn.innerText = 'View Mode';
-                document.getElementById('saveBtn').style.display = 'block';
-                document.getElementById('metaToggleBtn').style.display = 'none';
-                document.getElementById('metadataPanel').classList.add('hidden');
-                currentMode = 'edit';
-            } else {
-                editor.style.display = 'none';
-                preview.style.display = 'block';
-                btn.innerText = 'Edit Mode';
-                document.getElementById('saveBtn').style.display = 'none';
-                document.getElementById('metaToggleBtn').style.display = 'block';
-                currentMode = 'view';
-            }"""
+    commit_msg = """feat(ui): display current filename in metadata overlay
 
-        if old_toggle_logic in html_content:
-            html_content = html_content.replace(old_toggle_logic, new_toggle_logic)
-            print("  [+] Added logic to restore Metadata button visibility when returning to View Mode.")
-
-        with open(index_html, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-    commit_msg = """fix(ui): resolve hidden metadata toggle button
-
-- Changed inline HTML styling on `metaToggleBtn` to `display: block` so the button correctly mounts during standard View Mode initialization.
-- Added `style.display = 'block'` restoration inside the `toggleMode()` JavaScript flow, resolving a bug where the button would permanently disappear after exiting Edit Mode.
-- Bumped application to V1.2.22 (Android 10222)."""
+- Upgraded `compilePage` in `server.go` to dynamically prepend `File: [name].md` to the metadata strings.
+- This safely exposes the current physical file location inside the read-only Metadata UI panel without polluting the raw Markdown source code payload.
+- Bumped application to V1.2.23 (Android 10223)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
