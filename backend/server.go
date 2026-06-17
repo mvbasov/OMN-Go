@@ -825,16 +825,6 @@ func StartServer() {
 					}
 				}
 				
-				// Hot-patch interception for Bookmarker.js reading from physical disk
-				if r.URL.Path == "/js/Bookmarker.js" {
-					if data, err := os.ReadFile(physPath); err == nil {
-						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						w.Write([]byte(js))
-						return
-					}
-				}
-				
 				// Serve the file dynamically from the physical directory
 				fsHandler.ServeHTTP(w, r)
 			})

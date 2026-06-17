@@ -2,7 +2,7 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.29 Lazy Asset Extraction...")
+    print("[*] Initiating OMN-Go V1.2.29 Lazy Asset Extraction (Fixed)...")
 
     # 1. Version Bumps
     files_to_bump = {
@@ -38,8 +38,17 @@ def update_application():
         server_code = re.sub(r'\n\s*"io/fs"', '', server_code)
         print("  [+] Removed 'io/fs' import to keep compiler clean.")
 
-        # B. Replace fSys and serveStrict with the new Lazy Extraction Router
-        serve_strict_pattern = r'fSys,\s*_\s*:=\s*fs\.Sub\(staticFS,\s*"frontend/html"\)\s*serveStrict\s*:=\s*func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?fsHandler\.ServeHTTP\(w,\s*r\)\s*\}\)\s*\}'
+        # B. Remove fSys declaration to prevent declared-and-not-used compiler panic
+        server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*fs\.Sub\(staticFS,\s*"frontend/html"\)', '', server_code)
+        server_code = re.sub(r'\n\t\tfSys,\s*_\s*:=\s*embed\.FS\(staticFS\),\s*error\(nil\)', '', server_code)
+
+        # C. Fix legacy "frontend/md/" paths so EmbedFS priority works
+        if '"frontend/md/' in server_code:
+            server_code = server_code.replace('"frontend/md/', '"frontend/html/md/')
+            print("  [+] Restored EmbedFS priority by fixing the 'html' subdirectory path in fallback routers.")
+
+        # D. Replace serveStrict with the new Lazy Extraction Router (No Bookmarker JS hack)
+        serve_strict_pattern = r'serveStrict := func\(ext,\s*cType\s*string\)\s*http\.Handler\s*\{.*?fsHandler\.ServeHTTP\(w,\s*r\)\s*\}\)\s*\}'
         
         lazy_router_logic = '''serveStrict := func(ext, cType string) http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
@@ -64,16 +73,6 @@ def update_application():
 					}
 				}
 				
-				// Hot-patch interception for Bookmarker.js reading from physical disk
-				if r.URL.Path == "/js/Bookmarker.js" {
-					if data, err := os.ReadFile(physPath); err == nil {
-						js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-						js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-						w.Write([]byte(js))
-						return
-					}
-				}
-				
 				// Serve the file dynamically from the physical directory
 				fsHandler.ServeHTTP(w, r)
 			})
@@ -82,18 +81,19 @@ def update_application():
         new_server_code = re.sub(serve_strict_pattern, lazy_router_logic, server_code, flags=re.DOTALL)
         
         if new_server_code != server_code:
-            print("  [+] Rewired serveStrict router with Lazy Extraction logic.")
+            print("  [+] Rewired serveStrict router with clean Lazy Extraction logic.")
         else:
             print("  [-] Could not find serveStrict block to rewrite.")
             
         with open(server_go, "w", encoding="utf-8") as f:
             f.write(new_server_code)
 
-    commit_msg = """feat(core): implement lazy extraction proxy for static embedded assets
+    commit_msg = """feat(core): implement lazy extraction proxy and embedfs path resolution
 
-- Redesigned the `serveStrict` HTTP router to act as a lazy-loading proxy instead of mass-extracting files at boot.
-- When a `.css`, `.js`, or font is requested, the server checks the physical `data/html/` directory first. If missing, it dynamically extracts only that specific file from `embedFS`, writes it to disk, and serves it seamlessly.
-- Removed unused `io/fs` logic entirely, preventing compiler errors.
+- Redesigned the `serveStrict` HTTP router to act as a clean, lazy-loading proxy. 
+- Removed legacy hot-patch interception for `Bookmarker.js` as the redesigned JS logic natively resolves its targets.
+- Updated all legacy `"frontend/md/"` paths inside `initDefaultPage`, `handleGetNote`, and `serveFrontend` to correctly target `"frontend/html/md/"`. This guarantees `embedFS` extraction takes priority over generating empty `.md` files.
+- Removed unused `io/fs` and `fSys` logic entirely, preventing compiler errors.
 - Bumped application to V1.2.29 (Android 10229)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
