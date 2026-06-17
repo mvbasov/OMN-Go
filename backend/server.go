@@ -25,7 +25,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.27"
+const APP_VERSION = "1.2.28"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -36,7 +36,7 @@ type Config struct {
 	MimeTypes     map[string]string `json:"mime_types"`
 }
 
-//go:embed frontend/html
+//go:embed frontend/index.html
 var frontendHTML []byte
 
 //go:embed frontend/html
