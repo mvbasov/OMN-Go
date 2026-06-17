@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.34"
+const APP_VERSION = "1.2.35"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -841,17 +841,11 @@ func StartServer() {
 		
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
-		serveStrict := func(ext, cType string) http.Handler {
+		serveLazyEmbed := func() http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
 			fsHandler := http.FileServer(http.Dir(physicalDir))
 			
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if !strings.HasSuffix(r.URL.Path, ext) {
-					http.Error(w, "Forbidden: Invalid file extension", http.StatusForbidden)
-					return
-				}
-				w.Header().Set("Content-Type", cType)
-				
 				// Calculate physical path
 				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
 				
@@ -869,10 +863,9 @@ func StartServer() {
 			})
 		}
 
-		mux.Handle("/js/", serveStrict(".js", "application/javascript"))
-		mux.Handle("/css/fonts/", serveStrict(".woff2", "font/woff2"))
-		mux.Handle("/css/", serveStrict(".css", "text/css"))
-		mux.Handle("/json/", serveStrict(".json", "application/json"))
+		mux.Handle("/js/", serveLazyEmbed())
+		mux.Handle("/css/", serveLazyEmbed())
+		mux.Handle("/json/", serveLazyEmbed())
 		
 		// Config for files handling Content-type by served directories
 		serveStorageDir := func(subDir, cType string) http.Handler {

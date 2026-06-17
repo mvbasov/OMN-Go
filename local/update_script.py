@@ -2,13 +2,13 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.2.34 Syntax Rescue Patch...")
+    print("[*] Initiating OMN-Go V1.2.35 Fonts Extraction Fix...")
 
     # 1. Version Bumps
     files_to_bump = {
-        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.34"'),
-        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.34"'),
-        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10234')
+        "backend/server.go": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.35"'),
+        "backend/frontend/index.html": (r'APP_VERSION = "1\.2\.\d+"', 'APP_VERSION = "1.2.35"'),
+        "android/app/build.gradle": (r'versionCode 102\d{2}', 'versionCode 10235')
     }
 
     for filepath, (pattern, replacement) in files_to_bump.items():
@@ -18,103 +18,76 @@ def update_application():
             new_content = re.sub(pattern, replacement, content)
             
             if "index.html" in filepath:
-                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.34';", new_content)
+                new_content = re.sub(r"let v = '1\.2\.\d+';", "let v = '1.2.35';", new_content)
 
             if "build.gradle" in filepath:
-                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.34"', new_content)
+                new_content = re.sub(r'versionName "1\.2\.\d+"', 'versionName "1.2.35"', new_content)
 
             if new_content != content:
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(new_content)
                 print(f"  [+] Bumped version in {filepath}")
 
-    # 2. Patch server.go using bulletproof String Slicing and Go Backticks
+    # 2. Patch server.go to simplify the router and fix font extraction
     server_go = "backend/server.go"
     if os.path.exists(server_go):
         with open(server_go, "r", encoding="utf-8") as f:
             server_code = f.read()
 
-        # Find exact start and end points of the mangled initDefaultPage block
-        start_idx = server_code.find("// 3. Extract all embedded MD files first")
-        if start_idx == -1:
-            start_idx = server_code.find("// 3. Init Default Notes")
-            
-        end_idx = server_code.find("// Precompile all notes", start_idx)
+        # Find the start of the strict router and the end of its mux registrations
+        start_str = "serveStrict := func("
+        end_search = 'mux.Handle("/json/",'
 
-        if start_idx != -1 and end_idx != -1:
-            safe_init_logic = '''// 3. Extract all embedded MD files first
-	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-				p := filepath.Join(mdDir, entry.Name())
-				if _, err := os.Stat(p); os.IsNotExist(err) {
-					if data, err := staticFS.ReadFile("frontend/md/" + entry.Name()); err == nil {
-						os.WriteFile(p, data, 0644)
+        start_idx = server_code.find(start_str)
+        end_line_idx = server_code.find(end_search)
+
+        if start_idx != -1 and end_line_idx != -1:
+            # Find the end of the line containing the last mux.Handle mapping
+            end_idx = server_code.find('\n', end_line_idx)
+            if end_idx == -1:
+                end_idx = len(server_code)
+
+            lazy_router_logic = '''serveLazyEmbed := func() http.Handler {
+			physicalDir := filepath.Join(storageDir, "html")
+			fsHandler := http.FileServer(http.Dir(physicalDir))
+			
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Calculate physical path
+				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
+				
+				// Lazy Extraction: Check if file exists on disk, if not, pull from embedFS
+				if _, err := os.Stat(physPath); os.IsNotExist(err) {
+					embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(r.URL.Path))
+					if data, err := staticFS.ReadFile(embedPath); err == nil {
+						os.MkdirAll(filepath.Dir(physPath), 0755)
+						os.WriteFile(physPath, data, 0644)
 					}
 				}
-			}
+				
+				// Serve the file dynamically from the physical directory
+				fsHandler.ServeHTTP(w, r)
+			})
 		}
-	}
 
-	// 4. Init Default Notes fallback (if embedFS fails)
-	initDefaultPage := func(fileName, defaultContent string) {
-		p := filepath.Join(mdDir, fileName)
-		if _, err := os.Stat(p); os.IsNotExist(err) {
-			os.WriteFile(p, []byte(defaultContent), 0644)
-		}
-	}
+		mux.Handle("/js/", serveLazyEmbed())
+		mux.Handle("/css/", serveLazyEmbed())
+		mux.Handle("/json/", serveLazyEmbed())'''
 
-	initDefaultPage("Welcome.md", `Title: Welcome
-Date: 2026-06-14 12:00:00
-Category: System
-
-Welcome to OMN-Go! Start editing.
-
-- [Help](Welcome)
-- [Scripting Rules](ScriptRules.md)
-- [Bookmarks](Bookmarks)
-- [Quick Notes](QuickNotes)`)
-
-	initDefaultPage("ScriptRules.md", `Title: JS Scripting Rules
-Date: 2026-06-15
-Category: System
-
-# JavaScript Guidelines for OMN-Go
-
-Because OMN-Go is rendered server-side, keep scripts wrapped in block scopes.`)
-
-	initDefaultPage("QuickNotes.md", `Title: Quick Notes
-Date: 2026-06-14 12:00:00
-Category: Log
-
-`)
-
-	initDefaultPage("Bookmarks.md", `Title: Incoming bookmarks
-Date: 2026-06-15 20:00:00
-Author: 
-Tags: Bookmarks
-
-<script>bookmarks = [
-<!-- Don't edit body below this line -->
-];
-</script>`)
-
-	'''
-            # Slice the broken block out and insert the backtick-safe logic
-            server_code = server_code[:start_idx] + safe_init_logic + server_code[end_idx:]
-            print("  [+] Successfully sliced and replaced initDefaultPage using exact indices and Go backticks.")
+            # Slice out the overly strict router and replace it with the clean proxy
+            server_code = server_code[:start_idx] + lazy_router_logic + server_code[end_idx:]
+            print("  [+] Successfully replaced strict router with unified serveLazyEmbed proxy.")
             
             with open(server_go, "w", encoding="utf-8") as f:
                 f.write(server_code)
         else:
-            print("  [-] CRITICAL: Could not find the exact bounds of the initDefaultPage block!")
+            print("  [-] CRITICAL: Could not find the serveStrict block bounds!")
 
-    commit_msg = """fix(compiler): rescue go syntax errors by converting strings to backticks
+    commit_msg = """fix(routing): remove strict extension gatekeeping for lazy extraction
 
-- Resolved 'newline in string' and cascading syntax compiler panics in `server.go`.
-- Abandoned `re.sub` replacement strategies for the `initDefaultPage` templates to prevent Python from un-escaping newline sequences.
-- Converted all multiline string templates to native Go backtick execution (`` `...` ``) ensuring 100% syntax compliance.
-- Bumped application to V1.2.34 (Android 10234)."""
+- Replaced `serveStrict` with `serveLazyEmbed`. The previous implementation was blocking `.woff` files because the `/css/fonts/` route was hardcoded to only accept `.woff2` extensions.
+- Removed explicit MIME type parameters, relying instead on Go's native `http.FileServer` to negotiate Content-Type mappings (which were previously initialized via `mime.AddExtensionType`).
+- Consolidated `/css/fonts/` sub-routing recursively into `/css/`, allowing all embedded nested directories to lazily extract to the physical disk flawlessly upon request.
+- Bumped application to V1.2.35 (Android 10235)."""
 
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
