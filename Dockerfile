@@ -58,5 +58,5 @@ RUN cd android && \
               -dname "CN=OMN-Go, O=Basov"; \
     fi && \
     gradle assembleRelease && \
-    cp app/build/outputs/apk/release/app-release.apk ../bin/omn-go.apk #&& \
+    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
     #cp app/omn-go.keystore ../bin/omn-go.keystore
