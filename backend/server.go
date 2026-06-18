@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.6"
+const APP_VERSION = "1.3.7"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -179,9 +179,8 @@ Tags: Bookmarks
 <!-- Don't edit body below this line -->
 ];
 </script>`)
-
-	// Precompile all notes to data/html/ at startup
-	precompileAllPages()
+	// Precompile all notes to data/html/ at startup in the background
+	go precompileAllPages()
 }
 
 var mdParser = goldmark.New(

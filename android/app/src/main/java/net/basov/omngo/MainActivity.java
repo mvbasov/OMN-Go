@@ -33,13 +33,32 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        // Create Native Loading Layout
+        android.widget.FrameLayout rootLayout = new android.widget.FrameLayout(this);
+        rootLayout.setBackgroundColor(android.graphics.Color.parseColor("#f9f9f9"));
+        
+        final android.widget.ProgressBar progressBar = new android.widget.ProgressBar(this);
+        android.widget.FrameLayout.LayoutParams pbParams = new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        pbParams.gravity = android.view.Gravity.CENTER;
+        progressBar.setLayoutParams(pbParams);
 
         // Initialize WebView
         webView = new WebView(this);
+        webView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                progressBar.setVisibility(android.view.View.GONE);
+                super.onPageFinished(view, url);
+            }
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url != null && url.startsWith("omngo://edit")) {
@@ -81,8 +100,9 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
-
-        setContentView(webView);
+        rootLayout.addView(webView);
+        rootLayout.addView(progressBar);
+        setContentView(rootLayout);
 
         // Wait for the Go server to bind before loading
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
