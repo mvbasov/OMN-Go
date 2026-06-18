@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-OUTPUT_FILE="doc/OMN-Go_1.3.0_Context.md"
+OUTPUT_FILE="doc/OMN-Go_1.3.4_Context.md"
 
 echo -e "${BLUE}=======================================${NC}"
 echo -e "${YELLOW}  OMN-Go AI Context Generator${NC}"
@@ -15,7 +15,7 @@ echo -e "${BLUE}=======================================${NC}"
 
 # 1. Write the precise AI prompt at the top of the file
 cat << 'PROMPT_EOF' > "$OUTPUT_FILE"
-Here is the current state of the OMN-Go project. We are currently at Version 1.3.0 (Android version code 10300).
+Here is the current state of the OMN-Go project. We are currently at Version 1.3.4 (Android version code 10304).
 
 Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format.
 PROMPT_EOF
@@ -61,6 +61,9 @@ for f in "${FILES[@]}"; do
 
     echo -e "${GREEN}Done${NC}"
 done
+echo -e "\n### FULL PR0JECT DIRECTORY TREE START\n" >> "$OUTPUT_FILE"
+tree >> "$OUTPUT_FILE"
+echo -e "\n### FULL PR0JECT DIRECTORY TREE END\n" >> "$OUTPUT_FILE"
 
 echo -e "${BLUE}=======================================${NC}"
 echo -e "${GREEN}[SUCCESS]${NC} Context file generated at: ${YELLOW}$OUTPUT_FILE${NC}"

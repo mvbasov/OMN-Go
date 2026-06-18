@@ -1,9 +1,6 @@
-Here is the current state of the GoOMN project. We are currently at Version 1.1.0 (Android version code 10100).
-
-Recently, we migrated the Android app to a Java WebView wrapper using a Dockerized Gradle build (eliminating the old 5MB APK limit while strictly keeping NO AppCompat). We also added offline support for KaTeX and Highlight.js, implemented a dynamic JS Console Interceptor UI with a Clear button, and fixed directory-based Content-Type routing.
+Here is the current state of the OMN-Go project. We are currently at Version 1.3.4 (Android version code 10304).
 
 Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format.
-
 
 ### doc/initial_prompt.md START
 ```
@@ -134,10 +131,11 @@ if __name__ == "__main__":
 
 ### doc/initial_prompt.md END
 
+
 ### Dockerfile START
 ```
 # STAGE 1: Toolchains & Cache
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -178,28 +176,44 @@ COPY . .
 RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy
 
 # Desktop Binary (OMN-Go naming convention)
-RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go
+RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/server.go) && \
+    GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
 # Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
-RUN go get -tool golang.org/x/mobile/cmd/gobind && go mod tidy && mkdir -p android/app/libs && gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
+RUN go get -tool golang.org/x/mobile/cmd/gobind && \
+    go mod tidy && \
+    mkdir -p android/app/libs && \
+    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
 
-RUN cd android && if [ ! -f app/omn-go.keystore ]; then keytool -genkey -v -keystore app/omn-go.keystore -alias omn-go -keyalg RSA -keysize 2048 -validity 10000 -storepass omn-go123 -keypass omn-go123 -dname "CN=OMN-Go, O=Basov"; fi && gradle assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../bin/omn-go.apk
+RUN cd android && \
+    if [ ! -f app/omn-go.keystore ]; then \
+      keytool -genkey -v -keystore app/omn-go.keystore \
+              -alias omn-go -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass omn-go123 -keypass omn-go123 \
+              -dname "CN=OMN-Go, O=Basov"; \
+    fi && \
+    gradle assembleRelease && \
+    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
+    #cp app/omn-go.keystore ../bin/omn-go.keystore
 
 ```
 
 ### Dockerfile END
 
+
 ### go.mod START
 ```
 module net.basov.omngo
 
-go 1.25
+go 1.26
 
-
+require github.com/yuin/goldmark v1.8.2
 
 ```
 
 ### go.mod END
+
 
 ### main_desktop.go START
 ```
@@ -244,6 +258,7 @@ func main() {
 
 ### main_desktop.go END
 
+
 ### backend/server.go START
 ```
 package backend
@@ -256,6 +271,7 @@ import (
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -271,7 +287,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.2.14"
+const APP_VERSION = "1.3.4"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -285,7 +301,7 @@ type Config struct {
 //go:embed frontend/index.html
 var frontendHTML []byte
 
-//go:embed frontend/js frontend/css frontend/json frontend/md
+//go:embed frontend/html frontend/md
 var staticFS embed.FS
 
 var (
@@ -316,6 +332,16 @@ func initStorage() {
 	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
 	for _, f := range files {
 		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
+	}
+
+	// Migrate static directories inside html/
+	dirsToMove := []string{"images", "user_json", "css", "js", "json", "fonts"}
+	for _, d := range dirsToMove {
+		oldPath := filepath.Join(storageDir, d)
+		newPath := filepath.Join(htmlDir, d)
+		if stat, err := os.Stat(oldPath); err == nil && stat.IsDir() {
+			os.Rename(oldPath, newPath)
+		}
 	}
 
 	// 2. Init Config
@@ -360,23 +386,62 @@ func initStorage() {
 		}
 	}
 
-	// 3. Init Default Notes from embedFS
-	initDefaultPage := func(fileName, defaultContent string) {
-		p := filepath.Join(mdDir, fileName)
-		if _, err := os.Stat(p); os.IsNotExist(err) {
-			data, err := staticFS.ReadFile("frontend/md/" + fileName)
-			if err == nil {
-				os.WriteFile(p, data, 0644)
-			} else {
-				os.WriteFile(p, []byte(defaultContent), 0644)
+	// 3. Extract all embedded MD files first
+	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				p := filepath.Join(mdDir, entry.Name())
+				if _, err := os.Stat(p); os.IsNotExist(err) {
+					if data, err := staticFS.ReadFile("frontend/md/" + entry.Name()); err == nil {
+						os.WriteFile(p, data, 0644)
+					}
+				}
 			}
 		}
 	}
 
-	initDefaultPage("Welcome.md", "Title: Welcome\nDate: 2026-06-14 12:00:00\nCategory: System\n\nWelcome to OMN-Go! Start editing.\n\n- [Help](Welcome)\n- [Scripting Rules](ScriptRules.md)\n- [Bookmarks](Bookmarks)\n- [Quick Notes](QuickNotes)")
-	initDefaultPage("ScriptRules.md", "Title: JS Scripting Rules\nDate: 2026-06-15\nCategory: System\n\n# JavaScript Guidelines for OMN-Go\n\nBecause OMN-Go is rendered server-side, keep scripts wrapped in block scopes.")
-	initDefaultPage("QuickNotes.md", "Title: Quick Notes\nDate: 2026-06-14 12:00:00\nCategory: Log\n\n")
-	initDefaultPage("Bookmarks.md", "Title: Incoming bookmarks\nDate: 2026-06-15 20:00:00\nAuthor: \nTags: Bookmarks\n\n<script>bookmarks = [\n<!-- Don't edit body below this line -->\n];\n</script>")
+	// 4. Init Default Notes fallback (if embedFS fails)
+	initDefaultPage := func(fileName, defaultContent string) {
+		p := filepath.Join(mdDir, fileName)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			os.WriteFile(p, []byte(defaultContent), 0644)
+		}
+	}
+
+	initDefaultPage("Welcome.md", `Title: Welcome
+Date: 2026-06-14 12:00:00
+Category: System
+
+Welcome to OMN-Go! Start editing.
+
+- [Help](Welcome)
+- [Scripting Rules](ScriptRules.md)
+- [Bookmarks](Bookmarks)
+- [Quick Notes](QuickNotes)`)
+
+	initDefaultPage("ScriptRules.md", `Title: JS Scripting Rules
+Date: 2026-06-15
+Category: System
+
+# JavaScript Guidelines for OMN-Go
+
+Because OMN-Go is rendered server-side, keep scripts wrapped in block scopes.`)
+
+	initDefaultPage("QuickNotes.md", `Title: Quick Notes
+Date: 2026-06-14 12:00:00
+Category: Log
+
+`)
+
+	initDefaultPage("Bookmarks.md", `Title: Incoming bookmarks
+Date: 2026-06-15 20:00:00
+Author: 
+Tags: Bookmarks
+
+<script>bookmarks = [
+<!-- Don't edit body below this line -->
+];
+</script>`)
 
 	// Precompile all notes to data/html/ at startup
 	precompileAllPages()
@@ -446,8 +511,8 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	var bodyLines []string
 	inHeader := true
 
-	lines := strings.Split(string(mdContent), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(mdContent), "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if inHeader {
 			if trimmed == "" {
@@ -469,14 +534,14 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	if renderedBody == "" {
 		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
-	metadataStr := strings.Join(headers, "\n")
+	metadataStr := fmt.Sprintf("File: %s.md\n%s", name, strings.Join(headers, "\n"))
 
 	layout := string(frontendHTML)
 
 	title := "OMN-Go - " + name
 	for _, h := range headers {
-		if strings.HasPrefix(h, "Title:") {
-			title = strings.TrimSpace(strings.TrimPrefix(h, "Title:"))
+		if after, ok := strings.CutPrefix(h, "Title:"); ok {
+			title = strings.TrimSpace(after)
 			break
 		}
 	}
@@ -495,16 +560,20 @@ func precompileAllPages() {
 	htmlDir := filepath.Join(storageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
-	files, _ := filepath.Glob(filepath.Join(mdDir, "*.md"))
-	for _, f := range files {
-		content, err := os.ReadFile(f)
-		if err == nil {
-			name := strings.TrimSuffix(filepath.Base(f), ".md")
-			compiled := compilePage(name, content)
-			htmlPath := filepath.Join(htmlDir, name+".html")
-			os.WriteFile(htmlPath, compiled, 0644)
+	filepath.Walk(mdDir, func(f string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && strings.HasSuffix(f, ".md") {
+			content, err := os.ReadFile(f)
+			if err == nil {
+				relPath, _ := filepath.Rel(mdDir, f)
+				name := strings.TrimSuffix(filepath.ToSlash(relPath), ".md")
+				compiled := compilePage(name, content)
+				htmlPath := filepath.Join(htmlDir, filepath.Clean(name+".html"))
+				os.MkdirAll(filepath.Dir(htmlPath), 0755)
+				os.WriteFile(htmlPath, compiled, 0644)
+			}
 		}
-	}
+		return nil
+	})
 }
 
 func getConfigPageBody() string {
@@ -556,7 +625,12 @@ func getConfigPageBody() string {
     }
 </script>
 `, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,
-		func() string { if appConfig.UseInternalEd { return "checked" }; return "" }(),
+		func() string {
+			if appConfig.UseInternalEd {
+				return "checked"
+			}
+			return ""
+		}(),
 		appConfig.DesktopExtCmd)
 }
 
@@ -623,7 +697,7 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 
 	var cmd *exec.Cmd
 	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
-	
+
 	if cmdStr == "" {
 		switch runtime.GOOS {
 		case "linux":
@@ -653,7 +727,7 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	pageName := strings.TrimSuffix(cleanName, ".md")
 	waitBody := getExternalEditPageBody(pageName)
-	compiledWait := compilePageWithBody(pageName, []byte(fmt.Sprintf("Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05"))), waitBody)
+	compiledWait := compilePageWithBody(pageName, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }
 
@@ -666,8 +740,22 @@ func connectionMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func isLocalConnection(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
 func authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Automatically bypass authorization for internal OS/WebView connections
+		if isLocalConnection(r) {
+			next(w, r)
+			return
+		}
+
 		cookie, err := r.Cookie("session_role")
 		if err != nil || (requireAdmin && cookie.Value != "admin") || (!requireAdmin && cookie.Value != "admin" && cookie.Value != "guest") {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -702,7 +790,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(storageDir, "md", "QuickNotes.md")
 	data, _ := os.ReadFile(path)
 	lines := strings.Split(string(data), "\n")
-	
+
 	insertIdx := 0
 	for i, line := range lines {
 		if strings.TrimSpace(line) == "" { // Find first blank line ending Pelican header
@@ -710,10 +798,10 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	
+
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	entry := fmt.Sprintf("\n---\n##### %s\n%s\n", timestamp, note)
-	
+
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
@@ -730,12 +818,12 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	tags := r.FormValue("tags")
 	notes := r.FormValue("notes")
-	
+
 	path := filepath.Join(storageDir, "md", "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	
+
 	tagsList := []string{}
-	for _, t := range strings.Split(tags, ",") {
+	for t := range strings.SplitSeq(tags, ",") {
 		if trimmed := strings.TrimSpace(t); trimmed != "" {
 			tagsList = append(tagsList, trimmed)
 		}
@@ -744,7 +832,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	if trimmed := strings.TrimSpace(notes); trimmed != "" {
 		notesList = append(notesList, trimmed)
 	}
-	
+
 	type BM struct {
 		Date  string   `json:"date"`
 		Url   string   `json:"url"`
@@ -755,7 +843,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	bm := BM{Date: timestamp, Url: url, Title: title, Tags: tagsList, Notes: notesList}
 	bmJson, _ := json.MarshalIndent(bm, "  ", "  ")
 	entry := "  " + string(bmJson) + ",\n"
-	
+
 	data, err := os.ReadFile(path)
 	if err == nil {
 		content := string(data)
@@ -780,15 +868,15 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	imgDir := filepath.Join(storageDir, "images")
+	imgDir := filepath.Join(storageDir, "html", "images")
 	os.MkdirAll(imgDir, 0755)
-	
+
 	destPath := filepath.Join(imgDir, header.Filename)
 	dest, _ := os.Create(destPath)
 	defer dest.Close()
 	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
+
+	w.Write(fmt.Appendf(nil, "![%s]({filename}/images/%s)", header.Filename, header.Filename))
 }
 
 func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
@@ -800,15 +888,15 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	jsonDir := filepath.Join(storageDir, "user_json")
+	jsonDir := filepath.Join(storageDir, "html", "user_json")
 	os.MkdirAll(jsonDir, 0755)
-	
+
 	destPath := filepath.Join(jsonDir, header.Filename)
 	dest, _ := os.Create(destPath)
 	defer dest.Close()
 	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
+
+	w.Write(fmt.Appendf(nil, "[%s]({filename}/user_json/%s)", header.Filename, header.Filename))
 }
 
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
@@ -816,7 +904,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "Welcome"
 	}
-	
+
 	var path string
 	var data []byte
 	var err error
@@ -844,7 +932,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
+		path = filepath.Join(storageDir, "html", filepath.Clean(name))
 		data, err = os.ReadFile(path)
 		if err != nil {
 			http.Error(w, "File not found", http.StatusNotFound)
@@ -870,7 +958,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			cleanName += ".md"
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
-		
+
 		parts := strings.Split(content, "\n\n")
 		if len(parts) > 0 && strings.Contains(parts[0], ":") {
 			headerLines := strings.Split(parts[0], "\n")
@@ -900,7 +988,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		os.WriteFile(htmlPath, compiled, 0644)
 
 	} else {
-		path = filepath.Join(storageDir, filepath.Clean(name))
+		path = filepath.Join(storageDir, "html", filepath.Clean(name))
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
 	}
@@ -916,8 +1004,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasSuffix(path, ".html") {
-		name := strings.TrimSuffix(filepath.Base(path), ".html")
-		
+		name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
+
 		if name == "Config" {
 			w.Header().Set("Content-Type", "text/html")
 			body := getConfigPageBody()
@@ -927,10 +1015,14 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		htmlPath := filepath.Join(storageDir, "html", filepath.Clean(name+".html"))
+		mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
 
-		if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
-			mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
-			if _, err := os.Stat(mdPath); os.IsNotExist(err) {
+		htmlStat, errHtml := os.Stat(htmlPath)
+		mdStat, errMd := os.Stat(mdPath)
+
+		// Recompile if HTML is missing, OR if Markdown was modified more recently than HTML
+		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+			if os.IsNotExist(errMd) {
 				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 				if err == nil {
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
@@ -966,8 +1058,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", mimeType)
 	}
 
-	// Priority 1: User's Local Storage Directory (data/css, data/js, etc)
-	filePath := filepath.Join(storageDir, filepath.Clean(path))
+	// Priority 1: User's Local Storage Directory (data/html/css, data/html/js, etc)
+	filePath := filepath.Join(storageDir, "html", filepath.Clean(path))
 	if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
 		http.ServeFile(w, r, filePath)
 		return
@@ -981,11 +1073,11 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 			js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
 			data = []byte(js)
 		}
-		
+
 		// Copy extracted file directly to user data directory
 		os.MkdirAll(filepath.Dir(filePath), 0755)
 		os.WriteFile(filePath, data, 0644)
-		
+
 		w.Write(data)
 		return
 	}
@@ -995,15 +1087,69 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
-	
+
+	// Fallback MIME types for minimal Docker containers
+	mime.AddExtensionType(".svg", "image/svg+xml")
+	mime.AddExtensionType(".webp", "image/webp")
+	mime.AddExtensionType(".png", "image/png")
+	mime.AddExtensionType(".jpg", "image/jpeg")
+	mime.AddExtensionType(".jpeg", "image/jpeg")
+	mime.AddExtensionType(".gif", "image/gif")
+	mime.AddExtensionType(".json", "application/json")
+	mime.AddExtensionType(".woff", "font/woff")
+	mime.AddExtensionType(".woff2", "font/woff2")
+	mime.AddExtensionType(".ttf", "font/ttf")
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("Recovered from panic in server: %v", r)
 			}
 		}()
+
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
+		serveLazyEmbed := func() http.Handler {
+			physicalDir := filepath.Join(storageDir, "html")
+			fsHandler := http.FileServer(http.Dir(physicalDir))
+
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Calculate physical path
+				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
+
+				// Lazy Extraction: Check if file exists on disk, if not, pull from embedFS
+				if _, err := os.Stat(physPath); os.IsNotExist(err) {
+					embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(r.URL.Path))
+					if data, err := staticFS.ReadFile(embedPath); err == nil {
+						os.MkdirAll(filepath.Dir(physPath), 0755)
+						os.WriteFile(physPath, data, 0644)
+					}
+				}
+
+				// Serve the file dynamically from the physical directory
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+
+		mux.Handle("/js/", serveLazyEmbed())
+		mux.Handle("/css/", serveLazyEmbed())
+		mux.Handle("/json/", serveLazyEmbed())
+
+		// Config for files handling Content-type by served directories
+		serveStorageDir := func(subDir, cType string) http.Handler {
+			dirPath := filepath.Join(storageDir, "html", subDir)
+			os.MkdirAll(dirPath, 0755)
+			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if cType != "" {
+					w.Header().Set("Content-Type", cType)
+				}
+				fsHandler.ServeHTTP(w, r)
+			})
+		}
+
+		mux.Handle("/images/", serveStorageDir("images", ""))
+		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", handleLogin)
 		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
@@ -1014,10 +1160,18 @@ func StartServer() {
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
-		
-		port := fmt.Sprintf(":%d", appConfig.ServerPort)
-		log.Printf("OMN-Go Backend running on %s", port)
-		http.ListenAndServe(port, connectionMiddleware(mux))
+
+		if appConfig.ServerPort <= 0 {
+			appConfig.ServerPort = 8080
+		}
+
+		bindAddr := fmt.Sprintf("0.0.0.0:%d", appConfig.ServerPort)
+
+		log.Printf("OMN-Go Backend running on %s", bindAddr)
+		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
+		if err != nil {
+			log.Printf("FATAL: Server crashed: %v", err)
+		}
 	}()
 }
 
@@ -1029,6 +1183,7 @@ func GetServerPort() int {
 ```
 
 ### backend/server.go END
+
 
 ### backend/frontend/index.html START
 ```
@@ -1087,7 +1242,7 @@ func GetServerPort() int {
 
         <div class="content-area">
             <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: none; background: #17a2b8; color: white; border: none;">Metadata</button>
+                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;">Metadata</button>
                 <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;">Save Note</button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only">Edit Mode</button>
             </div>
@@ -1122,7 +1277,7 @@ func GetServerPort() int {
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.2.14";
+        const APP_VERSION = "1.3.4";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -1188,9 +1343,32 @@ func GetServerPort() int {
                 preview.style.display = 'block';
                 btn.innerText = 'Edit Mode';
                 document.getElementById('saveBtn').style.display = 'none';
+                document.getElementById('metaToggleBtn').style.display = 'block';
                 currentMode = 'view';
             }
         }
+
+        // Global Drag & Drop for URLs (Bookmarks)
+        document.body.addEventListener('dragover', e => {
+            if (!e.target.closest('#editor')) e.preventDefault();
+        });
+        document.body.addEventListener('drop', e => {
+            if (e.target.closest('#editor')) return;
+            const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                e.preventDefault();
+                document.getElementById('bmUrl').value = url;
+                document.getElementById('bmTitle').value = '';
+                const html = e.dataTransfer.getData('text/html');
+                if (html) {
+                    const match = html.match(/<a[^>]*>(.*?)<\/a>/i);
+                    if (match && match[1]) {
+                        document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
+                    }
+                }
+                document.getElementById('bmPanel').classList.remove('hidden');
+            }
+        });
 
         // Image Drag & Drop
         const editor = document.getElementById('editor');
@@ -1295,8 +1473,47 @@ func GetServerPort() int {
             }
         }
 
+        window.handleShare = function(text, subject) {
+            text = text || '';
+            subject = subject || '';
+            
+            // Regex to find the first valid URL
+            const urlMatch = text.match(/(https?:\/\/[^\s]+)/) || subject.match(/(https?:\/\/[^\s]+)/);
+            
+            if (urlMatch) {
+                // URL Found -> Route to Bookmark Panel
+                const url = urlMatch[0];
+                document.getElementById('bmUrl').value = url;
+                
+                let title = subject;
+                if (!title || title.includes(url)) {
+                    title = text.replace(url, '').trim();
+                }
+                if (!title) title = "Shared Link";
+                
+                document.getElementById('bmTitle').value = title;
+                document.getElementById('bmPanel').classList.remove('hidden');
+                document.getElementById('quickPanel').classList.add('hidden');
+            } else {
+                // No URL -> Route to Quick Note Panel
+                let content = '';
+                if (subject) content += subject + "\n\n";
+                if (text) content += text;
+                
+                document.getElementById('quickText').value = content.trim();
+                document.getElementById('quickPanel').classList.remove('hidden');
+                document.getElementById('bmPanel').classList.add('hidden');
+            }
+        };
+
         window.onload = () => {
             checkSession();
+            
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('share_text') || params.has('share_subject')) {
+                window.handleShare(params.get('share_text'), params.get('share_subject'));
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            }
             if (window.hljs) {
                 document.querySelectorAll('#preview pre code').forEach((block) => {
                     hljs.highlightElement(block);
@@ -1359,7 +1576,7 @@ func GetServerPort() int {
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.2.14';
+            let v = '1.3.4';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
@@ -1491,6 +1708,7 @@ func GetServerPort() int {
 
 ### backend/frontend/index.html END
 
+
 ### android/build.gradle START
 ```
 buildscript {
@@ -1513,6 +1731,7 @@ allprojects {
 
 ### android/build.gradle END
 
+
 ### android/settings.gradle START
 ```
 rootProject.name = "OMN-Go"
@@ -1521,6 +1740,7 @@ include ':app'
 ```
 
 ### android/settings.gradle END
+
 
 ### android/app/build.gradle START
 ```
@@ -1536,8 +1756,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10214
-        versionName "1.2.14"
+        versionCode 10304
+        versionName "1.3.4"
     }
 
     signingConfigs {
@@ -1548,6 +1768,15 @@ android {
             keyPassword 'omn-go123'
         }
     }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true // Set to false if you want ONLY the split APKs
+        }
+    }
+
     buildTypes {
         release {
             signingConfig signingConfigs.release
@@ -1555,6 +1784,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "omn-go-v${variant.versionName}-${output.baseName}.apk"
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -1573,6 +1808,7 @@ tasks.withType(JavaCompile).configureEach {
 ```
 
 ### android/app/build.gradle END
+
 
 ### android/app/src/main/java/net/basov/omngo/MainActivity.java START
 ```
@@ -1603,6 +1839,15 @@ public class MainActivity extends Activity {
         // Start the Go Backend Server from the gomobile .aar
         Backend.startServer();
 
+        // Acquire partial wake lock to keep the Go server alive in the background
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
+            android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "OMNGo::ServerWakeLock");
+            wl.acquire();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         // Initialize WebView
         webView = new WebView(this);
         WebSettings webSettings = webView.getSettings();
@@ -1632,7 +1877,7 @@ public class MainActivity extends Activity {
                         intent.setDataAndType(android.net.Uri.fromFile(file), "text/plain");
                         intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION | android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         
-                        view.getContext().startActivity(android.content.Intent.createChooser(intent, "Edit Markdown File"));
+                        MainActivity.this.startActivityForResult(android.content.Intent.createChooser(intent, "Edit Markdown File"), 1001);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -1640,7 +1885,7 @@ public class MainActivity extends Activity {
                 }
 
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
-                    if (!url.contains("localhost")) {
+                    if (!url.contains("localhost") && !url.contains("127.0.0.1")) {
                         view.getContext().startActivity(
                             new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
                         );
@@ -1657,9 +1902,41 @@ public class MainActivity extends Activity {
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                webView.loadUrl("http://localhost:8080");
+                String startUrl = "http://127.0.0.1:8080/Welcome.html";
+                android.content.Intent intent = getIntent();
+                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+                    String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+                    String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+                    startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") + 
+                                "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
+                }
+                webView.loadUrl(startUrl);
             }
         }, 1000); // 1 second delay
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1001 && webView != null) {
+            webView.reload(); // Refresh view when returning from external editor
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+            String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
+            String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
+            if (webView != null) {
+                String tText = sharedText != null ? android.net.Uri.encode(sharedText) : "";
+                String tSubj = sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "";
+                String js = "javascript:(function(){ if(window.handleShare) window.handleShare(decodeURIComponent('" + tText + "'), decodeURIComponent('" + tSubj + "')); })();";
+                webView.evaluateJavascript(js, null);
+            }
+        }
     }
 
     @Override
@@ -1676,11 +1953,13 @@ public class MainActivity extends Activity {
 
 ### android/app/src/main/java/net/basov/omngo/MainActivity.java END
 
+
 ### android/app/src/main/AndroidManifest.xml START
 ```
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" >
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
@@ -1693,10 +1972,16 @@ public class MainActivity extends Activity {
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|keyboardHidden|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+                    <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
     </application>
@@ -1705,3 +1990,99 @@ public class MainActivity extends Activity {
 ```
 
 ### android/app/src/main/AndroidManifest.xml END
+
+
+### FULL PR0JECT DIRECTORY TREE START
+
+.
+├── android
+│   ├── app
+│   │   ├── build.gradle
+│   │   ├── omn-go.keystore
+│   │   └── src
+│   │       └── main
+│   │           ├── AndroidManifest.xml
+│   │           └── java
+│   │               └── net
+│   │                   └── basov
+│   │                       └── omngo
+│   │                           └── MainActivity.java
+│   ├── build.gradle
+│   └── settings.gradle
+├── backend
+│   ├── frontend
+│   │   ├── html
+│   │   │   ├── css
+│   │   │   │   ├── Bookmarker.css
+│   │   │   │   ├── fonts
+│   │   │   │   │   ├── DSEG14Modern-Italic.woff
+│   │   │   │   │   ├── DSEG7Modern-BoldItalic.woff
+│   │   │   │   │   ├── DSEG7Modern-Italic.woff
+│   │   │   │   │   ├── KaTeX_AMS-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Caligraphic-Bold.woff2
+│   │   │   │   │   ├── KaTeX_Caligraphic-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Fraktur-Bold.woff2
+│   │   │   │   │   ├── KaTeX_Fraktur-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Main-BoldItalic.woff2
+│   │   │   │   │   ├── KaTeX_Main-Bold.woff2
+│   │   │   │   │   ├── KaTeX_Main-Italic.woff2
+│   │   │   │   │   ├── KaTeX_Main-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Math-BoldItalic.woff2
+│   │   │   │   │   ├── KaTeX_Math-Italic.woff2
+│   │   │   │   │   ├── KaTeX_SansSerif-Bold.woff2
+│   │   │   │   │   ├── KaTeX_SansSerif-Italic.woff2
+│   │   │   │   │   ├── KaTeX_SansSerif-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Script-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Size1-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Size2-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Size3-Regular.woff2
+│   │   │   │   │   ├── KaTeX_Size4-Regular.woff2
+│   │   │   │   │   └── KaTeX_Typewriter-Regular.woff2
+│   │   │   │   ├── highlight.default.min.css
+│   │   │   │   ├── katex.min.css
+│   │   │   │   └── markdown.css
+│   │   │   ├── js
+│   │   │   │   ├── auto-render.min.js
+│   │   │   │   ├── Bookmarker.js
+│   │   │   │   ├── highlight.min.js
+│   │   │   │   └── katex.min.js
+│   │   │   └── json
+│   │   │       └── stub.json
+│   │   ├── index.html
+│   │   └── md
+│   │       ├── Bookmarks.md
+│   │       ├── QuickNotes.md
+│   │       ├── ScriptRules.md
+│   │       └── Welcome.md
+│   └── server.go
+├── doc
+│   ├── github_workflow.md
+│   ├── initial_prompt.md
+│   ├── OMN-Go_1.3.4_Context.md
+│   └── README.md
+├── Dockerfile
+├── go.mod
+├── local
+│   ├── build.sh
+│   ├── current_state.sh
+│   ├── force_build.sh
+│   ├── generate_context_script.bash
+│   ├── offline_asset_downloader.sh
+│   ├── project_setup_script.py
+│   ├── to_archive.txt
+│   └── update_script.py
+├── main_desktop.go
+├── output-binaries
+│   ├── omn-go-v1.3.4-arm64-v8a-release.apk
+│   ├── omn-go-v1.3.4-armeabi-v7a-release.apk
+│   ├── omn-go-v1.3.4-desktop-linux-amd64
+│   ├── omn-go-v1.3.4-desktop-windows-amd64.exe
+│   ├── omn-go-v1.3.4-universal-release.apk
+│   ├── omn-go-v1.3.4-x86_64-release.apk
+│   └── omn-go-v1.3.4-x86-release.apk
+└── README.md
+
+19 directories, 67 files
+
+### FULL PR0JECT DIRECTORY TREE END
+

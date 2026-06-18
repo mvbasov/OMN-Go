@@ -2,73 +2,100 @@ import os
 import re
 
 def update_application():
-    print("[*] Initiating OMN-Go V1.3.4 Dynamic Versioning Patch...")
+    index_path = "backend/frontend/index.html"
+    if not os.path.exists(index_path):
+        print(f"WARNING: File not found: {index_path}")
+        return
 
-    new_version = "1.3.4"
-    new_version_code = "10304"
+    with open(index_path, "r", encoding="utf-8") as f:
+        html = f.read()
 
-    # 1. Version Bumps (server.go, index.html, build.gradle)
-    files_to_bump = {
-        "backend/server.go": (r'APP_VERSION = "1\.3\.\d+"', f'APP_VERSION = "{new_version}"'),
-        "backend/frontend/index.html": (r'APP_VERSION = "1\.3\.\d+"', f'APP_VERSION = "{new_version}"'),
-        "android/app/build.gradle": (r'versionCode 103\d{2}', f'versionCode {new_version_code}')
-    }
+    # 1. Extract CSS
+    css_match = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
+    if not css_match:
+        print("WARNING: Could not find <style> block in index.html")
+        return
+    
+    css_content = css_match.group(1).strip()
+    html = html.replace(css_match.group(0), '<link rel="stylesheet" href="/css/omn-go-core.css">')
 
-    for filepath, (pattern, replacement) in files_to_bump.items():
-        if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            new_content = re.sub(pattern, replacement, content)
-            
-            if "index.html" in filepath:
-                new_content = re.sub(r"let v = '1\.3\.\d+';", f"let v = '{new_version}';", new_content)
+    # 2. Extract JavaScript 
+    js_content = ""
 
-            if "build.gradle" in filepath:
-                new_content = re.sub(r'versionName "1\.3\.\d+"', f'versionName "{new_version}"', new_content)
+    # Block A: Main logic (leaves APP_VERSION and OMN_GO_PAGE_NAME_JS in place)
+    main_pattern = r'(<script>\s*/\* OMN_GO_PAGE_NAME_JS \*/\s*const APP_VERSION = "[^"]+";)(.*?)(\s*</script>)'
+    match = re.search(main_pattern, html, re.DOTALL)
+    if match:
+        js_content += match.group(2).strip() + "\n\n"
+        # Terminate the dynamic variable script block and inject the external JS link
+        new_script_block = match.group(1) + "\n    </script>\n    <script src=\"/js/omn-go-core.js\"></script>"
+        html = html.replace(match.group(0), new_script_block)
+    else:
+        print("WARNING: Could not find main JS block in index.html")
 
-            if new_content != content:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-                print(f"  [+] Bumped version in {filepath}")
+    # Block B: KaTeX Auto-Rendering
+    katex_pattern = r'<script>(\s*document\.addEventListener\("DOMContentLoaded", \(\) => {\s*// Setup Auto-Rendering.*?)\s*</script>'
+    match = re.search(katex_pattern, html, re.DOTALL)
+    if match:
+        js_content += match.group(1).strip() + "\n\n"
+        html = html.replace(match.group(0), "")
 
-    # 2. Patch Dockerfile for Dynamic Bash Versioning
-    dockerfile = "Dockerfile"
-    if os.path.exists(dockerfile):
-        with open(dockerfile, "r", encoding="utf-8") as f:
-            docker_code = f.read()
+    # Block C: Version Footer Tracker
+    footer_pattern = r'<script>(\s*document\.addEventListener\("DOMContentLoaded", \(\) => {\s*const footer = document\.getElementById\(\'omn-go-version-footer\'.*?)\s*</script>'
+    match = re.search(footer_pattern, html, re.DOTALL)
+    if match:
+        js_content += match.group(1).strip() + "\n\n"
+        html = html.replace(match.group(0), "")
 
-        # Find the bounds of the Desktop build instructions
-        start_str = "# Desktop Binary"
-        end_str = "# Android APK"
-        start_idx = docker_code.find(start_str)
-        end_idx = docker_code.find(end_str)
+    # Block D: JS Console Interceptor
+    console_pattern = r'<!-- JS Console Interceptor & UI -->\s*<script>(.*?)\s*</script>'
+    match = re.search(console_pattern, html, re.DOTALL)
+    if match:
+        js_content += match.group(1).strip() + "\n"
+        html = html.replace(match.group(0), "")
 
-        if start_idx != -1 and end_idx != -1:
-            # Inject dynamic awk extraction and bash variable interpolation
-            dynamic_run = '''# Desktop Binary (OMN-Go naming convention)
-RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/server.go) && \\
-    GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \\
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
+    # Clean up empty lines created by extraction
+    html = re.sub(r'\n\s*\n\s*\n', '\n\n', html)
 
-'''
-            # Slice out the old hardcoded block and replace it
-            new_docker_code = docker_code[:start_idx] + dynamic_run + docker_code[end_idx:]
+    # 3. Write Extracted Files to Disk
+    os.makedirs("backend/frontend/html/css", exist_ok=True)
+    os.makedirs("backend/frontend/html/js", exist_ok=True)
 
-            if new_docker_code != docker_code:
-                with open(dockerfile, "w", encoding="utf-8") as f:
-                    f.write(new_docker_code)
-                print("  [+] Successfully injected dynamic version extraction into Dockerfile.")
-        else:
-            print("  [-] Could not find bounds in Dockerfile to replace.")
+    with open("backend/frontend/html/css/omn-go-core.css", "w", encoding="utf-8") as f:
+        f.write(css_content)
 
-    commit_msg = f"""build(docker): dynamically extract desktop app version from server.go
+    # Automatically upgrade the hardcoded JS fallback version before saving
+    js_content = re.sub(r"let v = '1\.3\.\d+';", "let v = '1.3.5';", js_content)
+    with open("backend/frontend/html/js/omn-go-core.js", "w", encoding="utf-8") as f:
+        f.write(js_content)
 
-- Replaced the hardcoded version strings in the `Dockerfile` with a dynamic bash `awk` extraction sequence.
-- The Docker container now parses `APP_VERSION` directly from `backend/server.go` during the build sequence and uses it to automatically name the Linux and Windows binaries.
-- This eliminates the need to manually patch the `Dockerfile` on every release.
-- Bumped application to V{new_version} (Android {new_version_code})."""
+    # 4. Bump Versions to 1.3.5
+    html = re.sub(r'const APP_VERSION = "1\.3\.\d+";', 'const APP_VERSION = "1.3.5";', html)
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
+    # Bump server.go
+    server_path = "backend/server.go"
+    if os.path.exists(server_path):
+        with open(server_path, "r", encoding="utf-8") as f:
+            server_code = f.read()
+        server_code = re.sub(r'const APP_VERSION = "1\.3\.\d+"', 'const APP_VERSION = "1.3.5"', server_code)
+        with open(server_path, "w", encoding="utf-8") as f:
+            f.write(server_code)
+
+    # Bump build.gradle
+    gradle_path = "android/app/build.gradle"
+    if os.path.exists(gradle_path):
+        with open(gradle_path, "r", encoding="utf-8") as f:
+            gradle_code = f.read()
+        gradle_code = re.sub(r'versionCode \d+', 'versionCode 10305', gradle_code)
+        gradle_code = re.sub(r'versionName "1\.3\.\d+"', 'versionName "1.3.5"', gradle_code)
+        with open(gradle_path, "w", encoding="utf-8") as f:
+            f.write(gradle_code)
+
+    print("SUCCESS: Core CSS and JS extracted, linked, and versions bumped to 1.3.5.")
+    
+    commit_msg = """refactor(frontend): extract core css/js into external files\n\nModularized index.html by abstracting layout styles and logic into omn-go-core assets. Version bumped to 1.3.5."""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
