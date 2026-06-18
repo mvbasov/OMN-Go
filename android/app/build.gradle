@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10300
-        versionName "1.3.0"
+        versionCode 10301
+        versionName "1.3.1"
     }
 
     signingConfigs {
@@ -22,6 +22,15 @@ android {
             keyPassword 'omn-go123'
         }
     }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true // Set to false if you want ONLY the split APKs
+        }
+    }
+
     buildTypes {
         release {
             signingConfig signingConfigs.release
