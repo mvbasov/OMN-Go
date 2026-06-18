@@ -41,8 +41,8 @@ RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest 
 
 # Desktop Binary
 # In the furure relese need to use exactly modernc.org/sqlite for crossplatform build (not require CGO_ENABLED=1)
-RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go && \
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/omn-go-desktop.exe main_desktop.go
+RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-v1.3.3-desktop-linux-amd64 main_desktop.go && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/omn-go-v1.3.3-desktop-linux-amd64.exe main_desktop.go
 
 # Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \
