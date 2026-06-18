@@ -1,0 +1,42 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:viewportWidth="576.5"
+    android:viewportHeight="576.5"
+    android:width="576.5dp"
+    android:height="576.5dp">
+    <group
+        android:translateY="0.5">
+        <group
+            android:translateY="-0.5">
+            <path
+                android:pathData="M0 0H576.5V576.5H0V0Z"
+                android:fillColor="#FFF49D" />
+            <path
+                android:pathData="M326.347 242.433l-19.787 89.938h-74.948l20.387 -89.938zM440.869 204.06h-63.558l19.785 -89.339H355.125L334.74 204.06h-74.349l19.786 -89.339h-42.57l-20.388 89.339h-63.557l-8.395 38.374h63.558l-19.787 89.938h-63.556l-8.395 37.775h63.557l-19.786 89.938h42.57l19.787 -89.938h74.949l-19.786 89.938h41.971l19.787 -89.938h64.156l8.395 -37.775h-64.156l20.385 -89.938h63.557z"
+                android:fillColor="#1E1E1C" />
+            <path
+                android:pathData="M7 139.401L571.066 139.401"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+            <path
+                android:pathData="M7 238.426L571.066 238.426"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+            <path
+                android:pathData="M7 337.453L571.066 337.453"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+            <path
+                android:pathData="M7 436.476L571.066 436.476"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+            <path
+                android:pathData="M7 535.5L571.066 535.5"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+            <path
+                android:pathData="M7 40.376L571.066 40.376"
+                android:strokeColor="#1E1E1C"
+                android:strokeWidth="1.3467" />
+        </group>
+    </group>
+</vector>
