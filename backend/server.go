@@ -123,7 +123,7 @@ func initStorage() {
 		}
 	}
 
-		// 3. Extract all embedded MD files first
+	// 3. Extract all embedded MD files first
 	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
 		for _, entry := range entries {
 			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
@@ -248,8 +248,8 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	var bodyLines []string
 	inHeader := true
 
-	lines := strings.Split(string(mdContent), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(mdContent), "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if inHeader {
 			if trimmed == "" {
@@ -277,8 +277,8 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 
 	title := "OMN-Go - " + name
 	for _, h := range headers {
-		if strings.HasPrefix(h, "Title:") {
-			title = strings.TrimSpace(strings.TrimPrefix(h, "Title:"))
+		if after, ok := strings.CutPrefix(h, "Title:"); ok {
+			title = strings.TrimSpace(after)
 			break
 		}
 	}
@@ -362,7 +362,12 @@ func getConfigPageBody() string {
     }
 </script>
 `, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,
-		func() string { if appConfig.UseInternalEd { return "checked" }; return "" }(),
+		func() string {
+			if appConfig.UseInternalEd {
+				return "checked"
+			}
+			return ""
+		}(),
 		appConfig.DesktopExtCmd)
 }
 
@@ -429,7 +434,7 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 
 	var cmd *exec.Cmd
 	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
-	
+
 	if cmdStr == "" {
 		switch runtime.GOOS {
 		case "linux":
@@ -459,7 +464,7 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	pageName := strings.TrimSuffix(cleanName, ".md")
 	waitBody := getExternalEditPageBody(pageName)
-	compiledWait := compilePageWithBody(pageName, []byte(fmt.Sprintf("Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05"))), waitBody)
+	compiledWait := compilePageWithBody(pageName, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }
 
@@ -522,7 +527,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(storageDir, "md", "QuickNotes.md")
 	data, _ := os.ReadFile(path)
 	lines := strings.Split(string(data), "\n")
-	
+
 	insertIdx := 0
 	for i, line := range lines {
 		if strings.TrimSpace(line) == "" { // Find first blank line ending Pelican header
@@ -530,10 +535,10 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	
+
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	entry := fmt.Sprintf("\n---\n##### %s\n%s\n", timestamp, note)
-	
+
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
@@ -550,12 +555,12 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	tags := r.FormValue("tags")
 	notes := r.FormValue("notes")
-	
+
 	path := filepath.Join(storageDir, "md", "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	
+
 	tagsList := []string{}
-	for _, t := range strings.Split(tags, ",") {
+	for t := range strings.SplitSeq(tags, ",") {
 		if trimmed := strings.TrimSpace(t); trimmed != "" {
 			tagsList = append(tagsList, trimmed)
 		}
@@ -564,7 +569,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	if trimmed := strings.TrimSpace(notes); trimmed != "" {
 		notesList = append(notesList, trimmed)
 	}
-	
+
 	type BM struct {
 		Date  string   `json:"date"`
 		Url   string   `json:"url"`
@@ -575,7 +580,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	bm := BM{Date: timestamp, Url: url, Title: title, Tags: tagsList, Notes: notesList}
 	bmJson, _ := json.MarshalIndent(bm, "  ", "  ")
 	entry := "  " + string(bmJson) + ",\n"
-	
+
 	data, err := os.ReadFile(path)
 	if err == nil {
 		content := string(data)
@@ -602,13 +607,13 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	imgDir := filepath.Join(storageDir, "html", "images")
 	os.MkdirAll(imgDir, 0755)
-	
+
 	destPath := filepath.Join(imgDir, header.Filename)
 	dest, _ := os.Create(destPath)
 	defer dest.Close()
 	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("![%s]({filename}/images/%s)", header.Filename, header.Filename)))
+
+	w.Write(fmt.Appendf(nil, "![%s]({filename}/images/%s)", header.Filename, header.Filename))
 }
 
 func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
@@ -622,13 +627,13 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 
 	jsonDir := filepath.Join(storageDir, "html", "user_json")
 	os.MkdirAll(jsonDir, 0755)
-	
+
 	destPath := filepath.Join(jsonDir, header.Filename)
 	dest, _ := os.Create(destPath)
 	defer dest.Close()
 	io.Copy(dest, file)
-	
-	w.Write([]byte(fmt.Sprintf("[%s]({filename}/user_json/%s)", header.Filename, header.Filename)))
+
+	w.Write(fmt.Appendf(nil, "[%s]({filename}/user_json/%s)", header.Filename, header.Filename))
 }
 
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
@@ -636,7 +641,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "Welcome"
 	}
-	
+
 	var path string
 	var data []byte
 	var err error
@@ -690,7 +695,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			cleanName += ".md"
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
-		
+
 		parts := strings.Split(content, "\n\n")
 		if len(parts) > 0 && strings.Contains(parts[0], ":") {
 			headerLines := strings.Split(parts[0], "\n")
@@ -737,7 +742,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasSuffix(path, ".html") {
 		name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
-		
+
 		if name == "Config" {
 			w.Header().Set("Content-Type", "text/html")
 			body := getConfigPageBody()
@@ -805,11 +810,11 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 			js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
 			data = []byte(js)
 		}
-		
+
 		// Copy extracted file directly to user data directory
 		os.MkdirAll(filepath.Dir(filePath), 0755)
 		os.WriteFile(filePath, data, 0644)
-		
+
 		w.Write(data)
 		return
 	}
@@ -819,7 +824,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 func StartServer() {
 	initStorage() // Execute synchronously to ensure config is loaded instantly
-	
+
 	// Fallback MIME types for minimal Docker containers
 	mime.AddExtensionType(".svg", "image/svg+xml")
 	mime.AddExtensionType(".webp", "image/webp")
@@ -838,17 +843,17 @@ func StartServer() {
 				log.Printf("Recovered from panic in server: %v", r)
 			}
 		}()
-		
+
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", serveFrontend)
 		serveLazyEmbed := func() http.Handler {
 			physicalDir := filepath.Join(storageDir, "html")
 			fsHandler := http.FileServer(http.Dir(physicalDir))
-			
+
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Calculate physical path
 				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
-				
+
 				// Lazy Extraction: Check if file exists on disk, if not, pull from embedFS
 				if _, err := os.Stat(physPath); os.IsNotExist(err) {
 					embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(r.URL.Path))
@@ -857,7 +862,7 @@ func StartServer() {
 						os.WriteFile(physPath, data, 0644)
 					}
 				}
-				
+
 				// Serve the file dynamically from the physical directory
 				fsHandler.ServeHTTP(w, r)
 			})
@@ -866,7 +871,7 @@ func StartServer() {
 		mux.Handle("/js/", serveLazyEmbed())
 		mux.Handle("/css/", serveLazyEmbed())
 		mux.Handle("/json/", serveLazyEmbed())
-		
+
 		// Config for files handling Content-type by served directories
 		serveStorageDir := func(subDir, cType string) http.Handler {
 			dirPath := filepath.Join(storageDir, "html", subDir)
@@ -879,7 +884,7 @@ func StartServer() {
 				fsHandler.ServeHTTP(w, r)
 			})
 		}
-		
+
 		mux.Handle("/images/", serveStorageDir("images", ""))
 		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
@@ -892,13 +897,13 @@ func StartServer() {
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
-		
+
 		if appConfig.ServerPort <= 0 {
 			appConfig.ServerPort = 8080
 		}
-		
+
 		bindAddr := fmt.Sprintf("0.0.0.0:%d", appConfig.ServerPort)
-		
+
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
 		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
 		if err != nil {
