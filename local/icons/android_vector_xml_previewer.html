@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Adaptive Vector Previewer</title>
+    <!-- PRESERVE_BINARY_START -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cstyle%3E.bg%7Bfill%3A%23333333%7D.st%7Bstroke%3A%23ffffff%3Bfill%3Anone%7D.fi%7Bfill%3A%23ffffff%7D.ig%7Bfill%3A%23333333%7D%40media%28prefers-color-scheme%3Alight%29%7B.bg%7Bfill%3A%23e5e5e5%7D.st%7Bstroke%3A%231a1a1a%7D.fi%7Bfill%3A%231a1a1a%7D.ig%7Bfill%3A%23e5e5e5%7D%7D%3C%2Fstyle%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20class%3D%22bg%22%2F%3E%3Crect%20x%3D%2215%22%20y%3D%2215%22%20width%3D%2270%22%20height%3D%2270%22%20rx%3D%228%22%20class%3D%22st%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%2235%22%20cy%3D%2235%22%20r%3D%227%22%20class%3D%22fi%22%2F%3E%3Cpath%20d%3D%22M%2018%2080%20L%2045%2045%20L%2065%2070%20L%2072%2062%20L%2082%2075%22%20class%3D%22st%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2270%22%20r%3D%2214%22%20class%3D%22ig%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2270%22%20r%3D%2214%22%20fill%3D%22none%22%20stroke%3D%22%2300cbff%22%20stroke-width%3D%226%22%2F%3E%3Cline%20x1%3D%2280%22%20y1%3D%2280%22%20x2%3D%2294%22%20y2%3D%2294%22%20stroke%3D%22%2300cbff%22%20stroke-width%3D%228%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+    <!-- PRESERVE_BINARY_END -->
+    <style>
+        /* Scoped Vanilla CSS with Light/Dark Mode Variables */
+        :root, .vp-app-root {
+            /* Light Theme Defaults */
+            --vp-primary: #00cbff;
+            --vp-bg-color: #f8f9fa;
+            --vp-surface: #ffffff;
+            --vp-text-main: #333333;
+            --vp-text-strong: #1a1a1a;
+            --vp-text-muted: #6c757d;
+            --vp-border: #dee2e6;
+            --vp-danger: #d32f2f;
+            --vp-upload-bg: #fafafa;
+            --vp-upload-hover: #f0fbff;
+            --vp-error-bg: #ffebee;
+            --vp-code-bg: #f1f3f5;
+            --vp-code-text: #d63384;
+            --vp-checker-bg: #e5e5e5;
+            --vp-checker-fg: #f0f0f0;
+            --vp-input-bg: #ffffff;
+            --vp-input-text: #333333;
+            --vp-shadow: rgba(0,0,0,0.05);
+            --vp-shadow-strong: rgba(0,0,0,0.15);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root, .vp-app-root {
+                /* Dark Theme Overrides */
+                --vp-bg-color: #121212;
+                --vp-surface: #1e1e1e;
+                --vp-text-main: #e0e0e0;
+                --vp-text-strong: #ffffff;
+                --vp-text-muted: #9e9e9e;
+                --vp-border: #333333;
+                --vp-danger: #ef5350;
+                --vp-upload-bg: #242424;
+                --vp-upload-hover: #1c2e36;
+                --vp-error-bg: #3c1a1a;
+                --vp-code-bg: #2d2d2d;
+                --vp-code-text: #ff80ab;
+                --vp-checker-bg: #1a1a1a;
+                --vp-checker-fg: #242424;
+                --vp-input-bg: #2d2d2d;
+                --vp-input-text: #e0e0e0;
+                --vp-shadow: rgba(0,0,0,0.3);
+                --vp-shadow-strong: rgba(0,0,0,0.5);
+            }
+        }
+
+        /* Allow body to match theme if opened as standalone file */
+        body {
+            background-color: var(--vp-bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .vp-app-root {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            line-height: 1.6;
+            color: var(--vp-text-main);
+            background: var(--vp-bg-color);
+            padding: 2rem;
+            box-sizing: border-box;
+            max-width: 900px;
+            margin: 0 auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px var(--vp-shadow);
+        }
+
+        .vp-app-root * {
+            box-sizing: border-box;
+        }
+
+        .vp-header {
+            margin-top: 0;
+            color: var(--vp-text-strong);
+            border-bottom: 2px solid var(--vp-border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        /* Unified Upload Zone */
+        .vp-upload-area {
+            border: 2px dashed var(--vp-border);
+            border-radius: 8px;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--vp-upload-bg);
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .vp-upload-area:hover, .vp-upload-area.vp-dragover {
+            border-color: var(--vp-primary);
+            background: var(--vp-upload-hover);
+        }
+
+        .vp-upload-title {
+            font-size: 1.1rem;
+            color: var(--vp-text-strong);
+            font-weight: bold;
+        }
+
+        .vp-upload-subtitle {
+            font-size: 0.9rem;
+            color: var(--vp-text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .vp-upload-area input[type="file"] {
+            display: none;
+        }
+
+        /* Status Cards */
+        .vp-status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .vp-status-card {
+            background: var(--vp-surface);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--vp-border);
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .vp-status-label {
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            color: var(--vp-text-muted);
+        }
+
+        .vp-missing { color: var(--vp-danger); font-weight: 600; }
+        .vp-found { color: #4caf50; font-weight: 600; word-break: break-all; }
+        @media (prefers-color-scheme: dark) {
+            .vp-found { color: #81c784; }
+        }
+
+        /* Controls */
+        .vp-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: var(--vp-surface);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--vp-border);
+        }
+
+        .vp-controls select {
+            padding: 0.5rem 0.8rem;
+            border-radius: 4px;
+            border: 1px solid var(--vp-border);
+            background-color: var(--vp-input-bg);
+            color: var(--vp-input-text);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            outline: none;
+            flex: 1;
+            max-width: 300px;
+        }
+
+        /* Preview Area */
+        .vp-preview-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .vp-icon-viewport {
+            width: 100%;
+            max-width: 250px;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            /* Adaptive Checkered Background */
+            background-color: var(--vp-checker-bg);
+            background-image: 
+                linear-gradient(45deg, var(--vp-checker-fg) 25%, transparent 25%), 
+                linear-gradient(135deg, var(--vp-checker-fg) 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, var(--vp-checker-fg) 75%), 
+                linear-gradient(135deg, transparent 75%, var(--vp-checker-fg) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px;
+            box-shadow: 0 12px 24px var(--vp-shadow-strong);
+            perspective: 1000px;
+            touch-action: none; /* Prevents page scroll when swiping icon */
+        }
+
+        .vp-icon-mask {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            transition: clip-path 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), border-radius 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-style: preserve-3d;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .vp-icon-mask { border-color: rgba(255,255,255,0.05); }
+        }
+
+        /* Adaptive Layers - Oversized by 20% to allow parallax shifting */
+        .vp-layer {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s ease-out;
+            pointer-events: none;
+        }
+
+        .vp-layer svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .vp-layer-placeholder {
+            color: var(--vp-text-muted);
+            font-size: 0.8rem;
+            opacity: 0.7;
+            text-align: center;
+        }
+
+        /* Shape Classes */
+        .vp-shape-circle { border-radius: 50%; clip-path: none; }
+        .vp-shape-square { border-radius: 0; clip-path: none; }
+        .vp-shape-rounded { border-radius: 20%; clip-path: none; }
+        .vp-shape-teardrop { border-radius: 50% 50% 0 50%; clip-path: none; }
+        .vp-shape-squircle { border-radius: 0; clip-path: url(#vp-squircle-path); }
+
+        /* Error/Messages */
+        .vp-error {
+            color: var(--vp-danger);
+            background: var(--vp-error-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            display: none;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            border-left: 4px solid var(--vp-danger);
+        }
+
+        /* Footer Instructions */
+        .vp-footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--vp-border);
+            color: var(--vp-text-muted);
+            font-size: 0.9rem;
+        }
+
+        .vp-footer h3 {
+            color: var(--vp-text-strong);
+            margin-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        .vp-footer code {
+            background: var(--vp-code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--vp-code-text);
+            word-break: break-all;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            body { padding: 0; }
+            .vp-app-root { padding: 1rem; border-radius: 0; box-shadow: none; min-height: 100vh; }
+            .vp-status-grid { grid-template-columns: 1fr; }
+            .vp-controls { flex-direction: column; align-items: stretch; }
+            .vp-controls label { margin-bottom: -0.5rem; }
+            .vp-controls select { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hidden SVG for Squircle Clip Path -->
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <clipPath id="vp-squircle-path" clipPathUnits="objectBoundingBox">
+                <!-- Mathematical approximation of iOS/Android Squircle -->
+                <path d="M .5 0 C .1 0 0 .1 0 .5 C 0 .9 .1 1 .5 1 C .9 1 1 .9 1 .5 C 1 .1 .9 0 .5 0 Z" />
+            </clipPath>
+        </defs>
+    </svg>
+
+    <!-- Main Embeddable Container -->
+    <div id="vp-app" class="vp-app-root">
+        <h2 class="vp-header">Adaptive Vector Previewer</h2>
+
+        <div id="vp-errorBox" class="vp-error"></div>
+
+        <!-- Unified Upload Area -->
+        <div class="vp-upload-area" id="vp-drop-zone">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📁</div>
+            <div class="vp-upload-title">Click to browse or drag & drop XML files here</div>
+            <div class="vp-upload-subtitle">Select both background and foreground files at once!</div>
+            <input type="file" id="vp-file-input" accept=".xml" multiple>
+        </div>
+
+        <div class="vp-status-grid">
+            <div class="vp-status-card">
+                <span class="vp-status-label">Background Layer:</span>
+                <span id="vp-status-bg" class="vp-missing">Missing</span>
+            </div>
+            <div class="vp-status-card">
+                <span class="vp-status-label">Foreground Layer:</span>
+                <span id="vp-status-fg" class="vp-missing">Missing</span>
+            </div>
+        </div>
+
+        <div class="vp-controls">
+            <label for="vp-shape-select"><strong>Icon Shape:</strong></label>
+            <select id="vp-shape-select">
+                <option value="vp-shape-circle">Circle</option>
+                <option value="vp-shape-squircle" selected>Squircle</option>
+                <option value="vp-shape-rounded">Rounded Square</option>
+                <option value="vp-shape-square">Square</option>
+                <option value="vp-shape-teardrop">Teardrop</option>
+            </select>
+        </div>
+
+        <div class="vp-preview-section">
+            <div class="vp-icon-viewport" id="vp-viewport">
+                <div class="vp-icon-mask vp-shape-squircle" id="vp-mask">
+                    <!-- Background Layer -->
+                    <div class="vp-layer" id="vp-layer-bg">
+                        <span class="vp-layer-placeholder">No Background</span>
+                    </div>
+                    <!-- Foreground Layer -->
+                    <div class="vp-layer" id="vp-layer-fg">
+                        <span class="vp-layer-placeholder" style="margin-top: 30px;">No Foreground</span>
+                    </div>
+                </div>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--vp-text-muted); margin-top: 1rem; text-align: center;">Hover or touch & drag across icon to test parallax shift.</p>
+        </div>
+
+        <footer class="vp-footer">
+            <h3>Instructions</h3>
+            <p>This self-contained tool generates live Adaptive Icon previews from raw Android VectorDrawables.</p>
+            <p><strong>Required Files:</strong></p>
+            <ul style="margin-top: 0.5rem; padding-left: 1.2rem;">
+                <li style="margin-bottom: 0.5rem;">Click the dropzone and select <strong>both</strong> <code>ic_launcher_background.xml</code> and <code>ic_launcher_foreground.xml</code> simultaneously. The app will auto-detect which is which based on their filenames.</li>
+                <li><strong>Do NOT upload</strong> wrapper files containing the <code>&lt;adaptive-icon&gt;</code> tag (like <code>mipmap-anydpi-v26/ic_launcher.xml</code>).</li>
+            </ul>
+        </footer>
+    </div>
+
+    <script>
+        (function() {
+            // UI Elements
+            const dropZone = document.getElementById('vp-drop-zone');
+            const fileInput = document.getElementById('vp-file-input');
+            
+            const statusBg = document.getElementById('vp-status-bg');
+            const layerBg = document.getElementById('vp-layer-bg');
+            
+            const statusFg = document.getElementById('vp-status-fg');
+            const layerFg = document.getElementById('vp-layer-fg');
+
+            const errorBox = document.getElementById('vp-errorBox');
+            const shapeSelect = document.getElementById('vp-shape-select');
+            const mask = document.getElementById('vp-mask');
+            const viewport = document.getElementById('vp-viewport');
+
+            // --- Shape Selector Logic ---
+            shapeSelect.addEventListener('change', (e) => {
+                mask.className = 'vp-icon-mask'; 
+                mask.classList.add(e.target.value);
+            });
+
+            // --- Adaptive Parallax Shift Logic (Mouse + Touch) ---
+            const applyParallax = (clientX, clientY, rect) => {
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const deltaX = (x - centerX) / centerX; 
+                const deltaY = (y - centerY) / centerY; 
+
+                const fgShift = 8;  // pixels foreground moves
+                const bgShift = -4; // pixels background moves
+
+                layerFg.style.transform = `translate(${deltaX * fgShift}px, ${deltaY * fgShift}px) scale(1.02)`;
+                layerBg.style.transform = `translate(${deltaX * bgShift}px, ${deltaY * bgShift}px)`;
+            };
+
+            const resetParallax = () => {
+                layerFg.style.transform = `translate(0px, 0px) scale(1)`;
+                layerBg.style.transform = `translate(0px, 0px)`;
+            };
+
+            // Mouse Events
+            viewport.addEventListener('mousemove', (e) => {
+                applyParallax(e.clientX, e.clientY, viewport.getBoundingClientRect());
+            });
+            viewport.addEventListener('mouseleave', resetParallax);
+
+            // Touch Events for Mobile
+            viewport.addEventListener('touchmove', (e) => {
+                e.preventDefault(); // Prevents screen scrolling while testing parallax
+                const touch = e.touches[0];
+                applyParallax(touch.clientX, touch.clientY, viewport.getBoundingClientRect());
+            }, { passive: false });
+            viewport.addEventListener('touchend', resetParallax);
+            viewport.addEventListener('touchcancel', resetParallax);
+
+
+            // --- File Handling Logic ---
+            dropZone.addEventListener('click', () => fileInput.click()); // Guarantee click works locally
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => {
+                    e.preventDefault(); e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.add('vp-dragover'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.remove('vp-dragover'), false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) handleFiles(this.files);
+                this.value = ''; // Reset input to allow re-uploading the same files
+            });
+
+            function showError(msg) {
+                errorBox.textContent = msg;
+                errorBox.style.display = 'block';
+            }
+
+            function handleFiles(files) {
+                errorBox.style.display = 'none';
+                let processedAny = false;
+
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (!file.name.toLowerCase().endsWith('.xml')) continue;
+
+                    const lowerName = file.name.toLowerCase();
+                    if (lowerName.includes('background') || lowerName.includes('bg')) {
+                        processFile(file, statusBg, layerBg, 'Background');
+                        processedAny = true;
+                    } else if (lowerName.includes('foreground') || lowerName.includes('fg')) {
+                        processFile(file, statusFg, layerFg, 'Foreground');
+                        processedAny = true;
+                    }
+                }
+
+                if (!processedAny && files.length > 0) {
+                    showError("Could not detect background/foreground files. Please ensure the filenames contain 'background' or 'foreground'.");
+                }
+            }
+
+            function processFile(file, statusEl, layerEl, layerName) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const svgNode = transpileAndroidVectorToSVG(e.target.result);
+                        layerEl.innerHTML = '';
+                        layerEl.appendChild(svgNode);
+                        
+                        statusEl.textContent = file.name;
+                        statusEl.className = 'vp-found';
+                    } catch (err) {
+                        showError(`Error parsing ${layerName} XML: ${err.message}`);
+                        statusEl.textContent = "Parse Error";
+                        statusEl.className = 'vp-missing';
+                    }
+                };
+                reader.onerror = () => {
+                    showError(`Failed to read ${layerName} file.`);
+                    statusEl.className = 'vp-missing';
+                };
+                reader.readAsText(file);
+            }
+
+            // --- Android Vector XML -> SVG Transpiler Engine ---
+            function transpileAndroidVectorToSVG(xmlString) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+                
+                if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                    throw new Error("Invalid XML format.");
+                }
+
+                const vector = xmlDoc.getElementsByTagName("vector")[0];
+                if (!vector) {
+                    throw new Error("No <vector> tag found. Ensure this is drawing data, not an <adaptive-icon> wrapper.");
+                }
+
+                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                
+                const vWidth = vector.getAttribute("android:viewportWidth") || 108;
+                const vHeight = vector.getAttribute("android:viewportHeight") || 108;
+                svg.setAttribute("viewBox", `0 0 ${vWidth} ${vHeight}`);
+                svg.setAttribute("width", "100%");
+                svg.setAttribute("height", "100%");
+                svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+                const applyMappedAttributes = (androidNode, svgNode, mapping) => {
+                    for (let androidAttr in mapping) {
+                        if (androidNode.hasAttribute(androidAttr)) {
+                            let val = androidNode.getAttribute(androidAttr);
+                            let svgAttr = mapping[androidAttr];
+                            
+                            if (val.length === 9 && val.startsWith("#")) {
+                                const alpha = parseInt(val.substr(1, 2), 16) / 255;
+                                const rgb = "#" + val.substr(3);
+                                svgNode.setAttribute(svgAttr, rgb);
+                                if (svgAttr === "fill") svgNode.setAttribute("fill-opacity", alpha);
+                                if (svgAttr === "stroke") svgNode.setAttribute("stroke-opacity", alpha);
+                            } else if (val.startsWith("@")) {
+                                svgNode.setAttribute(svgAttr, "#000000"); // Fallback for unknown @colors
+                            } else {
+                                svgNode.setAttribute(svgAttr, val);
+                            }
+                        }
+                    }
+                };
+
+                const buildTree = (androidParent, svgParent) => {
+                    for (let i = 0; i < androidParent.children.length; i++) {
+                        const child = androidParent.children[i];
+                        
+                        if (child.tagName === "path") {
+                            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                            applyMappedAttributes(child, path, {
+                                "android:pathData": "d",
+                                "android:fillColor": "fill",
+                                "android:strokeColor": "stroke",
+                                "android:strokeWidth": "stroke-width",
+                                "android:fillAlpha": "fill-opacity",
+                                "android:strokeAlpha": "stroke-opacity",
+                                "android:strokeLineCap": "stroke-linecap",
+                                "android:strokeLineJoin": "stroke-linejoin"
+                            });
+                            if (!child.hasAttribute("android:fillColor")) {
+                                path.setAttribute("fill", "none");
+                            }
+                            svgParent.appendChild(path);
+                        } 
+                        else if (child.tagName === "group") {
+                            const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                            let transformStr = "";
+                            const pX = parseFloat(child.getAttribute("android:pivotX") || 0);
+                            const pY = parseFloat(child.getAttribute("android:pivotY") || 0);
+                            const rot = parseFloat(child.getAttribute("android:rotation") || 0);
+                            const sX = parseFloat(child.getAttribute("android:scaleX") || 1);
+                            const sY = parseFloat(child.getAttribute("android:scaleY") || 1);
+                            const tX = parseFloat(child.getAttribute("android:translateX") || 0);
+                            const tY = parseFloat(child.getAttribute("android:translateY") || 0);
+
+                            if (tX !== 0 || tY !== 0) transformStr += `translate(${tX} ${tY}) `;
+                            if (rot !== 0 || sX !== 1 || sY !== 1) {
+                                transformStr += `translate(${pX} ${pY}) `;
+                                if (rot !== 0) transformStr += `rotate(${rot}) `;
+                                if (sX !== 1 || sY !== 1) transformStr += `scale(${sX} ${sY}) `;
+                                transformStr += `translate(${-pX} ${-pY}) `;
+                            }
+
+                            if (transformStr) group.setAttribute("transform", transformStr.trim());
+                            buildTree(child, group);
+                            svgParent.appendChild(group);
+                        }
+                    }
+                };
+
+                buildTree(vector, svg);
+                return svg;
+            }
+        })();
+    </script>
+</body>
+</html>
