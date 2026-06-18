@@ -88,7 +88,7 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.3.3";
+        const APP_VERSION = "1.3.4";
 
         function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
@@ -387,7 +387,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.3';
+            let v = '1.3.4';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
