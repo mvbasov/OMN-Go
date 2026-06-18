@@ -39,8 +39,10 @@ RUN go mod download || true
 COPY . .
 RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy
 
-# Desktop Binary (OMN-Go naming convention)
-RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go
+# Desktop Binary
+# In the furure relese need to use exactly modernc.org/sqlite for crossplatform build (not require CGO_ENABLED=1)
+RUN GOOS=linux GOARCH=amd64 go build -o bin/omn-go-desktop main_desktop.go && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/omn-go-desktop.exe main_desktop.go
 
 # Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \

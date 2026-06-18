@@ -53,3 +53,53 @@ docker rm omn-go-extract
 # View your Android APK
 ls -lh ./output-binaries/omngo.apk
 ```
+
+
+### 4. Cross Platform build
+#### Windows
+```
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/omn-go-desktop.exe main_desktop.go
+```
+It is not strictly mandatory for the Go language itself, but yes, it is effectively mandatory for your current Docker setup.
+
+Here is exactly what CGO_ENABLED=0 does and why it is highly recommended for your project:
+
+It Disables C-Bindings: CGO_ENABLED=0 tells the Go compiler to build a "pure Go" application and ignore any underlying C libraries (cgo).
+
+It Prevents Cross-Compiler Errors: If you set CGO_ENABLED=1 when building for Windows from a Linux machine, Go will try to look for a special Windows C cross-compiler (like mingw-w64). Since your omn-go-builder Docker container doesn't have mingw-w64 installed, the build would instantly fail.
+
+It Guarantees a Standalone Binary: By turning CGO off, Go statically links everything directly into the .exe. This guarantees that when you hand the .exe to a Windows user, it will run perfectly out of the box without throwing an error about a missing .dll file.
+
+Because OMN-Go operates as a pure local web server on the desktop and doesn't rely on complex C-based GUI frameworks (like GTK or Qt) or C-based databases (like SQLite), you don't need CGO. Keeping CGO_ENABLED=0 ensures your cross-compilation is fast, simple, and error-free!
+
+##### SQLite note
+
+1. The "Traditional" Route (Will Fail)
+SQLite itself is a database engine written entirely in the C programming language. The most popular Go library for SQLite (github.com/mattn/go-sqlite3) works by creating C-bindings to that original C code.
+If you try to use that specific library with CGO_ENABLED=0, your compilation will immediately crash because it absolutely requires CGO.
+
+2. The "Modern" Route (Will Succeed)
+Because cross-compiling with CGO is such a headache for developers, the Go community created a Pure Go implementation of SQLite.
+
+The library modernc.org/sqlite is an automated transpilation of the original SQLite C code directly into Go. It behaves exactly like the standard database driver, but it has zero C dependencies.
+
+What this means for your future:
+When you decide to add SQLite to OMN-Go in the future, you must use the modernc.org/sqlite driver instead of mattn/go-sqlite3.
+
+If you do that, you can keep CGO_ENABLED=0, keep your simple Docker cross-compilation commands, build for Windows, Linux, and Mac effortlessly, and still have a powerful SQLite database!
+
+#### macOS Desktop (Extremely Easy)
+Building the standalone web-server binary for macOS is just as easy as Linux and Windows. You don't need a Mac to do it; your Linux Docker container can cross-compile it perfectly.
+
+Because Apple transitioned from Intel to their own Apple Silicon (M1/M2/M3) chips, you usually compile two versions:
+
+For older Intel Macs:
+```
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o bin/omn-go-mac-intel main_desktop.go
+```
+
+For newer Apple Silicon Macs:
+```
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o bin/omn-go-mac-arm main_desktop.go
+```
+Note: Because you are cross-compiling from Linux, the binary won't have an "Apple Developer Signature." When a Mac user tries to run it, Apple's "Gatekeeper" will block it by default. The user will have to manually bypass it by going to System Settings -> Privacy & Security -> "Open Anyway".
