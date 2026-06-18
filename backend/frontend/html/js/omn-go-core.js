@@ -238,7 +238,7 @@ function executeScripts(container) {
                     hljs.highlightElement(block);
                 });
             }
-            if (window.renderMathInElement) {
+            if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                 renderMathInElement(document.getElementById('preview') || document.body, {
                     delimiters: [
                         {left: '$$', right: '$$', display: true},
@@ -267,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const observer = new MutationObserver(() => {
                 clearTimeout(renderTimeout);
                 renderTimeout = setTimeout(() => {
-                    if (window.renderMathInElement) {
+                    if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                         renderMathInElement(previewNode, {
                             delimiters: [
                                 {left: '$$', right: '$$', display: true},
@@ -285,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.5';
+            let v = '1.3.6';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
@@ -406,3 +406,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
             });
         })();
+
+
+// --- Dynamic Metadata Panel Extractor ---
+document.addEventListener("DOMContentLoaded", () => {
+    const panel = document.getElementById('metadataPanel');
+    if (panel) {
+        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName + '.md' : ''}</div>`;
+        document.querySelectorAll('meta').forEach(m => {
+            const name = m.getAttribute('name');
+            const content = m.getAttribute('content');
+            if (name && content && !['viewport', 'charset'].includes(name.toLowerCase())) {
+                metaHtml += `<div style="margin-bottom: 4px;"><strong>${name.charAt(0).toUpperCase() + name.slice(1)}:</strong> ${content}</div>`;
+            }
+        });
+        panel.innerHTML = metaHtml;
+    }
+});

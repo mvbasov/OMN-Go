@@ -2,100 +2,144 @@ import os
 import re
 
 def update_application():
-    index_path = "backend/frontend/index.html"
-    if not os.path.exists(index_path):
-        print(f"WARNING: File not found: {index_path}")
-        return
-
-    with open(index_path, "r", encoding="utf-8") as f:
-        html = f.read()
-
-    # 1. Extract CSS
-    css_match = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
-    if not css_match:
-        print("WARNING: Could not find <style> block in index.html")
-        return
-    
-    css_content = css_match.group(1).strip()
-    html = html.replace(css_match.group(0), '<link rel="stylesheet" href="/css/omn-go-core.css">')
-
-    # 2. Extract JavaScript 
-    js_content = ""
-
-    # Block A: Main logic (leaves APP_VERSION and OMN_GO_PAGE_NAME_JS in place)
-    main_pattern = r'(<script>\s*/\* OMN_GO_PAGE_NAME_JS \*/\s*const APP_VERSION = "[^"]+";)(.*?)(\s*</script>)'
-    match = re.search(main_pattern, html, re.DOTALL)
-    if match:
-        js_content += match.group(2).strip() + "\n\n"
-        # Terminate the dynamic variable script block and inject the external JS link
-        new_script_block = match.group(1) + "\n    </script>\n    <script src=\"/js/omn-go-core.js\"></script>"
-        html = html.replace(match.group(0), new_script_block)
-    else:
-        print("WARNING: Could not find main JS block in index.html")
-
-    # Block B: KaTeX Auto-Rendering
-    katex_pattern = r'<script>(\s*document\.addEventListener\("DOMContentLoaded", \(\) => {\s*// Setup Auto-Rendering.*?)\s*</script>'
-    match = re.search(katex_pattern, html, re.DOTALL)
-    if match:
-        js_content += match.group(1).strip() + "\n\n"
-        html = html.replace(match.group(0), "")
-
-    # Block C: Version Footer Tracker
-    footer_pattern = r'<script>(\s*document\.addEventListener\("DOMContentLoaded", \(\) => {\s*const footer = document\.getElementById\(\'omn-go-version-footer\'.*?)\s*</script>'
-    match = re.search(footer_pattern, html, re.DOTALL)
-    if match:
-        js_content += match.group(1).strip() + "\n\n"
-        html = html.replace(match.group(0), "")
-
-    # Block D: JS Console Interceptor
-    console_pattern = r'<!-- JS Console Interceptor & UI -->\s*<script>(.*?)\s*</script>'
-    match = re.search(console_pattern, html, re.DOTALL)
-    if match:
-        js_content += match.group(1).strip() + "\n"
-        html = html.replace(match.group(0), "")
-
-    # Clean up empty lines created by extraction
-    html = re.sub(r'\n\s*\n\s*\n', '\n\n', html)
-
-    # 3. Write Extracted Files to Disk
-    os.makedirs("backend/frontend/html/css", exist_ok=True)
-    os.makedirs("backend/frontend/html/js", exist_ok=True)
-
-    with open("backend/frontend/html/css/omn-go-core.css", "w", encoding="utf-8") as f:
-        f.write(css_content)
-
-    # Automatically upgrade the hardcoded JS fallback version before saving
-    js_content = re.sub(r"let v = '1\.3\.\d+';", "let v = '1.3.5';", js_content)
-    with open("backend/frontend/html/js/omn-go-core.js", "w", encoding="utf-8") as f:
-        f.write(js_content)
-
-    # 4. Bump Versions to 1.3.5
-    html = re.sub(r'const APP_VERSION = "1\.3\.\d+";', 'const APP_VERSION = "1.3.5";', html)
-    with open(index_path, "w", encoding="utf-8") as f:
-        f.write(html)
-
-    # Bump server.go
+    # 1. Update server.go to inject Pelican headers as HTML metadata
     server_path = "backend/server.go"
     if os.path.exists(server_path):
         with open(server_path, "r", encoding="utf-8") as f:
             server_code = f.read()
-        server_code = re.sub(r'const APP_VERSION = "1\.3\.\d+"', 'const APP_VERSION = "1.3.5"', server_code)
+            
+        old_server_block = """\
+	renderedBody := customBody
+	if renderedBody == "" {
+		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\\n")))
+	}
+	metadataStr := fmt.Sprintf("File: %s.md\\n%s", name, strings.Join(headers, "\\n"))
+
+	layout := string(frontendHTML)
+
+	title := "OMN-Go - " + name
+	for _, h := range headers {
+		if after, ok := strings.CutPrefix(h, "Title:"); ok {
+			title = strings.TrimSpace(after)
+			break
+		}
+	}
+
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
+	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)\
+"""
+
+        new_server_block = """\
+	renderedBody := customBody
+	if renderedBody == "" {
+		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\\n")))
+	}
+
+	layout := string(frontendHTML)
+
+	title := "OMN-Go - " + name
+	var metaTags []string
+	for _, h := range headers {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			k := strings.ToLower(strings.TrimSpace(parts[0]))
+			v := htmlEscape(strings.TrimSpace(parts[1]))
+			metaTags = append(metaTags, fmt.Sprintf(`    <meta name="%s" content="%s" />`, k, v))
+			if k == "title" {
+				title = strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
+
+	metaScript := fmt.Sprintf(`    <script>
+      var PackageName = 'net.basov.omngo';
+      var PageName = '%s';
+      var Title = '%s';
+    </script>`, name, title)
+
+	metaBlock := strings.Join(metaTags, "\\n") + "\\n" + metaScript
+
+	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\\n</head>")
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
+	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")\
+"""
+        server_code = server_code.replace(old_server_block, new_server_block)
+        server_code = re.sub(r'const APP_VERSION = "1\.3\.\d+"', 'const APP_VERSION = "1.3.6"', server_code)
         with open(server_path, "w", encoding="utf-8") as f:
             f.write(server_code)
 
-    # Bump build.gradle
+    # 2. Update index.html to declare the KaTeX variable
+    index_path = "backend/frontend/index.html"
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        html = re.sub(
+            r'const APP_VERSION = "1\.3\.\d+";',
+            'const APP_VERSION = "1.3.6";\n        let OMN_GO_KATEX = false;',
+            html
+        )
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+    # 3. Update omn-go-core.js to enforce KaTeX toggle and parse Metadata Panel
+    js_path = "backend/frontend/html/js/omn-go-core.js"
+    if os.path.exists(js_path):
+        with open(js_path, "r", encoding="utf-8") as f:
+            js = f.read()
+
+        # Enforce KaTeX checking on both initialization and mutation observer
+        js = js.replace(
+            "if (window.renderMathInElement) {", 
+            "if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {"
+        )
+
+        metadata_extractor = """
+// --- Dynamic Metadata Panel Extractor ---
+document.addEventListener("DOMContentLoaded", () => {
+    const panel = document.getElementById('metadataPanel');
+    if (panel) {
+        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName + '.md' : ''}</div>`;
+        document.querySelectorAll('meta').forEach(m => {
+            const name = m.getAttribute('name');
+            const content = m.getAttribute('content');
+            if (name && content && !['viewport', 'charset'].includes(name.toLowerCase())) {
+                metaHtml += `<div style="margin-bottom: 4px;"><strong>${name.charAt(0).toUpperCase() + name.slice(1)}:</strong> ${content}</div>`;
+            }
+        });
+        panel.innerHTML = metaHtml;
+    }
+});
+"""
+        if "Dynamic Metadata Panel Extractor" not in js:
+            js += "\n" + metadata_extractor
+        
+        # Bump JS version string
+        js = re.sub(r"let v = '1\.3\.\d+';", "let v = '1.3.6';", js)
+
+        with open(js_path, "w", encoding="utf-8") as f:
+            f.write(js)
+
+    # 4. Bump Android build.gradle
     gradle_path = "android/app/build.gradle"
     if os.path.exists(gradle_path):
         with open(gradle_path, "r", encoding="utf-8") as f:
             gradle_code = f.read()
-        gradle_code = re.sub(r'versionCode \d+', 'versionCode 10305', gradle_code)
-        gradle_code = re.sub(r'versionName "1\.3\.\d+"', 'versionName "1.3.5"', gradle_code)
+        gradle_code = re.sub(r'versionCode \d+', 'versionCode 10306', gradle_code)
+        gradle_code = re.sub(r'versionName "1\.3\.\d+"', 'versionName "1.3.6"', gradle_code)
         with open(gradle_path, "w", encoding="utf-8") as f:
             f.write(gradle_code)
 
-    print("SUCCESS: Core CSS and JS extracted, linked, and versions bumped to 1.3.5.")
+    print("SUCCESS: Core KaTeX toggle implemented and Pelican headers mapped to native HTML metadata.")
     
-    commit_msg = """refactor(frontend): extract core css/js into external files\n\nModularized index.html by abstracting layout styles and logic into omn-go-core assets. Version bumped to 1.3.5."""
+    commit_msg = """feat(core): dynamic katex toggle & native html metadata mapping\n\nImplemented strict `OMN_GO_KATEX` toggle for math processing. Upgraded Pelican headers to render as native HTML `<meta>` and `<script>` blocks, with an interactive JS-driven metadata viewer panel. Version bumped to 1.3.6."""
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.5"
+const APP_VERSION = "1.3.6"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -271,23 +271,38 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	if renderedBody == "" {
 		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
-	metadataStr := fmt.Sprintf("File: %s.md\n%s", name, strings.Join(headers, "\n"))
 
 	layout := string(frontendHTML)
 
 	title := "OMN-Go - " + name
+	var metaTags []string
 	for _, h := range headers {
-		if after, ok := strings.CutPrefix(h, "Title:"); ok {
-			title = strings.TrimSpace(after)
-			break
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			k := strings.ToLower(strings.TrimSpace(parts[0]))
+			v := htmlEscape(strings.TrimSpace(parts[1]))
+			metaTags = append(metaTags, fmt.Sprintf(`    <meta name="%s" content="%s" />`, k, v))
+			if k == "title" {
+				title = strings.TrimSpace(parts[1])
+			}
 		}
 	}
+	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
 
+	metaScript := fmt.Sprintf(`    <script>
+      var PackageName = 'net.basov.omngo';
+      var PageName = '%s';
+      var Title = '%s';
+    </script>`, name, title)
+
+	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
+
+	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
 	return []byte(layout)
 }
