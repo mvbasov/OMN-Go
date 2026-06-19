@@ -39,7 +39,7 @@ function executeScripts(container) {
                 if (res.ok) {
                     const config = await res.json();
                     if (!config.use_internal_editor) {
-                        window.location.href = '/api/edit-external?name=' + encodeURIComponent(currentNote);
+                        window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
                         return;
                     }
                 }
@@ -153,7 +153,7 @@ function executeScripts(container) {
 
             const res = await fetch('/api/newpage', { method: 'POST', body: fd });
             if (res.ok) {
-                window.location.href = '/' + fileName + '.html?edit=true';
+                window.location.replace('/' + fileName + '.html?edit=true');
             } else {
                 alert("Failed to create new page!");
             }
@@ -453,5 +453,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
         panel.innerHTML = metaHtml;
+    }
+});
+
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        window.location.reload();
     }
 });

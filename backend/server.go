@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.14"
+const APP_VERSION = "1.3.15"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -400,7 +400,7 @@ func getExternalEditPageBody(name string) string {
     <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
         We have launched <strong>%s</strong> to edit <code>%s.md</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated page.
     </p>
-    <button onclick="window.location.href='/%s.html'" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <button onclick="window.location.replace('/%s.html')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
         Press after edit to refresh view
     </button>
 </div>
@@ -687,7 +687,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 				if appConfig.Author != "" {
 					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
 				}
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", title, timestamp, authorLine, title)
+				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", title, timestamp, authorLine)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte(newContent), 0644)
 				data = []byte(newContent)
@@ -708,19 +708,26 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func ensureHeaderModified(content string, defaultTitle string) string {
-	parts := strings.SplitN(content, "\n\n", 2)
+	content = strings.ReplaceAll(content, "
+", "
+")
+	parts := strings.SplitN(content, "
+
+", 2)
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	isHeader := false
 	if len(parts) > 0 && strings.Contains(parts[0], ":") {
-		firstLine := strings.Split(parts[0], "\n")[0]
-		if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
+		lines := strings.Split(parts[0], "
+")
+		if len(lines) > 0 && strings.Contains(lines[0], ":") && !strings.HasPrefix(lines[0], " ") && !strings.HasPrefix(lines[0], "#") && !strings.HasPrefix(lines[0], "<") {
 			isHeader = true
 		}
 	}
 
 	if isHeader {
-		headerLines := strings.Split(parts[0], "\n")
+		headerLines := strings.Split(parts[0], "
+")
 		modIdx := -1
 		for i, l := range headerLines {
 			if strings.HasPrefix(strings.ToLower(l), "modified:") {
@@ -733,18 +740,28 @@ func ensureHeaderModified(content string, defaultTitle string) string {
 		} else {
 			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
 		}
-		parts[0] = strings.Join(headerLines, "\n")
+		parts[0] = strings.Join(headerLines, "
+")
 		if len(parts) > 1 {
-			return parts[0] + "\n\n" + parts[1]
+			return parts[0] + "
+
+" + parts[1]
 		}
-		return parts[0] + "\n\n"
+		return parts[0] + "
+
+"
 	}
 
 	authorLine := ""
 	if appConfig.Author != "" {
-		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+		authorLine = fmt.Sprintf("
+Author: %s", appConfig.Author)
 	}
-	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
+	return fmt.Sprintf("Title: %s
+Date: %s
+Modified: %s%s
+
+%s", defaultTitle, now, now, authorLine, content)
 }
 
 func handleNewPage(w http.ResponseWriter, r *http.Request) {
@@ -765,7 +782,7 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 		if appConfig.Author != "" {
 			authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
 		}
-		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", title, now, now, authorLine, title)
+		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
 		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
 		os.WriteFile(targetMdPath, []byte(defaultContent), 0644)
 	}
@@ -817,7 +834,9 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "
+", "
+")
 
 	var path string
 	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
@@ -884,7 +903,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 					if appConfig.Author != "" {
 						authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
 					}
-					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", name, timestamp, authorLine, name)
+					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
 					os.WriteFile(mdPath, []byte(defaultContent), 0644)
 				}
