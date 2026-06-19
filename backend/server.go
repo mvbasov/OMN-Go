@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.11"
+const APP_VERSION = "1.3.12"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -808,7 +808,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		mdStat, errMd := os.Stat(mdPath)
 
 		// Recompile if HTML is missing, OR if Markdown was modified more recently than HTML
-		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+		forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+		if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
 			if os.IsNotExist(errMd) {
 				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 				if err == nil {

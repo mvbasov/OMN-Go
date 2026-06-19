@@ -1,217 +1,204 @@
 import os
+import re
 
-def update_application():
-    # 1. Bump Global Application Version
+def apply_patch(filepath, old_str, new_str, description):
+    print(f"\n[PATCH] {description}")
+    print(f"  Target: {filepath}")
+    
+    if not os.path.exists(filepath):
+        print(f"  [-] ERROR: File {filepath} not found!")
+        return False
+        
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+        
+    if old_str in content:
+        content = content.replace(old_str, new_str)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("  [+] SUCCESS: Exact string match replaced.")
+        return True
+        
+    # Fallback to normalized newlines for cross-platform OS safety
+    old_normalized = old_str.replace('\r\n', '\n')
+    content_normalized = content.replace('\r\n', '\n')
+    
+    if old_normalized in content_normalized:
+        print("  [~] WARNING: Exact match failed, but normalized newline match succeeded. Applying.")
+        content_normalized = content_normalized.replace(old_normalized, new_str.replace('\r\n', '\n'))
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content_normalized)
+        print("  [+] SUCCESS: Normalized match replaced.")
+        return True
+        
+    print("  [-] ERROR: Target string NOT FOUND!")
+    print("  --- Expected snippet ---")
+    print(old_str[:200].strip() + " ...")
+    return False
+
+def bump_versions():
+    print("\n[VERSION BUMP] Upgrading to 1.3.12")
     versions = [
-        ("backend/server.go", 'APP_VERSION = "1.3.10"', 'APP_VERSION = "1.3.11"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.3.10";', 'const APP_VERSION = "1.3.11";'),
-        ("android/app/build.gradle", 'versionCode 10310', 'versionCode 10311'),
-        ("android/app/build.gradle", 'versionName "1.3.10"', 'versionName "1.3.11"')
+        ("backend/server.go", 'APP_VERSION = "1.3.11"', 'APP_VERSION = "1.3.12"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.3.11";', 'const APP_VERSION = "1.3.12";'),
+        ("android/app/build.gradle", 'versionCode 10311', 'versionCode 10312'),
+        ("android/app/build.gradle", 'versionName "1.3.11"', 'versionName "1.3.12"')
     ]
     
     for fp, old, new in versions:
         if os.path.exists(fp):
             with open(fp, "r", encoding="utf-8") as f:
                 content = f.read()
-            with open(fp, "w", encoding="utf-8") as f:
-                f.write(content.replace(old, new))
+            # If we missed the exact 1.3.11 state due to a failed run, dynamically bump via Regex
+            if old not in content:
+                print(f"  [~] {fp}: Exact old version string not found. Trying dynamic Regex bump...")
+                if "build.gradle" in fp:
+                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10312', content)
+                    content = re.sub(r'versionName\s+"1\.3\.\d+"', 'versionName "1.3.12"', content)
+                else:
+                    content = re.sub(r'APP_VERSION = "1\.3\.\d+"', 'APP_VERSION = "1.3.12"', content)
+                    content = re.sub(r'APP_VERSION = \'1\.3\.\d+\'', 'APP_VERSION = "1.3.12"', content)
+            else:
+                content = content.replace(old, new)
                 
-    server_path = "backend/server.go"
-    if not os.path.exists(server_path):
-        print("File not found: backend/server.go")
-        return
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"  [+] Bumped version in {fp}")
+        else:
+            print(f"  [-] Skipped {fp} (File not found)")
 
-    with open(server_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # 1. Config struct
-    content = content.replace(
-        r"""	GuestPassword string            `json:"guest_password"`
-	UseInternalEd bool              `json:"use_internal_editor"`""",
-        r"""	GuestPassword string            `json:"guest_password"`
-	Author        string            `json:"author"`
-	UseInternalEd bool              `json:"use_internal_editor"`"""
-    )
-
-    # 2. Config init default
-    content = content.replace(
-        r"""			GuestPassword: "guest_secret_changeme",
-			UseInternalEd: true,""",
-        r"""			GuestPassword: "guest_secret_changeme",
-			Author:        "Anonymous",
-			UseInternalEd: true,"""
-    )
-
-    # 3. Inject Helper Function above handleSaveNote
-    helper = r"""func ensureHeaderModified(content string, defaultTitle string) string {
-	parts := strings.SplitN(content, "\n\n", 2)
-	now := time.Now().Format("2006-01-02 15:04:05")
-
-	isHeader := false
-	if len(parts) > 0 && strings.Contains(parts[0], ":") {
-		firstLine := strings.Split(parts[0], "\n")[0]
-		if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
-			isHeader = true
-		}
-	}
-
-	if isHeader {
-		headerLines := strings.Split(parts[0], "\n")
-		modIdx := -1
-		for i, l := range headerLines {
-			if strings.HasPrefix(strings.ToLower(l), "modified:") {
-				modIdx = i
-				break
-			}
-		}
-		if modIdx != -1 {
-			headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
-		} else {
-			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
-		}
-		parts[0] = strings.Join(headerLines, "\n")
-		if len(parts) > 1 {
-			return parts[0] + "\n\n" + parts[1]
-		}
-		return parts[0] + "\n\n"
-	}
-
-	authorLine := ""
-	if appConfig.Author != "" {
-		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
-	}
-	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
-}
-
-func handleSaveNote"""
-    content = content.replace("func handleSaveNote", helper)
-
-    # 4. handleSaveNote update
-    old_save_logic = r"""		parts := strings.Split(content, "\n\n")
-		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "\n")
-			modIdx := -1
-			for i, l := range headerLines {
-				if strings.HasPrefix(l, "Modified:") {
-					modIdx = i
-					break
-				}
-			}
-			now := time.Now().Format("2006-01-02 15:04:05")
-			if modIdx != -1 {
-				headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
-			} else {
-				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
-			}
-			parts[0] = strings.Join(headerLines, "\n")
-			content = strings.Join(parts, "\n\n")
-		}
-
-		os.MkdirAll(filepath.Dir(path), 0755)
-		os.WriteFile(path, []byte(content), 0644)"""
-    new_save_logic = r"""		content = ensureHeaderModified(content, strings.TrimSuffix(cleanName, ".md"))
-
-		os.MkdirAll(filepath.Dir(path), 0755)
-		os.WriteFile(path, []byte(content), 0644)"""
-    content = content.replace(old_save_logic, new_save_logic)
-
-    # 5. handleQuickNote update
-    content = content.replace(
-        r"""	fullMarkdown := strings.Join(newContent, "\n")
-	os.WriteFile(path, []byte(fullMarkdown), 0644)""",
-        r"""	fullMarkdown := strings.Join(newContent, "\n")
-	fullMarkdown = ensureHeaderModified(fullMarkdown, "Quick Notes")
-	os.WriteFile(path, []byte(fullMarkdown), 0644)"""
-    )
-
-    # 6. handleBookmark update
-    content = content.replace(
-        r"""			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
-			os.WriteFile(path, []byte(newContent), 0644)""",
-        r"""			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
-			newContent = ensureHeaderModified(newContent, "Incoming bookmarks")
-			os.WriteFile(path, []byte(newContent), 0644)"""
-    )
-
-    # 7. handleGetNote default update
-    content = content.replace(
-        r"""				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)""",
-        r"""				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				authorLine := ""
-				if appConfig.Author != "" {
-					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
-				}
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", title, timestamp, authorLine, title)"""
-    )
-
-    # 8. serveFrontend default update
-    content = content.replace(
-        r"""					timestamp := time.Now().Format("2006-01-02 15:04:05")
-					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", name, timestamp, name)""",
-        r"""					timestamp := time.Now().Format("2006-01-02 15:04:05")
-					authorLine := ""
-					if appConfig.Author != "" {
-						authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
-					}
-					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", name, timestamp, authorLine, name)"""
-    )
-
-    # 9. serveFrontend external edit hook
-    old_ext_edit = r"""			mdContent, err := os.ReadFile(mdPath)
-			if err == nil {
-				compiled := compilePage(name, mdContent)
-				os.MkdirAll(filepath.Dir(htmlPath), 0755)
-				os.WriteFile(htmlPath, compiled, 0644)
-			}"""
-    new_ext_edit = r"""			mdContent, err := os.ReadFile(mdPath)
-			if err == nil {
-				if errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime()) {
-					updatedContent := ensureHeaderModified(string(mdContent), name)
-					if updatedContent != string(mdContent) {
-						os.WriteFile(mdPath, []byte(updatedContent), 0644)
-						mdContent = []byte(updatedContent)
-					}
-				}
-				compiled := compilePage(name, mdContent)
-				os.MkdirAll(filepath.Dir(htmlPath), 0755)
-				os.WriteFile(htmlPath, compiled, 0644)
-			}"""
-    content = content.replace(old_ext_edit, new_ext_edit)
-
-    # 10. getConfigPageBody HTML
-    old_html = r"""        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />"""
-    new_html = r"""        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-        </div>
-        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />"""
-    content = content.replace(old_html, new_html)
-
-    # 11. getConfigPageBody JS
-    old_js = r"""        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
-        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");"""
-    new_js = r"""        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
-        params.append("author", document.getElementById("cfgAuthor").value);
-        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");"""
-    content = content.replace(old_js, new_js)
-
-    # 12. getConfigPageBody Args
-    old_args = '`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,\n\t\tfunc() string {'
-    new_args = '`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,\n\t\tfunc() string {'
-    content = content.replace(old_args, new_args)
-
-    # 13. handleConfig Set
-    old_set = '\t\tappConfig.GuestPassword = r.FormValue("guest_password")\n\t\tappConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"'
-    new_set = '\t\tappConfig.GuestPassword = r.FormValue("guest_password")\n\t\tappConfig.Author = r.FormValue("author")\n\t\tappConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"'
-    content = content.replace(old_set, new_set)
-
-    with open(server_path, "w", encoding="utf-8") as f:
-        f.write(content)
+def update_application():
+    print("==================================================")
+    print(" OMN-Go Update Initialized (Target: V1.3.12)")
+    print("==================================================")
     
-    commit_msg = "feat(core): dynamic Author and Modified Pelican headers\n\nVersion bumped to 1.3.11"
+    bump_versions()
+
+    # 1. Update Server Router to force compilation on ?refresh=1
+    old_server = r"""		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+			if os.IsNotExist(errMd) {"""
+    new_server = r"""		forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+		if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+			if os.IsNotExist(errMd) {"""
+    apply_patch("backend/server.go", old_server, new_server, "Inject ?refresh=1 query listener into serveFrontend")
+
+    # 2. Add UI Buttons to index.html Header
+    old_html = r"""            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
+            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only">Add Bookmark</button>"""
+    new_html = r"""            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;">New Page</button>
+            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;">Refresh</button>
+            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
+            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only">Add Bookmark</button>"""
+    apply_patch("backend/frontend/index.html", old_html, new_html, "Add New Page and Refresh buttons to header")
+
+    # 3. Add JS Logic for New Page Generation and Backlink Insertion
+    old_js = r"""        async function saveNote() {
+            let content = document.getElementById('editor').value;
+            const fd = new URLSearchParams();
+            fd.append('name', currentNote);
+            fd.append('content', content);
+            const res = await fetch('/api/save', { method: 'POST', body: fd });
+            if(res.ok) {
+                alert('Note saved!');
+                window.location.reload();
+            } else {
+                alert('Failed to save!');
+            }
+        }"""
+        
+    new_js = r"""        function toCamelCase(str) {
+            let words = str.split(/[-_\s]+/);
+            return words.map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
+        }
+
+        function createNewPage() {
+            let title = prompt("Enter New Page Title:");
+            if (!title) return;
+            let camel = toCamelCase(title);
+            let safeName = camel.replace(/[^a-zA-Z0-9-]/g, '-');
+            let fileName = prompt("Confirm File Name:", safeName);
+            if (!fileName) return;
+
+            sessionStorage.setItem('omn_go_new_page_source', typeof currentNote !== 'undefined' ? currentNote : 'Welcome');
+            sessionStorage.setItem('omn_go_new_page_title', title);
+            sessionStorage.setItem('omn_go_new_page_target', fileName);
+
+            window.location.href = '/' + fileName + '.html?edit=true';
+        }
+
+        async function saveNote() {
+            let content = document.getElementById('editor').value;
+            const fd = new URLSearchParams();
+            fd.append('name', currentNote);
+            fd.append('content', content);
+            const res = await fetch('/api/save', { method: 'POST', body: fd });
+            if(res.ok) {
+                try {
+                    let src = sessionStorage.getItem('omn_go_new_page_source');
+                    let tgt = sessionStorage.getItem('omn_go_new_page_target');
+                    let pTitle = sessionStorage.getItem('omn_go_new_page_title');
+
+                    if (src && tgt === currentNote) {
+                        sessionStorage.removeItem('omn_go_new_page_source');
+                        sessionStorage.removeItem('omn_go_new_page_target');
+                        sessionStorage.removeItem('omn_go_new_page_title');
+
+                        let noteRes = await fetch('/api/note?name=' + encodeURIComponent(src));
+                        if (noteRes.ok) {
+                            let srcContent = await noteRes.text();
+                            let parts = srcContent.split('\n\n');
+                            let isHeader = parts.length > 0 && parts[0].includes(':') && !parts[0].startsWith(' ') && !parts[0].startsWith('#');
+                            let linkStr = `* [${pTitle}](${tgt})`;
+
+                            if (isHeader) {
+                                if (parts.length > 1) {
+                                    parts.splice(1, 0, linkStr);
+                                } else {
+                                    parts.push(linkStr);
+                                }
+                            } else {
+                                parts.unshift(linkStr);
+                            }
+
+                            const srcFd = new URLSearchParams();
+                            srcFd.append('name', src);
+                            srcFd.append('content', parts.join('\n\n'));
+                            await fetch('/api/save', { method: 'POST', body: srcFd });
+                        }
+                    }
+                } catch(e) { console.error("Link injection failed", e); }
+
+                alert('Note saved!');
+                window.location.reload();
+            } else {
+                alert('Failed to save!');
+            }
+        }"""
+    apply_patch("backend/frontend/html/js/omn-go-core.js", old_js, new_js, "Inject createNewPage() and update saveNote() with backlinking API hook")
+
+    # 4. Auto-Flip into Edit Mode on Load
+    old_onload = r"""            if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
+                const tb = document.getElementById('toggleBtn');
+                if (tb) tb.style.display = 'none';
+            }
+            let hash = window.location.hash;"""
+    new_onload = r"""            if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
+                const tb = document.getElementById('toggleBtn');
+                if (tb) tb.style.display = 'none';
+            }
+            if (window.location.search.includes('edit=true')) {
+                setTimeout(() => {
+                    if (typeof currentMode !== 'undefined' && currentMode === 'view' && typeof toggleMode === 'function') toggleMode();
+                }, 100);
+            }
+            let hash = window.location.hash;"""
+    apply_patch("backend/frontend/html/js/omn-go-core.js", old_onload, new_onload, "Inject ?edit=true listener to toggle UI instantly")
+
+    print("\n==================================================")
+    print(" Update Complete! Check the logs above for status.")
+    print("==================================================")
+    
+    commit_msg = "feat(ui): add New Page CamelCase workflow, auto-backlinking, and forced page Refresh\n\nVersion bumped to 1.3.12"
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
