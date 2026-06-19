@@ -37,12 +37,12 @@ def apply_patch(filepath, old_str, new_str, description):
     return False
 
 def bump_versions():
-    print("\n[VERSION BUMP] Upgrading to 1.3.15")
+    print("\n[VERSION BUMP] Upgrading to 1.3.16")
     versions = [
-        ("backend/server.go", 'APP_VERSION = "1.3.14"', 'APP_VERSION = "1.3.15"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.3.14";', 'const APP_VERSION = "1.3.15";'),
-        ("android/app/build.gradle", 'versionCode 10314', 'versionCode 10315'),
-        ("android/app/build.gradle", 'versionName "1.3.14"', 'versionName "1.3.15"')
+        ("backend/server.go", 'APP_VERSION = "1.3.15"', 'APP_VERSION = "1.3.16"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.3.15";', 'const APP_VERSION = "1.3.16";'),
+        ("android/app/build.gradle", 'versionCode 10315', 'versionCode 10316'),
+        ("android/app/build.gradle", 'versionName "1.3.15"', 'versionName "1.3.16"')
     ]
     
     for fp, old, new in versions:
@@ -52,11 +52,11 @@ def bump_versions():
             if old not in content:
                 print(f"  [~] {fp}: Exact old version string not found. Trying dynamic Regex bump...")
                 if "build.gradle" in fp:
-                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10315', content)
-                    content = re.sub(r'versionName\s+"1\.3\.\d+"', 'versionName "1.3.15"', content)
+                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10316', content)
+                    content = re.sub(r'versionName\s+"1\.3\.\d+"', 'versionName "1.3.16"', content)
                 else:
-                    content = re.sub(r'APP_VERSION = "1\.3\.\d+"', 'APP_VERSION = "1.3.15"', content)
-                    content = re.sub(r'APP_VERSION = \'1\.3\.\d+\'', 'APP_VERSION = "1.3.15"', content)
+                    content = re.sub(r'APP_VERSION = "1\.3\.\d+"', 'APP_VERSION = "1.3.16"', content)
+                    content = re.sub(r'APP_VERSION = \'1\.3\.\d+\'', 'APP_VERSION = "1.3.16"', content)
             else:
                 content = content.replace(old, new)
                 
@@ -66,7 +66,7 @@ def bump_versions():
 
 def update_application():
     print("==================================================")
-    print(" OMN-Go Update Initialized (Target: V1.3.15)")
+    print(" OMN-Go Update Initialized (Target: V1.3.16)")
     print("==================================================")
     
     bump_versions()
@@ -121,8 +121,8 @@ def update_application():
         "Use location.replace() for external editor API trigger"
     )
 
-    # 3. Completely Rewrite ensureHeaderModified and handleSaveNote using Regex for Bulletproof logic
-    print("\n[PATCH] Upgrading core logic functions for bulletproof Modified tracking")
+    # 3. Completely Rewrite ensureHeaderModified and handleSaveNote using Regex safely
+    print("\n[PATCH] Upgrading core logic functions and repairing Go string syntax errors")
     server_path = "backend/server.go"
     if os.path.exists(server_path):
         with open(server_path, "r", encoding="utf-8") as f:
@@ -205,16 +205,17 @@ def update_application():
 	w.Write([]byte("Saved"))
 }"""
 
+        # Using lambda _: effectively stops Python from expanding \n escapes when generating Go source code.
         if "func ensureHeaderModified" in content:
-            content = re.sub(r'func ensureHeaderModified\(content string, defaultTitle string\) string \{.*?^\}\r?\n', new_ensure_func + '\n', content, flags=re.MULTILINE | re.DOTALL)
+            content = re.sub(r'func ensureHeaderModified\(content string, defaultTitle string\) string \{.*?^\}\r?\n', lambda _: new_ensure_func + '\n', content, flags=re.MULTILINE | re.DOTALL)
         else:
             content = content.replace("func handleSaveNote", new_ensure_func + "\n\nfunc handleSaveNote")
 
-        content = re.sub(r'func handleSaveNote\(w http\.ResponseWriter, r \*http\.Request\) \{.*?w\.Write\(\[\]byte\("Saved"\)\)\r?\n\}', new_save_func, content, flags=re.DOTALL)
+        content = re.sub(r'func handleSaveNote\(w http\.ResponseWriter, r \*http\.Request\) \{.*?w\.Write\(\[\]byte\("Saved"\)\)\r?\n\}', lambda _: new_save_func, content, flags=re.DOTALL)
 
         with open(server_path, "w", encoding="utf-8") as f:
             f.write(content)
-        print("  [+] SUCCESS: Core logic functions fully updated via RegEx.")
+        print("  [+] SUCCESS: Core logic functions repaired and fully updated via RegEx lambda.")
     else:
         print(f"  [-] ERROR: File {server_path} not found!")
 
@@ -239,7 +240,7 @@ def update_application():
     print(" Update Complete! Check the logs above for status.")
     print("==================================================")
     
-    commit_msg = "feat(core): fix missing modified logic, backstack exclusions, BFCache refreshing, and clean pelican injection\n\nVersion bumped to 1.3.15"
+    commit_msg = "fix(backend): repair syntax error caused by regex string literal expansion inside server.go\n\nVersion bumped to 1.3.16"
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":

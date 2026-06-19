@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.15"
+const APP_VERSION = "1.3.16"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -708,26 +708,20 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func ensureHeaderModified(content string, defaultTitle string) string {
-	content = strings.ReplaceAll(content, "
-", "
-")
-	parts := strings.SplitN(content, "
-
-", 2)
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	parts := strings.SplitN(content, "\n\n", 2)
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	isHeader := false
 	if len(parts) > 0 && strings.Contains(parts[0], ":") {
-		lines := strings.Split(parts[0], "
-")
+		lines := strings.Split(parts[0], "\n")
 		if len(lines) > 0 && strings.Contains(lines[0], ":") && !strings.HasPrefix(lines[0], " ") && !strings.HasPrefix(lines[0], "#") && !strings.HasPrefix(lines[0], "<") {
 			isHeader = true
 		}
 	}
 
 	if isHeader {
-		headerLines := strings.Split(parts[0], "
-")
+		headerLines := strings.Split(parts[0], "\n")
 		modIdx := -1
 		for i, l := range headerLines {
 			if strings.HasPrefix(strings.ToLower(l), "modified:") {
@@ -740,28 +734,18 @@ func ensureHeaderModified(content string, defaultTitle string) string {
 		} else {
 			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
 		}
-		parts[0] = strings.Join(headerLines, "
-")
+		parts[0] = strings.Join(headerLines, "\n")
 		if len(parts) > 1 {
-			return parts[0] + "
-
-" + parts[1]
+			return parts[0] + "\n\n" + parts[1]
 		}
-		return parts[0] + "
-
-"
+		return parts[0] + "\n\n"
 	}
 
 	authorLine := ""
 	if appConfig.Author != "" {
-		authorLine = fmt.Sprintf("
-Author: %s", appConfig.Author)
+		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
 	}
-	return fmt.Sprintf("Title: %s
-Date: %s
-Modified: %s%s
-
-%s", defaultTitle, now, now, authorLine, content)
+	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
 }
 
 func handleNewPage(w http.ResponseWriter, r *http.Request) {
@@ -834,9 +818,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content = strings.ReplaceAll(content, "
-", "
-")
+	content = strings.ReplaceAll(content, "\r\n", "\n")
 
 	var path string
 	if !strings.Contains(name, ".") || strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".html") {
