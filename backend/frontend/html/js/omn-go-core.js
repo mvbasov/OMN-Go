@@ -137,7 +137,7 @@ function executeScripts(container) {
             return words.map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
         }
 
-        function createNewPage() {
+        async function createNewPage() {
             let title = prompt("Enter New Page Title:");
             if (!title) return;
             let camel = toCamelCase(title);
@@ -145,11 +145,18 @@ function executeScripts(container) {
             let fileName = prompt("Confirm File Name:", safeName);
             if (!fileName) return;
 
-            sessionStorage.setItem('omn_go_new_page_source', typeof currentNote !== 'undefined' ? currentNote : 'Welcome');
-            sessionStorage.setItem('omn_go_new_page_title', title);
-            sessionStorage.setItem('omn_go_new_page_target', fileName);
+            let src = typeof currentNote !== 'undefined' ? currentNote : 'Welcome';
+            const fd = new URLSearchParams();
+            fd.append('source', src);
+            fd.append('target', fileName);
+            fd.append('title', title);
 
-            window.location.href = '/' + fileName + '.html?edit=true';
+            const res = await fetch('/api/newpage', { method: 'POST', body: fd });
+            if (res.ok) {
+                window.location.href = '/' + fileName + '.html?edit=true';
+            } else {
+                alert("Failed to create new page!");
+            }
         }
 
         async function saveNote() {
@@ -159,41 +166,6 @@ function executeScripts(container) {
             fd.append('content', content);
             const res = await fetch('/api/save', { method: 'POST', body: fd });
             if(res.ok) {
-                try {
-                    let src = sessionStorage.getItem('omn_go_new_page_source');
-                    let tgt = sessionStorage.getItem('omn_go_new_page_target');
-                    let pTitle = sessionStorage.getItem('omn_go_new_page_title');
-
-                    if (src && tgt === currentNote) {
-                        sessionStorage.removeItem('omn_go_new_page_source');
-                        sessionStorage.removeItem('omn_go_new_page_target');
-                        sessionStorage.removeItem('omn_go_new_page_title');
-
-                        let noteRes = await fetch('/api/note?name=' + encodeURIComponent(src));
-                        if (noteRes.ok) {
-                            let srcContent = await noteRes.text();
-                            let parts = srcContent.split('\n\n');
-                            let isHeader = parts.length > 0 && parts[0].includes(':') && !parts[0].startsWith(' ') && !parts[0].startsWith('#');
-                            let linkStr = `* [${pTitle}](${tgt})`;
-
-                            if (isHeader) {
-                                if (parts.length > 1) {
-                                    parts.splice(1, 0, linkStr);
-                                } else {
-                                    parts.push(linkStr);
-                                }
-                            } else {
-                                parts.unshift(linkStr);
-                            }
-
-                            const srcFd = new URLSearchParams();
-                            srcFd.append('name', src);
-                            srcFd.append('content', parts.join('\n\n'));
-                            await fetch('/api/save', { method: 'POST', body: srcFd });
-                        }
-                    }
-                } catch(e) { console.error("Link injection failed", e); }
-
                 alert('Note saved!');
                 window.location.reload();
             } else {

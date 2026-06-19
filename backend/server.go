@@ -24,7 +24,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.12"
+const APP_VERSION = "1.3.14"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -747,6 +747,69 @@ func ensureHeaderModified(content string, defaultTitle string) string {
 	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
 }
 
+func handleNewPage(w http.ResponseWriter, r *http.Request) {
+	source := r.FormValue("source")
+	target := r.FormValue("target")
+	title := r.FormValue("title")
+
+	if target == "" || title == "" {
+		http.Error(w, "Missing fields", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	targetMdPath := filepath.Join(storageDir, "md", target+".md")
+	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
+		authorLine := ""
+		if appConfig.Author != "" {
+			authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+		}
+		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", title, now, now, authorLine, title)
+		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
+		os.WriteFile(targetMdPath, []byte(defaultContent), 0644)
+	}
+
+	if source != "" {
+		sourceMdPath := filepath.Join(storageDir, "md", source+".md")
+		sourceData, err := os.ReadFile(sourceMdPath)
+		if err == nil {
+			content := string(sourceData)
+			linkStr := fmt.Sprintf("* [%s](%s)", title, target)
+			parts := strings.SplitN(content, "\n\n", 2)
+
+			isHeader := false
+			if len(parts) > 0 && strings.Contains(parts[0], ":") {
+				firstLine := strings.Split(parts[0], "\n")[0]
+				if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
+					isHeader = true
+				}
+			}
+
+			if isHeader {
+				if len(parts) > 1 {
+					content = parts[0] + "\n\n" + linkStr + "\n" + parts[1]
+				} else {
+					content = parts[0] + "\n\n" + linkStr + "\n"
+				}
+			} else {
+				content = linkStr + "\n\n" + content
+			}
+
+			content = ensureHeaderModified(content, source)
+			os.WriteFile(sourceMdPath, []byte(content), 0644)
+			
+			// Recompile Source HTML immediately to prevent caching delays
+			htmlPath := filepath.Join(storageDir, "html", source+".html")
+			compiled := compilePage(source, []byte(content))
+			os.MkdirAll(filepath.Dir(htmlPath), 0755)
+			os.WriteFile(htmlPath, compiled, 0644)
+		}
+	}
+
+	w.Write([]byte("Created"))
+}
+
 func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	content := r.FormValue("content")
@@ -957,6 +1020,7 @@ func StartServer() {
 		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
 		mux.HandleFunc("/api/note", handleGetNote)
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
+		mux.HandleFunc("/api/newpage", authMiddleware(handleNewPage, true))
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 
