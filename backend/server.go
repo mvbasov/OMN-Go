@@ -24,12 +24,13 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.10"
+const APP_VERSION = "1.3.11"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
 	AdminPassword string            `json:"admin_password"`
 	GuestPassword string            `json:"guest_password"`
+	Author        string            `json:"author"`
 	UseInternalEd bool              `json:"use_internal_editor"`
 	DesktopExtCmd string            `json:"desktop_ext_cmd"`
 	MimeTypes     map[string]string `json:"mime_types"`
@@ -88,6 +89,7 @@ func initStorage() {
 			ServerPort:    8080,
 			AdminPassword: "admin_secret_changeme",
 			GuestPassword: "guest_secret_changeme",
+			Author:        "Anonymous",
 			UseInternalEd: true,
 			DesktopExtCmd: "subl",
 			MimeTypes: map[string]string{
@@ -344,6 +346,10 @@ func getConfigPageBody() string {
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
             <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
         </div>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
+            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+        </div>
         <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
             <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
             <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
@@ -363,6 +369,7 @@ func getConfigPageBody() string {
         params.append("server_port", document.getElementById("cfgPort").value);
         params.append("admin_password", document.getElementById("cfgAdminPwd").value);
         params.append("guest_password", document.getElementById("cfgGuestPwd").value);
+        params.append("author", document.getElementById("cfgAuthor").value);
         params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
         params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
 
@@ -375,7 +382,7 @@ func getConfigPageBody() string {
         }
     }
 </script>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,
+`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,
 		func() string {
 			if appConfig.UseInternalEd {
 				return "checked"
@@ -415,6 +422,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		appConfig.AdminPassword = r.FormValue("admin_password")
 		appConfig.GuestPassword = r.FormValue("guest_password")
+		appConfig.Author = r.FormValue("author")
 		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
 
@@ -555,6 +563,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
+	fullMarkdown = ensureHeaderModified(fullMarkdown, "Quick Notes")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
 
 	// Update Dynamic Precompile instantly
@@ -601,6 +610,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 		marker := "<!-- Don't edit body below this line -->"
 		if strings.Contains(content, marker) {
 			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
+			newContent = ensureHeaderModified(newContent, "Incoming bookmarks")
 			os.WriteFile(path, []byte(newContent), 0644)
 			// Update Dynamic Precompile instantly
 			compiled := compilePage("Bookmarks", []byte(newContent))
@@ -673,7 +683,11 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)
+				authorLine := ""
+				if appConfig.Author != "" {
+					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+				}
+				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", title, timestamp, authorLine, title)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte(newContent), 0644)
 				data = []byte(newContent)
@@ -693,6 +707,46 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func ensureHeaderModified(content string, defaultTitle string) string {
+	parts := strings.SplitN(content, "\n\n", 2)
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	isHeader := false
+	if len(parts) > 0 && strings.Contains(parts[0], ":") {
+		firstLine := strings.Split(parts[0], "\n")[0]
+		if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
+			isHeader = true
+		}
+	}
+
+	if isHeader {
+		headerLines := strings.Split(parts[0], "\n")
+		modIdx := -1
+		for i, l := range headerLines {
+			if strings.HasPrefix(strings.ToLower(l), "modified:") {
+				modIdx = i
+				break
+			}
+		}
+		if modIdx != -1 {
+			headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
+		} else {
+			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
+		}
+		parts[0] = strings.Join(headerLines, "\n")
+		if len(parts) > 1 {
+			return parts[0] + "\n\n" + parts[1]
+		}
+		return parts[0] + "\n\n"
+	}
+
+	authorLine := ""
+	if appConfig.Author != "" {
+		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+	}
+	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
+}
+
 func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	content := r.FormValue("content")
@@ -710,25 +764,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
 
-		parts := strings.Split(content, "\n\n")
-		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "\n")
-			modIdx := -1
-			for i, l := range headerLines {
-				if strings.HasPrefix(l, "Modified:") {
-					modIdx = i
-					break
-				}
-			}
-			now := time.Now().Format("2006-01-02 15:04:05")
-			if modIdx != -1 {
-				headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
-			} else {
-				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
-			}
-			parts[0] = strings.Join(headerLines, "\n")
-			content = strings.Join(parts, "\n\n")
-		}
+		content = ensureHeaderModified(content, strings.TrimSuffix(cleanName, ".md"))
 
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
@@ -780,7 +816,11 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 					os.WriteFile(mdPath, embedData, 0644)
 				} else {
 					timestamp := time.Now().Format("2006-01-02 15:04:05")
-					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", name, timestamp, name)
+					authorLine := ""
+					if appConfig.Author != "" {
+						authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+					}
+					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n# %s\n\nStart editing this page!", name, timestamp, authorLine, name)
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
 					os.WriteFile(mdPath, []byte(defaultContent), 0644)
 				}
@@ -788,6 +828,13 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 			mdContent, err := os.ReadFile(mdPath)
 			if err == nil {
+				if errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime()) {
+					updatedContent := ensureHeaderModified(string(mdContent), name)
+					if updatedContent != string(mdContent) {
+						os.WriteFile(mdPath, []byte(updatedContent), 0644)
+						mdContent = []byte(updatedContent)
+					}
+				}
 				compiled := compilePage(name, mdContent)
 				os.MkdirAll(filepath.Dir(htmlPath), 0755)
 				os.WriteFile(htmlPath, compiled, 0644)

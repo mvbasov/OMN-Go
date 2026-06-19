@@ -1,6 +1,6 @@
-Here is the current state of the OMN-Go project. We are currently at Version 1.3.4 (Android version code 10304).
+Here is the current state of the OMN-Go project. We are currently at Version 1.3.10 (Android version code 10310).
 
-Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format.
+Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format. Application version need to be updated on every changes.
 
 ### doc/initial_prompt.md START
 ```
@@ -287,7 +287,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.4"
+const APP_VERSION = "1.3.10"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
@@ -442,9 +442,8 @@ Tags: Bookmarks
 <!-- Don't edit body below this line -->
 ];
 </script>`)
-
-	// Precompile all notes to data/html/ at startup
-	precompileAllPages()
+	// Precompile all notes to data/html/ at startup in the background
+	go precompileAllPages()
 }
 
 var mdParser = goldmark.New(
@@ -534,23 +533,38 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	if renderedBody == "" {
 		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
-	metadataStr := fmt.Sprintf("File: %s.md\n%s", name, strings.Join(headers, "\n"))
 
 	layout := string(frontendHTML)
 
 	title := "OMN-Go - " + name
+	var metaTags []string
 	for _, h := range headers {
-		if after, ok := strings.CutPrefix(h, "Title:"); ok {
-			title = strings.TrimSpace(after)
-			break
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			k := strings.ToLower(strings.TrimSpace(parts[0]))
+			v := htmlEscape(strings.TrimSpace(parts[1]))
+			metaTags = append(metaTags, fmt.Sprintf(`    <meta name="%s" content="%s" />`, k, v))
+			if k == "title" {
+				title = strings.TrimSpace(parts[1])
+			}
 		}
 	}
+	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
 
+	metaScript := fmt.Sprintf(`    <script>
+      var PackageName = 'net.basov.omngo';
+      var PageName = '%s';
+      var Title = '%s';
+    </script>`, name, title)
+
+	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
+
+	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", metadataStr)
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
 	return []byte(layout)
 }
@@ -1193,27 +1207,7 @@ func GetServerPort() int {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><!-- OMN_GO_PAGE_TITLE --></title>
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f9f9f9; color: #333; }
-        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
-        .modal { background: #fff; padding: 20px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
-        .modal input, .modal button, .modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
-        .modal button { background: #0056b3; color: white; border: none; cursor: pointer; border-radius: 4px; }
-        #mainUI { display: flex; flex: 1; flex-direction: column; }
-        .header { background: #333; color: #fff; padding: 10px 20px; display: flex; gap: 15px; align-items: center; }
-        .header a, .header button { color: #fff; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
-        .header a:hover, .header button:hover { background: #555; }
-        .content-area { flex: 1; padding: 20px; position: relative; display: flex; flex-direction: column; }
-        #editor { display: none; width: 100%; flex: 1; border: 1px solid #ccc; padding: 10px; font-family: monospace; resize: none; box-sizing: border-box; }
-        #preview { width: 100%; flex: 1; background: #fff; border: 1px solid #ccc; padding: 20px; overflow-y: auto; box-sizing: border-box; line-height: 1.6; }
-        .toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; gap: 10px; }
-        .toolbar button { padding: 5px 15px; cursor: pointer; border: 1px solid #ccc; background: #eee; border-radius: 4px; }
-        .hidden { display: none !important; }
-        .panel { position: absolute; top: 50px; right: 20px; background: white; border: 1px solid #ccc; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px; z-index: 40; }
-        .panel h3 { margin-top: 0; }
-        .panel input, .panel textarea, .panel button { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
-        .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
-    </style>
+    <link rel="stylesheet" href="/css/omn-go-core.css">
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
 </head>
@@ -1277,9 +1271,56 @@ func GetServerPort() int {
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.3.4";
+        const APP_VERSION = "1.3.10";
+        let OMN_GO_KATEX = false;
+    </script>
+    <script src="/js/omn-go-core.js"></script>
 
-        function executeScripts(container) {
+    <!-- Code & Math Formatting Assets -->
+    <script src="/js/highlight.min.js"></script>
+    <script src="/js/katex.min.js"></script>
+    <script src="/js/auto-render.min.js"></script>
+
+    <!-- Small Version Footer -->
+    <div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
+
+</body>
+</html>
+
+```
+
+### backend/frontend/index.html END
+
+
+### backend/frontend/html/css/omn-go-core.css START
+```
+body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f9f9f9; color: #333; }
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal { background: #fff; padding: 20px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
+        .modal input, .modal button, .modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
+        .modal button { background: #0056b3; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        #mainUI { display: flex; flex: 1; flex-direction: column; }
+        .header { background: #333; color: #fff; padding: 10px 20px; display: flex; gap: 15px; align-items: center; }
+        .header a, .header button { color: #fff; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
+        .header a:hover, .header button:hover { background: #555; }
+        .content-area { flex: 1; padding: 20px; position: relative; display: flex; flex-direction: column; }
+        #editor { display: none; width: 100%; flex: 1; border: 1px solid #ccc; padding: 10px; font-family: monospace; resize: none; box-sizing: border-box; }
+        #preview { width: 100%; flex: 1; background: #fff; border: 1px solid #ccc; padding: 20px; overflow-y: auto; box-sizing: border-box; line-height: 1.6; }
+        .toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; gap: 10px; }
+        .toolbar button { padding: 5px 15px; cursor: pointer; border: 1px solid #ccc; background: #eee; border-radius: 4px; }
+        .hidden { display: none !important; }
+        .panel { position: absolute; top: 50px; right: 20px; background: white; border: 1px solid #ccc; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px; z-index: 40; }
+        .panel h3 { margin-top: 0; }
+        .panel input, .panel textarea, .panel button { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
+        .panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
+```
+
+### backend/frontend/html/css/omn-go-core.css END
+
+
+### backend/frontend/html/js/omn-go-core.js START
+```
+function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
             scripts.forEach(oldScript => {
                 const newScript = document.createElement('script');
@@ -1519,7 +1560,7 @@ func GetServerPort() int {
                     hljs.highlightElement(block);
                 });
             }
-            if (window.renderMathInElement) {
+            if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                 renderMathInElement(document.getElementById('preview') || document.body, {
                     delimiters: [
                         {left: '$$', right: '$$', display: true},
@@ -1540,21 +1581,15 @@ func GetServerPort() int {
                 if (el) el.scrollIntoView();
             }
         };
-    </script>
 
-    <!-- Code & Math Formatting Assets -->
-    <script src="/js/highlight.min.js"></script>
-    <script src="/js/katex.min.js"></script>
-    <script src="/js/auto-render.min.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
             // Setup Auto-Rendering for KaTeX via MutationObserver
             const previewNode = document.getElementById('preview') || document.body;
             let renderTimeout;
             const observer = new MutationObserver(() => {
                 clearTimeout(renderTimeout);
                 renderTimeout = setTimeout(() => {
-                    if (window.renderMathInElement) {
+                    if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                         renderMathInElement(previewNode, {
                             delimiters: [
                                 {left: '$$', right: '$$', display: true},
@@ -1569,22 +1604,15 @@ func GetServerPort() int {
             });
             observer.observe(previewNode, { childList: true, subtree: true });
         });
-    </script>
 
-    <!-- Small Version Footer -->
-    <div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.4';
+            let v = '1.3.10';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
-    </script>
 
-    <!-- JS Console Interceptor & UI -->
-    <script>
-        (function() {
+(function() {
             const originalLog = console.log;
             const originalError = console.error;
             const originalWarn = console.warn;
@@ -1700,13 +1728,27 @@ func GetServerPort() int {
                 console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
             });
         })();
-    </script>
-</body>
-</html>
+
+
+// --- Dynamic Metadata Panel Extractor ---
+document.addEventListener("DOMContentLoaded", () => {
+    const panel = document.getElementById('metadataPanel');
+    if (panel) {
+        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName + '.md' : ''}</div>`;
+        document.querySelectorAll('meta').forEach(m => {
+            const name = m.getAttribute('name');
+            const content = m.getAttribute('content');
+            if (name && content && !['viewport', 'charset'].includes(name.toLowerCase())) {
+                metaHtml += `<div style="margin-bottom: 4px;"><strong>${name.charAt(0).toUpperCase() + name.slice(1)}:</strong> ${content}</div>`;
+            }
+        });
+        panel.innerHTML = metaHtml;
+    }
+});
 
 ```
 
-### backend/frontend/index.html END
+### backend/frontend/html/js/omn-go-core.js END
 
 
 ### android/build.gradle START
@@ -1756,8 +1798,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10304
-        versionName "1.3.4"
+        versionCode 10310
+        versionName "1.3.10"
     }
 
     signingConfigs {
@@ -1847,13 +1889,32 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        // Create Native Loading Layout
+        android.widget.FrameLayout rootLayout = new android.widget.FrameLayout(this);
+        rootLayout.setBackgroundColor(android.graphics.Color.parseColor("#f9f9f9"));
+        
+        final android.widget.ProgressBar progressBar = new android.widget.ProgressBar(this);
+        android.widget.FrameLayout.LayoutParams pbParams = new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        pbParams.gravity = android.view.Gravity.CENTER;
+        progressBar.setLayoutParams(pbParams);
 
         // Initialize WebView
         webView = new WebView(this);
+        webView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                progressBar.setVisibility(android.view.View.GONE);
+                super.onPageFinished(view, url);
+            }
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url != null && url.startsWith("omngo://edit")) {
@@ -1895,8 +1956,9 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
-
-        setContentView(webView);
+        rootLayout.addView(webView);
+        rootLayout.addView(progressBar);
+        setContentView(rootLayout);
 
         // Wait for the Go server to bind before loading
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
@@ -1964,6 +2026,8 @@ public class MainActivity extends Activity {
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
     <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="true"
         android:label="OMN-Go"
         android:usesCleartextTraffic="true"
@@ -2000,13 +2064,24 @@ public class MainActivity extends Activity {
 │   │   ├── build.gradle
 │   │   ├── omn-go.keystore
 │   │   └── src
+│   │       ├── fdroid
+│   │       │   └── res
+│   │       │       └── drawable
+│   │       │           └── ic_launcher_foreground.xml
 │   │       └── main
 │   │           ├── AndroidManifest.xml
-│   │           └── java
-│   │               └── net
-│   │                   └── basov
-│   │                       └── omngo
-│   │                           └── MainActivity.java
+│   │           ├── java
+│   │           │   └── net
+│   │           │       └── basov
+│   │           │           └── omngo
+│   │           │               └── MainActivity.java
+│   │           └── res
+│   │               ├── drawable
+│   │               │   ├── ic_launcher_background.xml
+│   │               │   └── ic_launcher_foreground.xml
+│   │               └── mipmap-anydpi-v26
+│   │                   ├── ic_launcher_round.xml
+│   │                   └── ic_launcher.xml
 │   ├── build.gradle
 │   └── settings.gradle
 ├── backend
@@ -2040,12 +2115,14 @@ public class MainActivity extends Activity {
 │   │   │   │   │   └── KaTeX_Typewriter-Regular.woff2
 │   │   │   │   ├── highlight.default.min.css
 │   │   │   │   ├── katex.min.css
-│   │   │   │   └── markdown.css
+│   │   │   │   ├── markdown.css
+│   │   │   │   └── omn-go-core.css
 │   │   │   ├── js
 │   │   │   │   ├── auto-render.min.js
 │   │   │   │   ├── Bookmarker.js
 │   │   │   │   ├── highlight.min.js
-│   │   │   │   └── katex.min.js
+│   │   │   │   ├── katex.min.js
+│   │   │   │   └── omn-go-core.js
 │   │   │   └── json
 │   │   │       └── stub.json
 │   │   ├── index.html
@@ -2058,31 +2135,41 @@ public class MainActivity extends Activity {
 ├── doc
 │   ├── github_workflow.md
 │   ├── initial_prompt.md
+│   ├── OMN-Go_1.3.10_Context.md
 │   ├── OMN-Go_1.3.4_Context.md
-│   └── README.md
+│   ├── README.md
+│   └── URLs.md
 ├── Dockerfile
 ├── go.mod
 ├── local
 │   ├── build.sh
-│   ├── current_state.sh
 │   ├── force_build.sh
 │   ├── generate_context_script.bash
-│   ├── offline_asset_downloader.sh
-│   ├── project_setup_script.py
-│   ├── to_archive.txt
+│   ├── icons
+│   │   ├── android_adaptive_vector_studio_v9_7.html
+│   │   ├── android_smart_grid.svg
+│   │   ├── android_vector_xml_previewer.html
+│   │   ├── clean_ic_background.svg
+│   │   ├── clean_ic_foreground_fdroid.svg
+│   │   ├── clean_ic_foreground.svg
+│   │   ├── omn_ic_adaptive.svg
+│   │   └── res-drawable.zip
+│   ├── initial
+│   │   ├── offline_asset_downloader.sh
+│   │   └── project_setup_script.py
 │   └── update_script.py
 ├── main_desktop.go
 ├── output-binaries
-│   ├── omn-go-v1.3.4-arm64-v8a-release.apk
-│   ├── omn-go-v1.3.4-armeabi-v7a-release.apk
-│   ├── omn-go-v1.3.4-desktop-linux-amd64
-│   ├── omn-go-v1.3.4-desktop-windows-amd64.exe
-│   ├── omn-go-v1.3.4-universal-release.apk
-│   ├── omn-go-v1.3.4-x86_64-release.apk
-│   └── omn-go-v1.3.4-x86-release.apk
+│   ├── omn-go-v1.3.10-arm64-v8a-release.apk
+│   ├── omn-go-v1.3.10-armeabi-v7a-release.apk
+│   ├── omn-go-v1.3.10-desktop-linux-amd64
+│   ├── omn-go-v1.3.10-desktop-windows-amd64.exe
+│   ├── omn-go-v1.3.10-universal-release.apk
+│   ├── omn-go-v1.3.10-x86_64-release.apk
+│   └── omn-go-v1.3.10-x86-release.apk
 └── README.md
 
-19 directories, 67 files
+27 directories, 82 files
 
 ### FULL PR0JECT DIRECTORY TREE END
 
