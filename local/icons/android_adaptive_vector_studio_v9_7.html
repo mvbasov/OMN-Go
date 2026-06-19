@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Adaptive Vector Studio v9.7</title>
+    <!-- Opentype.js for automated Text-to-Path generation -->
+    <script src="https://cdn.jsdelivr.net/npm/opentype.js@latest/dist/opentype.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cstyle%3E.bg%7Bfill%3A%23333333%7D.st%7Bstroke%3A%23ffffff%3Bfill%3Anone%7D.fi%7Bfill%3A%23ffffff%7D.ig%7Bfill%3A%23333333%7D%40media%28prefers-color-scheme%3Alight%29%7B.bg%7Bfill%3A%23e5e5e5%7D.st%7Bstroke%3A%231a1a1a%7D.fi%7Bfill%3A%231a1a1a%7D.ig%7Bfill%3A%23e5e5e5%7D%7D%3C%2Fstyle%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20class%3D%22bg%22%2F%3E%3Crect%20x%3D%2215%22%20y%3D%2215%22%20width%3D%2270%22%20height%3D%2270%22%20rx%3D%228%22%20class%3D%22st%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%2235%22%20cy%3D%2235%22%20r%3D%227%22%20class%3D%22fi%22%2F%3E%3Cpath%20d%3D%22M%2018%2080%20L%2045%2045%20L%2065%2070%20L%2072%2062%20L%2082%2075%22%20class%3D%22st%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2270%22%20r%3D%2214%22%20class%3D%22ig%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2270%22%20r%3D%2214%22%20fill%3D%22none%22%20stroke%3D%22%2300cbff%22%20stroke-width%3D%226%22%2F%3E%3Cline%20x1%3D%2280%22%20y1%3D%2280%22%20x2%3D%2294%22%20y2%3D%2294%22%20stroke%3D%22%2300cbff%22%20stroke-width%3D%228%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+    <style>
+        :root, .vp-app-root {
+            --vp-primary: #00cbff;
+            --vp-primary-dark: #009ecc;
+            --vp-bg-color: #f8f9fa;
+            --vp-surface: #ffffff;
+            --vp-text-main: #333333;
+            --vp-text-strong: #1a1a1a;
+            --vp-text-muted: #6c757d;
+            --vp-border: #dee2e6;
+            --vp-danger: #d32f2f;
+            --vp-danger-bg: #fdeaea;
+            --vp-warning: #ed6c02;
+            --vp-warning-bg: #fff4e5;
+            --vp-success: #2e7d32;
+            --vp-success-bg: #e8f5e9;
+            --vp-upload-bg: #fafafa;
+            --vp-upload-hover: #f0fbff;
+            --vp-checker-bg: #e5e5e5;
+            --vp-checker-fg: #f0f0f0;
+            --vp-input-bg: #ffffff;
+            --vp-shadow: rgba(0,0,0,0.05);
+            --vp-shadow-strong: rgba(0,0,0,0.15);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root, .vp-app-root {
+                --vp-bg-color: #121212;
+                --vp-surface: #1e1e1e;
+                --vp-text-main: #e0e0e0;
+                --vp-text-strong: #ffffff;
+                --vp-text-muted: #9e9e9e;
+                --vp-border: #333333;
+                --vp-danger: #ef5350;
+                --vp-danger-bg: #301010;
+                --vp-warning: #ff9800;
+                --vp-warning-bg: #312000;
+                --vp-success: #81c784;
+                --vp-success-bg: #123315;
+                --vp-upload-bg: #242424;
+                --vp-upload-hover: #1c2e36;
+                --vp-checker-bg: #1a1a1a;
+                --vp-checker-fg: #242424;
+                --vp-input-bg: #2d2d2d;
+                --vp-shadow: rgba(0,0,0,0.3);
+                --vp-shadow-strong: rgba(0,0,0,0.5);
+            }
+        }
+
+        body { background-color: var(--vp-bg-color); margin: 0; padding: 0; }
+        .vp-app-root { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; color: var(--vp-text-main); background: var(--vp-bg-color); padding: 2rem; box-sizing: border-box; max-width: 1000px; margin: 0 auto; }
+        .vp-app-root * { box-sizing: border-box; }
+        .vp-header { margin-top: 0; color: var(--vp-text-strong); border-bottom: 2px solid var(--vp-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; font-size: 1.8rem; }
+
+        .vp-upload-area { border: 2px dashed var(--vp-border); border-radius: 8px; padding: 2rem 1rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: var(--vp-upload-bg); margin-bottom: 1.5rem; }
+        .vp-upload-area:hover, .vp-upload-area.vp-dragover { border-color: var(--vp-primary); background: var(--vp-upload-hover); }
+        .vp-upload-area input[type="file"] { display: none; }
+
+        .vp-workspace { display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start; }
+        .vp-panel { background: var(--vp-surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--vp-border); box-shadow: 0 4px 12px var(--vp-shadow); }
+        .vp-panel h3 { margin-top: 0; color: var(--vp-text-strong); font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--vp-border); padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+
+        .vp-control-group { margin-bottom: 1rem; }
+        .vp-control-group label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--vp-text-muted); }
+        .vp-control-group input[type="range"], .vp-control-group input[type="color"], .vp-control-group select { width: 100%; background: var(--vp-input-bg); border: 1px solid var(--vp-border); color: var(--vp-text-main); border-radius: 4px; }
+        .vp-control-group input[type="color"] { height: 40px; padding: 2px; cursor: pointer; }
+        .vp-control-group select { padding: 0.5rem; font-size: 0.95rem; }
+        .vp-control-row { display: flex; gap: 1rem; }
+        .vp-control-row > div { flex: 1; }
+
+        .vp-layer-list { margin-bottom: 1.5rem; border: 1px solid var(--vp-border); border-radius: 6px; overflow-x: auto; display: flex; flex-direction: column; }
+        .vp-layer-header, .vp-layer-item { display: grid; grid-template-columns: 35px 65px 65px 70px 70px 1fr; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--vp-border); min-width: 570px; }
+        .vp-layer-header { background: var(--vp-surface); font-size: 0.8rem; font-weight: bold; color: var(--vp-text-muted); }
+        .vp-layer-item { font-size: 0.9rem; background: var(--vp-input-bg); }
+        .vp-layer-item:last-child { border-bottom: none; }
+        .vp-col-vis { width: 30px; text-align: center; display: flex; justify-content: center; align-items: center; }
+        .vp-col-bg, .vp-col-fg, .vp-col-target, .vp-col-order { width: 55px; text-align: center; display: flex; justify-content: center; align-items: center; gap: 3px; }
+        
+        .vp-btn-icon { background: transparent; border: 1px solid var(--vp-border); border-radius: 4px; cursor: pointer; padding: 2px 6px; color: var(--vp-text-main); font-size: 0.75rem; transition: background 0.2s; }
+        .vp-btn-icon:hover:not(:disabled) { background: var(--vp-primary); color: #000; }
+        .vp-btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .vp-col-name { padding-left: 0.5rem; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+        .vp-layer-item input[type="radio"], .vp-layer-item input[type="checkbox"] { margin: 0; cursor: pointer; }
+        .vp-layer-item .vp-layer-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+        .vp-text-inline { flex: 1; min-width: 60px; padding: 0.25rem 0.5rem; background: var(--vp-bg-color); border: 1px solid var(--vp-border); color: var(--vp-text-main); border-radius: 4px; font-family: inherit; font-size: 0.85rem; }
+
+        .vp-btn { flex: 1; padding: 0.8rem; background: var(--vp-primary); color: #000; font-weight: bold; text-align: center; border: 2px solid var(--vp-primary); border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
+        .vp-btn:hover:not(:disabled) { background: var(--vp-primary-dark); border-color: var(--vp-primary-dark); }
+        .vp-btn-outline { background: transparent; color: var(--vp-primary); }
+        .vp-btn-outline:hover:not(:disabled) { background: rgba(0, 203, 255, 0.1); color: var(--vp-primary-dark); }
+        .vp-btn:disabled, .vp-btn.vp-disabled-btn { opacity: 0.5; cursor: not-allowed; background: var(--vp-border); color: var(--vp-text-muted); border-color: var(--vp-border); }
+
+        .vp-preview-section { display: flex; flex-direction: column; align-items: center; position: sticky; top: 2rem; }
+        .vp-icon-viewport { width: 100%; max-width: 280px; aspect-ratio: 1 / 1; position: relative; background-color: var(--vp-checker-bg); background-image: linear-gradient(45deg, var(--vp-checker-fg) 25%, transparent 25%), linear-gradient(135deg, var(--vp-checker-fg) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--vp-checker-fg) 75%), linear-gradient(135deg, transparent 75%, var(--vp-checker-fg) 75%); background-size: 20px 20px; background-position: 0 0, 10px 0, 10px -10px, 0px 10px; box-shadow: 0 12px 24px var(--vp-shadow-strong); perspective: 1000px; touch-action: none; margin-bottom: 1.5rem; transition: aspect-ratio 0.3s; }
+        .vp-icon-mask { width: 100%; height: 100%; position: relative; overflow: hidden; transition: clip-path 0.4s, border-radius 0.4s; transform-style: preserve-3d; border: 1px solid rgba(0,0,0,0.1); }
+        @media (prefers-color-scheme: dark) { .vp-icon-mask { border-color: rgba(255,255,255,0.05); } }
+
+        .vp-layer { position: absolute; top: -10%; left: -10%; width: 120%; height: 120%; display: flex; align-items: center; justify-content: center; transition: transform 0.1s ease-out, opacity 0.2s; pointer-events: none; }
+        .vp-layer svg { width: 100%; height: 100%; }
+        .vp-layer-placeholder { color: var(--vp-text-muted); font-size: 0.9rem; opacity: 0.7; }
+
+        .vp-shape-circle { border-radius: 50%; clip-path: none; }
+        .vp-shape-square { border-radius: 0; clip-path: none; }
+        .vp-shape-rounded { border-radius: 20%; clip-path: none; }
+        .vp-shape-teardrop { border-radius: 50% 50% 0 50%; clip-path: none; }
+        .vp-shape-squircle { border-radius: 0; clip-path: url(#vp-squircle-path); }
+
+        .vp-error { padding: 1rem; border-radius: 6px; display: none; margin-bottom: 1.5rem; font-weight: 500; }
+        .vp-error-danger { color: var(--vp-danger); background: var(--vp-danger-bg); border-left: 4px solid var(--vp-danger); }
+        .vp-error-warning { color: var(--vp-warning); background: var(--vp-warning-bg); border-left: 4px solid var(--vp-warning); }
+        .vp-error-success { color: var(--vp-success); background: var(--vp-success-bg); border-left: 4px solid var(--vp-success); }
+
+        .vp-bg-white-override { background-color: #ffffff !important; background-image: none !important; }
+
+        /* V9.3 Clear input styling for Dimensions */
+        .dim-input { width: 100%; border: none !important; padding: 0.5rem !important; outline: none; background: transparent !important; color: var(--vp-text-main); -moz-appearance: textfield; }
+        .dim-input::-webkit-outer-spin-button, .dim-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        @media (max-width: 768px) {
+            .vp-workspace { grid-template-columns: 1fr; }
+            .vp-preview-section { order: -1; position: relative; top: 0; }
+            .vp-control-row { flex-direction: column; gap: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <clipPath id="vp-squircle-path" clipPathUnits="objectBoundingBox">
+                <path d="M .5 0 C .1 0 0 .1 0 .5 C 0 .9 .1 1 .5 1 C .9 1 1 .9 1 .5 C 1 .1 .9 0 .5 0 Z" />
+            </clipPath>
+        </defs>
+    </svg>
+
+    <div id="vp-app" class="vp-app-root">
+        <h2 class="vp-header">Adaptive Vector Studio v9.7</h2>
+
+        <div id="vp-errorBox" class="vp-error vp-error-danger"></div>
+        <div id="vp-textWarningBox" class="vp-error vp-error-warning">
+            ⏳ <strong>Loading Typography Engine...</strong><br>
+            Please wait while the Text-to-Path converter initializes.
+        </div>
+
+        <div class="vp-upload-area" id="vp-drop-zone">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🖌️</div>
+            <div style="font-size: 1.1rem; color: var(--vp-text-strong);"><strong>Upload Original Vector SVG</strong></div>
+            <div style="font-size: 0.9rem; color: var(--vp-text-muted); margin-top: 0.5rem;">Select your master SVG to extract & configure Android layers.</div>
+            <input type="file" id="vp-file-input" accept=".svg">
+        </div>
+
+        <div class="vp-workspace" id="vp-workspace" style="display: none;">
+            
+            <div class="vp-panel">
+                <h3>Text Styling <span style="font-size: 0.8rem; color: var(--vp-text-muted); font-weight: normal;">(Applies to Target 🎯)</span></h3>
+
+                <div class="vp-control-group" style="background: var(--vp-checker-bg); padding: 0.8rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <label style="color: var(--vp-text-strong); display: flex; align-items: center; justify-content: space-between;">
+                        Custom Font File
+                        <span style="font-size: 0.75rem; font-weight: normal; padding: 2px 6px; background: var(--vp-primary); color: #000; border-radius: 4px;">.ttf / .otf / .woff</span>
+                    </label>
+                    <input type="file" id="vp-font-upload" accept=".ttf,.otf,.woff,.woff2" style="margin-top: 0.5rem; padding: 0.25rem;">
+                    <div style="font-size: 0.75rem; color: var(--vp-text-muted); margin-top: 0.5rem;">Upload your logo's font to render perfect, standard-compliant vector paths.</div>
+                    
+                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--vp-border); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <strong style="color: var(--vp-text-strong);">Required by SVG:</strong> 
+                        <div id="vp-required-fonts" style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+                            <span style="color: var(--vp-text-muted);">None</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="vp-control-group">
+                    <label>Target Color & Opacity (<span id="val-alpha">100</span>%)</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="color" id="ctrl-color" value="#0f0fc8" style="flex: 1; max-width: 60px; padding: 0;">
+                        <input type="range" id="ctrl-alpha" min="0" max="100" value="100" style="flex: 2;">
+                    </div>
+                </div>
+                
+                <div class="vp-control-row">
+                    <div class="vp-control-group">
+                        <label>X Position (<span id="val-x">330</span>)</label>
+                        <input type="range" id="ctrl-x" min="0" max="800" value="330">
+                    </div>
+                    <div class="vp-control-group">
+                        <label>Y Position (<span id="val-y">610</span>)</label>
+                        <input type="range" id="ctrl-y" min="0" max="800" value="610">
+                    </div>
+                </div>
+
+                <div class="vp-control-row">
+                    <div class="vp-control-group">
+                        <label>Font Size (<span id="val-size">164</span>px)</label>
+                        <input type="range" id="ctrl-size" min="10" max="400" value="164">
+                    </div>
+                    <div class="vp-control-group">
+                        <label>Font Styling</label>
+                        <div style="display: flex; gap: 1rem; align-items: center; height: 40px; background: var(--vp-input-bg); border: 1px solid var(--vp-border); border-radius: 4px; padding: 0 0.5rem;">
+                            <label style="margin:0; color: var(--vp-text-main); font-weight: normal; display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" id="ctrl-bold"> <b style="font-size: 1.1rem;">B</b>
+                            </label>
+                            <label style="margin:0; color: var(--vp-text-main); font-weight: normal; display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" id="ctrl-italic"> <i style="font-size: 1.1rem; font-family: serif;">I</i>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 1.5rem;">Layer Extraction Logic</h3>
+                
+                <div class="vp-layer-list" id="vp-layer-container">
+                    <div class="vp-layer-header">
+                        <div class="vp-col-vis" title="Visible in Preview">👁️</div>
+                        <div class="vp-col-bg" title="Export as Background">🖼️ BG</div>
+                        <div class="vp-col-fg" title="Export as Foreground">🌟 FG</div>
+                        <div class="vp-col-target" title="Target for Styling">🎯 Tgt</div>
+                        <div class="vp-col-order" title="Change Z-Index Order">↕️ Order</div>
+                        <div class="vp-col-name">📝 Layer Name</div>
+                    </div>
+                </div>
+
+                <!-- V9.7 Output Dimensions Control (Added Original Reference Label) -->
+                <div class="vp-control-group" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--vp-border);">
+                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Output Dimensions (dp/px)</span>
+                        <span id="vp-original-dim" style="font-size: 0.8rem; font-weight: normal; color: var(--vp-text-muted);"></span>
+                    </label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div style="display: flex; align-items: center; background: var(--vp-input-bg); border: 1px solid var(--vp-border); border-radius: 4px; overflow: hidden; flex: 2;">
+                            <span style="padding: 0.5rem; color: var(--vp-text-muted); font-size: 0.8rem; background: var(--vp-checker-bg); border-right: 1px solid var(--vp-border);">W</span>
+                            <input type="number" id="out-width" class="dim-input" value="108" min="1" max="2048">
+                        </div>
+                        <span style="color: var(--vp-text-muted);">×</span>
+                        <div style="display: flex; align-items: center; background: var(--vp-input-bg); border: 1px solid var(--vp-border); border-radius: 4px; overflow: hidden; flex: 2;">
+                            <span style="padding: 0.5rem; color: var(--vp-text-muted); font-size: 0.8rem; background: var(--vp-checker-bg); border-right: 1px solid var(--vp-border);">H</span>
+                            <input type="number" id="out-height" class="dim-input" value="108" min="1" max="2048">
+                        </div>
+                        <label style="margin:0; flex: 1.5; color: var(--vp-text-main); font-weight: normal; display: flex; align-items: center; justify-content: center; gap: 0.25rem; cursor: pointer; font-size: 0.85rem;">
+                            <input type="checkbox" id="out-lock" checked> 🔗 Lock
+                        </label>
+                    </div>
+                </div>
+
+                <div class="vp-control-group" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--vp-border);">
+                    <label>Export Format</label>
+                    <div style="display: flex; gap: 1rem;">
+                        <label style="font-weight: normal; color: var(--vp-text-main); display: flex; align-items: center; gap: 0.25rem;">
+                            <input type="radio" name="export-format" value="svg"> Fallback (SVG)
+                        </label>
+                        <label style="font-weight: normal; color: var(--vp-text-main); display: flex; align-items: center; gap: 0.25rem;">
+                            <input type="radio" name="export-format" value="xml" checked> Native Android XML
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="vp-btn vp-btn-outline" id="vp-btn-export-bg">Export BG</button>
+                    <button class="vp-btn" id="vp-btn-export-fg">Export FG</button>
+                </div>
+            </div>
+
+            <div class="vp-preview-section">
+                <div class="vp-control-group" style="width: 100%; max-width: 280px; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <select id="vp-shape-select" style="margin-bottom: 0;">
+                        <option value="vp-shape-circle">Mask: Circle</option>
+                        <option value="vp-shape-squircle">Mask: Squircle</option>
+                        <option value="vp-shape-rounded">Mask: Rounded Square</option>
+                        <option value="vp-shape-square" selected>Mask: Square</option>
+                        <option value="vp-shape-teardrop">Mask: Teardrop</option>
+                    </select>
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--vp-text-muted); margin: 0;">
+                        <input type="checkbox" id="vp-preview-white-bg"> ⬜ Solid White Preview BG
+                    </label>
+                </div>
+
+                <div class="vp-icon-viewport" id="vp-viewport">
+                    <div class="vp-icon-mask vp-shape-square" id="vp-mask">
+                        <div class="vp-layer" id="vp-layer-bg">
+                            <span class="vp-layer-placeholder">BG</span>
+                        </div>
+                        <div class="vp-layer" id="vp-layer-fg">
+                            <span class="vp-layer-placeholder">FG</span>
+                        </div>
+                    </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--vp-text-muted); text-align: center;">Hover/Swipe to test Parallax Shift</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const dropZone = document.getElementById('vp-drop-zone');
+            const fileInput = document.getElementById('vp-file-input');
+            const fontUpload = document.getElementById('vp-font-upload');
+            const errorBox = document.getElementById('vp-errorBox');
+            const txtWarning = document.getElementById('vp-textWarningBox');
+            const workspace = document.getElementById('vp-workspace');
+            const shapeSelect = document.getElementById('vp-shape-select');
+            const mask = document.getElementById('vp-mask');
+            const viewport = document.getElementById('vp-viewport');
+            const layerBgContainer = document.getElementById('vp-layer-bg');
+            const layerFgContainer = document.getElementById('vp-layer-fg');
+            const layerListUI = document.getElementById('vp-layer-container');
+
+            // Text Controls
+            const ctrlColor = document.getElementById('ctrl-color');
+            const ctrlAlpha = document.getElementById('ctrl-alpha');
+            const ctrlX = document.getElementById('ctrl-x');
+            const ctrlY = document.getElementById('ctrl-y');
+            const ctrlSize = document.getElementById('ctrl-size');
+            const ctrlBold = document.getElementById('ctrl-bold');
+            const ctrlItalic = document.getElementById('ctrl-italic');
+            const inputs = [ctrlColor, ctrlAlpha, ctrlX, ctrlY, ctrlSize, ctrlBold, ctrlItalic];
+            
+            // Dimension Controls
+            const outW = document.getElementById('out-width');
+            const outH = document.getElementById('out-height');
+            const outLock = document.getElementById('out-lock');
+            
+            const btnBgExport = document.getElementById('vp-btn-export-bg');
+            const btnFgExport = document.getElementById('vp-btn-export-fg');
+
+            let masterSVGDocument = null;
+            let currentExportBg = "";
+            let currentExportFg = "";
+            let layersData = [];
+            let activeTargetId = null;
+            let regularFont = null;
+            let boldFont = null;
+            let customFont = null;
+            let sizeRatio = 1;
+            let isUpdatingDim = false;
+
+            // V9.6: Dual Typography Engine (Eliminates Fake-Bold Stroke Overlap Artifact in Android)
+            Promise.all([
+                fetch('https://cdn.jsdelivr.net/npm/@fontsource/roboto@4.5.8/files/roboto-latin-400-normal.woff').then(r => r.arrayBuffer()).then(b => regularFont = opentype.parse(b, {})),
+                fetch('https://cdn.jsdelivr.net/npm/@fontsource/roboto@4.5.8/files/roboto-latin-700-normal.woff').then(r => r.arrayBuffer()).then(b => boldFont = opentype.parse(b, {}))
+            ]).then(() => {
+                txtWarning.className = 'vp-error vp-error-success';
+                txtWarning.innerHTML = '✅ <strong>Font Engine Active!</strong><br>Your text elements will be automatically vectorized to pure paths (Default: Roboto).';
+                if (masterSVGDocument) renderPreview();
+            }).catch(err => {
+                console.error('Font loading error:', err);
+                txtWarning.className = 'vp-error vp-error-warning';
+                txtWarning.innerHTML = '⚠️ <strong>Font Engine Offline</strong><br>Could not load default fonts. Any &lt;text&gt; elements will be dropped in XML export.';
+            });
+
+            // Handle Custom Fonts
+            fontUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        customFont = opentype.parse(event.target.result, {});
+                        txtWarning.className = 'vp-error vp-error-success';
+                        txtWarning.innerHTML = `✅ <strong>Custom Font Active!</strong><br>Using "${file.name}" to generate exact vector paths.`;
+                        if (masterSVGDocument) renderPreview();
+                    } catch(err) {
+                        txtWarning.className = 'vp-error vp-error-danger';
+                        txtWarning.innerHTML = `❌ <strong>Font Error</strong><br>Failed to parse ${file.name}. Please upload a valid TTF/OTF/WOFF.`;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            // XML Core
+            function svgToAndroidXml(svgString) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(svgString, "image/svg+xml");
+                const svg = doc.documentElement;
+
+                let vw = 108, vh = 108;
+                let vbStr = svg.getAttribute('viewBox');
+                if (vbStr) {
+                    let parts = vbStr.trim().split(/[\s,]+/);
+                    if (parts.length >= 4) { vw = parseFloat(parts[2]); vh = parseFloat(parts[3]); }
+                } else {
+                    vw = parseFloat(svg.getAttribute('width')) || 108;
+                    vh = parseFloat(svg.getAttribute('height')) || 108;
+                }
+
+                // V9.3 Extract Intended Final Resolution properly
+                let finalW = parseFloat(svg.getAttribute('width')) || vw;
+                let finalH = parseFloat(svg.getAttribute('height')) || vh;
+
+                let xml = `<?xml version="1.0" encoding="utf-8"?>\n`;
+                xml += `<vector xmlns:android="http://schemas.android.com/apk/res/android"\n`;
+                xml += `    xmlns:aapt="http://schemas.android.com/aapt"\n`;
+                xml += `    android:width="${Math.round(finalW)}dp"\n`;
+                xml += `    android:height="${Math.round(finalH)}dp"\n`;
+                xml += `    android:viewportWidth="${vw}"\n`;
+                xml += `    android:viewportHeight="${vh}">\n`;
+
+                const defsMap = {};
+                doc.querySelectorAll('[id]').forEach(el => defsMap[el.id] = el);
+
+                function parseColorAlpha(str) {
+                    let hex = null;
+                    let alpha = 1.0;
+                    if (!str || str === 'none') return { hex: null, alpha: 1.0 };
+                    str = str.trim();
+                    if (str.startsWith('#')) {
+                        if (str.length === 9) { 
+                            hex = '#' + str.substring(1, 7);
+                            alpha = parseInt(str.substring(7, 9), 16) / 255;
+                        } else {
+                            hex = str;
+                        }
+                    } else if (str.startsWith('rgba')) {
+                        let m = str.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+                        if (m) {
+                            hex = "#" + (1 << 24 | parseInt(m[1]) << 16 | parseInt(m[2]) << 8 | parseInt(m[3])).toString(16).slice(1);
+                            alpha = parseFloat(m[4]);
+                        }
+                    } else if (str.startsWith('rgb')) {
+                        let m = str.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+                        if (m) {
+                            hex = "#" + (1 << 24 | parseInt(m[1]) << 16 | parseInt(m[2]) << 8 | parseInt(m[3])).toString(16).slice(1);
+                        }
+                    } else {
+                        hex = str;
+                    }
+                    return { hex, alpha };
+                }
+
+                function resolveGradient(gradNode) {
+                    let isRadial = gradNode.tagName.toLowerCase().includes('radial');
+                    let gradData = { type: isRadial ? 'radial' : 'linear', stops: [], coords: {} };
+                    let curr = gradNode;
+                    let visited = new Set();
+
+                    while(curr && !visited.has(curr.id)) {
+                        visited.add(curr.id);
+                        ['x1','y1','x2','y2','cx','cy','r'].forEach(attr => {
+                            if (!gradData.coords[attr] && curr.hasAttribute(attr)) gradData.coords[attr] = curr.getAttribute(attr);
+                        });
+                        
+                        if (gradData.stops.length === 0) {
+                            curr.querySelectorAll('stop').forEach(s => {
+                                gradData.stops.push({
+                                    offset: s.getAttribute('offset') || '0',
+                                    color: s.getAttribute('stop-color') || s.style?.stopColor || '#000000',
+                                    opacity: s.getAttribute('stop-opacity') || s.style?.stopOpacity || '1'
+                                });
+                            });
+                        }
+                        let href = curr.getAttribute('href') || curr.getAttribute('xlink:href');
+                        curr = href && href.startsWith('#') ? defsMap[href.substring(1)] : null;
+                    }
+                    return gradData;
+                }
+
+                function buildAndroidGradient(gradData, propName) {
+                    let xml = `      <aapt:attr name="android:${propName}">\n`;
+                    xml += `        <gradient android:type="${gradData.type}"`;
+                    
+                    const parseCoord = (val) => {
+                        if (!val) return 0;
+                        if (val.includes('%')) return parseFloat(val) / 100;
+                        return parseFloat(val);
+                    };
+
+                    if (gradData.type === 'linear') {
+                        xml += ` android:startX="${parseCoord(gradData.coords.x1)}" android:startY="${parseCoord(gradData.coords.y1)}" android:endX="${parseCoord(gradData.coords.x2)}" android:endY="${parseCoord(gradData.coords.y2)}"`;
+                    } else {
+                        xml += ` android:centerX="${parseCoord(gradData.coords.cx || '50%')}" android:centerY="${parseCoord(gradData.coords.cy || '50%')}" android:gradientRadius="${parseCoord(gradData.coords.r || '50%')}"`;
+                    }
+                    xml += `>\n`;
+                    
+                    gradData.stops.forEach(s => {
+                        let off = parseCoord(s.offset);
+                        let parsed = parseColorAlpha(s.color || '#000000');
+                        let hex = parsed.hex;
+                        let op = parseFloat(s.opacity);
+                        if (isNaN(op)) op = 1.0;
+                        op *= parsed.alpha; 
+                        
+                        if (op < 1) {
+                            let a = Math.round(op * 255).toString(16).padStart(2, '0').toUpperCase();
+                            hex = '#' + a + hex.replace('#', '').toUpperCase();
+                        }
+                        xml += `          <item android:offset="${off}" android:color="${hex}" />\n`;
+                    });
+                    xml += `        </gradient>\n`;
+                    xml += `      </aapt:attr>\n`;
+                    return xml;
+                }
+
+                function getPathData(node) {
+                    let tag = node.tagName.toLowerCase();
+                    if (tag === 'path') return node.getAttribute('d');
+                    if (tag === 'rect') {
+                        let x = parseFloat(node.getAttribute('x'))||0, y = parseFloat(node.getAttribute('y'))||0, w = parseFloat(node.getAttribute('width'))||0, h = parseFloat(node.getAttribute('height'))||0;
+                        return `M ${x},${y} h ${w} v ${h} h -${w} Z`;
+                    }
+                    if (tag === 'circle') {
+                        let cx = parseFloat(node.getAttribute('cx'))||0, cy = parseFloat(node.getAttribute('cy'))||0, r = parseFloat(node.getAttribute('r'))||0;
+                        return `M ${cx},${cy} m -${r},0 a ${r},${r} 0 1,1 ${r*2},0 a ${r},${r} 0 1,1 -${r*2},0`;
+                    }
+                    if (tag === 'ellipse') {
+                        let cx = parseFloat(node.getAttribute('cx'))||0, cy = parseFloat(node.getAttribute('cy'))||0, rx = parseFloat(node.getAttribute('rx'))||0, ry = parseFloat(node.getAttribute('ry'))||0;
+                        return `M ${cx},${cy} m -${rx},0 a ${rx},${ry} 0 1,1 ${rx*2},0 a ${rx},${ry} 0 1,1 -${rx*2},0`;
+                    }
+                    if (tag === 'line') {
+                        let x1 = parseFloat(node.getAttribute('x1'))||0, y1 = parseFloat(node.getAttribute('y1'))||0, x2 = parseFloat(node.getAttribute('x2'))||0, y2 = parseFloat(node.getAttribute('y2'))||0;
+                        return `M ${x1},${y1} L ${x2},${y2}`;
+                    }
+                    if (tag === 'polygon' || tag === 'polyline') {
+                        let pts = node.getAttribute('points');
+                        if (pts) {
+                            let pairs = pts.trim().split(/[\s,]+/);
+                            if (pairs.length >= 2) {
+                                let pd = `M ${pairs[0]},${pairs[1]}`;
+                                for (let i=2; i<pairs.length; i+=2) if(pairs[i] !== undefined && pairs[i+1] !== undefined) pd += ` L ${pairs[i]},${pairs[i+1]}`;
+                                if (tag === 'polygon') pd += " Z";
+                                return pd;
+                            }
+                        }
+                    }
+                    return null;
+                }
+
+                // V9.5 Core Recursive XML Walker - Now correctly calculates hierarchical inheritance for linecaps, joints, and rules!
+                function walk(node, ctx) {
+                    let out = "";
+                    if (node.nodeType !== 1) return out;
+                    let tag = node.tagName.toLowerCase();
+                    
+                    if (['defs', 'style', 'linearGradient', 'radialGradient', 'filter', 'pattern', 'clipPath', 'mask', 'symbol'].includes(tag)) return out;
+
+                    let attrOp = node.getAttribute('opacity');
+                    let styleOp = node.style && node.style.opacity ? node.style.opacity : null;
+                    let parsedOp = parseFloat(attrOp || styleOp);
+                    let currentOpacity = !isNaN(parsedOp) ? parsedOp : 1.0;
+                    let combinedAlpha = currentOpacity * ctx.alpha;
+
+                    let currentCtx = {
+                        fill: node.getAttribute('fill') || node.style?.fill || ctx.fill,
+                        stroke: node.getAttribute('stroke') || node.style?.stroke || ctx.stroke,
+                        strokeWidth: node.getAttribute('stroke-width') || node.style?.strokeWidth || ctx.strokeWidth,
+                        lineCap: node.getAttribute('stroke-linecap') || node.style?.strokeLinecap || ctx.lineCap,
+                        lineJoin: node.getAttribute('stroke-linejoin') || node.style?.strokeLinejoin || ctx.lineJoin,
+                        fillRule: node.getAttribute('fill-rule') || node.style?.fillRule || ctx.fillRule,
+                        alpha: combinedAlpha
+                    };
+
+                    if (tag === 'use') {
+                        let href = node.getAttribute('href') || node.getAttribute('xlink:href');
+                        if (href && href.startsWith('#')) {
+                            let refNode = defsMap[href.substring(1)];
+                            if (refNode) {
+                                let clone = refNode.cloneNode(true);
+                                let ux = parseFloat(node.getAttribute('x') || 0);
+                                let uy = parseFloat(node.getAttribute('y') || 0);
+                                let uTransform = "";
+                                if (ux || uy) uTransform = ` android:translateX="${ux}" android:translateY="${uy}"`;
+                                
+                                if (uTransform) out += `  <group${uTransform}>\n`;
+                                out += walk(clone, currentCtx);
+                                if (uTransform) out += `  </group>\n`;
+                            }
+                        }
+                        return out;
+                    }
+
+                    if (tag === 'text' || tag === 'tspan') {
+                        out += `    <!-- WARNING: Text dropped (Did not vectorize) -->\n`;
+                        return out;
+                    }
+
+                    let parsedFill = parseColorAlpha(currentCtx.fill);
+                    let parsedStroke = parseColorAlpha(currentCtx.stroke);
+
+                    let attrFillOp = node.getAttribute('fill-opacity') || node.style?.fillOpacity;
+                    let parsedFillOp = parseFloat(attrFillOp);
+                    let fillAlpha = (!isNaN(parsedFillOp) ? parsedFillOp : 1.0) * currentCtx.alpha * parsedFill.alpha;
+
+                    let attrStrokeOp = node.getAttribute('stroke-opacity') || node.style?.strokeOpacity;
+                    let parsedStrokeOp = parseFloat(attrStrokeOp);
+                    let strokeAlpha = (!isNaN(parsedStrokeOp) ? parsedStrokeOp : 1.0) * currentCtx.alpha * parsedStroke.alpha;
+
+                    let fill = parsedFill.hex;
+                    let stroke = parsedStroke.hex;
+
+                    let gradientXml = "";
+                    if (currentCtx.fill && currentCtx.fill.includes('url(#')) {
+                        let gradId = currentCtx.fill.match(/url\(#([^)]+)\)/)[1];
+                        if (defsMap[gradId]) {
+                            gradientXml += buildAndroidGradient(resolveGradient(defsMap[gradId]), 'fillColor');
+                            fill = null;
+                        }
+                    }
+
+                    if (currentCtx.stroke && currentCtx.stroke.includes('url(#')) {
+                        let gradId = currentCtx.stroke.match(/url\(#([^)]+)\)/)[1];
+                        if (defsMap[gradId]) {
+                            gradientXml += buildAndroidGradient(resolveGradient(defsMap[gradId]), 'strokeColor');
+                            stroke = null;
+                        }
+                    }
+
+                    let clipPathData = null;
+                    let clipRef = node.getAttribute('clip-path');
+                    if (clipRef) {
+                        let cidMatch = clipRef.match(/url\(#([^)]+)\)/);
+                        if (cidMatch && defsMap[cidMatch[1]]) {
+                            let shape = defsMap[cidMatch[1]].querySelector('path, rect, circle, ellipse, polygon');
+                            if (shape) clipPathData = getPathData(shape);
+                        }
+                    }
+
+                    let tAttr = "";
+                    let transformStr = node.getAttribute('transform');
+                    if (transformStr) {
+                        let translate = transformStr.match(/translate\(([\d.-]+)[\s,]*([\d.-]+)?\)/);
+                        if (translate) tAttr += ` android:translateX="${translate[1]}" android:translateY="${translate[2] || 0}"`;
+                        
+                        let scale = transformStr.match(/scale\(([\d.-]+)[\s,]*([\d.-]+)?\)/);
+                        if (scale) tAttr += ` android:scaleX="${scale[1]}" android:scaleY="${scale[2] || scale[1]}"`;
+                        
+                        let rotate = transformStr.match(/rotate\(([\d.-]+)[\s,]*([\d.-]+)?[\s,]*([\d.-]+)?\)/);
+                        if (rotate) {
+                            tAttr += ` android:rotation="${rotate[1]}"`;
+                            if (rotate[2] && rotate[3]) tAttr += ` android:pivotX="${rotate[2]}" android:pivotY="${rotate[3]}"`;
+                        }
+
+                        let matrix = transformStr.match(/matrix\(([\d.-]+)[\s,]+([\d.-]+)[\s,]+([\d.-]+)[\s,]+([\d.-]+)[\s,]+([\d.-]+)[\s,]+([\d.-]+)\)/);
+                        if (matrix && !translate && !scale && !rotate) {
+                            let a=parseFloat(matrix[1]), b=parseFloat(matrix[2]), c=parseFloat(matrix[3]), d=parseFloat(matrix[4]), e=parseFloat(matrix[5]), f=parseFloat(matrix[6]);
+                            tAttr += ` android:translateX="${e}" android:translateY="${f}"`;
+                            let sx = Math.sqrt(a*a + b*b);
+                            let sy = Math.sqrt(c*c + d*d);
+                            if (a*d - b*c < 0) sy = -sy;
+                            tAttr += ` android:scaleX="${sx}" android:scaleY="${sy}"`;
+                            if (b !== 0 || c !== 0) tAttr += ` android:rotation="${Math.atan2(b, a) * 180 / Math.PI}"`;
+                        }
+                    }
+
+                    let needsGroup = tAttr || clipPathData || tag === 'g';
+                    if (needsGroup) {
+                        out += `  <group${tAttr}>\n`;
+                        if (clipPathData) out += `    <clip-path android:pathData="${clipPathData}" />\n`;
+                    }
+
+                    let pd = getPathData(node);
+                    if (pd) {
+                        let selfClosing = !gradientXml;
+                        out += `    <path\n        android:pathData="${pd}"\n`;
+                        
+                        if (currentCtx.fillRule && currentCtx.fillRule.toLowerCase() === 'evenodd') {
+                            out += `        android:fillType="evenOdd"\n`;
+                        }
+
+                        if (fill && fill !== 'none') out += `        android:fillColor="${fill}"\n`;
+                        if (fillAlpha < 1) out += `        android:fillAlpha="${parseFloat(fillAlpha.toFixed(4))}"\n`;
+                        
+                        if (stroke && stroke !== 'none') {
+                            out += `        android:strokeColor="${stroke}"\n`;
+                            
+                            // Defend against missing stroke-widths defaulting to 0 in Android
+                            let outputSw = currentCtx.strokeWidth ? parseFloat(currentCtx.strokeWidth) : 1;
+                            if (!isNaN(outputSw)) out += `        android:strokeWidth="${outputSw}"\n`;
+                            
+                            if (strokeAlpha < 1) out += `        android:strokeAlpha="${parseFloat(strokeAlpha.toFixed(4))}"\n`;
+                            
+                            // V9.6 Enforce Android specific casing & enums for endpoints
+                            if (currentCtx.lineCap && ['butt', 'round', 'square'].includes(currentCtx.lineCap.toLowerCase())) {
+                                out += `        android:strokeLineCap="${currentCtx.lineCap.toLowerCase()}"\n`;
+                            }
+                            if (currentCtx.lineJoin && ['miter', 'round', 'bevel'].includes(currentCtx.lineJoin.toLowerCase())) {
+                                out += `        android:strokeLineJoin="${currentCtx.lineJoin.toLowerCase()}"\n`;
+                            }
+                        }
+                        
+                        if (selfClosing) { out += `    />\n`; } 
+                        else { out += `    >\n${gradientXml}    </path>\n`; }
+                    }
+
+                    for (let child of node.childNodes) out += walk(child, currentCtx);
+                    if (needsGroup) out += `  </group>\n`;
+                    return out;
+                }
+
+                for (let child of svg.childNodes) xml += walk(child, { fill: '#000000', alpha: 1.0 });
+                xml += `</vector>\n`;
+                return xml;
+            }
+
+            const parseValue = (val, fallback) => {
+                if (!val) return fallback;
+                const parsed = parseInt(val.toString().replace(/[^\d.-]/g, ''));
+                return isNaN(parsed) ? fallback : parsed;
+            };
+
+            const parseColor = (str) => {
+                let hex = '#000000', alpha = 1.0;
+                if (!str) return { hex, alpha };
+                str = str.trim();
+                if (str.startsWith('#')) {
+                    if (str.length === 4) hex = '#' + str[1]+str[1]+str[2]+str[2]+str[3]+str[3];
+                    else if (str.length === 7) hex = str;
+                    else if (str.length === 9) { hex = str.substring(0, 7); alpha = parseInt(str.substring(7, 9), 16) / 255; } 
+                    else hex = '#00cbff';
+                } else if (str.startsWith('rgb')) {
+                    const parts = str.match(/[\d.]+/g);
+                    if (parts && parts.length >= 3) {
+                        hex = '#' + parseInt(parts[0]).toString(16).padStart(2, '0') + parseInt(parts[1]).toString(16).padStart(2, '0') + parseInt(parts[2]).toString(16).padStart(2, '0');
+                        if (parts.length === 4) alpha = parseFloat(parts[3]);
+                    }
+                }
+                return { hex, alpha };
+            };
+
+            // V9.3 Control Listeners
+            [ctrlColor, ctrlAlpha, ctrlX, ctrlY, ctrlSize, ctrlBold, ctrlItalic].forEach(input => {
+                input.addEventListener('input', () => {
+                    const targetLayer = layersData.find(l => l.id === activeTargetId);
+                    if (targetLayer) {
+                        targetLayer.color = ctrlColor.value;
+                        targetLayer.opacity = parseInt(ctrlAlpha.value) / 100;
+                        targetLayer.x = ctrlX.value;
+                        targetLayer.y = ctrlY.value;
+                        targetLayer.size = ctrlSize.value;
+                        targetLayer.isBold = ctrlBold.checked;
+                        targetLayer.isItalic = ctrlItalic.checked;
+                    }
+                    if(input !== ctrlColor && input !== ctrlBold && input !== ctrlItalic) {
+                        document.getElementById('val-x').innerText = ctrlX.value;
+                        document.getElementById('val-y').innerText = ctrlY.value;
+                        document.getElementById('val-size').innerText = ctrlSize.value;
+                        document.getElementById('val-alpha').innerText = ctrlAlpha.value;
+                    }
+                    renderPreview();
+                });
+            });
+
+            // V9.3 Dimension Handlers
+            outW.addEventListener('input', (e) => {
+                if (isUpdatingDim) return;
+                if (outLock.checked) {
+                    isUpdatingDim = true;
+                    outH.value = Math.max(1, Math.round(e.target.value / sizeRatio));
+                    isUpdatingDim = false;
+                }
+                renderPreview();
+            });
+
+            outH.addEventListener('input', (e) => {
+                if (isUpdatingDim) return;
+                if (outLock.checked) {
+                    isUpdatingDim = true;
+                    outW.value = Math.max(1, Math.round(e.target.value * sizeRatio));
+                    isUpdatingDim = false;
+                }
+                renderPreview();
+            });
+
+            outLock.addEventListener('change', () => {
+                if (outLock.checked) {
+                    let w = parseFloat(outW.value) || 108;
+                    let h = parseFloat(outH.value) || 108;
+                    sizeRatio = w / h;
+                }
+            });
+
+            document.querySelectorAll('input[name="export-format"]').forEach(radio => {
+                radio.addEventListener('change', renderPreview);
+            });
+
+            shapeSelect.addEventListener('change', (e) => mask.className = 'vp-icon-mask ' + e.target.value);
+            document.getElementById('vp-preview-white-bg').addEventListener('change', (e) => {
+                if (e.target.checked) viewport.classList.add('vp-bg-white-override');
+                else viewport.classList.remove('vp-bg-white-override');
+            });
+
+            const applyParallax = (clientX, clientY, rect) => {
+                const deltaX = (clientX - rect.left - rect.width / 2) / (rect.width / 2); 
+                const deltaY = (clientY - rect.top - rect.height / 2) / (rect.height / 2); 
+                layerFgContainer.style.transform = `translate(${deltaX * 8}px, ${deltaY * 8}px) scale(1.02)`;
+                layerBgContainer.style.transform = `translate(${deltaX * -4}px, ${deltaY * -4}px)`;
+            };
+            const resetParallax = () => {
+                layerFgContainer.style.transform = `translate(0, 0) scale(1)`;
+                layerBgContainer.style.transform = `translate(0, 0)`;
+            };
+            viewport.addEventListener('mousemove', (e) => applyParallax(e.clientX, e.clientY, viewport.getBoundingClientRect()));
+            viewport.addEventListener('mouseleave', resetParallax);
+            viewport.addEventListener('touchmove', (e) => { e.preventDefault(); applyParallax(e.touches[0].clientX, e.touches[0].clientY, viewport.getBoundingClientRect()); }, { passive: false });
+            viewport.addEventListener('touchend', resetParallax);
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false));
+            ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('vp-dragover'), false));
+            ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('vp-dragover'), false));
+            dropZone.addEventListener('drop', (e) => { if (e.dataTransfer.files.length > 0) loadSVG(e.dataTransfer.files[0]); });
+            fileInput.addEventListener('change', function() { if (this.files.length > 0) loadSVG(this.files[0]); });
+
+            function loadSVG(file) {
+                if (!file.name.toLowerCase().endsWith('.svg')) {
+                    errorBox.textContent = "Please upload an SVG file.";
+                    errorBox.style.display = 'block';
+                    return;
+                }
+                errorBox.style.display = 'none';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parser = new DOMParser();
+                        masterSVGDocument = parser.parseFromString(e.target.result, "image/svg+xml");
+                        if (masterSVGDocument.getElementsByTagName("parsererror").length > 0) throw new Error("Invalid XML format.");
+                        
+                        // Check Fonts
+                        const textNodes = masterSVGDocument.querySelectorAll('text, tspan');
+                        if (textNodes.length > 0) {
+                            txtWarning.style.display = 'block';
+                            const fonts = new Set();
+                            textNodes.forEach(t => {
+                                let ff = t.getAttribute('font-family') || t.style?.fontFamily;
+                                if (ff) {
+                                    let primaryFont = ff.split(',')[0].replace(/['"]/g, '').trim();
+                                    if (primaryFont && primaryFont.toLowerCase() !== 'sans-serif') fonts.add(primaryFont);
+                                }
+                            });
+                            
+                            const reqFontsEl = document.getElementById('vp-required-fonts');
+                            if (fonts.size > 0) {
+                                reqFontsEl.innerHTML = Array.from(fonts).map(f => `<span style="background: var(--vp-primary); color: #000; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">${f}</span>`).join('');
+                            } else {
+                                reqFontsEl.innerHTML = `<span style="color: var(--vp-text-muted);">Unknown (System Default)</span>`;
+                            }
+                        } else {
+                            txtWarning.style.display = 'none';
+                            document.getElementById('vp-required-fonts').innerHTML = "None";
+                        }
+                        
+                        initLayersState();
+                        buildLayerUI();
+                        updateSlidersFromTarget();
+                        workspace.style.display = 'grid';
+                        renderPreview();
+                    } catch (err) {
+                        errorBox.textContent = `Parse Error: ${err.message}`;
+                        errorBox.style.display = 'block';
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            function initLayersState() {
+                // Determine base aspect ratio
+                let svgEl = masterSVGDocument.documentElement;
+                let vbStr = svgEl.getAttribute('viewBox');
+                let originalW = 108, originalH = 108;
+                if (vbStr) {
+                    let parts = vbStr.trim().split(/[\s,]+/);
+                    if (parts.length >= 4) { originalW = parseFloat(parts[2]); originalH = parseFloat(parts[3]); }
+                } else {
+                    originalW = parseFloat(svgEl.getAttribute('width')) || 108;
+                    originalH = parseFloat(svgEl.getAttribute('height')) || 108;
+                }
+                sizeRatio = originalW / originalH;
+                
+                // V9.7: Display original size as a reference but force 108 as the Android default
+                const origDimLabel = document.getElementById('vp-original-dim');
+                if (origDimLabel) origDimLabel.innerText = `Original: ${Math.round(originalW)} × ${Math.round(originalH)}`;
+                
+                isUpdatingDim = true;
+                outW.value = 108;
+                outH.value = Math.round(108 / sizeRatio);
+                isUpdatingDim = false;
+
+                layersData = Array.from(masterSVGDocument.querySelectorAll('g'))
+                    .filter(g => {
+                        const isInkscape = g.getAttribute('inkscape:groupmode') === 'layer';
+                        const isIllId = g.id && g.id.toLowerCase().includes('layer');
+                        const isIllName = g.getAttribute('data-name') && g.getAttribute('data-name').toLowerCase().includes('layer');
+                        return isInkscape || isIllId || isIllName;
+                    })
+                    .map(layer => {
+                        const id = layer.getAttribute('id');
+                        const label = layer.getAttribute('inkscape:label') || layer.getAttribute('data-name') || id;
+                        const isHidden = (layer.getAttribute('display') === 'none' || layer.getAttribute('style')?.includes('display:none'));
+
+                        let isText = false;
+                        let textContent = "";
+                        let color = "#000000";
+                        let opacity = 1.0;
+                        let x = 330, y = 610, size = 164;
+                        let originalFont = ""; 
+                        let isBold = false;
+                        let isItalic = false;
+
+                        const textNode = layer.querySelector('text, tspan');
+                        const ariaNode = layer.querySelector('g[aria-label]');
+                        
+                        if (textNode || ariaNode) {
+                            isText = true;
+                            if (textNode) {
+                                textContent = textNode.textContent.trim();
+                                const parsed = parseColor(textNode.getAttribute('fill') || textNode.style?.fill);
+                                color = parsed.hex;
+                                opacity = parsed.alpha;
+                                const explicitOp = textNode.getAttribute('fill-opacity') || textNode.style?.fillOpacity;
+                                if (explicitOp !== null && explicitOp !== undefined && explicitOp !== "") opacity = parseFloat(explicitOp);
+                                
+                                x = parseValue(textNode.getAttribute('x'), x);
+                                y = parseValue(textNode.getAttribute('y'), y);
+                                size = parseValue(textNode.getAttribute('font-size') || textNode.style?.fontSize, size);
+                                
+                                let ff = textNode.getAttribute('font-family') || textNode.style?.fontFamily;
+                                if (ff) originalFont = ff.replace(/['"]/g, '').trim();
+
+                                let fw = textNode.getAttribute('font-weight') || textNode.style?.fontWeight;
+                                if (fw === 'bold' || fw === 'bolder' || parseInt(fw) >= 600 || textNode.querySelector('b, strong')) isBold = true;
+
+                                let fs = textNode.getAttribute('font-style') || textNode.style?.fontStyle;
+                                if (fs === 'italic' || fs === 'oblique' || textNode.querySelector('i, em')) isItalic = true;
+
+                            } else if (ariaNode) {
+                                textContent = ariaNode.getAttribute('aria-label').trim();
+                                const path = ariaNode.querySelector('path');
+                                if (path) {
+                                    const parsed = parseColor(path.getAttribute('fill') || path.style?.fill);
+                                    color = parsed.hex;
+                                    opacity = parsed.alpha;
+                                    const explicitOp = path.getAttribute('fill-opacity') || path.style?.fillOpacity;
+                                    if (explicitOp !== null && explicitOp !== undefined && explicitOp !== "") opacity = parseFloat(explicitOp);
+                                }
+                            }
+                        }
+
+                        return { id, label, isText, textContent, color, opacity, x, y, size, originalFont, isBold, isItalic, isVis: !isHidden, isBg: false, isFg: !isHidden };
+                    });
+
+                const defaultBg = layersData.find(l => l.label.toLowerCase().includes('bg') || l.label.toLowerCase().includes('background') || l.id === 'layer3') || layersData[0];
+                if (defaultBg) { defaultBg.isBg = true; defaultBg.isFg = false; }
+                const defaultTarget = layersData.find(l => l.isText);
+                activeTargetId = defaultTarget ? defaultTarget.id : null;
+            }
+
+            function updateSlidersFromTarget() {
+                const target = layersData.find(l => l.id === activeTargetId);
+                if (!target) { inputs.forEach(i => { i.disabled = true; i.style.opacity = '0.5'; }); return; }
+                inputs.forEach(i => { i.disabled = false; i.style.opacity = '1'; });
+                
+                ctrlColor.value = target.color;
+                ctrlAlpha.value = Math.round(target.opacity * 100);
+                ctrlX.value = target.x;
+                ctrlY.value = target.y;
+                ctrlSize.value = target.size;
+                ctrlBold.checked = target.isBold;
+                ctrlItalic.checked = target.isItalic;
+                
+                document.getElementById('val-alpha').innerText = ctrlAlpha.value;
+                document.getElementById('val-x').innerText = target.x;
+                document.getElementById('val-y').innerText = target.y;
+                document.getElementById('val-size').innerText = target.size;
+            }
+
+            function buildLayerUI() {
+                const headerNode = layerListUI.querySelector('.vp-layer-header');
+                layerListUI.innerHTML = '';
+                if (headerNode) layerListUI.appendChild(headerNode);
+
+                if (layersData.length === 0) {
+                    layerListUI.innerHTML += '<div class="vp-layer-item">No proper SVG layer groups detected.</div>';
+                    return;
+                }
+
+                layersData.forEach((lData, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'vp-layer-item';
+                    
+                    const colVis = document.createElement('div');
+                    colVis.className = 'vp-col-vis';
+                    const chkVis = document.createElement('input');
+                    chkVis.type = 'checkbox';
+                    chkVis.checked = lData.isVis;
+                    chkVis.addEventListener('change', e => { lData.isVis = e.target.checked; renderPreview(); });
+                    colVis.appendChild(chkVis);
+
+                    const colBg = document.createElement('div');
+                    colBg.className = 'vp-col-bg';
+                    const chkBg = document.createElement('input');
+                    chkBg.type = 'checkbox';
+                    chkBg.checked = lData.isBg;
+                    
+                    const colFg = document.createElement('div');
+                    colFg.className = 'vp-col-fg';
+                    const chkFg = document.createElement('input');
+                    chkFg.type = 'checkbox';
+                    chkFg.checked = lData.isFg;
+                    
+                    chkBg.addEventListener('change', e => { 
+                        lData.isBg = e.target.checked; 
+                        if (lData.isBg) { lData.isFg = false; chkFg.checked = false; }
+                        renderPreview(); 
+                    });
+                    
+                    chkFg.addEventListener('change', e => { 
+                        lData.isFg = e.target.checked; 
+                        if (lData.isFg) { lData.isBg = false; chkBg.checked = false; }
+                        renderPreview(); 
+                    });
+
+                    colBg.appendChild(chkBg);
+                    colFg.appendChild(chkFg);
+
+                    const colTarget = document.createElement('div');
+                    colTarget.className = 'vp-col-target';
+                    if (lData.isText) {
+                        const radTarget = document.createElement('input');
+                        radTarget.type = 'radio';
+                        radTarget.name = 'target-group';
+                        radTarget.checked = (lData.id === activeTargetId);
+                        radTarget.addEventListener('change', () => { activeTargetId = lData.id; updateSlidersFromTarget(); });
+                        colTarget.appendChild(radTarget);
+                    }
+
+                    const colOrder = document.createElement('div');
+                    colOrder.className = 'vp-col-order';
+                    
+                    const btnUp = document.createElement('button');
+                    btnUp.className = 'vp-btn-icon';
+                    btnUp.innerHTML = '▲';
+                    btnUp.disabled = index === 0;
+                    btnUp.onclick = () => moveLayer(index, -1);
+
+                    const btnDown = document.createElement('button');
+                    btnDown.className = 'vp-btn-icon';
+                    btnDown.innerHTML = '▼';
+                    btnDown.disabled = index === layersData.length - 1;
+                    btnDown.onclick = () => moveLayer(index, 1);
+
+                    colOrder.appendChild(btnUp);
+                    colOrder.appendChild(btnDown);
+
+                    const colName = document.createElement('div');
+                    colName.className = 'vp-col-name';
+                    const lbl = document.createElement('div');
+                    lbl.className = 'vp-layer-label';
+                    lbl.textContent = lData.label;
+                    colName.appendChild(lbl);
+
+                    if (lData.isText) {
+                        const txtInput = document.createElement('input');
+                        txtInput.type = 'text';
+                        txtInput.value = lData.textContent;
+                        txtInput.className = 'vp-text-inline';
+                        txtInput.addEventListener('input', e => { lData.textContent = e.target.value; renderPreview(); });
+                        colName.appendChild(txtInput);
+                    }
+
+                    div.appendChild(colVis);
+                    div.appendChild(colBg);
+                    div.appendChild(colFg);
+                    div.appendChild(colTarget);
+                    div.appendChild(colOrder);
+                    div.appendChild(colName);
+                    layerListUI.appendChild(div);
+                });
+            }
+
+            function moveLayer(index, direction) {
+                const targetIndex = index + direction;
+                if (targetIndex < 0 || targetIndex >= layersData.length) return;
+                const temp = layersData[index];
+                layersData[index] = layersData[targetIndex];
+                layersData[targetIndex] = temp;
+                buildLayerUI();
+                renderPreview();
+            }
+
+            function renderPreview() {
+                if (!masterSVGDocument) return;
+
+                const generateCleanSVG = (mode) => {
+                    const clonedDoc = masterSVGDocument.cloneNode(true);
+                    const svgRoot = clonedDoc.documentElement;
+                    svgRoot.removeAttribute('enable-background');
+
+                    let vw = 108, vh = 108;
+                    const vb = svgRoot.getAttribute('viewBox');
+                    if (vb) {
+                        const parts = vb.trim().split(/[\s,]+/);
+                        if (parts.length >= 4) { vw = parseFloat(parts[2]); vh = parseFloat(parts[3]); }
+                    } else {
+                        vw = parseFloat(svgRoot.getAttribute('width')) || 108;
+                        vh = parseFloat(svgRoot.getAttribute('height')) || 108;
+                        svgRoot.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+                    }
+
+                    // V9.3 Dimensions Override
+                    let userW = parseInt(outW.value) || 108;
+                    let userH = parseInt(outH.value) || 108;
+                    svgRoot.setAttribute('width', userW);
+                    svgRoot.setAttribute('height', userH);
+
+                    viewport.style.aspectRatio = `${userW} / ${userH}`;
+
+                    const percentElements = clonedDoc.querySelectorAll('[width*="%"], [height*="%"]');
+                    percentElements.forEach(el => {
+                        if (el.getAttribute('width')?.includes('%')) el.setAttribute('width', Math.round(vw));
+                        if (el.getAttribute('height')?.includes('%')) el.setAttribute('height', Math.round(vh));
+                    });
+
+                    let rootDefs = clonedDoc.querySelector('defs');
+                    if (!rootDefs) {
+                        rootDefs = clonedDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                        svgRoot.insertBefore(rootDefs, svgRoot.firstChild);
+                    }
+                    const allDefs = clonedDoc.querySelectorAll('defs');
+                    allDefs.forEach(defNode => {
+                        if (defNode !== rootDefs) {
+                            while (defNode.firstChild) rootDefs.appendChild(defNode.firstChild);
+                            defNode.parentNode.removeChild(defNode);
+                        }
+                    });
+                    const defElements = clonedDoc.querySelectorAll('linearGradient, radialGradient, clipPath, mask, filter, pattern, symbol, marker');
+                    defElements.forEach(el => { if (el.parentNode !== rootDefs) rootDefs.appendChild(el); });
+
+                    layersData.forEach(lData => {
+                        const layerNode = clonedDoc.getElementById(lData.id);
+                        if (!layerNode) return;
+                        if (layerNode.parentNode) layerNode.parentNode.appendChild(layerNode); 
+                        let keep = false;
+                        if (mode === 'bg' && lData.isBg && lData.isVis) keep = true;
+                        if (mode === 'fg' && lData.isFg && lData.isVis) keep = true;
+
+                        if (!keep) layerNode.parentNode.removeChild(layerNode);
+                        else { layerNode.removeAttribute('display'); if(layerNode.style) layerNode.style.display = ''; }
+                    });
+                    
+                    // V9.6 True Typography Bolding (Eliminates Android Stroke-Overlap Artifacts)
+                    layersData.filter(l => l.isText).forEach(lData => {
+                        const layerNode = clonedDoc.getElementById(lData.id);
+                        if (!layerNode) return;
+                        
+                        const gLabels = layerNode.querySelectorAll('g[aria-label]');
+                        gLabels.forEach(g => {
+                            const t = clonedDoc.createElementNS('http://www.w3.org/2000/svg', 'text');
+                            if (g.hasAttribute('stroke')) t.setAttribute('stroke', g.getAttribute('stroke'));
+                            if (g.hasAttribute('stroke-width')) t.setAttribute('stroke-width', g.getAttribute('stroke-width'));
+                            g.parentNode.replaceChild(t, g);
+                        });
+                        
+                        const texts = layerNode.querySelectorAll('text');
+                        texts.forEach(t => {
+                            let existingStroke = t.getAttribute('stroke') || t.style?.stroke;
+                            let hasOriginalStroke = existingStroke && existingStroke !== 'none';
+                            let sw = t.getAttribute('stroke-width') || t.style?.strokeWidth;
+
+                            // Hot-swap font engine: Use literal Bold font file to avoid stroke overlap
+                            let activeFont = customFont ? customFont : (lData.isBold && boldFont ? boldFont : regularFont);
+
+                            if (activeFont) {
+                                const textStr = lData.textContent;
+                                let tx = parseFloat(lData.x) || 0;
+                                let ty = parseFloat(lData.y) || 0;
+                                const fontSize = parseFloat(lData.size) || 164;
+                                
+                                let anchor = t.getAttribute('text-anchor') || t.style?.textAnchor || 'start';
+                                let tWidth = activeFont.getAdvanceWidth(textStr, fontSize);
+                                if (anchor === 'middle') tx -= tWidth / 2;
+                                if (anchor === 'end') tx -= tWidth;
+
+                                let fontPath = activeFont.getPath(textStr, tx, ty, fontSize);
+                                
+                                // Skew Matrix for Native Italic
+                                if (lData.isItalic) {
+                                    const skewFactor = Math.tan(15 * Math.PI / 180);
+                                    for (let i = 0; i < fontPath.commands.length; i++) {
+                                        let cmd = fontPath.commands[i];
+                                        if (cmd.x !== undefined) cmd.x = cmd.x + (ty - cmd.y) * skewFactor;
+                                        if (cmd.x1 !== undefined) cmd.x1 = cmd.x1 + (ty - cmd.y1) * skewFactor;
+                                        if (cmd.x2 !== undefined) cmd.x2 = cmd.x2 + (ty - cmd.y2) * skewFactor;
+                                    }
+                                }
+
+                                const pathEl = clonedDoc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                pathEl.setAttribute('d', fontPath.toPathData(5));
+                                pathEl.setAttribute('fill', lData.color);
+                                pathEl.setAttribute('opacity', lData.opacity);
+                                
+                                // Only apply fake stroke if they uploaded a custom font AND want it bold
+                                if ((lData.isBold && customFont) || hasOriginalStroke) {
+                                    pathEl.setAttribute('stroke', lData.color);
+                                    pathEl.setAttribute('stroke-linejoin', t.getAttribute('stroke-linejoin') || 'round');
+                                    pathEl.setAttribute('stroke-linecap', t.getAttribute('stroke-linecap') || 'round'); 
+                                    
+                                    let applySw = sw;
+                                    if (lData.isBold && customFont && (!applySw || applySw === 'none')) applySw = (fontSize * 0.04).toString();
+                                    if (applySw) pathEl.setAttribute('stroke-width', applySw);
+                                }
+                                
+                                if (t.hasAttribute('transform')) pathEl.setAttribute('transform', t.getAttribute('transform'));
+                                t.parentNode.replaceChild(pathEl, t);
+                            } else {
+                                // Fallback
+                                t.textContent = lData.textContent;
+                                t.setAttribute('x', lData.x);
+                                t.setAttribute('y', lData.y);
+                                t.setAttribute('fill', lData.color);
+                                t.setAttribute('opacity', lData.opacity);
+                                
+                                if (lData.isBold || hasOriginalStroke) {
+                                    t.setAttribute('stroke', lData.color);
+                                    if (lData.isBold && (!sw || sw === 'none')) sw = (parseFloat(lData.size) * 0.04).toString();
+                                    if (sw) t.setAttribute('stroke-width', sw);
+                                }
+                                
+                                t.setAttribute('font-size', lData.size);
+                                t.setAttribute('font-family', lData.originalFont || "sans-serif");
+                                if (lData.isBold) t.setAttribute('font-weight', "bold");
+                                if (lData.isItalic) t.setAttribute('font-style', "italic");
+                                t.removeAttribute('style');
+                            }
+                        });
+                    });
+
+                    const serializer = new XMLSerializer();
+                    let baseSvgString = serializer.serializeToString(svgRoot);
+                    baseSvgString = baseSvgString.replace(/\sxmlns="http:\/\/www\.w3\.org\/2000\/svg"/g, '');
+                    baseSvgString = baseSvgString.replace(/<svg\s+/, '<svg xmlns="http://www.w3.org/2000/svg" ');
+                    return baseSvgString;
+                };
+
+                currentExportBg = generateCleanSVG('bg');
+                currentExportFg = generateCleanSVG('fg');
+
+                layerBgContainer.innerHTML = currentExportBg;
+                layerFgContainer.innerHTML = currentExportFg;
+
+                const format = document.querySelector('input[name="export-format"]:checked').value.toUpperCase();
+
+                const hasBg = layersData.some(l => l.isBg && l.isVis);
+                if (!hasBg) {
+                    btnBgExport.disabled = true;
+                    btnBgExport.classList.add('vp-disabled-btn');
+                    btnBgExport.innerText = 'Export BG (Empty)';
+                } else {
+                    btnBgExport.disabled = false;
+                    btnBgExport.classList.remove('vp-disabled-btn');
+                    btnBgExport.innerText = `Export BG (${format})`;
+                }
+
+                const hasFg = layersData.some(l => l.isFg && l.isVis);
+                if (!hasFg) {
+                    btnFgExport.disabled = true;
+                    btnFgExport.classList.add('vp-disabled-btn');
+                    btnFgExport.innerText = 'Export FG (Empty)';
+                } else {
+                    btnFgExport.disabled = false;
+                    btnFgExport.classList.remove('vp-disabled-btn');
+                    btnFgExport.innerText = `Export FG (${format})`;
+                }
+            }
+
+            const downloadFile = (content, filename, mimeType) => {
+                const blob = new Blob([content], { type: mimeType });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            btnBgExport.addEventListener('click', () => { 
+                if (currentExportBg && !btnBgExport.disabled) {
+                    const fmt = document.querySelector('input[name="export-format"]:checked').value;
+                    if (fmt === 'xml') downloadFile(svgToAndroidXml(currentExportBg), 'ic_background.xml', 'text/xml');
+                    else downloadFile(currentExportBg, 'ic_background.svg', 'image/svg+xml');
+                }
+            });
+            
+            btnFgExport.addEventListener('click', () => { 
+                if (currentExportFg && !btnFgExport.disabled) {
+                    const fmt = document.querySelector('input[name="export-format"]:checked').value;
+                    if (fmt === 'xml') downloadFile(svgToAndroidXml(currentExportFg), 'ic_foreground.xml', 'text/xml');
+                    else downloadFile(currentExportFg, 'ic_foreground.svg', 'image/svg+xml');
+                }
+            });
+
+        })();
+    </script>
+</body>
+</html>
