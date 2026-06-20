@@ -1,6 +1,8 @@
-Here is the current state of the OMN-Go project. We are currently at Version 1.3.10 (Android version code 10310).
+Here is the current state of the OMN-Go project. We are currently at Version 1.3.16 (Android version code 10316).
 
 Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format. Application version need to be updated on every changes.
+
+We are redy to implement discussed blueprint
 
 ### doc/initial_prompt.md START
 ```
@@ -287,12 +289,13 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-const APP_VERSION = "1.3.10"
+const APP_VERSION = "1.3.16"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
 	AdminPassword string            `json:"admin_password"`
 	GuestPassword string            `json:"guest_password"`
+	Author        string            `json:"author"`
 	UseInternalEd bool              `json:"use_internal_editor"`
 	DesktopExtCmd string            `json:"desktop_ext_cmd"`
 	MimeTypes     map[string]string `json:"mime_types"`
@@ -351,6 +354,7 @@ func initStorage() {
 			ServerPort:    8080,
 			AdminPassword: "admin_secret_changeme",
 			GuestPassword: "guest_secret_changeme",
+			Author:        "Anonymous",
 			UseInternalEd: true,
 			DesktopExtCmd: "subl",
 			MimeTypes: map[string]string{
@@ -607,6 +611,10 @@ func getConfigPageBody() string {
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
             <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
         </div>
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
+            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+        </div>
         <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
             <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
             <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
@@ -626,6 +634,7 @@ func getConfigPageBody() string {
         params.append("server_port", document.getElementById("cfgPort").value);
         params.append("admin_password", document.getElementById("cfgAdminPwd").value);
         params.append("guest_password", document.getElementById("cfgGuestPwd").value);
+        params.append("author", document.getElementById("cfgAuthor").value);
         params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
         params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
 
@@ -638,7 +647,7 @@ func getConfigPageBody() string {
         }
     }
 </script>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword,
+`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,
 		func() string {
 			if appConfig.UseInternalEd {
 				return "checked"
@@ -656,7 +665,7 @@ func getExternalEditPageBody(name string) string {
     <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
         We have launched <strong>%s</strong> to edit <code>%s.md</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated page.
     </p>
-    <button onclick="window.location.href='/%s.html'" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <button onclick="window.location.replace('/%s.html')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
         Press after edit to refresh view
     </button>
 </div>
@@ -678,6 +687,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		appConfig.AdminPassword = r.FormValue("admin_password")
 		appConfig.GuestPassword = r.FormValue("guest_password")
+		appConfig.Author = r.FormValue("author")
 		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
 
@@ -818,6 +828,7 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
+	fullMarkdown = ensureHeaderModified(fullMarkdown, "Quick Notes")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
 
 	// Update Dynamic Precompile instantly
@@ -864,6 +875,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 		marker := "<!-- Don't edit body below this line -->"
 		if strings.Contains(content, marker) {
 			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
+			newContent = ensureHeaderModified(newContent, "Incoming bookmarks")
 			os.WriteFile(path, []byte(newContent), 0644)
 			// Update Dynamic Precompile instantly
 			compiled := compilePage("Bookmarks", []byte(newContent))
@@ -936,7 +948,11 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", title, timestamp, title)
+				authorLine := ""
+				if appConfig.Author != "" {
+					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+				}
+				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", title, timestamp, authorLine)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte(newContent), 0644)
 				data = []byte(newContent)
@@ -956,6 +972,110 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func ensureHeaderModified(content string, defaultTitle string) string {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	parts := strings.SplitN(content, "\n\n", 2)
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	isHeader := false
+	if len(parts) > 0 && strings.Contains(parts[0], ":") {
+		lines := strings.Split(parts[0], "\n")
+		if len(lines) > 0 && strings.Contains(lines[0], ":") && !strings.HasPrefix(lines[0], " ") && !strings.HasPrefix(lines[0], "#") && !strings.HasPrefix(lines[0], "<") {
+			isHeader = true
+		}
+	}
+
+	if isHeader {
+		headerLines := strings.Split(parts[0], "\n")
+		modIdx := -1
+		for i, l := range headerLines {
+			if strings.HasPrefix(strings.ToLower(l), "modified:") {
+				modIdx = i
+				break
+			}
+		}
+		if modIdx != -1 {
+			headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
+		} else {
+			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
+		}
+		parts[0] = strings.Join(headerLines, "\n")
+		if len(parts) > 1 {
+			return parts[0] + "\n\n" + parts[1]
+		}
+		return parts[0] + "\n\n"
+	}
+
+	authorLine := ""
+	if appConfig.Author != "" {
+		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+	}
+	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
+}
+
+func handleNewPage(w http.ResponseWriter, r *http.Request) {
+	source := r.FormValue("source")
+	target := r.FormValue("target")
+	title := r.FormValue("title")
+
+	if target == "" || title == "" {
+		http.Error(w, "Missing fields", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	targetMdPath := filepath.Join(storageDir, "md", target+".md")
+	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
+		authorLine := ""
+		if appConfig.Author != "" {
+			authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+		}
+		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
+		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
+		os.WriteFile(targetMdPath, []byte(defaultContent), 0644)
+	}
+
+	if source != "" {
+		sourceMdPath := filepath.Join(storageDir, "md", source+".md")
+		sourceData, err := os.ReadFile(sourceMdPath)
+		if err == nil {
+			content := string(sourceData)
+			linkStr := fmt.Sprintf("* [%s](%s)", title, target)
+			parts := strings.SplitN(content, "\n\n", 2)
+
+			isHeader := false
+			if len(parts) > 0 && strings.Contains(parts[0], ":") {
+				firstLine := strings.Split(parts[0], "\n")[0]
+				if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
+					isHeader = true
+				}
+			}
+
+			if isHeader {
+				if len(parts) > 1 {
+					content = parts[0] + "\n\n" + linkStr + "\n" + parts[1]
+				} else {
+					content = parts[0] + "\n\n" + linkStr + "\n"
+				}
+			} else {
+				content = linkStr + "\n\n" + content
+			}
+
+			content = ensureHeaderModified(content, source)
+			os.WriteFile(sourceMdPath, []byte(content), 0644)
+			
+			// Recompile Source HTML immediately to prevent caching delays
+			htmlPath := filepath.Join(storageDir, "html", source+".html")
+			compiled := compilePage(source, []byte(content))
+			os.MkdirAll(filepath.Dir(htmlPath), 0755)
+			os.WriteFile(htmlPath, compiled, 0644)
+		}
+	}
+
+	w.Write([]byte("Created"))
+}
+
 func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	content := r.FormValue("content")
@@ -973,25 +1093,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		}
 		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
 
-		parts := strings.Split(content, "\n\n")
-		if len(parts) > 0 && strings.Contains(parts[0], ":") {
-			headerLines := strings.Split(parts[0], "\n")
-			modIdx := -1
-			for i, l := range headerLines {
-				if strings.HasPrefix(l, "Modified:") {
-					modIdx = i
-					break
-				}
-			}
-			now := time.Now().Format("2006-01-02 15:04:05")
-			if modIdx != -1 {
-				headerLines[modIdx] = fmt.Sprintf("Modified: %s", now)
-			} else {
-				headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
-			}
-			parts[0] = strings.Join(headerLines, "\n")
-			content = strings.Join(parts, "\n\n")
-		}
+		content = ensureHeaderModified(content, strings.TrimSuffix(cleanName, ".md"))
 
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
@@ -1035,7 +1137,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		mdStat, errMd := os.Stat(mdPath)
 
 		// Recompile if HTML is missing, OR if Markdown was modified more recently than HTML
-		if os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
+		forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+		if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
 			if os.IsNotExist(errMd) {
 				embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 				if err == nil {
@@ -1043,7 +1146,11 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 					os.WriteFile(mdPath, embedData, 0644)
 				} else {
 					timestamp := time.Now().Format("2006-01-02 15:04:05")
-					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes\n\n# %s\n\nStart editing this page!", name, timestamp, name)
+					authorLine := ""
+					if appConfig.Author != "" {
+						authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+					}
+					defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
 					os.MkdirAll(filepath.Dir(mdPath), 0755)
 					os.WriteFile(mdPath, []byte(defaultContent), 0644)
 				}
@@ -1051,6 +1158,13 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 			mdContent, err := os.ReadFile(mdPath)
 			if err == nil {
+				if errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime()) {
+					updatedContent := ensureHeaderModified(string(mdContent), name)
+					if updatedContent != string(mdContent) {
+						os.WriteFile(mdPath, []byte(updatedContent), 0644)
+						mdContent = []byte(updatedContent)
+					}
+				}
 				compiled := compilePage(name, mdContent)
 				os.MkdirAll(filepath.Dir(htmlPath), 0755)
 				os.WriteFile(htmlPath, compiled, 0644)
@@ -1172,6 +1286,7 @@ func StartServer() {
 		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
 		mux.HandleFunc("/api/note", handleGetNote)
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
+		mux.HandleFunc("/api/newpage", authMiddleware(handleNewPage, true))
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 
@@ -1228,10 +1343,12 @@ func GetServerPort() int {
             <strong>OMN-Go</strong>
             <a href="/Welcome.html">Home</a>
             <a href="/Welcome.html#help">Help</a>
+            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;">New Page</button>
+            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;">Refresh</button>
             <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
             <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only">Add Bookmark</button>
             <a href="/Bookmarks.html">Bookmarks</a>
-            <a href="/Config.html" style="background: #444; border-color: #666;">Config</a>
+            <a href="#" onclick="window.location.replace('/Config.html'); return false;" style="background: #444; border-color: #666;">Config</a>
         </div>
 
         <div class="content-area">
@@ -1271,7 +1388,7 @@ func GetServerPort() int {
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.3.10";
+        const APP_VERSION = "1.3.16";
         let OMN_GO_KATEX = false;
     </script>
     <script src="/js/omn-go-core.js"></script>
@@ -1361,7 +1478,7 @@ function executeScripts(container) {
                 if (res.ok) {
                     const config = await res.json();
                     if (!config.use_internal_editor) {
-                        window.location.href = '/api/edit-external?name=' + encodeURIComponent(currentNote);
+                        window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
                         return;
                     }
                 }
@@ -1451,6 +1568,33 @@ function executeScripts(container) {
                     if(el.tagName === 'BUTTON' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') el.disabled = true;
                     if(el.id === 'toggleBtn' || el.id === 'editor' || el.id === 'saveBtn') el.style.display = 'none';
                 });
+            }
+        }
+
+        function toCamelCase(str) {
+            let words = str.split(/[-_\s]+/);
+            return words.map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
+        }
+
+        async function createNewPage() {
+            let title = prompt("Enter New Page Title:");
+            if (!title) return;
+            let camel = toCamelCase(title);
+            let safeName = camel.replace(/[^a-zA-Z0-9-]/g, '-');
+            let fileName = prompt("Confirm File Name:", safeName);
+            if (!fileName) return;
+
+            let src = typeof currentNote !== 'undefined' ? currentNote : 'Welcome';
+            const fd = new URLSearchParams();
+            fd.append('source', src);
+            fd.append('target', fileName);
+            fd.append('title', title);
+
+            const res = await fetch('/api/newpage', { method: 'POST', body: fd });
+            if (res.ok) {
+                window.location.replace('/' + fileName + '.html?edit=true');
+            } else {
+                alert("Failed to create new page!");
             }
         }
 
@@ -1574,6 +1718,11 @@ function executeScripts(container) {
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
                 const tb = document.getElementById('toggleBtn');
                 if (tb) tb.style.display = 'none';
+            }
+            if (window.location.search.includes('edit=true')) {
+                setTimeout(() => {
+                    if (typeof currentMode !== 'undefined' && currentMode === 'view' && typeof toggleMode === 'function') toggleMode();
+                }, 100);
             }
             let hash = window.location.hash;
             if (hash) {
@@ -1746,6 +1895,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        window.location.reload();
+    }
+});
+
 ```
 
 ### backend/frontend/html/js/omn-go-core.js END
@@ -1798,8 +1953,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10310
-        versionName "1.3.10"
+        versionCode 10316
+        versionName "1.3.16"
     }
 
     signingConfigs {
@@ -2136,7 +2291,7 @@ public class MainActivity extends Activity {
 │   ├── github_workflow.md
 │   ├── initial_prompt.md
 │   ├── OMN-Go_1.3.10_Context.md
-│   ├── OMN-Go_1.3.4_Context.md
+│   ├── OMN-Go_1.3.16_Context.md
 │   ├── README.md
 │   └── URLs.md
 ├── Dockerfile
@@ -2160,13 +2315,13 @@ public class MainActivity extends Activity {
 │   └── update_script.py
 ├── main_desktop.go
 ├── output-binaries
-│   ├── omn-go-v1.3.10-arm64-v8a-release.apk
-│   ├── omn-go-v1.3.10-armeabi-v7a-release.apk
-│   ├── omn-go-v1.3.10-desktop-linux-amd64
-│   ├── omn-go-v1.3.10-desktop-windows-amd64.exe
-│   ├── omn-go-v1.3.10-universal-release.apk
-│   ├── omn-go-v1.3.10-x86_64-release.apk
-│   └── omn-go-v1.3.10-x86-release.apk
+│   ├── omn-go-v1.3.16-arm64-v8a-release.apk
+│   ├── omn-go-v1.3.16-armeabi-v7a-release.apk
+│   ├── omn-go-v1.3.16-desktop-linux-amd64
+│   ├── omn-go-v1.3.16-desktop-windows-amd64.exe
+│   ├── omn-go-v1.3.16-universal-release.apk
+│   ├── omn-go-v1.3.16-x86_64-release.apk
+│   └── omn-go-v1.3.16-x86-release.apk
 └── README.md
 
 27 directories, 82 files
