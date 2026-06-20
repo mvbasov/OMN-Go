@@ -79,9 +79,8 @@ func ensureHeaderModified(content string, defaultTitle string) string {
 		return parts[0] + "\n\n"
 	}
 
-	authorLine := ""
-	if appConfig.Author != "" {
-		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+	if strings.HasPrefix(strings.TrimSpace(content), "<!-- OMN_GO_RAW_MD -->") {
+		return content
 	}
-	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
+	return fmt.Sprintf("<!-- OMN_GO_RAW_MD -->\n\n%s", content)
 }

@@ -37,14 +37,14 @@ def apply_patch(filepath, old_str, new_str, description):
     return False
 
 def bump_versions():
-    print("\n[VERSION BUMP] Upgrading to 1.4.2")
+    print("\n[VERSION BUMP] Upgrading to 1.4.3")
     
     # Note: Since the refactoring, APP_VERSION is now housed in backend/config.go
     versions = [
-        ("backend/config.go", 'APP_VERSION = "1.4.1"', 'APP_VERSION = "1.4.2"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.1";', 'const APP_VERSION = "1.4.2";'),
-        ("android/app/build.gradle", 'versionCode 10401', 'versionCode 10402'),
-        ("android/app/build.gradle", 'versionName "1.4.1"', 'versionName "1.4.2"')
+        ("backend/config.go", 'APP_VERSION = "1.4.2"', 'APP_VERSION = "1.4.3"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.2";', 'const APP_VERSION = "1.4.3";'),
+        ("android/app/build.gradle", 'versionCode 10402', 'versionCode 10403'),
+        ("android/app/build.gradle", 'versionName "1.4.2"', 'versionName "1.4.3"')
     ]
     
     for fp, old, new in versions:
@@ -54,10 +54,10 @@ def bump_versions():
             if old not in content:
                 print(f"  [~] {fp}: Exact old version string not found. Trying dynamic Regex bump...")
                 if "build.gradle" in fp:
-                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10402', content)
-                    content = re.sub(r'versionName\s+"1\.4\.\d+"', 'versionName "1.4.2"', content)
+                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10403', content)
+                    content = re.sub(r'versionName\s+"1\.4\.\d+"', 'versionName "1.4.3"', content)
                 else:
-                    content = re.sub(r'APP_VERSION = "1\.4\.\d+"', 'APP_VERSION = "1.4.2"', content)
+                    content = re.sub(r'APP_VERSION = "1\.4\.\d+"', 'APP_VERSION = "1.4.3"', content)
             else:
                 content = content.replace(old, new)
                 
@@ -69,43 +69,76 @@ def bump_versions():
 
 def update_application():
     print("==================================================")
-    print(" OMN-Go Update Initialized (Target: V1.4.2)")
+    print(" OMN-Go Update Initialized (Target: V1.4.3)")
     print("==================================================")
     
     bump_versions()
 
-    # 1. Wrap the StartServer call in a Goroutine so it doesn't block the browser intent
-    old_main = r"""func main() {
-	backend.StartServer()
-	
-	// Wait for server to bind"""
-    
-    new_main = r"""func main() {
-	go backend.StartServer()
-	
-	// Wait for server to bind"""
-    
-    apply_patch("main_desktop.go", old_main, new_main, "Execute StartServer as a Goroutine to unblock browser auto-launch")
+    # 1. API Handlers: handleNewPage
+    old_newpage = (
+        '\tnow := time.Now().Format("2006-01-02 15:04:05")\n\n'
+        '\ttargetMdPath := filepath.Join(storageDir, "md", target+".md")\n'
+        '\tif _, err := os.Stat(targetMdPath); os.IsNotExist(err) {\n'
+        '\t\tauthorLine := ""\n'
+        '\t\tif appConfig.Author != "" {\n'
+        '\t\t\tauthorLine = fmt.Sprintf("\\nAuthor: %s", appConfig.Author)\n'
+        '\t\t}\n'
+        '\t\tdefaultContent := fmt.Sprintf("Title: %s\\nDate: %s\\nModified: %s\\nCategory: Notes%s\\n\\n", title, now, now, authorLine)'
+    )
+    new_newpage = (
+        '\ttargetMdPath := filepath.Join(storageDir, "md", target+".md")\n'
+        '\tif _, err := os.Stat(targetMdPath); os.IsNotExist(err) {\n'
+        '\t\tdefaultContent := "<!-- OMN_GO_RAW_MD -->\\n\\n"'
+    )
+    apply_patch("backend/handlers_api.go", old_newpage, new_newpage, "Replace Pelican header generation with Raw MD tag in handleNewPage")
 
-    # 2. Wrap the Android Java StartServer call in a background Thread
-    old_java = r"""        // Start the Go Backend Server from the gomobile .aar
-        Backend.startServer();"""
-    
-    new_java = r"""        // Start the Go Backend Server from the gomobile .aar in a background thread
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Backend.startServer();
-            }
-        }).start();"""
-    
-    apply_patch("android/app/src/main/java/net/basov/omngo/MainActivity.java", old_java, new_java, "Execute StartServer as a background thread to unblock Android UI")
+    # 2. API Handlers: handleGetNote
+    old_getnote = (
+        '\t\thumanTitle := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")\n'
+        '\t\ttimestamp := time.Now().Format("2006-01-02 15:04:05")\n'
+        '\t\tauthorLine := ""\n'
+        '\t\tif appConfig.Author != "" {\n'
+        '\t\t\tauthorLine = fmt.Sprintf("\\nAuthor: %s", appConfig.Author)\n'
+        '\t\t}\n'
+        '\t\tdefaultContent := fmt.Sprintf("Title: %s\\nDate: %s\\nCategory: Notes%s\\n\\n", humanTitle, timestamp, authorLine)'
+    )
+    new_getnote = '\t\tdefaultContent := "<!-- OMN_GO_RAW_MD -->\\n\\n"'
+    apply_patch("backend/handlers_api.go", old_getnote, new_getnote, "Replace Pelican header generation with Raw MD tag in handleGetNote")
+
+    # 3. Web Handlers: serveFrontend
+    old_serve = (
+        '\t\t\t\ttimestamp := time.Now().Format("2006-01-02 15:04:05")\n'
+        '\t\t\t\tauthorLine := ""\n'
+        '\t\t\t\tif appConfig.Author != "" {\n'
+        '\t\t\t\t\tauthorLine = fmt.Sprintf("\\nAuthor: %s", appConfig.Author)\n'
+        '\t\t\t\t}\n'
+        '\t\t\t\thumanName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")\n'
+        '\t\t\t\tdefaultContent := fmt.Sprintf("Title: %s\\nDate: %s\\nCategory: Notes%s\\n\\n", humanName, timestamp, authorLine)'
+    )
+    new_serve = '\t\t\t\tdefaultContent := "<!-- OMN_GO_RAW_MD -->\\n\\n"'
+    apply_patch("backend/handlers_web.go", old_serve, new_serve, "Replace Pelican header generation with Raw MD tag in serveFrontend")
+
+    # 4. Markdown Logic: ensureHeaderModified fallback
+    old_markdown = (
+        '\tauthorLine := ""\n'
+        '\tif appConfig.Author != "" {\n'
+        '\t\tauthorLine = fmt.Sprintf("\\nAuthor: %s", appConfig.Author)\n'
+        '\t}\n'
+        '\treturn fmt.Sprintf("Title: %s\\nDate: %s\\nModified: %s%s\\n\\n%s", defaultTitle, now, now, authorLine, content)'
+    )
+    new_markdown = (
+        '\tif strings.HasPrefix(strings.TrimSpace(content), "<!-- OMN_GO_RAW_MD -->") {\n'
+        '\t\treturn content\n'
+        '\t}\n'
+        '\treturn fmt.Sprintf("<!-- OMN_GO_RAW_MD -->\\n\\n%s", content)'
+    )
+    apply_patch("backend/markdown.go", old_markdown, new_markdown, "Update ensureHeaderModified fallback to prepend Raw MD tag instead of Pelican block")
 
     print("\n==================================================")
     print(" Update Complete! Check the logs above for status.")
     print("==================================================")
     
-    commit_msg = "fix(android): run Backend.startServer() in a background thread to prevent ANR and unblock WebView\n\nVersion bumped to 1.4.2"
+    commit_msg = "feat(core): replace default Pelican headers with raw markdown markers for new pages\n\nVersion bumped to 1.4.3"
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":

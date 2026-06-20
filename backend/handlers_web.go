@@ -139,13 +139,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
 		if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
 			if os.IsNotExist(errMd) {
-				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				authorLine := ""
-				if appConfig.Author != "" {
-					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
-				}
-				humanName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")
-				defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", humanName, timestamp, authorLine)
+				defaultContent := "<!-- OMN_GO_RAW_MD -->\n\n"
 				os.MkdirAll(filepath.Dir(mdPath), 0755)
 				os.WriteFile(mdPath, []byte(defaultContent), 0644)
 			}

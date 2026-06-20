@@ -160,15 +160,9 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().Format("2006-01-02 15:04:05")
-
 	targetMdPath := filepath.Join(storageDir, "md", target+".md")
 	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
-		authorLine := ""
-		if appConfig.Author != "" {
-			authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
-		}
-		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
+		defaultContent := "<!-- OMN_GO_RAW_MD -->\n\n"
 		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
 		os.WriteFile(targetMdPath, []byte(defaultContent), 0644)
 	}
