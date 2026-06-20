@@ -1,14 +1,12 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {

@@ -37,17 +37,21 @@ def apply_patch(filepath, old_str, new_str, description):
     return False
 
 def bump_versions():
-    print("\n[VERSION BUMP] Upgrading to 1.4.4")
+    print("\n[VERSION BUMP] Upgrading to 1.4.5")
     
     versions = [
-        ("backend/config.go", 'APP_VERSION = "1.4.2"', 'APP_VERSION = "1.4.4"'),
-        ("backend/config.go", 'APP_VERSION = "1.4.3"', 'APP_VERSION = "1.4.4"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.2";', 'const APP_VERSION = "1.4.4";'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.3";', 'const APP_VERSION = "1.4.4";'),
-        ("android/app/build.gradle", 'versionCode 10402', 'versionCode 10404'),
-        ("android/app/build.gradle", 'versionCode 10403', 'versionCode 10404'),
-        ("android/app/build.gradle", 'versionName "1.4.2"', 'versionName "1.4.4"'),
-        ("android/app/build.gradle", 'versionName "1.4.3"', 'versionName "1.4.4"')
+        ("backend/config.go", 'APP_VERSION = "1.4.2"', 'APP_VERSION = "1.4.5"'),
+        ("backend/config.go", 'APP_VERSION = "1.4.3"', 'APP_VERSION = "1.4.5"'),
+        ("backend/config.go", 'APP_VERSION = "1.4.4"', 'APP_VERSION = "1.4.5"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.2";', 'const APP_VERSION = "1.4.5";'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.3";', 'const APP_VERSION = "1.4.5";'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.4";', 'const APP_VERSION = "1.4.5";'),
+        ("android/app/build.gradle", 'versionCode 10402', 'versionCode 10405'),
+        ("android/app/build.gradle", 'versionCode 10403', 'versionCode 10405'),
+        ("android/app/build.gradle", 'versionCode 10404', 'versionCode 10405'),
+        ("android/app/build.gradle", 'versionName "1.4.2"', 'versionName "1.4.5"'),
+        ("android/app/build.gradle", 'versionName "1.4.3"', 'versionName "1.4.5"'),
+        ("android/app/build.gradle", 'versionName "1.4.4"', 'versionName "1.4.5"')
     ]
     
     for fp, old, new in versions:
@@ -62,7 +66,7 @@ def bump_versions():
 
 def update_application():
     print("==================================================")
-    print(" OMN-Go Update Initialized (Target: V1.4.4)")
+    print(" OMN-Go Update Initialized (Target: V1.4.5)")
     print("==================================================")
     
     bump_versions()
@@ -211,11 +215,32 @@ blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 10px; color: 
 		}"""
     apply_patch("backend/handlers_web.go", old_serve2, new_serve2, "[1.4.4] Dynamically read and inject static HTML back into RAM App Shell")
 
+    # 7. Web Handlers: Remove Unused 'bytes' and 'time' Imports
+    old_imports = r"""import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)"""
+    new_imports = r"""import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+)"""
+    apply_patch("backend/handlers_web.go", old_imports, new_imports, "[1.4.5] Remove unused imports from handlers_web.go")
+
     print("\n==================================================")
     print(" Update Complete! Check the logs above for status.")
     print("==================================================")
     
-    commit_msg = "feat(core): switch to static HTML file storage and dynamic memory-based UI shell injection\n\nVersion bumped to 1.4.4"
+    commit_msg = "fix(backend): clean up unused 'bytes' and 'time' imports inside handlers_web.go\n\nVersion bumped to 1.4.5"
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
