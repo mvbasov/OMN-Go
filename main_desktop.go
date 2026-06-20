@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	backend.StartServer()
+	go backend.StartServer()
 	
 	// Wait for server to bind
 	time.Sleep(500 * time.Millisecond)

@@ -1,6 +1,6 @@
 package backend
 
-const APP_VERSION = "1.4.0"
+const APP_VERSION = "1.4.1"
 
 type Config struct {
 	ServerPort    int               `json:"server_port"`
