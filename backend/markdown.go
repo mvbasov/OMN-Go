@@ -39,8 +39,28 @@ func compilePage(title string, mdContent []byte) []byte {
 		return []byte(err.Error())
 	}
 
-	htmlStr := string(frontendHTML)
-	htmlStr = strings.Replace(htmlStr, "{{TITLE}}", title, 1)
+	const staticHTMLTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: 0 auto; color: #333; }
+pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+code { font-family: monospace; padding: 2px 4px; background: #f4f4f4; border-radius: 3px; }
+img { max-width: 100%; height: auto; }
+blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 10px; color: #666; }
+</style>
+</head>
+<body>
+<!-- OMN_CONTENT_START -->
+{{CONTENT}}
+<!-- OMN_CONTENT_END -->
+</body>
+</html>`
+
+	htmlStr := strings.Replace(staticHTMLTemplate, "{{TITLE}}", title, 1)
 	htmlStr = strings.Replace(htmlStr, "{{CONTENT}}", buf.String(), 1)
 	return []byte(htmlStr)
 }

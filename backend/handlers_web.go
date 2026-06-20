@@ -162,10 +162,43 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 		content, err := os.ReadFile(htmlPath)
 		if err == nil {
-			if !appConfig.UseInternalEd {
-				content = bytes.Replace(content, []byte(`id="toggleBtn"`), []byte(`id="toggleBtn" style="display:none;"`), 1)
+			contentStr := string(content)
+			startMarker := "<!-- OMN_CONTENT_START -->\n"
+			endMarker := "\n<!-- OMN_CONTENT_END -->"
+			
+			startIdx := strings.Index(contentStr, startMarker)
+			endIdx := strings.Index(contentStr, endMarker)
+			
+			var payload string
+			if startIdx != -1 && endIdx != -1 && endIdx > startIdx {
+				payload = contentStr[startIdx+len(startMarker) : endIdx]
+			} else {
+				if mdData, errMd := os.ReadFile(mdPath); errMd == nil {
+					newCompiled := compilePage(name, mdData)
+					os.WriteFile(htmlPath, newCompiled, 0644)
+					contentStr = string(newCompiled)
+					startIdx = strings.Index(contentStr, startMarker)
+					endIdx = strings.Index(contentStr, endMarker)
+					if startIdx != -1 && endIdx != -1 && endIdx > startIdx {
+						payload = contentStr[startIdx+len(startMarker) : endIdx]
+					} else {
+						payload = contentStr
+					}
+				} else {
+					payload = contentStr
+				}
 			}
-			w.Write(content)
+
+			appShell := string(frontendHTML)
+			humanName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")
+			appShell = strings.Replace(appShell, "{{TITLE}}", humanName, 1)
+			appShell = strings.Replace(appShell, "{{CONTENT}}", payload, 1)
+			
+			if !appConfig.UseInternalEd {
+				appShell = strings.Replace(appShell, `id="toggleBtn"`, `id="toggleBtn" style="display:none;"`, 1)
+			}
+			
+			w.Write([]byte(appShell))
 			return
 		}
 	}
