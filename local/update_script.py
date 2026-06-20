@@ -37,14 +37,14 @@ def apply_patch(filepath, old_str, new_str, description):
     return False
 
 def bump_versions():
-    print("\n[VERSION BUMP] Upgrading to 1.4.1")
+    print("\n[VERSION BUMP] Upgrading to 1.4.2")
     
     # Note: Since the refactoring, APP_VERSION is now housed in backend/config.go
     versions = [
-        ("backend/config.go", 'APP_VERSION = "1.4.0"', 'APP_VERSION = "1.4.1"'),
-        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.0";', 'const APP_VERSION = "1.4.1";'),
-        ("android/app/build.gradle", 'versionCode 10400', 'versionCode 10401'),
-        ("android/app/build.gradle", 'versionName "1.4.0"', 'versionName "1.4.1"')
+        ("backend/config.go", 'APP_VERSION = "1.4.1"', 'APP_VERSION = "1.4.2"'),
+        ("backend/frontend/index.html", 'const APP_VERSION = "1.4.1";', 'const APP_VERSION = "1.4.2";'),
+        ("android/app/build.gradle", 'versionCode 10401', 'versionCode 10402'),
+        ("android/app/build.gradle", 'versionName "1.4.1"', 'versionName "1.4.2"')
     ]
     
     for fp, old, new in versions:
@@ -54,10 +54,10 @@ def bump_versions():
             if old not in content:
                 print(f"  [~] {fp}: Exact old version string not found. Trying dynamic Regex bump...")
                 if "build.gradle" in fp:
-                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10401', content)
-                    content = re.sub(r'versionName\s+"1\.4\.\d+"', 'versionName "1.4.1"', content)
+                    content = re.sub(r'versionCode\s+\d+', 'versionCode 10402', content)
+                    content = re.sub(r'versionName\s+"1\.4\.\d+"', 'versionName "1.4.2"', content)
                 else:
-                    content = re.sub(r'APP_VERSION = "1\.4\.\d+"', 'APP_VERSION = "1.4.1"', content)
+                    content = re.sub(r'APP_VERSION = "1\.4\.\d+"', 'APP_VERSION = "1.4.2"', content)
             else:
                 content = content.replace(old, new)
                 
@@ -69,7 +69,7 @@ def bump_versions():
 
 def update_application():
     print("==================================================")
-    print(" OMN-Go Update Initialized (Target: V1.4.1)")
+    print(" OMN-Go Update Initialized (Target: V1.4.2)")
     print("==================================================")
     
     bump_versions()
@@ -87,11 +87,25 @@ def update_application():
     
     apply_patch("main_desktop.go", old_main, new_main, "Execute StartServer as a Goroutine to unblock browser auto-launch")
 
+    # 2. Wrap the Android Java StartServer call in a background Thread
+    old_java = r"""        // Start the Go Backend Server from the gomobile .aar
+        Backend.startServer();"""
+    
+    new_java = r"""        // Start the Go Backend Server from the gomobile .aar in a background thread
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Backend.startServer();
+            }
+        }).start();"""
+    
+    apply_patch("android/app/src/main/java/net/basov/omngo/MainActivity.java", old_java, new_java, "Execute StartServer as a background thread to unblock Android UI")
+
     print("\n==================================================")
     print(" Update Complete! Check the logs above for status.")
     print("==================================================")
     
-    commit_msg = "fix(desktop): run backend.StartServer() in a goroutine to unblock native browser auto-launch\n\nVersion bumped to 1.4.1"
+    commit_msg = "fix(android): run Backend.startServer() in a background thread to prevent ANR and unblock WebView\n\nVersion bumped to 1.4.2"
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":

@@ -22,8 +22,13 @@ public class MainActivity extends Activity {
             mediaDirs[0].mkdirs();
         }
 
-        // Start the Go Backend Server from the gomobile .aar
-        Backend.startServer();
+        // Start the Go Backend Server from the gomobile .aar in a background thread
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Backend.startServer();
+            }
+        }).start();
 
         // Acquire partial wake lock to keep the Go server alive in the background
         try {
