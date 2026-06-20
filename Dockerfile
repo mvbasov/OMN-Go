@@ -40,7 +40,7 @@ COPY . .
 RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy
 
 # Desktop Binary (OMN-Go naming convention)
-RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/server.go) && \
+RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/config.go) && \
     GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
