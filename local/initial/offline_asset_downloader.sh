@@ -71,5 +71,8 @@ for font in "${KATEX_FONTS[@]}"; do
     download_file "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/fonts/$font" "$FONT_DIR/$font" "Font: $font"
 done
 
+# 7. Download Material Icons Font (For UI Icons)
+download_file "https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2" "$FONT_DIR/material-icons.woff2" "Material Icons Font"
+
 echo -e "${BLUE}=======================================${NC}"
 echo -e "${GREEN}All assets successfully downloaded to ${JS_DIR}, ${CSS_DIR}, and ${FONT_DIR}!${NC}"

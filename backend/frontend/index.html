@@ -23,21 +23,21 @@
     <div id="mainUI">
         <div class="header">
             <strong>OMN-Go</strong>
-            <a href="/Welcome.html">Home</a>
-            <a href="/Welcome.html#help">Help</a>
-            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;">New Page</button>
-            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;">Refresh</button>
-            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only">Quick Note</button>
-            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only">Add Bookmark</button>
-            <a href="/Bookmarks.html">Bookmarks</a>
-            <a href="#" onclick="window.location.replace('/Config.html'); return false;" style="background: #444; border-color: #666;">Config</a>
+            <a href="/Welcome.html"><i class="material-icons">home</i></a>
+            <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
+            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;"><i class="material-icons">note_add</i></button>
+            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;"><i class="material-icons">refresh</i></button>
+            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
+            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
+            <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
+            <a href="#" onclick="window.location.replace('/Config.html'); return false;" style="background: #444; border-color: #666;"><i class="material-icons">settings</i></a>
         </div>
 
         <div class="content-area">
             <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;">Metadata</button>
-                <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;">Save Note</button>
-                <button id="toggleBtn" onclick="toggleMode()" class="admin-only">Edit Mode</button>
+                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;"><i class="material-icons">info</i></button>
+                <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;"><i class="material-icons">save</i></button>
+                <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
             </div>
             <div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"><!-- OMN_GO_METADATA_PANEL --></div>
             <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
@@ -70,8 +70,6 @@
 
     <script>
         /* OMN_GO_PAGE_NAME_JS */
-        const APP_VERSION = "1.3.16";
-        let OMN_GO_KATEX = false;
     </script>
     <script src="/js/omn-go-core.js"></script>
 
