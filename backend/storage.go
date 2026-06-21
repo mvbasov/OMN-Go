@@ -74,7 +74,7 @@ func initStorage() {
 Date: 2026-06-14 12:00:00
 Category: System
 
-Welcome to OMN-Go! Start editing.
+Hey! Welcome to OMN-Go! Start editing.
 
 - [Help](Welcome)
 - [Scripting Rules](ScriptRules.md)
