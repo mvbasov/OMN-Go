@@ -11,6 +11,7 @@ import android.os.Looper;
 
 public class MainActivity extends Activity {
     private WebView webView;
+    private String currentEditingName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,6 +106,8 @@ public class MainActivity extends Activity {
                         if (name.contains("&")) {
                             name = name.split("&")[0];
                         }
+                        name = android.net.Uri.decode(name);
+                        currentEditingName = name;
                         
                         // Disable strict mode exposed file exceptions
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
@@ -163,7 +166,12 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1001 && webView != null) {
-            webView.reload(); // Refresh view when returning from external editor
+            if (currentEditingName != null && !currentEditingName.isEmpty()) {
+                webView.loadUrl("http://127.0.0.1:8080/" + android.net.Uri.encode(currentEditingName) + ".html");
+                currentEditingName = null;
+            } else {
+                webView.reload(); // Refresh view when returning from external editor
+            }
         }
     }
 
