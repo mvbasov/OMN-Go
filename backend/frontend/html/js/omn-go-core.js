@@ -35,24 +35,27 @@ function executeScripts(container) {
             }
         });
 
+        async function loadNoteIntoEditor() {
+            const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
+            if (res.ok) {
+                document.getElementById('editor').value = await res.text();
+            }
+        }
+
         let currentMode = 'view';
         async function toggleMode() {
-            try {
-                const res = await fetch('/api/config', { cache: 'no-store' });
-                if (res.ok) {
-                    const config = await res.json();
-                    if (!config.use_internal_editor) {
-                        window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
-                        return;
-                    }
+            if (currentMode === 'view') {
+                if (typeof USE_INTERNAL_ED !== 'undefined' && !USE_INTERNAL_ED) {
+                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
+                    return;
                 }
-            } catch(e) { console.error(e); }
-
-            const editor = document.getElementById('editor');
-            const preview = document.getElementById('preview');
-            const btn = document.getElementById('toggleBtn');
-            
-            if(currentMode === 'view') {
+                
+                await loadNoteIntoEditor();
+                
+                const editor = document.getElementById('editor');
+                const preview = document.getElementById('preview');
+                const btn = document.getElementById('toggleBtn');
+                
                 editor.style.display = 'block';
                 preview.style.display = 'none';
                 btn.innerText = 'View Mode';
@@ -61,6 +64,10 @@ function executeScripts(container) {
                 document.getElementById('metadataPanel').classList.add('hidden');
                 currentMode = 'edit';
             } else {
+                const editor = document.getElementById('editor');
+                const preview = document.getElementById('preview');
+                const btn = document.getElementById('toggleBtn');
+                
                 editor.style.display = 'none';
                 preview.style.display = 'block';
                 btn.innerText = 'Edit Mode';
@@ -320,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.18';
+            let v = '1.3.19';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });

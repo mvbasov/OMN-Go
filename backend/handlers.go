@@ -472,7 +472,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
 			body := getConfigPageBody()
 			compiled := compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
-			injected := strings.Replace(string(compiled), "</head>", "<script>var APP_VERSION = \""+APP_VERSION+"\";</script></head>", 1)
+			injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, appConfig.UseInternalEd), 1)
 			w.Write([]byte(injected))
 			return
 		}
@@ -521,7 +521,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		data, err := os.ReadFile(htmlPath)
 		if err == nil {
-			injected := strings.Replace(string(data), "</head>", "<script>var APP_VERSION = \""+APP_VERSION+"\";</script></head>", 1)
+			injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, appConfig.UseInternalEd), 1)
 			w.Write([]byte(injected))
 		} else {
 			http.ServeFile(w, r, htmlPath)
