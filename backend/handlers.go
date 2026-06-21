@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-const APP_VERSION = "1.3.17"
-
 func getConfigPageBody() string {
 	return fmt.Sprintf(`
 <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
