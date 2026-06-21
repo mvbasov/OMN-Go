@@ -9,13 +9,13 @@ Tags: Bookmarks
   {
     "date": "2026-06-16 17:58:30",
     "url": "Welcome",
-    "title": "This application welcome page",
+    "title": "Hey! Welcome to OMN-Go",
     "tags": [
       "Local",
       "Bookmarks"
     ],
     "notes": [
-      "This is first bookmark"
+      "Hey, this is the first bookmark"
     ]
   }
 ];
@@ -25,4 +25,3 @@ Tags: Bookmarks
 
 <link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
 <script type="text/javascript" src="/js/Bookmarker.js"></script>
-
