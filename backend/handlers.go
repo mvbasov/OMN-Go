@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const APP_VERSION = "1.3.17"
+
 func getConfigPageBody() string {
 	return fmt.Sprintf(`
 <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
@@ -472,7 +474,8 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
 			body := getConfigPageBody()
 			compiled := compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
-			w.Write(compiled)
+			injected := strings.Replace(string(compiled), "</head>", "<script>var APP_VERSION = \""+APP_VERSION+"\";</script></head>", 1)
+			w.Write([]byte(injected))
 			return
 		}
 
@@ -518,7 +521,13 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "text/html")
-		http.ServeFile(w, r, htmlPath)
+		data, err := os.ReadFile(htmlPath)
+		if err == nil {
+			injected := strings.Replace(string(data), "</head>", "<script>var APP_VERSION = \""+APP_VERSION+"\";</script></head>", 1)
+			w.Write([]byte(injected))
+		} else {
+			http.ServeFile(w, r, htmlPath)
+		}
 		return
 	}
 
