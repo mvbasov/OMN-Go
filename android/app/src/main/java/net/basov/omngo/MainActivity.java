@@ -53,6 +53,44 @@ public class MainActivity extends Activity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+
+        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onJsAlert(android.webkit.WebView view, String url, String message, android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(view.getContext())
+                    .setMessage(message)
+                    .setPositiveButton("OK", (d, w) -> result.confirm())
+                    .setOnCancelListener(d -> result.cancel())
+                    .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(android.webkit.WebView view, String url, String message, android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(view.getContext())
+                    .setMessage(message)
+                    .setPositiveButton("OK", (d, w) -> result.confirm())
+                    .setNegativeButton("Cancel", (d, w) -> result.cancel())
+                    .setOnCancelListener(d -> result.cancel())
+                    .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(android.webkit.WebView view, String url, String message, String defaultValue, android.webkit.JsPromptResult result) {
+                android.widget.EditText input = new android.widget.EditText(view.getContext());
+                input.setText(defaultValue);
+                new android.app.AlertDialog.Builder(view.getContext())
+                    .setMessage(message)
+                    .setView(input)
+                    .setPositiveButton("OK", (d, w) -> result.confirm(input.getText().toString()))
+                    .setNegativeButton("Cancel", (d, w) -> result.cancel())
+                    .setOnCancelListener(d -> result.cancel())
+                    .show();
+                return true;
+            }
+        });
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
