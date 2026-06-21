@@ -163,7 +163,7 @@ function executeScripts(container) {
 
             const res = await fetch('/api/newpage', { method: 'POST', body: fd });
             if (res.ok) {
-                window.location.replace('/' + fileName + '.html?edit=true');
+                window.location.href = '/' + fileName + '.html?edit=true';
             } else {
                 alert("Failed to create new page!");
             }
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.19';
+            let v = '1.3.20';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
