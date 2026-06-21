@@ -3,7 +3,7 @@ Date: 2026-06-14 12:00:00
 Category: System
 Tags: Start
 
-Welcome to OMN-Go! Start editing and organizing your notes completely offline.
+Hey! Welcome to OMN-Go! Start editing and organizing your notes completely offline.
 
 - [Bookmarks](Bookmarks)
 - [Quick Notes](QuickNotes)
