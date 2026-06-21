@@ -1,5 +1,5 @@
 # STAGE 1: Toolchains & Cache
-FROM golang:1.26-bookworm AS builder
+FROM golang:1.22-bookworm AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
