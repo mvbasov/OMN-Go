@@ -45,12 +45,11 @@ RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
 # Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
-RUN go get -tool golang.org/x/mobile/cmd/gobind && \
-    go mod tidy && \
-    mkdir -p android/app/libs && \
+RUN mkdir -p android/app/libs && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
+    mkdir -p app && \
     if [ ! -f app/omn-go.keystore ]; then \
       keytool -genkey -v -keystore app/omn-go.keystore \
               -alias omn-go -keyalg RSA -keysize 2048 \
@@ -58,5 +57,5 @@ RUN cd android && \
               -dname "CN=OMN-Go, O=Basov"; \
     fi && \
     gradle assembleRelease && \
-    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
-    #cp app/omn-go.keystore ../bin/omn-go.keystore
+    mkdir -p ../bin && \
+    cp app/build/outputs/apk/release/*.apk ../bin/
