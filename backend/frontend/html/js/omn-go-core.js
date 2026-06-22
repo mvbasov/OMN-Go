@@ -457,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.23';
+            let v = 'xx.xx.xx';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });

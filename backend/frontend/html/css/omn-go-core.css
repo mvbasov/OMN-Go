@@ -33,7 +33,7 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 #editor { display: none; width: 100%; flex: 1; border: 1px solid #ccc; padding: 10px; font-family: monospace; resize: none; box-sizing: border-box; }
 #preview { width: 100%; flex: 1; background: #fff; border: 1px solid #ccc; padding: 20px; overflow-y: auto; box-sizing: border-box; line-height: 1.6; }
 .toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; gap: 10px; }
-.toolbar button { padding: 5px 15px; cursor: pointer; border: 1px solid #ccc; background: #eee; border-radius: 4px; display: flex; align-items: center; }
+.toolbar button { padding: 5px 15px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; }
 .hidden { display: none !important; }
 .panel { position: absolute; top: 50px; right: 20px; background: white; border: 1px solid #ccc; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px; z-index: 40; }
 .panel h3 { margin-top: 0; }

@@ -549,12 +549,6 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	// Priority 2: Embedded Fallback Template Cache - Copy to Data
 	embedPath := "frontend" + filepath.Clean(path)
 	if data, err := staticFS.ReadFile(embedPath); err == nil {
-		if path == "/js/Bookmarker.js" {
-			js := strings.ReplaceAll(string(data), "'#content'", "'#preview'")
-			js = strings.ReplaceAll(js, "getElementById('content')", "getElementById('preview')")
-			data = []byte(js)
-		}
-
 		// Copy extracted file directly to user data directory
 		os.MkdirAll(filepath.Dir(filePath), 0755)
 		os.WriteFile(filePath, data, 0644)
