@@ -1,5 +1,5 @@
 # STAGE 1: Toolchains & Cache
-FROM golang:1.22-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -37,7 +37,7 @@ RUN go mod download || true
 
 # STAGE 3: Build & Pack
 COPY . .
-RUN go mod tidy
+RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest && go mod tidy
 
 # Desktop Binary (OMN-Go naming convention)
 RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
@@ -45,11 +45,12 @@ RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
 # Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
-RUN mkdir -p android/app/libs && \
+RUN go get -tool golang.org/x/mobile/cmd/gobind && \
+    go mod tidy && \
+    mkdir -p android/app/libs && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
-    mkdir -p app && \
     if [ ! -f app/omn-go.keystore ]; then \
       keytool -genkey -v -keystore app/omn-go.keystore \
               -alias omn-go -keyalg RSA -keysize 2048 \
@@ -57,5 +58,5 @@ RUN cd android && \
               -dname "CN=OMN-Go, O=Basov"; \
     fi && \
     gradle assembleRelease && \
-    mkdir -p ../bin && \
-    cp app/build/outputs/apk/release/*.apk ../bin/
+    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
+    #cp app/omn-go.keystore ../bin/omn-go.keystore
