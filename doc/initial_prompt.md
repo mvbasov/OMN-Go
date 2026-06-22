@@ -1,4 +1,4 @@
-You are an expert Senior Systems Engineer, Android Developer, and Go Expert. Architect and write a cross-platform Markdown note editor (replacing Open Markdown Notes) called "GoOMN".
+You are an expert Senior Systems Engineer, Android Developer, and Go Expert. Architect and write a cross-platform Markdown note editor (replacing Open Markdown Notes) called "OMN-Go".
 
 The project must use vanilla JavaScript/Tailwind HTML for the web interface, Go for the cross-platform backend server, and a Docker environment optimized for Linux hosts to compile the Android APK without Android Studio or AndroidX/AppCompat libraries.
 

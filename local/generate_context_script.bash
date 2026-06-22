@@ -1,5 +1,8 @@
 #!/bin/bash
 
+CUR_OMN_GO_VER="1.3.22"
+CUR_OMN_GO_VER_A="10322"
+
 # Define color codes for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -7,7 +10,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-OUTPUT_FILE="doc/OMN-Go_1.3.10_Context.md"
+OUTPUT_FILE="doc/OMN-Go_${CUR_OMN_GO_VER}_Context.md"
 
 echo -e "${BLUE}=======================================${NC}"
 echo -e "${YELLOW}  OMN-Go AI Context Generator${NC}"
@@ -15,7 +18,7 @@ echo -e "${BLUE}=======================================${NC}"
 
 # 1. Write the precise AI prompt at the top of the file
 cat << 'PROMPT_EOF' > "$OUTPUT_FILE"
-Here is the current state of the OMN-Go project. We are currently at Version 1.3.10 (Android version code 10310).
+Here is the current state of the OMN-Go project. We are currently at Version ${CUR_OMN_GO_VER} (Android version code ${CUR_OMN_GO_VER_A}).
 
 Below is the complete current codebase and the master `initial_prompt.md`. Please review them and acknowledge that you are ready for my next request. Remember to strictly follow the Turn 2 Python patching output format. Application version need to be updated on every changes.
 PROMPT_EOF

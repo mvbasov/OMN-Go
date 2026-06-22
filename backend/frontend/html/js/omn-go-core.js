@@ -58,7 +58,7 @@ function executeScripts(container) {
                 
                 editor.style.display = 'block';
                 preview.style.display = 'none';
-                btn.innerText = 'View Mode';
+                btn.innerHTML = '<i class="material-icons" title="Switch to View Mode">visibility</i>';
                 document.getElementById('saveBtn').style.display = 'block';
                 document.getElementById('metaToggleBtn').style.display = 'none';
                 document.getElementById('metadataPanel').classList.add('hidden');
@@ -70,7 +70,7 @@ function executeScripts(container) {
                 
                 editor.style.display = 'none';
                 preview.style.display = 'block';
-                btn.innerText = 'Edit Mode';
+                btn.innerHTML = '<i class="material-icons" title="Switch to Edit Mode">edit</i>';
                 document.getElementById('saveBtn').style.display = 'none';
                 document.getElementById('metaToggleBtn').style.display = 'block';
                 currentMode = 'view';
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
-            let v = '1.3.22';
+            let v = '1.3.23';
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
@@ -348,14 +348,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 consoleModal = document.createElement('div');
                 consoleModal.id = 'omn-go-console-modal';
-                consoleModal.style.cssText = 'display:none; position:fixed; top:10%; left:10%; width:80%; height:80%; background:#1e1e1e; color:#00ff00; z-index:10000; border:2px solid #555; border-radius:8px; flex-direction:column; font-family:monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5);';
+                consoleModal.className = 'console-modal';
 
                 const header = document.createElement('div');
-                header.style.cssText = 'padding:10px; background:#333; color:#fff; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #555; font-weight:bold;';
-                header.innerHTML = '<span>JS Console Output</span><div><button id="omn-go-console-clear" style="background:#888; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-right:8px;">Clear</button><button id="omn-go-console-close" style="background:#ff5555; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">Close</button></div>';
+                header.className = 'console-header';
+                header.innerHTML = '<span>JS Console Output</span><div class="console-actions"><button id="omn-go-console-clear" class="btn-console btn-console-clear" title="Clear Console"><i class="material-icons icon-sm">delete_sweep</i></button><button id="omn-go-console-close" class="btn-console btn-console-close" title="Close Console"><i class="material-icons icon-sm">close</i></button></div>';
 
                 logsContainer = document.createElement('div');
-                logsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px; white-space:pre-wrap; word-break:break-all; font-size:12px; line-height:1.4;';
+                logsContainer.className = 'console-logs';
 
                 consoleModal.appendChild(header);
                 consoleModal.appendChild(logsContainer);
@@ -369,14 +369,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     clrBtn.onclick = () => {
                         logs = [];
                         if (logsContainer) logsContainer.innerHTML = '';
-                        if (consoleBtn) consoleBtn.innerText = 'Console (0)';
+                        if (consoleBtn) consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
                     };
                 }
 
                 consoleBtn = document.createElement('button');
                 consoleBtn.id = 'omn-go-console-btn';
-                consoleBtn.innerText = 'Console (0)';
-                consoleBtn.style.cssText = 'margin-left:8px; padding:4px 8px; background:#ff9800; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:bold;';
+                consoleBtn.className = 'btn-console-main';
+                consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
                 consoleBtn.onclick = () => {
                     consoleModal.style.display = 'flex';
                 };
@@ -392,10 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (metadataEl && metadataEl.parentNode) {
                     metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
                 } else {
-                    consoleBtn.style.position = 'fixed';
-                    consoleBtn.style.bottom = '4px';
-                    consoleBtn.style.left = '8px';
-                    consoleBtn.style.zIndex = '9999';
+                    consoleBtn.classList.add('btn-console-main-fixed');
                     document.body.appendChild(consoleBtn);
                 }
             }
@@ -407,7 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     return;
                 }
                 if (!consoleBtn) initConsoleUI();
-                consoleBtn.innerText = `Console (${logs.length})`;
+                consoleBtn.innerHTML = `<i class="material-icons icon-xs">terminal</i><span>${logs.length}</span>`;
 
                 if (logsContainer) {
                     const msg = document.createElement('div');
