@@ -9,13 +9,13 @@ Tags: Bookmarks
   {
     "date": "2026-06-16 17:58:30",
     "url": "Welcome",
-    "title": "Yo! Welcome to OMN-Go",
+    "title": "Welcome to OMN-Go",
     "tags": [
       "Local",
       "Bookmarks"
     ],
     "notes": [
-      "Yo, this is the first bookmark"
+      "This is the first bookmark"
     ]
   }
 ];

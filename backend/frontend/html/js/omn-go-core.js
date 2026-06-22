@@ -1,6 +1,136 @@
 if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
+
+// Try to load console interceptor as early as possible
+(function() {
+            const originalLog = console.log;
+            const originalError = console.error;
+            const originalWarn = console.warn;
+            const originalInfo = console.info;
+	    const originalDebug = console.debug;
+            const originalTrace = console.trace;
+            const originalTable = console.table;
+            const originalDir = console.dir;
+
+            let logs = [];
+            let consoleBtn = null;
+            let consoleModal = null;
+            let logsContainer = null;
+
+            function initConsoleUI() {
+                if (consoleBtn) return;
+
+                consoleModal = document.createElement('div');
+                consoleModal.id = 'omn-go-console-modal';
+                consoleModal.className = 'console-modal';
+
+                const header = document.createElement('div');
+                header.className = 'console-header';
+                header.innerHTML = '<span>JS Console Output</span><div class="console-actions"><button id="omn-go-console-clear" class="btn-console btn-console-clear" title="Clear Console"><i class="material-icons icon-sm">delete_sweep</i></button><button id="omn-go-console-close" class="btn-console btn-console-close" title="Close Console"><i class="material-icons icon-sm">close</i></button></div>';
+
+                logsContainer = document.createElement('div');
+                logsContainer.className = 'console-logs';
+
+                consoleModal.appendChild(header);
+                consoleModal.appendChild(logsContainer);
+                document.body.appendChild(consoleModal);
+
+                document.getElementById('omn-go-console-close').onclick = () => {
+                    consoleModal.style.display = 'none';
+                };
+                let clrBtn = document.getElementById('omn-go-console-clear');
+                if (clrBtn) {
+                    clrBtn.onclick = () => {
+                        logs = [];
+                        if (logsContainer) logsContainer.innerHTML = '';
+                        if (consoleBtn) consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
+                    };
+                }
+
+                consoleBtn = document.createElement('button');
+                consoleBtn.id = 'omn-go-console-btn';
+                consoleBtn.className = 'btn-console-main';
+                consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
+                consoleBtn.onclick = () => {
+                    consoleModal.style.display = 'flex';
+                };
+
+                let metadataEl = Array.from(document.querySelectorAll('*')).find(el => {
+                    if (el.children.length > 0) return false;
+                    const text = (el.textContent || '').toLowerCase();
+                    const id = (el.id || '').toLowerCase();
+                    const cls = (el.className || '').toLowerCase();
+                    return text.includes('metadata') || id.includes('metadata') || cls.includes('metadata');
+                });
+
+                //if (metadataEl && metadataEl.parentNode) {
+                //    metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
+                //} else {
+                //    consoleBtn.classList.add('btn-console-main-fixed');
+                //    document.body.appendChild(consoleBtn);
+                //}
+                document.querySelector('.toolbar').appendChild(consoleBtn);
+            }
+
+            function appendLog(type, args) {
+                logs.push({type, args});
+                if (!document.body) {
+                    window.addEventListener('DOMContentLoaded', () => appendLog(type, args));
+                    return;
+                }
+                if (!consoleBtn) initConsoleUI();
+                consoleBtn.innerHTML = `<i class="material-icons icon-xs">terminal</i><span>${logs.length}</span>`;
+
+                if (logsContainer) {
+                    const msg = document.createElement('div');
+                    msg.style.marginBottom = '4px';
+                    msg.style.paddingBottom = '4px';
+                    msg.style.borderBottom = '1px solid #333';
+                    const color = type === 'error' ? '#ff5555' : type === 'warn' ? '#ffb86c' : '#f8f8f2';
+                    msg.style.color = color;
+
+                    const text = Array.from(args).map(a => {
+                        try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                        catch(e) { return String(a); }
+                    }).join(' ');
+                    
+                    msg.textContent = `[${type.toUpperCase()}] ${text}`;
+                    logsContainer.appendChild(msg);
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                }
+            }
+	    // Wrapper function creator
+            function wrapConsole(methodName, originalMethod, level) {
+                console[methodName] = function(...args) {
+                    // Call original first (or after, depending on your needs)
+                    try {
+                        // Use .apply with the array directly
+                        originalMethod.apply(console, args);
+                    } catch (e) {
+                        // Fallback if native apply fails
+                        originalMethod(...args);
+                    }
+            
+                    // Capture
+                    appendLog(level, args);
+               };
+            }   
+
+            // Override all major methods
+            wrapConsole('log', originalLog, 'log');
+            wrapConsole('error', originalError, 'error');
+            wrapConsole('warn', originalWarn, 'warn');
+            wrapConsole('info', originalInfo, 'info');
+            wrapConsole('debug', originalDebug, 'debug');
+            wrapConsole('trace', originalTrace, 'trace');
+            wrapConsole('table', originalTable, 'table');
+            wrapConsole('dir', originalDir, 'dir');
+            window.addEventListener('error', function(e) {
+                console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
+            });
+})();
+
 function executeScripts(container) {
             const scripts = container.querySelectorAll('script');
             scripts.forEach(oldScript => {
@@ -331,120 +461,6 @@ document.addEventListener("DOMContentLoaded", () => {
             try { if (APP_VERSION) v = APP_VERSION; } catch(e) {}
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
-
-(function() {
-            const originalLog = console.log;
-            const originalError = console.error;
-            const originalWarn = console.warn;
-            const originalInfo = console.info;
-
-            let logs = [];
-            let consoleBtn = null;
-            let consoleModal = null;
-            let logsContainer = null;
-
-            function initConsoleUI() {
-                if (consoleBtn) return;
-
-                consoleModal = document.createElement('div');
-                consoleModal.id = 'omn-go-console-modal';
-                consoleModal.className = 'console-modal';
-
-                const header = document.createElement('div');
-                header.className = 'console-header';
-                header.innerHTML = '<span>JS Console Output</span><div class="console-actions"><button id="omn-go-console-clear" class="btn-console btn-console-clear" title="Clear Console"><i class="material-icons icon-sm">delete_sweep</i></button><button id="omn-go-console-close" class="btn-console btn-console-close" title="Close Console"><i class="material-icons icon-sm">close</i></button></div>';
-
-                logsContainer = document.createElement('div');
-                logsContainer.className = 'console-logs';
-
-                consoleModal.appendChild(header);
-                consoleModal.appendChild(logsContainer);
-                document.body.appendChild(consoleModal);
-
-                document.getElementById('omn-go-console-close').onclick = () => {
-                    consoleModal.style.display = 'none';
-                };
-                let clrBtn = document.getElementById('omn-go-console-clear');
-                if (clrBtn) {
-                    clrBtn.onclick = () => {
-                        logs = [];
-                        if (logsContainer) logsContainer.innerHTML = '';
-                        if (consoleBtn) consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
-                    };
-                }
-
-                consoleBtn = document.createElement('button');
-                consoleBtn.id = 'omn-go-console-btn';
-                consoleBtn.className = 'btn-console-main';
-                consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
-                consoleBtn.onclick = () => {
-                    consoleModal.style.display = 'flex';
-                };
-
-                let metadataEl = Array.from(document.querySelectorAll('*')).find(el => {
-                    if (el.children.length > 0) return false;
-                    const text = (el.textContent || '').toLowerCase();
-                    const id = (el.id || '').toLowerCase();
-                    const cls = (el.className || '').toLowerCase();
-                    return text.includes('metadata') || id.includes('metadata') || cls.includes('metadata');
-                });
-
-                if (metadataEl && metadataEl.parentNode) {
-                    metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
-                } else {
-                    consoleBtn.classList.add('btn-console-main-fixed');
-                    document.body.appendChild(consoleBtn);
-                }
-            }
-
-            function appendLog(type, args) {
-                logs.push({type, args});
-                if (!document.body) {
-                    window.addEventListener('DOMContentLoaded', () => appendLog(type, args));
-                    return;
-                }
-                if (!consoleBtn) initConsoleUI();
-                consoleBtn.innerHTML = `<i class="material-icons icon-xs">terminal</i><span>${logs.length}</span>`;
-
-                if (logsContainer) {
-                    const msg = document.createElement('div');
-                    msg.style.marginBottom = '4px';
-                    msg.style.paddingBottom = '4px';
-                    msg.style.borderBottom = '1px solid #333';
-                    const color = type === 'error' ? '#ff5555' : type === 'warn' ? '#ffb86c' : '#f8f8f2';
-                    msg.style.color = color;
-
-                    const text = Array.from(args).map(a => {
-                        try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
-                        catch(e) { return String(a); }
-                    }).join(' ');
-                    
-                    msg.textContent = `[${type.toUpperCase()}] ${text}`;
-                    logsContainer.appendChild(msg);
-                    logsContainer.scrollTop = logsContainer.scrollHeight;
-                }
-            }
-
-            console.log = function(...args) {
-                originalLog.apply(console, args);
-                appendLog('log', args);
-            };
-            console.error = function(...args) {
-                originalError.apply(console, args);
-                appendLog('error', args);
-            };
-            console.warn = function(...args) {
-                originalWarn.apply(console, args);
-                appendLog('warn', args);
-            };
-            console.info = function(...args) {
-                originalInfo.apply(console, args);
-                appendLog('info', args);
-            };
-            window.addEventListener('error', function(e) {
-                console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
-            });
-        })();
 
 
 // --- Dynamic Metadata Panel Extractor ---
