@@ -13,7 +13,7 @@ input#searchInput {
   margin: 0.1em;
   border-radius: 0.5em;
 }
-div#content button.colexp {
+div#preview button.colexp {
   width: 29%;
   border-radius: 0.5em;
   outline: none;
@@ -32,14 +32,14 @@ div#bmlist {
   overflow-y: scroll;
   height: 580px;
 }
-div#content button.tag {
+div#preview button.tag {
   border-radius: 0.5rem;
   outline: none;
 }
-div#content button.tagSpecial {
+div#preview button.tagSpecial {
   background: #f002;
 }
-div#content button.details {
+div#preview button.details {
   border: none;
   background: none;
   outline: none;

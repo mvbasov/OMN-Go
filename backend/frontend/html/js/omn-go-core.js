@@ -12,6 +12,8 @@ if (typeof currentNote === 'undefined') {
             const originalTrace = console.trace;
             const originalTable = console.table;
             const originalDir = console.dir;
+            const originalTime = console.time;
+            const originalTimeEnd = console.timeEnd;
 
             let logs = [];
             let consoleBtn = null;
@@ -126,6 +128,8 @@ if (typeof currentNote === 'undefined') {
             wrapConsole('trace', originalTrace, 'trace');
             wrapConsole('table', originalTable, 'table');
             wrapConsole('dir', originalDir, 'dir');
+            wrapConsole('time', originalTime, 'time');
+            wrapConsole('timeEnd', originalTimeEnd, 'timeEnd');
             window.addEventListener('error', function(e) {
                 console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
             });
