@@ -20,22 +20,33 @@
     </div>
 
     <!-- Main UI -->
-    <div id="mainUI">
-        <div class="header">
-            <strong><!-- OMN_GO_PAGE_TITLE --></strong>
-            <a href="/Welcome.html"><i class="material-icons">home</i></a>
-            <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
-            <button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>
-            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
-            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
-            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
-            <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
-            <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
+    <div id="mainUI" class="page_container">
+        <div id="ptitle" class="page-header">
+            <div id="hidable_header" class="collapsible-header hidden">
+                <div class="header-actions">
+                    <a href="/Welcome.html"><i class="material-icons">home</i></a>
+                    <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
+                    <button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>
+                    <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
+                    <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
+                    <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
+                    <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
+                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
+                </div>
+                <div class="header-info">
+                    Name: <span id="pageNameDisplay">/</span>
+                </div>
+                <div id="headerTags"><!-- OMN_GO_TAGS --></div>
+            </div>
+            <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
+                <!-- OMN_GO_PAGE_TITLE -->
+                <span id="title_arrow" class="title-arrow">+</span>
+            </h4>
         </div>
 
-        <div class="content-area">
+        <div id="content" class="page-content">
             <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" class="btn-metadata-toggle"><i class="material-icons">info</i></button>
+                <button id="metaToggleBtn" onclick="var h=document.getElementById('hidable_header');h.classList.toggle('hidden');updateArrow();" class="btn-metadata-toggle"><i class="material-icons">info</i></button>
                 <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
             </div>
@@ -43,6 +54,10 @@
             <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
             <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>
         </div>
+    </div>
+
+    <div id="status" class="page-footer">
+        <span class="version-footer-inline" id="omn-go-version-footer"></span>
     </div>
 
     <!-- Quick Note Modal -->
@@ -79,7 +94,7 @@
     <script src="/js/auto-render.min.js"></script>
 
     <!-- Small Version Footer -->
-    <div id="omn-go-version-footer" class="version-footer"></div>
+    <!-- version footer now inline in #status -->
 
 </body>
 </html>

@@ -249,3 +249,224 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 .overlay {
     display: none;   /* overwritten by JS to flex when needed */
 }
+
+/* ====== Legacy OMN Design: Page Container Flex Layout ====== */
+.page_container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+}
+
+/* ====== Collapsible Page Header ====== */
+.page-header {
+    overflow: hidden;
+    background-color: #e8e8e8;
+    width: 100%;
+    margin: 0;
+    flex-shrink: 0;
+    user-select: none;
+}
+.collapsible-header {
+    background-color: #e8e8e8;
+    width: 100%;
+    padding: 0.5em;
+    box-sizing: border-box;
+}
+.collapsible-header.hidden {
+    display: none;
+}
+.header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.header-actions a,
+.header-actions button {
+    color: #333;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid #999;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+.header-actions a:hover,
+.header-actions button:hover {
+    background: #d0d0d0;
+}
+.header-info {
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 4px;
+}
+.header-info span {
+    font-weight: bold;
+    color: #222;
+}
+.page-title {
+    margin: 0.4em 0 0.5em 0;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #1a1a1a;
+}
+.page-title:hover {
+    color: #0056b3;
+}
+.title-arrow {
+    display: inline-block;
+    border: 1px solid #666;
+    border-radius: 6px;
+    padding: 0.1em 0.4em;
+    margin-left: 6px;
+    font-size: 0.9em;
+    color: #444;
+    background: #f5f5f5;
+    vertical-align: middle;
+}
+
+/* ====== Page Content (flex:1 scrollable, no borders) ====== */
+.page-content {
+    padding: 0.5em;
+    overflow: auto;
+    flex: 1;
+}
+.page-content #preview {
+    border: none;                /* Remove the old border */
+    background: transparent;
+    padding: 10px 0;
+}
+.page-content #editor {
+    border: 1px solid #ddd;      /* Subtle border for textarea only */
+}
+
+/* ====== Page Footer (status bar) ====== */
+.page-footer {
+    overflow-x: hidden;
+    flex-shrink: 0;
+    background-color: #e8e8e8;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.version-footer-inline {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* ====== Tag Display (from legacy common.css) ====== */
+#headerTags {
+    margin-top: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+a.taglink {
+    text-decoration: none;
+    color: black;
+}
+.tagmark {
+    background-color: #E7E7E7;
+    padding: 2px 8px;
+    border: 1px solid #505050;
+    border-radius: 8px;
+    font-size: 0.85em;
+    display: inline-block;
+}
+.tagmark:hover {
+    background-color: #d0d0d0;
+}
+.tagmarkselected {
+    color: white;
+    background-color: #888;
+}
+
+/* ====== TOC (Table of Contents) ====== */
+#TOC {
+    border: solid black 1px;
+    margin: 10px;
+    padding: 10px;
+    background: #fafafa;
+}
+.TOCEntry {
+    font-family: sans-serif;
+}
+.TOCEntry a {
+    text-decoration: none;
+}
+.TOCLevel1 { font-weight: bold; }
+.TOCLevel2 { font-weight: bold; }
+.TOCLevel3 { font-weight: bold; }
+.TOCLevel4 { font-weight: bold; margin-left: 0.5em; }
+.TOCLevel5 { font-weight: bold; margin-left: 1em; }
+.TOCLevel6 { font-weight: bold; margin-left: 1.5em; }
+
+/* ====== Table Styling (from legacy common.css) ====== */
+#preview table,
+#content table {
+    border-collapse: collapse;
+}
+#preview table,
+#preview th,
+#preview td,
+#content table,
+#content th,
+#content td {
+    border: 2px solid #4d6bfe;
+}
+#preview th,
+#content th {
+    background-color: #CCCCCC;
+    color: black;
+}
+#preview tr:nth-child(odd),
+#content tr:nth-child(odd) {
+    background-color: #EEEEEE;
+    color: black;
+}
+#preview tr:nth-child(even),
+#content tr:nth-child(even) {
+    background-color: #FFFFFF;
+    color: black;
+}
+
+/* ====== Utility Color Classes (from legacy common.css) ====== */
+.bg-yellow { background-color: yellow; }
+.bg-aqua   { background-color: aqua; }
+.fg-red    { color: red; }
+.fg-green  { color: green; }
+
+/* ====== Paragraph Indent (legacy style) ====== */
+#preview p {
+    text-indent: 1em;
+    margin: 0 3px;
+}
+
+/* ====== Remove old .header (replaced by .page-header) ====== */
+.header {
+    display: none;  /* deprecated, kept for compatibility */
+}
+.content-area {
+    /* deprecated, kept for compatibility */
+}
+
+/* ====== Adjust old version-footer (now inline) ====== */
+.version-footer {
+    position: static;  /* override fixed positioning */
+    font-size: inherit;
+    color: inherit;
+    z-index: auto;
+    opacity: 1;
+    pointer-events: auto;
+}

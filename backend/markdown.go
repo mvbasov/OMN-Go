@@ -124,6 +124,21 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
       var Title = '%s';
     </script>`, name, title)
 
+	// Build tag links for the header
+	var tagLinks []string
+	for _, h := range headers {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "tags") {
+			for _, tag := range strings.Split(parts[1], ",") {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					tagLinks = append(tagLinks, fmt.Sprintf(`<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, htmlEscape(tag), htmlEscape(tag)))
+				}
+			}
+		}
+	}
+	tagsHTML := strings.Join(tagLinks, "\n")
+
 	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
 
 	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
@@ -131,6 +146,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
 	return []byte(layout)

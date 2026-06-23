@@ -396,6 +396,27 @@ function executeScripts(container) {
             }
         };
 
+        window.toggleHeader = function() {
+            var header = document.getElementById('hidable_header');
+            var arrow = document.getElementById('title_arrow');
+            if (header) {
+                if (header.classList.contains('hidden')) {
+                    header.classList.remove('hidden');
+                    if (arrow) arrow.textContent = '−';
+                } else {
+                    header.classList.add('hidden');
+                    if (arrow) arrow.textContent = '+';
+                }
+            }
+        };
+        window.updateArrow = function() {
+            var header = document.getElementById('hidable_header');
+            var arrow = document.getElementById('title_arrow');
+            if (header && arrow) {
+                arrow.textContent = header.classList.contains('hidden') ? '+' : '−';
+            }
+        };
+
         window.onload = () => {
             checkSession();
             
@@ -471,7 +492,12 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');
     if (panel) {
-        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName + '.md' : ''}</div>`;
+        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName : ''}</div>`;
+        // Also update the header name display
+        var nameDisplay = document.getElementById('pageNameDisplay');
+        if (nameDisplay && typeof PageName !== 'undefined') {
+            nameDisplay.textContent = '/' + PageName;
+        }
         document.querySelectorAll('meta').forEach(m => {
             const name = m.getAttribute('name');
             const content = m.getAttribute('content');
