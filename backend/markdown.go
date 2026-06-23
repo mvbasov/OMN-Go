@@ -153,8 +153,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 
 	// Explicitly set IS_MARKDOWN = true for markdown pages (overrides any previous false)
 	if pageExt == ".md" || pageExt == "" {
-		metaBlock += "
-    <script>var IS_MARKDOWN = true;</script>"
+		metaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"
 	}
 	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
