@@ -72,7 +72,7 @@ if (typeof currentNote === 'undefined') {
                 //    consoleBtn.classList.add('btn-console-main-fixed');
                 //    document.body.appendChild(consoleBtn);
                 //}
-                var target = document.querySelector('.header-actions'); if (target) target.appendChild(consoleBtn); else { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
+                var target = document.querySelector('.header-actions'); if (target) { target.appendChild(consoleBtn); } else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
             function appendLog(type, args) {
@@ -147,7 +147,10 @@ function executeScripts(container) {
         }
 
         // Intercept Markdown links for standard browser-side redirects
-        document.getElementById('preview').addEventListener('click', (e) => {
+        function setupPreviewLinkInterceptor() {
+            var preview = document.getElementById('preview');
+            if (!preview) return;
+            preview.addEventListener('click', (e) => {
             let target = e.target.closest('a');
             if(target) {
                 const href = target.getAttribute('href');
@@ -168,6 +171,8 @@ function executeScripts(container) {
                 }
             }
         });
+        }
+        document.addEventListener('DOMContentLoaded', setupPreviewLinkInterceptor);
 
         async function loadNoteIntoEditor() {
             const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
@@ -235,9 +240,11 @@ function executeScripts(container) {
         });
 
         // Image Drag & Drop
-        const editor = document.getElementById('editor');
-        editor.addEventListener('dragover', e => e.preventDefault());
-        editor.addEventListener('drop', async e => {
+        function setupEditorDragDrop() {
+            const editor = document.getElementById('editor');
+            if (!editor) return;
+            editor.addEventListener('dragover', e => e.preventDefault());
+            editor.addEventListener('drop', async e => {
             e.preventDefault();
             if(e.dataTransfer.files.length > 0) {
                 const fd = new FormData();
@@ -251,6 +258,8 @@ function executeScripts(container) {
                 }
             }
         });
+        }
+        document.addEventListener('DOMContentLoaded', setupEditorDragDrop);
 
         async function login() {
             const pwd = document.getElementById('pwdInput').value;
@@ -397,27 +406,7 @@ function executeScripts(container) {
             }
         };
 
-        window.toggleHeader = function() {
-            var header = document.getElementById('hidable_header');
-            var arrow = document.getElementById('title_arrow');
-            if (header) {
-                if (header.classList.contains('hidden')) {
-                    header.classList.remove('hidden');
-                    if (arrow) arrow.textContent = '−';
-                } else {
-                    header.classList.add('hidden');
-                    if (arrow) arrow.textContent = '+';
-                }
-            }
-        };
-        window.updateArrow = function() {
-            var header = document.getElementById('hidable_header');
-            var arrow = document.getElementById('title_arrow');
-            if (header && arrow) {
-                arrow.textContent = header.classList.contains('hidden') ? '+' : '−';
-            }
-        };
-
+        
         window.toggleHeader = function() {
     var header = document.getElementById('hidable_header');
     var arrow = document.getElementById('title_arrow');

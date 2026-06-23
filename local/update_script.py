@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""
-OMN-Go patcher – fix header toggle and console UI errors
-Bumps version based on current state.
-"""
+"""OMN-Go patcher – fix toggleHeader not defined and console UI crash by wrapping
+   immediate DOM queries in DOMContentLoaded.  Remove duplicate function defs."""
 
 import re, os
 
@@ -40,7 +38,7 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # --- 2. Fix markdown.go: missing import + broken literal (if still broken) ---
+    # --- 2. Fix markdown.go (missing import / broken literal) if still broken ---
     md_path = "backend/markdown.go"
     md = read_file(md_path)
     if '"path/filepath"' not in md:
@@ -50,65 +48,142 @@ def update_application():
         )
         write_file(md_path, md)
         md = read_file(md_path)
-
-    # Fix the literal newline if still there
-    old = '\t\tmetaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"'
-    new = '\t\tmetaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"'
-    if old in md:
-        md = md.replace(old, new)
+    old_broken = '\t\tmetaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"'
+    new_fixed  = '\t\tmetaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"'
+    if old_broken in md:
+        md = md.replace(old_broken, new_fixed)
         write_file(md_path, md)
-        md = read_file(md_path)
-    else:
-        # maybe already fixed? If not found, check if the correct one exists
-        if 'metaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"' not in md:
-            print("Warning: IS_MARKDOWN block format not recognized.")
 
-    # --- 3. Fix omn-go-core.js: add toggleHeader/updateArrow if missing, fix console UI attachment ---
+    # --- 3. Fix omn-go-core.js ---
     js_path = "backend/frontend/html/js/omn-go-core.js"
     js = read_file(js_path)
 
-    # 3a. Add toggleHeader and updateArrow if not present (before window.onload)
-    if 'function toggleHeader()' not in js:
-        insert_js = (
-            "window.toggleHeader = function() {\n"
-            "    var header = document.getElementById('hidable_header');\n"
-            "    var arrow = document.getElementById('title_arrow');\n"
-            "    if (header) {\n"
-            "        if (header.classList.contains('hidden')) {\n"
-            "            header.classList.remove('hidden');\n"
-            "            if (arrow) arrow.textContent = '\\u2212';\n"
-            "        } else {\n"
-            "            header.classList.add('hidden');\n"
-            "            if (arrow) arrow.textContent = '+';\n"
-            "        }\n"
-            "    }\n"
-            "};\n"
-            "window.updateArrow = function() {\n"
-            "    var header = document.getElementById('hidable_header');\n"
-            "    var arrow = document.getElementById('title_arrow');\n"
-            "    if (header && arrow) {\n"
-            "        arrow.textContent = header.classList.contains('hidden') ? '+' : '\\u2212';\n"
-            "    }\n"
-            "};\n"
-        )
-        # Insert before 'window.onload ='
-        js = js.replace('window.onload = () => {', insert_js + '\nwindow.onload = () => {')
+    # 3a. Remove duplicate toggleHeader / updateArrow definitions
+    #     Keep only the last (cleaner) pair, remove the first pair.
+    first_dup = (
+        "window.toggleHeader = function() {\n"
+        "            var header = document.getElementById('hidable_header');\n"
+        "            var arrow = document.getElementById('title_arrow');\n"
+        "            if (header) {\n"
+        "                if (header.classList.contains('hidden')) {\n"
+        "                    header.classList.remove('hidden');\n"
+        "                    if (arrow) arrow.textContent = '\u2212';\n"
+        "                } else {\n"
+        "                    header.classList.add('hidden');\n"
+        "                    if (arrow) arrow.textContent = '+';\n"
+        "                }\n"
+        "            }\n"
+        "        };\n"
+        "        window.updateArrow = function() {\n"
+        "            var header = document.getElementById('hidable_header');\n"
+        "            var arrow = document.getElementById('title_arrow');\n"
+        "            if (header && arrow) {\n"
+        "                arrow.textContent = header.classList.contains('hidden') ? '+' : '\u2212';\n"
+        "            }\n"
+        "        };\n"
+    )
+    if first_dup in js:
+        js = js.replace(first_dup, "")
+        write_file(js_path, js)
+        js = read_file(js_path)
 
-    # 3b. Fix initConsoleUI: target .header-actions instead of .toolbar (which is now hidden)
-    old_target = "document.querySelector('.toolbar').appendChild(consoleBtn);"
-    new_target = "var target = document.querySelector('.header-actions'); if (target) target.appendChild(consoleBtn); else { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }"
-    if old_target in js:
-        js = js.replace(old_target, new_target)
+    # 3b. Wrap immediate DOM queries (preview click, editor drag/drop) in a
+    #     queued setup that runs after the elements exist.
+    old_immediate_code = """        // Intercept Markdown links for standard browser-side redirects
+        document.getElementById('preview').addEventListener('click', (e) => {"""
+    new_deferred_code = """        // Intercept Markdown links for standard browser-side redirects
+        function setupPreviewLinkInterceptor() {
+            var preview = document.getElementById('preview');
+            if (!preview) return;
+            preview.addEventListener('click', (e) => {"""
+    if old_immediate_code in js:
+        js = js.replace(old_immediate_code, new_deferred_code)
+        # Now find the closing of that block and add the deferred call
+        # The original ends with:
+        #             }
+        #         }
+        #     }
+        # });
+        # We need to close the setup function and call it on DOMContentLoaded
+        old_closing = """                }
+            }
+        });"""
+        new_closing = """                }
+            }
+        });
+        }
+        document.addEventListener('DOMContentLoaded', setupPreviewLinkInterceptor);"""
+        if old_closing in js:
+            js = js.replace(old_closing, new_closing, 1)  # only first occurrence
+        write_file(js_path, js)
+        js = read_file(js_path)
 
+    # 3c. Wrap the editor drag/drop setup (also runs immediately)
+    old_editor_setup = """        // Image Drag & Drop
+        const editor = document.getElementById('editor');
+        editor.addEventListener('dragover', e => e.preventDefault());
+        editor.addEventListener('drop', async e => {"""
+    new_editor_setup = """        // Image Drag & Drop
+        function setupEditorDragDrop() {
+            const editor = document.getElementById('editor');
+            if (!editor) return;
+            editor.addEventListener('dragover', e => e.preventDefault());
+            editor.addEventListener('drop', async e => {"""
+    if old_editor_setup in js:
+        js = js.replace(old_editor_setup, new_editor_setup)
+        # Find the closing of the editor drop handler and add the deferred call
+        # The original ends with:
+        #             }
+        #         }
+        #     }
+        # });
+        # Find the SECOND occurrence (after the editor drop handler)
+        old_editor_closing = """                }
+            }
+        });"""
+        # We need to be more specific.  The editor drop handler is the SECOND
+        # occurrence of this pattern.  Let's use a marker.
+        marker = """                    editor.dispatchEvent(new Event('input'));
+                }
+            }
+        });"""
+        new_marker = """                    editor.dispatchEvent(new Event('input'));
+                }
+            }
+        });
+        }
+        document.addEventListener('DOMContentLoaded', setupEditorDragDrop);"""
+        if marker in js:
+            js = js.replace(marker, new_marker)
+        write_file(js_path, js)
+        js = read_file(js_path)
+
+    # 3d. Make initConsoleUI safe even when .header-actions or body is null
+    old_init_ui_frag = (
+        "var target = document.querySelector('.header-actions'); "
+        "if (target) target.appendChild(consoleBtn); "
+        "else { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }"
+    )
+    new_init_ui_frag = (
+        "var target = document.querySelector('.header-actions'); "
+        "if (target) { target.appendChild(consoleBtn); } "
+        "else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }"
+    )
+    if old_init_ui_frag in js:
+        js = js.replace(old_init_ui_frag, new_init_ui_frag)
     write_file(js_path, js)
 
     # --- 4. Commit message ---
     commit_msg = (
-        f"fix(js): define toggleHeader/updateArrow; fix console UI attachment\n\n"
-        "- Added missing global toggleHeader and updateArrow functions.\n"
-        "- Fixed initConsoleUI to append button to .header-actions instead of\n"
-        "  non-existent .toolbar (prevents null reference error).\n"
-        f"Version bumped to {new_ver}\n"
+        f"fix(js): defer DOM queries to DOMContentLoaded; deduplicate toggleHeader\n\n"
+        "- Wrapped preview click interceptor and editor drag/drop setup inside\n"
+        "  DOMContentLoaded callbacks so they don't crash when the script loads\n"
+        "  before the body.\n"
+        "- Removed duplicate toggleHeader/updateArrow definitions left over from\n"
+        "  previous patches.\n"
+        "- Made initConsoleUI safe when .header-actions or body is not yet\n"
+        "  available.\n\n"
+        f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
