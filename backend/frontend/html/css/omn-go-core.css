@@ -336,10 +336,11 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 /* ====== Page Content (flex:1 scrollable, no borders) ====== */
 .page-content {
     padding: 0.5em;
-    overflow: auto;
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;       /* allow shrinking below content size */
+    overflow: hidden;    /* prevent double scrollbars; children scroll */
 }
 .page-content #preview {
     border: none;
@@ -348,12 +349,15 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     flex: 1;
     min-height: 0;
     width: 100%;
+    overflow-y: auto;    /* scroll if content overflows */
 }
 .page-content #editor {
     border: 1px solid #ddd;
     flex: 1;
     min-height: 0;
     width: 100%;
+    resize: vertical;    /* allow manual resize if desired */
+    box-sizing: border-box;
 }
 
 /* ====== Page Footer (status bar) ====== */

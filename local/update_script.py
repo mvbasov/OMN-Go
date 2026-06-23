@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OMN-Go 1.3.36 → 1.3.37: fix external editor refresh URL to use .html extension."""
+"""OMN-Go 1.3.37 → 1.3.38: fix editor height, remove redundant Name line."""
 
 import re, os
 
@@ -26,13 +26,12 @@ def increment_version(ver_str):
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
 def update_application():
-    # 1. Auto‑detect current version and bump
+    # 1. Bump version
     ver_path = 'backend/version.go'
     content = read_file(ver_path)
     match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
     cur_ver = match.group(1)
     new_ver = increment_version(cur_ver)
-
     content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
     write_file(ver_path, content)
 
@@ -44,63 +43,91 @@ def update_application():
                             f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Patch getExternalEditPageBody to accept separate view URL
-    old_func = """func getExternalEditPageBody(fileName string) string {
-	return fmt.Sprintf(`
-<div class="ext-edit-panel">
-    <div class="ext-edit-icon">📝</div>
-    <h2 class="ext-edit-title">Editing Externally</h2>
-    <p class="ext-edit-msg">
-        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
-    </p>
-    <button onclick="window.location.replace('/%s')" class="ext-edit-btn">
-        Press after edit to refresh view
-    </button>
-</div>
-`, appConfig.DesktopExtCmd, fileName, fileName)
-}"""
-    new_func = """func getExternalEditPageBody(fileName string, viewURL string) string {
-	return fmt.Sprintf(`
-<div class="ext-edit-panel">
-    <div class="ext-edit-icon">📝</div>
-    <h2 class="ext-edit-title">Editing Externally</h2>
-    <p class="ext-edit-msg">
-        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
-    </p>
-    <button onclick="window.location.replace('/%s')" class="ext-edit-btn">
-        Press after edit to refresh view
-    </button>
-</div>
-`, appConfig.DesktopExtCmd, fileName, viewURL)
-}"""
-    patch_file('backend/handlers.go', old_func, new_func)
+    # 2. Remove redundant "Name: ..." line from header
+    idx_path = 'backend/frontend/index.html'
+    old_name_line = '''                <!-- Metadata line: name + pelican headers -->
+                <div class="header-info">
+                    Name: <span id="pageNameDisplay">/</span>
+                    <span id="headerMetadata"><!-- OMN_GO_METADATA_INFO --></span>
+                </div>
+'''
+    new_name_line = '''                <!-- Header metadata (Author, Date, Modified) displayed inline after icons -->
+                <div class="header-info">
+                    <span id="headerMetadata"><!-- OMN_GO_METADATA_INFO --></span>
+                </div>
+'''
+    patch_file(idx_path, old_name_line, new_name_line)
 
-    # 3. Patch handleEditExternal to compute viewURL and pass it
-    # Old block: after filePath is determined, before waitBody.
-    # We insert a line to compute viewURL, then update the call.
-    # Find the exact lines:
-    #   	waitBody := getExternalEditPageBody(name)
-    #   	compiledWait := compilePageWithBody(name, ...)
-    old_call = """	waitBody := getExternalEditPageBody(name)
-	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\\nDate: %s\\nCategory: Action\\n\\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)"""
-    new_call = """	// Compute the correct view URL (.html for markdown, raw name otherwise)
-	viewURL := name
-	if strings.HasSuffix(name, ".md") {
-		viewURL = strings.TrimSuffix(name, ".md") + ".html"
-	}
-	waitBody := getExternalEditPageBody(name, viewURL)
-	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\\nDate: %s\\nCategory: Action\\n\\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)"""
-    patch_file('backend/handlers.go', old_call, new_call)
+    # 3. Fix editor/preview height: CSS adjustments
+    css_path = 'backend/frontend/html/css/omn-go-core.css'
+    # Replace .page-content to remove overflow:auto and add flex structure
+    old_content = """.page-content {
+    padding: 0.5em;
+    overflow: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}"""
+    new_content = """.page-content {
+    padding: 0.5em;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;       /* allow shrinking below content size */
+    overflow: hidden;    /* prevent double scrollbars; children scroll */
+}"""
+    if old_content in read_file(css_path):
+        patch_file(css_path, old_content, new_content)
+
+    # Replace #preview to add overflow-y
+    old_preview = """.page-content #preview {
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+}"""
+    new_preview = """.page-content #preview {
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;    /* scroll if content overflows */
+}"""
+    if old_preview in read_file(css_path):
+        patch_file(css_path, old_preview, new_preview)
+
+    # Replace #editor to add overflow-y and ensure it stretches
+    old_editor = """.page-content #editor {
+    border: 1px solid #ddd;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+}"""
+    new_editor = """.page-content #editor {
+    border: 1px solid #ddd;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    resize: vertical;    /* allow manual resize if desired */
+    box-sizing: border-box;
+}"""
+    if old_editor in read_file(css_path):
+        patch_file(css_path, old_editor, new_editor)
+    # If the old editor block is missing (maybe already modified), we'll add it
+    # but that's unlikely; we'll just trust the checks above.
 
     # 4. Commit message
     commit_msg = (
-        f"fix(editor): external editor refresh now loads .html page for markdown files\n\n"
-        "- The 'Press after edit to refresh view' button previously used the raw\n"
-        "  file name with .md extension, which the server would 404 because it\n"
-        "  serves compiled .html pages.  Now it redirects to the .html version.\n"
-        "- getExternalEditPageBody now accepts a separate viewURL parameter.\n"
-        "- Non‑markdown files (e.g., .js, .css, .json) are unaffected because\n"
-        "  they are served directly and the viewURL remains the raw file name.\n\n"
+        f"fix(ui): editor now fills available height; remove redundant Name line\n\n"
+        "- Removed the 'Name: /PageName' line from the collapsible header;\n"
+        "  the same information is already shown in the metadata panel.\n"
+        "- Fixed the internal editor textarea appearing tiny by adjusting\n"
+        "  flexbox layout: .page-content now has overflow:hidden and its\n"
+        "  children (#editor, #preview) handle their own scrolling.\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
