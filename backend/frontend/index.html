@@ -11,7 +11,7 @@
 <body>
     
     <!-- Login Overlay -->
-    <div id="loginOverlay" class="overlay" style="display: none;">
+    <div id="loginOverlay" class="overlay">
         <div class="modal">
             <h2>OMN-Go Login</h2>
             <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
@@ -25,21 +25,21 @@
             <strong><!-- OMN_GO_PAGE_TITLE --></strong>
             <a href="/Welcome.html"><i class="material-icons">home</i></a>
             <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
-            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;"><i class="material-icons">note_add</i></button>
-            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;"><i class="material-icons">refresh</i></button>
+            <button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>
+            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
             <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
             <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
             <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
-            <a href="#" onclick="window.location.replace('/Config.html'); return false;" style="background: #444; border-color: #666;"><i class="material-icons">settings</i></a>
+            <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
         </div>
 
         <div class="content-area">
             <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;"><i class="material-icons">info</i></button>
-                <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;"><i class="material-icons">save</i></button>
+                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" class="btn-metadata-toggle"><i class="material-icons">info</i></button>
+                <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
                 <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
             </div>
-            <div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"><!-- OMN_GO_METADATA_PANEL --></div>
+            <div id="metadataPanel" class="hidden metadata-panel"><!-- OMN_GO_METADATA_PANEL --></div>
             <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
             <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>
         </div>
@@ -49,9 +49,9 @@
     <div id="quickPanel" class="panel hidden">
         <h3>Quick Note</h3>
         <textarea id="quickText" rows="4"></textarea>
-        <div style="display: flex; gap: 10px;">
+        <div class="modal-buttons-row">
             <button onclick="submitQuickNote()">Save</button>
-            <button onclick="document.getElementById('quickPanel').classList.add('hidden')" style="background: #dc3545;">Cancel</button>
+            <button onclick="document.getElementById('quickPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
         </div>
     </div>
 
@@ -62,9 +62,9 @@
         <input id="bmTitle" placeholder="Title">
         <input id="bmTags" placeholder="Tags (comma separated)">
         <textarea id="bmNotes" rows="2" placeholder="Notes"></textarea>
-        <div style="display: flex; gap: 10px;">
+        <div class="modal-buttons-row">
             <button onclick="submitBookmark()">Save</button>
-            <button onclick="document.getElementById('bmPanel').classList.add('hidden')" style="background: #dc3545;">Cancel</button>
+            <button onclick="document.getElementById('bmPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
         </div>
     </div>
 
@@ -79,7 +79,7 @@
     <script src="/js/auto-render.min.js"></script>
 
     <!-- Small Version Footer -->
-    <div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
+    <div id="omn-go-version-footer" class="version-footer"></div>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OMN-Go 1.3.30 → 1.3.31: refactor embedded inline styles into omn-go-core.css."""
+"""OMN-Go 1.3.31 → 1.3.32: extract inline styles from index.html into omn-go-core.css."""
 
 import os
 
@@ -15,300 +15,136 @@ def patch_file(path, old, new):
 def update_application():
     # ========== VERSION BUMPS ==========
     patch_file("backend/version.go",
-               'APP_VERSION = "1.3.30"',
-               'APP_VERSION = "1.3.31"')
+               'APP_VERSION = "1.3.31"',
+               'APP_VERSION = "1.3.32"')
     patch_file("android/app/build.gradle",
-               "versionCode 10330",
-               "versionCode 10331")
+               "versionCode 10331",
+               "versionCode 10332")
     patch_file("android/app/build.gradle",
-               'versionName "1.3.30"',
-               'versionName "1.3.31"')
+               'versionName "1.3.31"',
+               'versionName "1.3.32"')
 
-    # ===================================================================
-    # 1. Refactor getConfigPageBody in handlers.go
-    # ===================================================================
-    old_config = '''func getConfigPageBody() string {
-	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700; border-bottom: 2px solid #eaecef; padding-bottom: 10px;">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" style="margin-top: 20px;">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-        </div>
-        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
-            <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
-        </div>
-        <div style="margin-bottom: 25px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Desktop External Editor Command</label>
-            <input type="text" id="cfgExtCmd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-            <small style="color: #666; display: block; margin-top: 5px;">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
-        </div>
-        <button type="submit" style="background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%%; font-size: 16px; transition: background 0.2s;">Save Configuration</button>
-    </form>
-</div>
-<script>
-    async function saveConfig(event) {
-        event.preventDefault();
-        const params = new URLSearchParams();
-        params.append("server_port", document.getElementById("cfgPort").value);
-        params.append("admin_password", document.getElementById("cfgAdminPwd").value);
-        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
-        params.append("author", document.getElementById("cfgAuthor").value);
-        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
-        params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
+    # ========== 1. Update index.html ==========
+    index_path = "backend/frontend/index.html"
 
-        const res = await fetch("/api/config", { method: "POST", body: params });
-        if (res.ok) {
-            alert("Configuration saved successfully! Server port changes will take effect after restarting the application.");
-            window.location.reload();
-        } else {
-            alert("Failed to save configuration.");
-        }
-    }
-</script>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,
-		func() string {
-			if appConfig.UseInternalEd {
-				return "checked"
-			}
-			return ""
-		}(),
-		appConfig.DesktopExtCmd)
-}'''
+    # Patch the login overlay (remove inline display:none, rely on CSS)
+    old_overlay = '<div id="loginOverlay" class="overlay" style="display: none;">'
+    new_overlay = '<div id="loginOverlay" class="overlay">'
+    patch_file(index_path, old_overlay, new_overlay)
 
-    new_config = '''func getConfigPageBody() string {
-	return fmt.Sprintf(`
-<div class="config-panel">
-    <h2 class="config-title">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
-        <div class="config-field">
-            <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
-        </div>
-        <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgUseInternal" %s class="config-checkbox" />
-            <label for="cfgUseInternal" class="config-label config-checkbox-label">Use HTML Internal Editor</label>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Desktop External Editor Command</label>
-            <input type="text" id="cfgExtCmd" value="%s" class="config-input" />
-            <small class="config-hint">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
-        </div>
-        <button type="submit" class="config-save-btn">Save Configuration</button>
-    </form>
-</div>
-<script>
-    async function saveConfig(event) {
-        event.preventDefault();
-        const params = new URLSearchParams();
-        params.append("server_port", document.getElementById("cfgPort").value);
-        params.append("admin_password", document.getElementById("cfgAdminPwd").value);
-        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
-        params.append("author", document.getElementById("cfgAuthor").value);
-        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
-        params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
+    # Header buttons and links: replace inline styles with classes
+    # Create new page button
+    old_btn_create = '<button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;"><i class="material-icons">note_add</i></button>'
+    new_btn_create = '<button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>'
+    patch_file(index_path, old_btn_create, new_btn_create)
 
-        const res = await fetch("/api/config", { method: "POST", body: params });
-        if (res.ok) {
-            alert("Configuration saved successfully! Server port changes will take effect after restarting the application.");
-            window.location.reload();
-        } else {
-            alert("Failed to save configuration.");
-        }
-    }
-</script>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,
-		func() string {
-			if appConfig.UseInternalEd {
-				return "checked"
-			}
-			return ""
-		}(),
-		appConfig.DesktopExtCmd)
-}'''
+    # Refresh button
+    old_btn_refresh = '<button onclick="window.location.href = window.location.pathname + \'?refresh=1\'" class="admin-only" style="background: #6c757d; border-color: #6c757d;"><i class="material-icons">refresh</i></button>'
+    new_btn_refresh = '<button onclick="window.location.href = window.location.pathname + \'?refresh=1\'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>'
+    patch_file(index_path, old_btn_refresh, new_btn_refresh)
 
-    patch_file("backend/handlers.go", old_config, new_config)
+    # Settings link
+    old_settings = '<a href="#" onclick="window.location.replace(\'/Config.html\'); return false;" style="background: #444; border-color: #666;"><i class="material-icons">settings</i></a>'
+    new_settings = '<a href="#" onclick="window.location.replace(\'/Config.html\'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>'
+    patch_file(index_path, old_settings, new_settings)
 
-    # ===================================================================
-    # 2. Refactor getExternalEditPageBody in handlers.go
-    # ===================================================================
-    old_ext_edit = '''func getExternalEditPageBody(fileName string) string {
-	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 40px auto; background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; text-align: center;">
-    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700;">Editing Externally</h2>
-    <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
-        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
-    </p>
-    <button onclick="window.location.replace('/%s')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-        Press after edit to refresh view
-    </button>
-</div>
-`, appConfig.DesktopExtCmd, fileName, fileName)
-}'''
+    # Toolbar metadata toggle button
+    old_meta_toggle = '<button id="metaToggleBtn" onclick="document.getElementById(\'metadataPanel\').classList.toggle(\'hidden\')" style="display: block; background: #17a2b8; color: white; border: none;"><i class="material-icons">info</i></button>'
+    new_meta_toggle = '<button id="metaToggleBtn" onclick="document.getElementById(\'metadataPanel\').classList.toggle(\'hidden\')" class="btn-metadata-toggle"><i class="material-icons">info</i></button>'
+    patch_file(index_path, old_meta_toggle, new_meta_toggle)
 
-    new_ext_edit = '''func getExternalEditPageBody(fileName string) string {
-	return fmt.Sprintf(`
-<div class="ext-edit-panel">
-    <div class="ext-edit-icon">📝</div>
-    <h2 class="ext-edit-title">Editing Externally</h2>
-    <p class="ext-edit-msg">
-        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
-    </p>
-    <button onclick="window.location.replace('/%s')" class="ext-edit-btn">
-        Press after edit to refresh view
-    </button>
-</div>
-`, appConfig.DesktopExtCmd, fileName, fileName)
-}'''
+    # Toolbar save button
+    old_save_btn = '<button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;"><i class="material-icons">save</i></button>'
+    new_save_btn = '<button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>'
+    patch_file(index_path, old_save_btn, new_save_btn)
 
-    patch_file("backend/handlers.go", old_ext_edit, new_ext_edit)
+    # Metadata panel
+    old_metadata_panel = '<div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"><!-- OMN_GO_METADATA_PANEL --></div>'
+    new_metadata_panel = '<div id="metadataPanel" class="hidden metadata-panel"><!-- OMN_GO_METADATA_PANEL --></div>'
+    patch_file(index_path, old_metadata_panel, new_metadata_panel)
 
-    # ===================================================================
-    # 3. Append new CSS classes to omn-go-core.css
-    # ===================================================================
+    # Quick Note buttons row
+    old_qn_buttons = '<div style="display: flex; gap: 10px;">\n            <button onclick="submitQuickNote()">Save</button>\n            <button onclick="document.getElementById(\'quickPanel\').classList.add(\'hidden\')" style="background: #dc3545;">Cancel</button>'
+    new_qn_buttons = '<div class="modal-buttons-row">\n            <button onclick="submitQuickNote()">Save</button>\n            <button onclick="document.getElementById(\'quickPanel\').classList.add(\'hidden\')" class="btn-cancel">Cancel</button>'
+    patch_file(index_path, old_qn_buttons, new_qn_buttons)
+
+    # Bookmark buttons row
+    old_bm_buttons = '<div style="display: flex; gap: 10px;">\n            <button onclick="submitBookmark()">Save</button>\n            <button onclick="document.getElementById(\'bmPanel\').classList.add(\'hidden\')" style="background: #dc3545;">Cancel</button>'
+    new_bm_buttons = '<div class="modal-buttons-row">\n            <button onclick="submitBookmark()">Save</button>\n            <button onclick="document.getElementById(\'bmPanel\').classList.add(\'hidden\')" class="btn-cancel">Cancel</button>'
+    patch_file(index_path, old_bm_buttons, new_bm_buttons)
+
+    # Version footer
+    old_footer = '<div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>'
+    new_footer = '<div id="omn-go-version-footer" class="version-footer"></div>'
+    patch_file(index_path, old_footer, new_footer)
+
+    # ========== 2. Append new CSS classes to omn-go-core.css ==========
     css_path = "backend/frontend/html/css/omn-go-core.css"
     new_css = r"""
-/* Configuration Dashboard */
-.config-panel {
-    max-width: 600px;
-    margin: 0 auto;
-    background: #ffffff;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border: 1px solid #e1e4e8;
+/* ---------- Header Buttons (replacing inline styles) ---------- */
+.btn-create-page {
+    background: #17a2b8 !important;
+    border-color: #17a2b8 !important;
 }
-.config-title {
-    margin-top: 0;
-    color: #1a1a1a;
-    font-size: 24px;
-    font-weight: 700;
-    border-bottom: 2px solid #eaecef;
-    padding-bottom: 10px;
+.btn-refresh {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
 }
-.config-form {
-    margin-top: 20px;
+.btn-settings {
+    background: #444 !important;
+    border-color: #666 !important;
 }
-.config-field {
-    margin-bottom: 20px;
-}
-.config-label {
+
+/* ---------- Toolbar Buttons ---------- */
+.btn-metadata-toggle {
     display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #444;
+    background: #17a2b8;
+    color: white;
+    border: none;
 }
-.config-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-.config-checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.config-checkbox {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-}
-.config-checkbox-label {
-    font-weight: 600;
-    color: #444;
-    cursor: pointer;
-}
-.config-hint {
-    color: #666;
-    display: block;
-    margin-top: 5px;
-}
-.config-save-btn {
+.btn-save-note {
+    display: none;                   /* hidden by default, shown via JS */
     background: #28a745;
     color: white;
     border: none;
-    padding: 12px 20px;
-    border-radius: 4px;
-    font-weight: bold;
-    cursor: pointer;
-    width: 100%;
-    font-size: 16px;
-    transition: background 0.2s;
-}
-.config-save-btn:hover {
-    background: #218838;
 }
 
-/* External Editor Page */
-.ext-edit-panel {
-    max-width: 600px;
-    margin: 40px auto;
-    background: #ffffff;
-    padding: 40px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border: 1px solid #e1e4e8;
-    text-align: center;
+/* ---------- Metadata Panel ---------- */
+.metadata-panel {
+    background: #e9ecef;
+    padding: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 13px;
 }
-.ext-edit-icon {
-    font-size: 48px;
-    margin-bottom: 20px;
+
+/* ---------- Modal Button Rows ---------- */
+.modal-buttons-row {
+    display: flex;
+    gap: 10px;
 }
-.ext-edit-title {
-    margin-top: 0;
-    color: #1a1a1a;
-    font-size: 24px;
-    font-weight: 700;
+.btn-cancel {
+    background: #dc3545;
 }
-.ext-edit-msg {
-    color: #555;
-    font-size: 16px;
-    margin-bottom: 30px;
-    line-height: 1.5;
+
+/* ---------- Version Footer ---------- */
+.version-footer {
+    position: fixed;
+    bottom: 4px;
+    right: 8px;
+    font-size: 0.75rem;
+    color: #888;
+    z-index: 9999;
+    opacity: 0.7;
+    pointer-events: none;
 }
-.ext-edit-btn {
-    background: #0056b3;
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 18px;
-    transition: background 0.2s;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-.ext-edit-btn:hover {
-    background: #004494;
+
+/* ---------- Overlay default state (hidden, toggled by JS) ---------- */
+.overlay {
+    display: none;   /* overwritten by JS to flex when needed */
 }
 """
     with open(css_path, "a", encoding="utf-8") as f:
@@ -316,15 +152,14 @@ def update_application():
 
     # ========== GIT COMMIT MESSAGE ==========
     commit = (
-        "refactor(css): extract inline styles from config and external edit pages\n\n"
-        "Moved large embedded CSS blocks from Go handlers into dedicated CSS classes\n"
-        "inside omn-go-core.css.  The Configuration Dashboard now uses classes\n"
-        "`.config-panel`, `.config-title`, `.config-form`, `.config-field`,\n"
-        "`.config-label`, `.config-input`, `.config-checkbox-row`, etc.\n"
-        "The External Editor page uses `.ext-edit-panel`, `.ext-edit-icon`,\n"
-        "`.ext-edit-title`, `.ext-edit-msg`, and `.ext-edit-btn`.\n\n"
-        "This keeps the Go code cleaner and improves maintainability.\n\n"
-        "Version bumped to 1.3.31"
+        "refactor(css): move remaining inline styles from index.html to omn-go-core.css\n\n"
+        "Extracted inline styles from header buttons, toolbar buttons, metadata panel,\n"
+        "modal button rows, cancel buttons, and version footer.  The overlay now defaults\n"
+        "to hidden via CSS instead of an inline style attribute.\n\n"
+        "New CSS classes: .btn-create-page, .btn-refresh, .btn-settings,\n"
+        ".btn-metadata-toggle, .btn-save-note, .metadata-panel, .modal-buttons-row,\n"
+        ".btn-cancel, .version-footer.\n\n"
+        "Version bumped to 1.3.32"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit}\n[/GIT_COMMIT_MESSAGE]")
 

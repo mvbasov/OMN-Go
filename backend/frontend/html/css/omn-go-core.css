@@ -183,3 +183,69 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 .ext-edit-btn:hover {
     background: #004494;
 }
+
+/* ---------- Header Buttons (replacing inline styles) ---------- */
+.btn-create-page {
+    background: #17a2b8 !important;
+    border-color: #17a2b8 !important;
+}
+.btn-refresh {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+}
+.btn-settings {
+    background: #444 !important;
+    border-color: #666 !important;
+}
+
+/* ---------- Toolbar Buttons ---------- */
+.btn-metadata-toggle {
+    display: block;
+    background: #17a2b8;
+    color: white;
+    border: none;
+}
+.btn-save-note {
+    display: none;                   /* hidden by default, shown via JS */
+    background: #28a745;
+    color: white;
+    border: none;
+}
+
+/* ---------- Metadata Panel ---------- */
+.metadata-panel {
+    background: #e9ecef;
+    padding: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* ---------- Modal Button Rows ---------- */
+.modal-buttons-row {
+    display: flex;
+    gap: 10px;
+}
+.btn-cancel {
+    background: #dc3545;
+}
+
+/* ---------- Version Footer ---------- */
+.version-footer {
+    position: fixed;
+    bottom: 4px;
+    right: 8px;
+    font-size: 0.75rem;
+    color: #888;
+    z-index: 9999;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* ---------- Overlay default state (hidden, toggled by JS) ---------- */
+.overlay {
+    display: none;   /* overwritten by JS to flex when needed */
+}
