@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"path/filepath"
 	"fmt"
 	"regexp"
 	"strings"
