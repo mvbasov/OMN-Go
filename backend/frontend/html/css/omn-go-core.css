@@ -338,14 +338,22 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     padding: 0.5em;
     overflow: auto;
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 .page-content #preview {
-    border: none;                /* Remove the old border */
+    border: none;
     background: transparent;
     padding: 10px 0;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
 }
 .page-content #editor {
-    border: 1px solid #ddd;      /* Subtle border for textarea only */
+    border: 1px solid #ddd;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
 }
 
 /* ====== Page Footer (status bar) ====== */

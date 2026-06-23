@@ -34,7 +34,7 @@
                     <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
                     <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
                     <!-- Editing controls -->
-                    <button id="metaToggleBtn" onclick="var h=document.getElementById('hidable_header');h.classList.toggle('hidden');if(typeof updateArrow==='function')updateArrow();" class="btn-metadata-toggle" title="Toggle header"><i class="material-icons">info</i></button>
+                    <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
                     <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
                     <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
                 </div>
