@@ -555,7 +555,7 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
 		compiled := compilePageWithBody(relPath, rawContent, customBody)
 		// Tell the frontend this is not a Pelican markdown page + auto-enter edit mode
-		scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode===\'function\') toggleMode(); }, 120);</script>"
+		scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
 		compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(compiled)

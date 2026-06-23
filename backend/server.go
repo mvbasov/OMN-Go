@@ -81,7 +81,7 @@ func StartServer() {
 					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
 					// Pass raw content as mdContent so the textarea is populated
 					compiled := compilePageWithBody(relPath, rawContent, customBody)
-					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode===\'function\') toggleMode(); }, 120);</script>"
+					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
 					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
 					w.Header().Set("Content-Type", "text/html")
 					w.Write(compiled)
