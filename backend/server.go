@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,16 +64,24 @@ func StartServer() {
 
 				// Check for edit mode before serving static file
 				if r.URL.Query().Get("edit") == "true" {
+					relPath := strings.TrimPrefix(r.URL.Path, "/")
+
+					// Honour external editor preference
+					if !appConfig.UseInternalEd {
+						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
+						return
+					}
+
 					rawContent, err := os.ReadFile(physPath)
 					if err != nil {
 						http.Error(w, "File not found", http.StatusNotFound)
 						return
 					}
-					relPath := strings.TrimPrefix(r.URL.Path, "/")
 					escapedContent := htmlEscape(string(rawContent))
 					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
-					compiled := compilePageWithBody(relPath, []byte{}, customBody)
-					scriptInjection := "<script>var IS_MARKDOWN = false;</script>"
+					// Pass raw content as mdContent so the textarea is populated
+					compiled := compilePageWithBody(relPath, rawContent, customBody)
+					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode===\'function\') toggleMode(); }, 120);</script>"
 					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
 					w.Header().Set("Content-Type", "text/html")
 					w.Write(compiled)
