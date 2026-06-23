@@ -78,19 +78,19 @@ func getConfigPageBody() string {
 		appConfig.DesktopExtCmd)
 }
 
-func getExternalEditPageBody(name string) string {
+func getExternalEditPageBody(fileName string) string {
 	return fmt.Sprintf(`
 <div style="max-width: 600px; margin: 40px auto; background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; text-align: center;">
     <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
     <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700;">Editing Externally</h2>
     <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
-        We have launched <strong>%s</strong> to edit <code>%s.md</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated page.
+        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
     </p>
-    <button onclick="window.location.replace('/%s.html')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <button onclick="window.location.replace('/%s')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
         Press after edit to refresh view
     </button>
 </div>
-`, appConfig.DesktopExtCmd, name, name)
+`, appConfig.DesktopExtCmd, fileName, fileName)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -134,11 +134,12 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cleanName := strings.TrimSuffix(name, ".html")
-	if !strings.HasSuffix(cleanName, ".md") {
-		cleanName += ".md"
+	var filePath string
+	if strings.HasSuffix(name, ".md") {
+		filePath = filepath.Join(storageDir, "md", filepath.Clean(name))
+	} else {
+		filePath = filepath.Join(storageDir, "html", filepath.Clean(name))
 	}
-	filePath := filepath.Join(storageDir, "md", cleanName)
 
 	var cmd *exec.Cmd
 	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
@@ -170,9 +171,8 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	pageName := strings.TrimSuffix(cleanName, ".md")
-	waitBody := getExternalEditPageBody(pageName)
-	compiledWait := compilePageWithBody(pageName, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05")), waitBody)
+	waitBody := getExternalEditPageBody(name)
+	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }
 
@@ -526,6 +526,31 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.ServeFile(w, r, htmlPath)
 		}
+		return
+	}
+
+	// Serve editor for any file when ?edit=true
+	if r.URL.Query().Get("edit") == "true" {
+		relPath := strings.TrimPrefix(r.URL.Path, "/")
+		var filePath string
+		var rawContent []byte
+		if strings.HasSuffix(relPath, ".md") {
+			filePath = filepath.Join(storageDir, "md", filepath.Clean(relPath))
+		} else {
+			filePath = filepath.Join(storageDir, "html", filepath.Clean(relPath))
+		}
+		if data, err := os.ReadFile(filePath); err == nil {
+			rawContent = data
+		}
+		// Show raw content in preview, leave editor empty – loaded on demand via API
+		escapedContent := htmlEscape(string(rawContent))
+		customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
+		compiled := compilePageWithBody(relPath, []byte{}, customBody)
+		// Tell the frontend this is not a Pelican markdown page
+		scriptInjection := "<script>var IS_MARKDOWN = false;</script>"
+		compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(compiled)
 		return
 	}
 

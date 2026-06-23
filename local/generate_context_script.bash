@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.3.22"
-CUR_OMN_GO_VER_A="10322"
+CUR_OMN_GO_VER="1.3.25"
+CUR_OMN_GO_VER_A="10325"
 
 # Define color codes for output
 GREEN='\033[0;32m'
@@ -64,11 +64,11 @@ for f in "${FILES[@]}"; do
 
     echo -ne "Appending ${ACTUAL_PATH}... "
     
-    echo -e "\n### $ACTUAL_PATH START" >> "$OUTPUT_FILE"
+    echo -e "\n-------- $ACTUAL_PATH START --------\n" >> "$OUTPUT_FILE"
     echo '```' >> "$OUTPUT_FILE"
     cat "$ACTUAL_PATH" >> "$OUTPUT_FILE"
     echo -e "\n\`\`\`" >> "$OUTPUT_FILE"
-    echo -e "\n### $ACTUAL_PATH END\n" >> "$OUTPUT_FILE"
+    echo -e "\n-------- $ACTUAL_PATH END --------\n" >> "$OUTPUT_FILE"
 
     echo -e "${GREEN}Done${NC}"
 done
