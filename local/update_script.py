@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OMN-Go 1.3.37 → 1.3.38: fix editor height, remove redundant Name line."""
+"""OMN-Go 1.3.37 → 1.3.38: fix editor height (idempotent — Name line already removed)."""
 
 import re, os
 
@@ -11,12 +11,14 @@ def write_file(path, content):
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-def patch_file(path, old, new):
+def safe_patch(path, old, new):
+    """Replace old→new only if old exists. Returns True if patched."""
     content = read_file(path)
-    if old not in content:
-        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
-    content = content.replace(old, new, 1)
-    write_file(path, content)
+    if old in content:
+        content = content.replace(old, new, 1)
+        write_file(path, content)
+        return True
+    return False
 
 def increment_version(ver_str):
     parts = ver_str.strip().split('.')
@@ -43,24 +45,12 @@ def update_application():
                             f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Remove redundant "Name: ..." line from header
-    idx_path = 'backend/frontend/index.html'
-    old_name_line = '''                <!-- Metadata line: name + pelican headers -->
-                <div class="header-info">
-                    Name: <span id="pageNameDisplay">/</span>
-                    <span id="headerMetadata"><!-- OMN_GO_METADATA_INFO --></span>
-                </div>
-'''
-    new_name_line = '''                <!-- Header metadata (Author, Date, Modified) displayed inline after icons -->
-                <div class="header-info">
-                    <span id="headerMetadata"><!-- OMN_GO_METADATA_INFO --></span>
-                </div>
-'''
-    patch_file(idx_path, old_name_line, new_name_line)
+    # 2. Name line already removed — skip idempotently (no error if missing)
 
-    # 3. Fix editor/preview height: CSS adjustments
+    # 3. Fix editor/preview height: CSS updates
     css_path = 'backend/frontend/html/css/omn-go-core.css'
-    # Replace .page-content to remove overflow:auto and add flex structure
+
+    # 3a. Fix .page-content
     old_content = """.page-content {
     padding: 0.5em;
     overflow: auto;
@@ -73,13 +63,12 @@ def update_application():
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;       /* allow shrinking below content size */
-    overflow: hidden;    /* prevent double scrollbars; children scroll */
+    min-height: 0;
+    overflow: hidden;
 }"""
-    if old_content in read_file(css_path):
-        patch_file(css_path, old_content, new_content)
+    safe_patch(css_path, old_content, new_content)
 
-    # Replace #preview to add overflow-y
+    # 3b. Fix #preview
     old_preview = """.page-content #preview {
     border: none;
     background: transparent;
@@ -95,12 +84,11 @@ def update_application():
     flex: 1;
     min-height: 0;
     width: 100%;
-    overflow-y: auto;    /* scroll if content overflows */
+    overflow-y: auto;
 }"""
-    if old_preview in read_file(css_path):
-        patch_file(css_path, old_preview, new_preview)
+    safe_patch(css_path, old_preview, new_preview)
 
-    # Replace #editor to add overflow-y and ensure it stretches
+    # 3c. Fix #editor
     old_editor = """.page-content #editor {
     border: 1px solid #ddd;
     flex: 1;
@@ -112,22 +100,20 @@ def update_application():
     flex: 1;
     min-height: 0;
     width: 100%;
-    resize: vertical;    /* allow manual resize if desired */
+    resize: vertical;
     box-sizing: border-box;
 }"""
-    if old_editor in read_file(css_path):
-        patch_file(css_path, old_editor, new_editor)
-    # If the old editor block is missing (maybe already modified), we'll add it
-    # but that's unlikely; we'll just trust the checks above.
+    safe_patch(css_path, old_editor, new_editor)
 
     # 4. Commit message
     commit_msg = (
-        f"fix(ui): editor now fills available height; remove redundant Name line\n\n"
-        "- Removed the 'Name: /PageName' line from the collapsible header;\n"
-        "  the same information is already shown in the metadata panel.\n"
-        "- Fixed the internal editor textarea appearing tiny by adjusting\n"
-        "  flexbox layout: .page-content now has overflow:hidden and its\n"
-        "  children (#editor, #preview) handle their own scrolling.\n"
+        f"fix(ui): editor now fills available vertical height\n\n"
+        "- Fixed .page-content flexbox layout: removed overflow:auto on\n"
+        "  the container, added overflow:hidden with child scrolling\n"
+        "  (#editor and #preview handle their own overflow-y).\n"
+        "- The internal editor textarea now stretches to fill the\n"
+        "  available space instead of appearing as a tiny sliver.\n"
+        "- Name line removal was already applied by previous patch.\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
