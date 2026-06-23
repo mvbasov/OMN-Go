@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-OMN-Go auto‑increment patcher – fix broken literal in markdown.go
+OMN-Go patcher – fix header toggle and console UI errors
+Bumps version based on current state.
 """
 
 import re, os
@@ -39,7 +40,7 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # --- 2. Add missing import if needed ---
+    # --- 2. Fix markdown.go: missing import + broken literal (if still broken) ---
     md_path = "backend/markdown.go"
     md = read_file(md_path)
     if '"path/filepath"' not in md:
@@ -50,27 +51,64 @@ def update_application():
         write_file(md_path, md)
         md = read_file(md_path)
 
-    # --- 3. Fix the broken literal newline ---
-    # The exact broken line (as bytes in file):
-    # \t\tmetaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"
-    # We replace it with:
-    # \t\tmetaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"
+    # Fix the literal newline if still there
     old = '\t\tmetaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"'
     new = '\t\tmetaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"'
     if old in md:
         md = md.replace(old, new)
         write_file(md_path, md)
+        md = read_file(md_path)
     else:
-        # Already fixed? Check if the correct version exists
+        # maybe already fixed? If not found, check if the correct one exists
         if 'metaBlock += "\\n    <script>var IS_MARKDOWN = true;</script>"' not in md:
-            print("Warning: IS_MARKDOWN block not found as expected; please verify manually.")
+            print("Warning: IS_MARKDOWN block format not recognized.")
+
+    # --- 3. Fix omn-go-core.js: add toggleHeader/updateArrow if missing, fix console UI attachment ---
+    js_path = "backend/frontend/html/js/omn-go-core.js"
+    js = read_file(js_path)
+
+    # 3a. Add toggleHeader and updateArrow if not present (before window.onload)
+    if 'function toggleHeader()' not in js:
+        insert_js = (
+            "window.toggleHeader = function() {\n"
+            "    var header = document.getElementById('hidable_header');\n"
+            "    var arrow = document.getElementById('title_arrow');\n"
+            "    if (header) {\n"
+            "        if (header.classList.contains('hidden')) {\n"
+            "            header.classList.remove('hidden');\n"
+            "            if (arrow) arrow.textContent = '\\u2212';\n"
+            "        } else {\n"
+            "            header.classList.add('hidden');\n"
+            "            if (arrow) arrow.textContent = '+';\n"
+            "        }\n"
+            "    }\n"
+            "};\n"
+            "window.updateArrow = function() {\n"
+            "    var header = document.getElementById('hidable_header');\n"
+            "    var arrow = document.getElementById('title_arrow');\n"
+            "    if (header && arrow) {\n"
+            "        arrow.textContent = header.classList.contains('hidden') ? '+' : '\\u2212';\n"
+            "    }\n"
+            "};\n"
+        )
+        # Insert before 'window.onload ='
+        js = js.replace('window.onload = () => {', insert_js + '\nwindow.onload = () => {')
+
+    # 3b. Fix initConsoleUI: target .header-actions instead of .toolbar (which is now hidden)
+    old_target = "document.querySelector('.toolbar').appendChild(consoleBtn);"
+    new_target = "var target = document.querySelector('.header-actions'); if (target) target.appendChild(consoleBtn); else { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }"
+    if old_target in js:
+        js = js.replace(old_target, new_target)
+
+    write_file(js_path, js)
 
     # --- 4. Commit message ---
     commit_msg = (
-        f"chore: bump version to {new_ver}; fix literal newline in markdown.go\n\n"
-        "Corrected an illegal literal newline inside a Go string literal by\n"
-        "using the \\n escape sequence.  This resolves the 'newline in string'\n"
-        "compilation error."
+        f"fix(js): define toggleHeader/updateArrow; fix console UI attachment\n\n"
+        "- Added missing global toggleHeader and updateArrow functions.\n"
+        "- Fixed initConsoleUI to append button to .header-actions instead of\n"
+        "  non-existent .toolbar (prevents null reference error).\n"
+        f"Version bumped to {new_ver}\n"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 

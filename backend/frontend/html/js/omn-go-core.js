@@ -72,7 +72,7 @@ if (typeof currentNote === 'undefined') {
                 //    consoleBtn.classList.add('btn-console-main-fixed');
                 //    document.body.appendChild(consoleBtn);
                 //}
-                document.querySelector('.toolbar').appendChild(consoleBtn);
+                var target = document.querySelector('.header-actions'); if (target) target.appendChild(consoleBtn); else { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
             function appendLog(type, args) {
@@ -418,7 +418,28 @@ function executeScripts(container) {
             }
         };
 
-        window.onload = () => {
+        window.toggleHeader = function() {
+    var header = document.getElementById('hidable_header');
+    var arrow = document.getElementById('title_arrow');
+    if (header) {
+        if (header.classList.contains('hidden')) {
+            header.classList.remove('hidden');
+            if (arrow) arrow.textContent = '\u2212';
+        } else {
+            header.classList.add('hidden');
+            if (arrow) arrow.textContent = '+';
+        }
+    }
+};
+window.updateArrow = function() {
+    var header = document.getElementById('hidable_header');
+    var arrow = document.getElementById('title_arrow');
+    if (header && arrow) {
+        arrow.textContent = header.classList.contains('hidden') ? '+' : '\u2212';
+    }
+};
+
+window.onload = () => {
             checkSession();
             
             const params = new URLSearchParams(window.location.search);
