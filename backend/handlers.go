@@ -79,7 +79,7 @@ func getConfigPageBody() string {
 		appConfig.DesktopExtCmd)
 }
 
-func getExternalEditPageBody(fileName string) string {
+func getExternalEditPageBody(fileName string, viewURL string) string {
 	return fmt.Sprintf(`
 <div class="ext-edit-panel">
     <div class="ext-edit-icon">📝</div>
@@ -91,7 +91,7 @@ func getExternalEditPageBody(fileName string) string {
         Press after edit to refresh view
     </button>
 </div>
-`, appConfig.DesktopExtCmd, fileName, fileName)
+`, appConfig.DesktopExtCmd, fileName, viewURL)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,12 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	waitBody := getExternalEditPageBody(name)
+	// Compute the correct view URL (.html for markdown, raw name otherwise)
+	viewURL := name
+	if strings.HasSuffix(name, ".md") {
+		viewURL = strings.TrimSuffix(name, ".md") + ".html"
+	}
+	waitBody := getExternalEditPageBody(name, viewURL)
 	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }

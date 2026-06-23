@@ -79,42 +79,95 @@ Provide a file structure description, build instructions, and a single, self-con
 
 #### Turn 2 and Onward (All Subsequent Modifications):
 
-Do NOT output full files or standard text diffs. You must respond exclusively with a runnable Python script using standard `str.replace()` mechanisms to modify the existing baseline.
+Do **NOT** output full files or standard text diffs.  Respond exclusively with a
+runnable, **idempotent** Python script that reads the current state of the
+codebase, determines the current version automatically, and applies precise
+`str.replace()` patches.  The script must be safe to run multiple times.
 
-The Python script must strictly adhere to this template structure:
+**Required structure (evolved, stable pattern):**
 
-```
-import os
+```python
+#!/usr/bin/env python3
+import re, os
+
+def read_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def write_file(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_file(path, old, new):
+    """Replace *old* with *new* in *path*.  Raise ValueError if *old* missing."""
+    content = read_file(path)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
+def increment_version(ver_str):
+    """'1.3.35' → '1.3.36'"""
+    parts = ver_str.strip().split(".")
+    if len(parts) == 3 and parts[2].isdigit():
+        parts[2] = str(int(parts[2]) + 1)
+        return ".".join(parts)
+    raise ValueError(f"Unrecognised version format: {ver_str}")
 
 def update_application():
-    # 1. Bump Global Application Version
-    version_replacements = [
-        ("main.go", 'APP_VERSION = "1.0.0"', 'APP_VERSION = "1.0.1"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.0";', 'const APP_VERSION = "1.0.1";')
-    ]
-    
-    # 2. Define File Patches (Target exact string mapping)
-    patches = {
-        "main.go": [
-            (
-                '// old block of code to remove',
-                '// new block of code to insert'
-            )
-        ]
-    }
+    # 1.  Auto‑detect current version from backend/version.go and bump it
+    ver_path = "backend/version.go"
+    content = read_file(ver_path)
+    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
+    cur_ver = match.group(1)
+    new_ver = increment_version(cur_ver)
 
-    # Execute updates sequentially...
-    # (Implement safe execution that raises ValueError if old target string is missing)
+    # Update version.go
+    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    write_file(ver_path, content)
 
-    # 3. Output Standardized Git Commit Message matching your modifications
-    commit_msg = """feat(core): description of the change here\n\nVersion bumped to 1.0.1"""
+    # Update android/app/build.gradle (versionCode and versionName)
+    gradle_path = "android/app/build.gradle"
+    gradle = read_file(gradle_path)
+    gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}',
+                            f'versionCode {int(new_ver.replace(".", ""))}')
+    gradle = gradle.replace(f'versionName "{cur_ver}"',
+                            f'versionName "{new_ver}"')
+    write_file(gradle_path, gradle)
+
+    # 2.  Apply feature patches using patch_file()
+    patch_file("backend/server.go",
+               "// old exact code block",
+               "// new exact code block")
+
+    # 3.  Print the standardised Git commit message
+    commit_msg = (
+        "feat(core): concise description of what changed\n\n"
+        "- Bullet point details\n"
+        f"Version bumped to {new_ver}"
+    )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
     update_application()
-
 ```
 
+**Key rules (distilled from many iterations):**
+
+- **Auto‑increment**: read `APP_VERSION` from `backend/version.go` with a regex;
+  never hard‑code the old version number.
+- **Idempotent**: the script must be safe to run twice — it should either succeed
+  both times or fail cleanly on the second run because the old target string is
+  already gone.
+- **`patch_file()`**: small helper that raises a loud `ValueError` if the
+  expected old string does not exist.  This catches incomplete previous patches
+  immediately.
+- **Multiple file types**: version bumps touch `backend/version.go` and
+  `android/app/build.gradle` together.
+- **Commit message**: exactly one `[GIT_COMMIT_MESSAGE]...[/GIT_COMMIT_MESSAGE]`
+  block printed to stdout, containing the version bump note.
+- **No unused code**: do not include scaffolding you do not need; the helper
+  functions above are the minimum that has proven reliable.
 ### 7. Output Deliverables
 
 1. **File Structure & Build Instructions** Text description block.
