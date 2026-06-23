@@ -18,35 +18,35 @@ import (
 
 func getConfigPageBody() string {
 	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700; border-bottom: 2px solid #eaecef; padding-bottom: 10px;">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" style="margin-top: 20px;">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+<div class="config-panel">
+    <h2 class="config-title">Configuration Dashboard</h2>
+    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
+        <div class="config-field">
+            <label class="config-label">Server Port</label>
+            <input type="number" id="cfgPort" value="%d" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        <div class="config-field">
+            <label class="config-label">Admin Password</label>
+            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        <div class="config-field">
+            <label class="config-label">Guest Password</label>
+            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+        <div class="config-field">
+            <label class="config-label">Author Name</label>
+            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
         </div>
-        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
-            <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
+        <div class="config-field config-checkbox-row">
+            <input type="checkbox" id="cfgUseInternal" %s class="config-checkbox" />
+            <label for="cfgUseInternal" class="config-label config-checkbox-label">Use HTML Internal Editor</label>
         </div>
-        <div style="margin-bottom: 25px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Desktop External Editor Command</label>
-            <input type="text" id="cfgExtCmd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-            <small style="color: #666; display: block; margin-top: 5px;">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
+        <div class="config-field">
+            <label class="config-label">Desktop External Editor Command</label>
+            <input type="text" id="cfgExtCmd" value="%s" class="config-input" />
+            <small class="config-hint">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
         </div>
-        <button type="submit" style="background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%%; font-size: 16px; transition: background 0.2s;">Save Configuration</button>
+        <button type="submit" class="config-save-btn">Save Configuration</button>
     </form>
 </div>
 <script>
@@ -81,13 +81,13 @@ func getConfigPageBody() string {
 
 func getExternalEditPageBody(fileName string) string {
 	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 40px auto; background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; text-align: center;">
-    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700;">Editing Externally</h2>
-    <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
+<div class="ext-edit-panel">
+    <div class="ext-edit-icon">📝</div>
+    <h2 class="ext-edit-title">Editing Externally</h2>
+    <p class="ext-edit-msg">
         We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
     </p>
-    <button onclick="window.location.replace('/%s')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <button onclick="window.location.replace('/%s')" class="ext-edit-btn">
         Press after edit to refresh view
     </button>
 </div>
