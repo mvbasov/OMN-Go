@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed frontend/index.html
@@ -58,6 +59,24 @@ func StartServer() {
 						os.MkdirAll(filepath.Dir(physPath), 0755)
 						os.WriteFile(physPath, data, 0644)
 					}
+				}
+
+				// Check for edit mode before serving static file
+				if r.URL.Query().Get("edit") == "true" {
+					rawContent, err := os.ReadFile(physPath)
+					if err != nil {
+						http.Error(w, "File not found", http.StatusNotFound)
+						return
+					}
+					relPath := strings.TrimPrefix(r.URL.Path, "/")
+					escapedContent := htmlEscape(string(rawContent))
+					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
+					compiled := compilePageWithBody(relPath, []byte{}, customBody)
+					scriptInjection := "<script>var IS_MARKDOWN = false;</script>"
+					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
+					w.Header().Set("Content-Type", "text/html")
+					w.Write(compiled)
+					return
 				}
 
 				// Serve the file dynamically from the physical directory
