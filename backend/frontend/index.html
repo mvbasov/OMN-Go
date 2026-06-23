@@ -23,6 +23,7 @@
     <div id="mainUI" class="page_container">
         <div id="ptitle" class="page-header">
             <div id="hidable_header" class="collapsible-header hidden">
+                <!-- Actions row: navigation + editing + admin -->
                 <div class="header-actions">
                     <a href="/Welcome.html"><i class="material-icons">home</i></a>
                     <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
@@ -32,10 +33,17 @@
                     <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
                     <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
                     <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
+                    <!-- Editing controls -->
+                    <button id="metaToggleBtn" onclick="var h=document.getElementById('hidable_header');h.classList.toggle('hidden');if(typeof updateArrow==='function')updateArrow();" class="btn-metadata-toggle" title="Toggle header"><i class="material-icons">info</i></button>
+                    <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
+                    <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
                 </div>
+                <!-- Metadata line: name + pelican headers -->
                 <div class="header-info">
                     Name: <span id="pageNameDisplay">/</span>
+                    <span id="headerMetadata"><!-- OMN_GO_METADATA_INFO --></span>
                 </div>
+                <!-- Tag pills -->
                 <div id="headerTags"><!-- OMN_GO_TAGS --></div>
             </div>
             <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
@@ -45,11 +53,6 @@
         </div>
 
         <div id="content" class="page-content">
-            <div class="toolbar">
-                <button id="metaToggleBtn" onclick="var h=document.getElementById('hidable_header');h.classList.toggle('hidden');updateArrow();" class="btn-metadata-toggle"><i class="material-icons">info</i></button>
-                <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
-                <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
-            </div>
             <div id="metadataPanel" class="hidden metadata-panel"><!-- OMN_GO_METADATA_PANEL --></div>
             <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
             <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>

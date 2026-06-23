@@ -180,7 +180,8 @@ function executeScripts(container) {
         async function toggleMode() {
             if (currentMode === 'view') {
                 if (typeof USE_INTERNAL_ED !== 'undefined' && !USE_INTERNAL_ED) {
-                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
+                    var ext = (typeof PAGE_EXT !== 'undefined' && PAGE_EXT) ? PAGE_EXT : '.md';
+                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote + ext));
                     return;
                 }
                 
@@ -497,6 +498,20 @@ document.addEventListener("DOMContentLoaded", () => {
         var nameDisplay = document.getElementById('pageNameDisplay');
         if (nameDisplay && typeof PageName !== 'undefined') {
             nameDisplay.textContent = '/' + PageName;
+        }
+        // Populate header metadata line (Author, Date, Modified) from meta tags
+        var hMeta = document.getElementById('headerMetadata');
+        if (hMeta) {
+            var parts = [];
+            document.querySelectorAll('meta[name]').forEach(function(m) {
+                var n = m.getAttribute('name').toLowerCase();
+                if (n === 'author' || n === 'date' || n === 'modified') {
+                    parts.push(m.getAttribute('name') + ': ' + m.getAttribute('content'));
+                }
+            });
+            if (parts.length) {
+                hMeta.innerHTML = ' — ' + parts.join(' · ');
+            }
         }
         document.querySelectorAll('meta').forEach(m => {
             const name = m.getAttribute('name');

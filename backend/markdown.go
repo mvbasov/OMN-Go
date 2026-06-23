@@ -118,11 +118,20 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	}
 	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
 
+	// Determine file extension for editor use
+	pageExt := ""
+	if strings.HasSuffix(name, ".md") {
+		pageExt = ".md"
+	} else if strings.Contains(name, ".") {
+		// non-markdown file — keep its extension (e.g. .js, .css, .json)
+		pageExt = filepath.Ext(name)
+	}
 	metaScript := fmt.Sprintf(`    <script>
       var PackageName = 'net.basov.omngo';
       var PageName = '%s';
       var Title = '%s';
-    </script>`, name, title)
+      var PAGE_EXT = '%s';
+    </script>`, name, title, pageExt)
 
 	// Build tag links for the header
 	var tagLinks []string
@@ -141,11 +150,31 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 
 	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
 
+	// Explicitly set IS_MARKDOWN = true for markdown pages (overrides any previous false)
+	if pageExt == ".md" || pageExt == "" {
+		metaBlock += "
+    <script>var IS_MARKDOWN = true;</script>"
+	}
 	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	// Build metadata info line for collapsible header
+	metaInfoParts := []string{}
+	for _, h := range headers {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			key := strings.ToLower(strings.TrimSpace(parts[0]))
+			val := htmlEscape(strings.TrimSpace(parts[1]))
+			if key == "author" || key == "date" || key == "modified" {
+				metaInfoParts = append(metaInfoParts, fmt.Sprintf("%s: %s", strings.Title(key), val))
+			}
+		}
+	}
+	metaInfo := strings.Join(metaInfoParts, " · ")
+
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_INFO -->", metaInfo)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 

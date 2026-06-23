@@ -470,3 +470,12 @@ a.taglink {
     opacity: 1;
     pointer-events: auto;
 }
+
+/* Toolbar no longer a standalone element, but integrated in .header-actions */
+.toolbar {
+    display: none;
+}
+.btn-metadata-toggle,
+.btn-save-note {
+    /* inherit from .header-actions styling */
+}
