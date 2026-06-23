@@ -206,7 +206,7 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     border: none;
 }
 .btn-save-note {
-    display: none;                   /* hidden by default, shown via JS */
+    display: none !important;        /* hidden in view mode, JS sets inline style in edit mode */
     background: #28a745;
     color: white;
     border: none;

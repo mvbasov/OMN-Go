@@ -160,21 +160,9 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	// Build metadata info line for collapsible header
-	metaInfoParts := []string{}
-	for _, h := range headers {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) == 2 {
-			key := strings.ToLower(strings.TrimSpace(parts[0]))
-			val := htmlEscape(strings.TrimSpace(parts[1]))
-			if key == "author" || key == "date" || key == "modified" {
-				metaInfoParts = append(metaInfoParts, fmt.Sprintf("%s: %s", strings.Title(key), val))
-			}
-		}
-	}
-	metaInfo := strings.Join(metaInfoParts, " · ")
-
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_INFO -->", metaInfo)
+	// Metadata info now shown only in the metadata panel (via meta tags);
+	// the inline header line has been removed from the template.
+	metaInfo := ""
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
