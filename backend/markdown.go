@@ -160,9 +160,6 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	// Metadata info now shown only in the metadata panel (via meta tags);
-	// the inline header line has been removed from the template.
-	metaInfo := ""
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
