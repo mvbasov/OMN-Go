@@ -549,6 +549,11 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		}
 		if data, err := os.ReadFile(filePath); err == nil {
 			rawContent = data
+		} else {
+			// File does not exist - create empty one and proceed
+			os.MkdirAll(filepath.Dir(filePath), 0755)
+			os.WriteFile(filePath, []byte{}, 0644)
+			rawContent = []byte{}
 		}
 		// Show raw content in preview and populate textarea
 		escapedContent := htmlEscape(string(rawContent))

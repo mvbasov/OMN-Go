@@ -113,7 +113,13 @@ public class MainActivity extends Activity {
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
                         android.os.StrictMode.setVmPolicy(builder.build());
 
-                        java.io.File file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name + ".md");
+                        // Determine correct subdirectory and extension
+                        java.io.File file;
+                        if (name.endsWith(".md")) {
+                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name);
+                        } else {
+                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/html/" + name);
+                        }
                         if (!file.exists()) {
                             file.getParentFile().mkdirs();
                             file.createNewFile();

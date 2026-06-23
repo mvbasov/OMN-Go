@@ -74,8 +74,10 @@ func StartServer() {
 
 					rawContent, err := os.ReadFile(physPath)
 					if err != nil {
-						http.Error(w, "File not found", http.StatusNotFound)
-						return
+						// File does not exist - create empty one and proceed
+						os.MkdirAll(filepath.Dir(physPath), 0755)
+						os.WriteFile(physPath, []byte{}, 0644)
+						rawContent = []byte{}
 					}
 					escapedContent := htmlEscape(string(rawContent))
 					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
