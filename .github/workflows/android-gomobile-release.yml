@@ -28,6 +28,8 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
           gomobile init
+          go get -tool golang.org/x/mobile/cmd/gobind
+          go mod tidy
 
       # --- Setup Java & Android ---
       - name: Set up IDK
