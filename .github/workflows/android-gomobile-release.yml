@@ -24,10 +24,10 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/omn-go.keystore
+          echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
 
       - name: Build Docker image
-        run: docker build -t omn-go:latest .
+        run: docker build -t omn-go:latest --build-arg KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD} --build-arg KEY_ALIAS=${KEY_ALIAS} --build-arg KEY_PASSWORD=${KEY_PASSWORD} .
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
