@@ -1,4 +1,10 @@
 #!/bin/bash
+if [ ! -f android/app/omn-go.keystore ]; then \
+   keytool -genkey -v -keystore app/omn-go.keystore \
+           -alias omn-go -keyalg RSA -keysize 2048 \
+           -validity 10000 -storepass omn-go123 -keypass omn-go123 \
+           -dname "CN=OMN-Go, O=Basov"; \
+fi 
 
 # 0. Build descktop and android binary
 docker build -t omn-go-builder .

@@ -17,9 +17,10 @@ android {
     signingConfigs {
         release {
             storeFile file('omn-go.keystore')
-            storePassword 'omn-go123'
-            keyAlias 'omn-go'
-            keyPassword 'omn-go123'
+            storeFile file('omn-go.keystore')
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "fallback"
+            keyAlias System.getenv("KEY_ALIAS") ?: "omn-go"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "fallback"
         }
     }
     splits {
