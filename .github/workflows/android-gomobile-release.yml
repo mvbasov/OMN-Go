@@ -6,105 +6,29 @@ on:
       - 'v*' # Triggers on tags like v1.0.0
 
 jobs:
+jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GO_PACKAGE_PATH: "./" # UPDATE: Path to your Go package
-      AAR_NAME: "omngo" # UPDATE: Name of your .aar (matches gradle)
-      ANDROID_DIR: "./android" # UPDATE: Root of Android project if different
-
+    container:
+      image: golang:1.26-bookworm # Runs the steps inside this image environment
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # --- Setup Go ---
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-
-      - name: Install Gomobile
+      - uses: actions/checkout@v4
+      
+      # Alternatively, if you want to use your exact multi-stage Dockerfile setup:
+      - name: Build via Docker
         run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          go install golang.org/x/mobile/cmd/gobind@latest
-          gomobile init
-          go get -tool golang.org/x/mobile/cmd/gobind
-          go mod tidy
+          docker build -t omn-go-builder .
+          docker create --name extract omn-go-builder
+          docker cp extract:/app/bin ./bin
+          docker rm extract
 
-      # --- Setup Java & Android ---
-      - name: Set up IDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      #- name: Grant Execute Permission for gradlew
-      #  run: chmod +x ./gradlew
-
-      # --- Build AAR ---
-      - name: Build Go Library (AAR)
-        run: |
-          cd $GO_PACKAGE_PATH
-          # Output to Android app/libs directory
-          gomobile bind -target=android -o ../app/libs/${{ env.AAR_NAME }}.aar ./...
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk-bundle
-
-      # --- Build APK ---
-      - name: Build Release APK
-        run: |
-          cd $ANDROID_DIR
-          gradle assembleRelease
-
-      # --- Sign Split APKs ---
-      - name: Sign APKs
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: ${{ env.ANDROID_DIR }}/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-     # --- Build Go Binaries (Linux/Windows) ---
-      - name: Build Go Binaries (Cross-Compile)
-        run: |
-          mkdir -p dist
-          # Build Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -o dist/myapp-linux-amd64 ./cmd/myapp
-          # Build Windows AMD64
-          GOOS=windows GOARCH=amd64 go build -o dist/myapp-windows-amd64.exe ./cmd/myapp
-          # (Optional) Build Mac
-          # GOOS=darwin GOARCH=amd64 go build -o dist/myapp-darwin-amd64 ./cmd/myapp
-        working-directory: ${{ env.GO_PACKAGE_PATH }}
-
-      # --- Collect All Artifacts ---
-      # The AAR is already in app/libs, APK in build/outputs, binaries in dist/
-      # We move/copy everything to a single 'release-assets' folder for easy uploading
-      - name: Prepare Release Assets
-        run: |
-          mkdir -p release-assets
-          # Copy APKs (handle split APKs if necessary, or just copy all apks)
-          cp ${{ env.ANDROID_DIR }}/app/build/outputs/apk/release/*.apk release-assets/ || true
-          # Copy AAR
-          cp ${{ env.ANDROID_DIR }}/app/libs/*.aar release-assets/ || true
-          # Copy Binaries
-          cp ${{ env.GO_PACKAGE_PATH }}/dist/* release-assets/
-          ls -R release-assets
-
-      # --- Create Release with All Assets ---
+     # --- Create Release with All Assets ---
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           # Upload everything in the release-assets folder
           files: |
-            release-assets/*
+            bin/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
- 
-
