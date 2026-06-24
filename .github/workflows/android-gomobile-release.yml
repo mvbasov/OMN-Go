@@ -36,8 +36,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant Execute Permission for gradlew
-        run: chmod +x ./gradlew
+      #- name: Grant Execute Permission for gradlew
+      #  run: chmod +x ./gradlew
 
       # --- Build AAR ---
       - name: Build Go Library (AAR)
@@ -104,51 +104,5 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-
-
-
-
-
-
-
-
-
-      # --- Split File List ---
-      # The action outputs files separated by ':' (e.g., file1.apk:file2.apk)
-      # We split them into an array to upload individually
-      - name: Split Signed Files
-        uses: jungwinter/split@v2
-        id: split_files
-        with:
-          msg: ${{ steps.sign_app.outputs.signedReleaseFiles }}
-          separator: ':'
-
-
-
-
-
-
-
-
-
-
-
-
-      # --- Create Release with All APKs ---
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          # Upload all split APKs (indexed 0 to N)
-          files: |
-            ${{ steps.split_files.outputs._0 }}
-            ${{ steps.split_files.outputs._1 }}
-            ${{ steps.split_files.outputs._2 }}
-            ${{ steps.split_files.outputs._3 }}
-            ${{ steps.split_files.outputs._4 }}
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+ 
 
