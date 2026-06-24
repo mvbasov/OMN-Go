@@ -1,4 +1,4 @@
-const bVersion = '0.18g 2026-06-17 19:31:07';
+const bVersion = '0.19g 2026-06-24 14:59:01';
 const duplicateTag = '!Duplicates';
 const noTagTag = '!NoTag';
 const config = {};
@@ -72,7 +72,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
       span.innerHTML = '<br/>' + bm.url;
       li.appendChild(span);
       if (bm.date && bm.date !== '') {
-        li.setAttribute('id', bm.date.replace(':','').replace(' ','-'));
+        li.setAttribute('id', bm.date.replaceAll(':','').replaceAll(' ','-'));
         li.appendChild(document.createElement('br'));
         let spanDate = document.createElement('span')
         txt = document.createTextNode('');

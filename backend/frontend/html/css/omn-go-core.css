@@ -48,7 +48,7 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 .btn-console { color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .btn-console-clear { background: #888; }
 .btn-console-close { background: #ff5555; }
-.btn-console-main { margin-left: 8px; padding: 4px 8px; background: #ff9800; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; }
+.btn-console-main { margin-left: 8px; padding: 4px 8px; background: #ff9800 !important; color: #fff !important; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; }
 .btn-console-main-fixed { position: fixed; bottom: 4px; left: 8px; z-index: 9999; margin-left: 0; }
 .icon-sm { font-size: 18px; }
 .icon-xs { font-size: 16px; margin-right: 4px; }

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.3.25"
-CUR_OMN_GO_VER_A="10325"
+CUR_OMN_GO_VER="1.3.47"
+CUR_OMN_GO_VER_A="10347"
 
 # Define color codes for output
 GREEN='\033[0;32m'
