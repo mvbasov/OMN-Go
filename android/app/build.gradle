@@ -11,7 +11,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 10400
-        versionName "1.4.00"
+        versionName "1.4.1"
     }
 
     signingConfigs {
