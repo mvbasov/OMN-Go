@@ -81,7 +81,7 @@ jobs:
           cp app/build/outputs/apk/release/*.apk ../bin/
 
       - name: Upload Artifacts
-        uses: actions/artifacts@v4
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: bin/
