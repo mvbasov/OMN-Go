@@ -1,88 +1,62 @@
-name: Android Gomobile Release
+name: Build OMN-Go
 
 on:
   push:
-    tags:
-      - 'v*' # Triggers on tags like v1.0.0
+    branches: [main, master, DS]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Tell GitHub to run all steps directly inside this Go environment
-    container:
-      image: golang:1.26-bookworm
+    strategy:
+      fail-fast: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Android SDK and Tools
-        run: |
-          apt-get update && apt-get install -y openjdk-17-jdk wget unzip cmake ninja-build git
-          
-          # Install Android Command Line Tools
-          wget -q https://google.com -O /tmp/cmd.zip
-          mkdir -p /opt/android/cmdline-tools
-          unzip -q /tmp/cmd.zip -d /opt/android/cmdline-tools
-          mv /opt/android/cmdline-tools/cmdline-tools /opt/android/cmdline-tools/latest
-          rm /tmp/cmd.zip
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Install Android SDK Packages
-        run: |
-          export ANDROID_HOME=/opt/android
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-          
-          # Accept licenses and install platform dependencies
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-34" "build-tools;33.0.2" "ndk;25.2.9519653"
+      - name: Build Docker image
+        run: docker build -t omn-go:latest .
 
-      - name: Install Gradle
+      - name: Extract version
+        id: version
         run: |
-          wget -q https://gradle.org -O /tmp/gradle.zip
-          mkdir -p /opt/gradle
-          unzip -q /tmp/gradle.zip -d /opt/gradle
-          rm /tmp/gradle.zip
+          VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' backend/version.go)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "App version: $VERSION"
 
-      - name: Run Build and Gomobile Bind
-        env:
-          ANDROID_HOME: /opt/android
-          ANDROID_NDK_HOME: /opt/android/ndk/25.2.9519653
-          PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/android/cmdline-tools/latest/bin:/opt/android/platform-tools:/opt/gradle/gradle-8.5/bin
+      - name: Extract artifacts from container
         run: |
-          # 1. Install GoMobile
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init
-          
-          # 2. Setup Go dependencies
-          go get ://github.com 
-          go get golang.org/x/mobile@latest 
-          go get -tool golang.org/x/mobile/cmd/gobind
-          go mod tidy
-          
-          # 3. Build Desktop Binaries
-          mkdir -p bin
-          VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go)
-          GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
-          
-          # 4. Gomobile Bind
-          mkdir -p android/app/libs
-          gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
-          
-          # 5. Assemble Android APK
-          cd android
-          if [ ! -f app/omn-go.keystore ]; then
-            keytool -genkey -v -keystore app/omn-go.keystore \
-                    -alias omn-go -keyalg RSA -keysize 2048 \
-                    -validity 10000 -storepass omn-go123 -keypass omn-go123 \
-                    -dname "CN=OMN-Go, O=Basov"
-          fi
-          gradle assembleRelease
-          cp app/build/outputs/apk/release/*.apk ../bin/
+          mkdir -p artifacts
+          docker create --name omn-go-tmp omn-go:latest
+          docker cp omn-go-tmp:/app/bin/. artifacts/
+          docker rm omn-go-tmp
+          ls -la artifacts/
 
-      - name: Upload Artifacts
+      - name: Upload desktop binaries
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: bin/
-          generate_release_notes: true
+          name: omn-go-desktop-${{ steps.version.outputs.version }}
+          path: |
+            artifacts/omn-go-*-desktop-*
+          if-no-files-found: ignore
+
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: omn-go-android-${{ steps.version.outputs.version }}
+          path: |
+            artifacts/omn-go-*-release.apk
+            artifacts/omn-go-*-universal-release.apk
+          if-no-files-found: ignore
+
+      - name: Upload all artifacts (full)
+        uses: actions/upload-artifact@v4
+        with:
+          name: omn-go-all-${{ steps.version.outputs.version }}
+          path: artifacts/
