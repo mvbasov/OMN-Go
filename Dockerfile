@@ -1,5 +1,10 @@
 # STAGE 1: Toolchains & Cache
 FROM golang:1.26-bookworm AS builder
+
+ARG KEYSTORE_PASSWORD
+ARG KEY_ALIAS
+ARG KEY_PASSWORD
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -51,6 +56,6 @@ RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
+    echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}, KEY_ALIAS=${KEY_ALIAS}, KEY_PASSWORD=${KEY_PASSWORD}, $(md5sum app/omn-go.keystore)" && \
     gradle assembleRelease && \
-    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
-    #cp app/omn-go.keystore ../bin/omn-go.keystore
+    cp app/build/outputs/apk/release/*.apk ../bin/

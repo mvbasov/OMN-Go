@@ -7,7 +7,13 @@ if [ ! -f android/app/omn-go.keystore ]; then \
 fi 
 
 # 0. Build descktop and android binary
-docker build -t omn-go-builder .
+docker build -t omn-go-builder . \
+   $(grep -v '^#' .env | xargs -I {} echo --build-arg {})
+
+## Extract the keystore after first run
+#docker create --name tmp omn-go-builder
+#docker cp tmp:/app/android/app/omn-go.keystore android/app/
+#docker rm tmp
 
 # 1. Clean up the old directory 
 rm -rf ./output-binaries/
