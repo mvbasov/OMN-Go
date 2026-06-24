@@ -6,7 +6,6 @@ on:
       - 'v*' # Triggers on tags like v1.0.0
 
 jobs:
-jobs:
   build:
     runs-on: ubuntu-latest
     container:
