@@ -14,6 +14,12 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	git "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 func getConfigPageBody() string {
@@ -276,6 +282,136 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Write([]byte("Saved"))
+}
+
+func handleSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method Not Allowed", 405)
+		return
+	}
+
+	if appConfig.SyncRemote == "" {
+		http.Error(w, "Sync not configured: missing sync_remote in config.json", 500)
+		return
+	}
+
+	// Ensure .gitignore
+	gitignorePath := filepath.Join(storageDir, ".gitignore")
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		os.WriteFile(gitignorePath, []byte("# OMN-Go sync ignore\nconfig.json\n*.html\n"), 0644)
+	}
+
+	// Open or init repo
+	repo, err := git.PlainOpen(storageDir)
+	if err != nil {
+		repo, err = git.PlainInit(storageDir, false)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+			return
+		}
+		// Check if remote origin exists
+		_, err = repo.Remote("origin")
+		if err != nil {
+			_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+				Name: "origin",
+				URLs: []string{appConfig.SyncRemote},
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Remote add failed: %v", err), 500)
+				return
+			}
+		}
+	} else {
+		// Repo exists, ensure remote
+		_, err = repo.Remote("origin")
+		if err != nil {
+			_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+				Name: "origin",
+				URLs: []string{appConfig.SyncRemote},
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Remote add failed: %v", err), 500)
+				return
+			}
+		}
+	}
+
+	// Prepare SSH auth
+	var auth transport.AuthMethod
+	if appConfig.SyncSSHKey != "" {
+		keyBytes, err := os.ReadFile(appConfig.SyncSSHKey)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+			return
+		}
+		if appConfig.SyncSSHPassphrase != "" {
+			auth, err = ssh.NewPublicKeys("git", keyBytes, appConfig.SyncSSHPassphrase)
+		} else {
+			auth, err = ssh.NewPublicKeys("git", keyBytes, "")
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
+			return
+		}
+	} else {
+		http.Error(w, "No SSH key configured", 500)
+		return
+	}
+
+	wTree, _ := repo.Worktree()
+
+	// Stage and commit local changes first
+	_, err = wTree.Add(".")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Add failed: %v", err), 500)
+		return
+	}
+	status, err := wTree.Status()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Status failed: %v", err), 500)
+		return
+	}
+	if !status.IsClean() {
+		_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+			Author: &object.Signature{
+				Name:  "OMN-Go Sync",
+				Email: "omngo@localhost",
+				When:  time.Now(),
+			},
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+			return
+		}
+	}
+
+	// Pull from origin (handle empty remote gracefully)
+	err = wTree.Pull(&git.PullOptions{
+		RemoteName:    "origin",
+		Auth:          auth,
+		ReferenceName: plumbing.NewBranchReferenceName("master"),
+		SingleBranch:  true,
+	})
+	if err != nil && err != git.NoErrAlreadyUpToDate && !strings.Contains(err.Error(), "couldn't find remote ref") {
+		http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+		return
+	}
+
+	// Stage again after merge (if any changes)
+	_, _ = wTree.Add(".")
+
+	// Push
+	err = repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       auth,
+		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
+		return
+	}
+
+	w.Write([]byte("Synced successfully."))
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {

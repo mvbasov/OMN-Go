@@ -7,13 +7,16 @@ import (
 )
 
 type Config struct {
-	ServerPort    int               `json:"server_port"`
-	AdminPassword string            `json:"admin_password"`
-	GuestPassword string            `json:"guest_password"`
-	Author        string            `json:"author"`
-	UseInternalEd bool              `json:"use_internal_editor"`
-	DesktopExtCmd string            `json:"desktop_ext_cmd"`
-	MimeTypes     map[string]string `json:"mime_types"`
+	ServerPort       int               `json:"server_port"`
+	AdminPassword    string            `json:"admin_password"`
+	GuestPassword    string            `json:"guest_password"`
+	Author           string            `json:"author"`
+	UseInternalEd    bool              `json:"use_internal_editor"`
+	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
+	MimeTypes        map[string]string `json:"mime_types"`
+	SyncRemote       string            `json:"sync_remote"`
+	SyncSSHKey       string            `json:"sync_ssh_key"`
+	SyncSSHPassphrase string           `json:"sync_ssh_passphrase"`
 }
 
 var appConfig Config
@@ -40,6 +43,9 @@ func loadConfig(storageDir string) {
 				".jpeg":  "image/jpeg",
 				".woff2": "font/woff2",
 			},
+			SyncRemote:       "",
+			SyncSSHKey:       "",
+			SyncSSHPassphrase: "",
 		}
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		os.WriteFile(configPath, data, 0644)

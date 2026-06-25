@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.4.2"
-CUR_OMN_GO_VER_A="10402"
+CUR_OMN_GO_VER="1.4.3"
+CUR_OMN_GO_VER_A="10403"
 
 # Define color codes for output
 GREEN='\033[0;32m'
@@ -27,6 +27,7 @@ PROMPT_EOF
 FILES=(
     "doc/initial_prompt.md"
     "Dockerfile"
+    "Dockerfile.base"
     "go.mod"
     "main_desktop.go"
     "backend/server.go"

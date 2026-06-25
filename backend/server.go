@@ -124,6 +124,7 @@ func StartServer() {
 		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
 		mux.HandleFunc("/api/newpage", authMiddleware(handleNewPage, true))
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
+		mux.HandleFunc("/api/sync", authMiddleware(handleSync, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 
 		if appConfig.ServerPort <= 0 {
