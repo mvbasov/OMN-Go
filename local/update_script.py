@@ -16,11 +16,34 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
-def replace_string_in_file(path, old, new):
+def add_import(path, pkg, after_pattern):
+    """Insert import line for *pkg* after the line matching *after_pattern*.
+    Idempotent: does nothing if *pkg* already exists in the file.
+    """
     content = read_file(path)
-    if old not in content:
-        raise ValueError(f"❌ Target string not found in {path}")
-    content = content.replace(old, new, 1)
+    if pkg in content:
+        return
+    # Find the line that matches after_pattern
+    pattern = r'^(\s*).*' + re.escape(after_pattern) + r'.*\n'
+    m = re.search(pattern, content, flags=re.MULTILINE)
+    if not m:
+        raise ValueError(f"❌ Could not find anchor import '{after_pattern}'")
+    indent = m.group(1) if m.group(1) else '\t'
+    insert_line = f'{indent}"{pkg}"\n'
+    pos = m.end()
+    new_content = content[:pos] + insert_line + content[pos:]
+    write_file(path, new_content)
+
+def replace_or_insert_block(path, old_block, new_block, idem_marker):
+    """Replace *old_block* with *new_block*; if *idem_marker* already exists, do nothing.
+    If *old_block* not found, raise error.
+    """
+    content = read_file(path)
+    if idem_marker in content:
+        return
+    if old_block not in content:
+        raise ValueError(f"❌ Old block not found in {path}")
+    content = content.replace(old_block, new_block, 1)
     write_file(path, content)
 
 def update_application():
@@ -30,7 +53,6 @@ def update_application():
     match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
     cur_ver = match.group(1)
     new_ver = increment_version(cur_ver)
-
     content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
     write_file(ver_path, content)
 
@@ -42,123 +64,18 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Fix SSH user: extract from SyncRemote instead of using hardcoded "git"
-    # Replace the two occurrences of ssh.NewPublicKeys("git", ...) with the resolved user.
-    # We'll compute the user once before the auth block and then use it.
-    # Target line: `log.Printf("[sync] Using SSH key: %s", keyPath)` - we can insert user resolution before.
-    # Better: replace the whole "Prepare SSH auth" block with a version that resolves the user.
+    # 2. Add realssh import after the go-git/ssh import
+    add_import("backend/handlers.go",
+               "golang.org/x/crypto/ssh",
+               "github.com/go-git/go-git/v5/plumbing/transport/ssh")
 
-    old_auth_block = """\t// Prepare SSH auth
-\tvar auth transport.AuthMethod
-\tif appConfig.SyncSSHKey != "" {
-\t\tkeyPath := appConfig.SyncSSHKey
-\t\tif !filepath.IsAbs(keyPath) {
-\t\t\tkeyPath = filepath.Join(storageDir, keyPath)
-\t\t}
-\t\tlog.Printf("[sync] Using SSH key: %s", keyPath)
-
-\t\t// Check file existence and permissions
-\t\tinfo, err := os.Stat(keyPath)
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] SSH key file not accessible: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
-
-\t\tkeyBytes, err := os.ReadFile(keyPath)
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] Read key file error: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] Read %d bytes from key file", len(keyBytes))
-
-\t\tpassphrase := appConfig.SyncSSHPassphrase
-\t\tif passphrase != "" {
-\t\t\tlog.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
-\t\t\tauth, err = ssh.NewPublicKeys("git", keyBytes, passphrase)
-\t\t} else {
-\t\t\tlog.Printf("[sync] No passphrase")
-\t\t\tauth, err = ssh.NewPublicKeys("git", keyBytes, "")
-\t\t}
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] ssh.NewPublicKeys error: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] SSH auth method created successfully")
-\t} else {
-\t\tlog.Printf("[sync] Error: No SSH key configured")
-\t\thttp.Error(w, "No SSH key configured", 500)
-\t\treturn
-\t}"""
-
-    new_auth_block = """\t// Prepare SSH auth
-\t// Extract user from remote URL (e.g., gitolite3@host:path -> gitolite3)
-\tsshUser := "git"
-\tif idx := strings.Index(appConfig.SyncRemote, "@"); idx != -1 {
-\t\tsshUser = appConfig.SyncRemote[:idx]
-\t}
-\tlog.Printf("[sync] SSH user: %s", sshUser)
-
-\tvar auth transport.AuthMethod
-\tif appConfig.SyncSSHKey != "" {
-\t\tkeyPath := appConfig.SyncSSHKey
-\t\tif !filepath.IsAbs(keyPath) {
-\t\t\tkeyPath = filepath.Join(storageDir, keyPath)
-\t\t}
-\t\tlog.Printf("[sync] Using SSH key: %s", keyPath)
-
-\t\t// Check file existence and permissions
-\t\tinfo, err := os.Stat(keyPath)
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] SSH key file not accessible: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
-
-\t\tkeyBytes, err := os.ReadFile(keyPath)
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] Read key file error: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] Read %d bytes from key file", len(keyBytes))
-
-\t\tpassphrase := appConfig.SyncSSHPassphrase
-\t\tif passphrase != "" {
-\t\t\tlog.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
-\t\t\tauth, err = ssh.NewPublicKeys(sshUser, keyBytes, passphrase)
-\t\t} else {
-\t\t\tlog.Printf("[sync] No passphrase")
-\t\t\tauth, err = ssh.NewPublicKeys(sshUser, keyBytes, "")
-\t\t}
-\t\tif err != nil {
-\t\t\tlog.Printf("[sync] ssh.NewPublicKeys error: %v", err)
-\t\t\thttp.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
-\t\t\treturn
-\t\t}
-\t\tlog.Printf("[sync] SSH auth method created successfully")
-\t} else {
-\t\tlog.Printf("[sync] Error: No SSH key configured")
-\t\thttp.Error(w, "No SSH key configured", 500)
-\t\treturn
-\t}"""
-
-    try:
-        replace_string_in_file("backend/handlers.go", old_auth_block, new_auth_block)
-    except ValueError:
-        # maybe the old block is slightly different due to previous patches; try to find it via a partial match
-        content = read_file("backend/handlers.go")
-        if 'ssh.NewPublicKeys("git"' not in content:
-            print("Already using dynamic user (no hardcoded 'git' found).")
-        else:
-            raise
+    # 3. Add fingerprint logging after "SSH auth method created successfully"
+    old_log = '\t\tlog.Printf("[sync] SSH auth method created successfully")'
+    new_log = '\t\tlog.Printf("[sync] SSH auth method created successfully")\n\t\t// Log public key fingerprint for debugging\n\t\tif parsedKey, err := realssh.ParsePrivateKey(keyBytes); err == nil {\n\t\t\tfp := realssh.FingerprintSHA256(parsedKey.PublicKey())\n\t\t\tlog.Printf("[sync] SSH key fingerprint: %s", fp)\n\t\t}'
+    replace_or_insert_block("backend/handlers.go", old_log, new_log, 'realssh.FingerprintSHA256')
 
     commit_msg = (
-        "fix(sync): extract SSH user from remote URL instead of hardcoding 'git'\n\n"
+        "feat(sync): log SSH public key fingerprint for debugging\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

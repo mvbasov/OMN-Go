@@ -21,6 +21,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 func getConfigPageBody() string {
@@ -434,6 +435,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("[sync] SSH auth method created successfully")
+		// Log public key fingerprint for debugging
+		if parsedKey, err := realssh.ParsePrivateKey(keyBytes); err == nil {
+			fp := realssh.FingerprintSHA256(parsedKey.PublicKey())
+			log.Printf("[sync] SSH key fingerprint: %s", fp)
+		}
 	} else {
 		log.Printf("[sync] Error: No SSH key configured")
 		http.Error(w, "No SSH key configured", 500)
