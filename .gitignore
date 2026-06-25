@@ -3,6 +3,7 @@ android/app/omn-go.keystore
 .env
 local/current_state_*.zip
 local/downloads/*.zip
+doc/*_Context.md
 output-binaries/
 data/
 .aider*

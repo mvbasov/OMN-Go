@@ -8,9 +8,9 @@ fi
 
 # 0. Build descktop and android binary
 echo "-------- STAGE 1 -------"
-docker build -f Dockerfile.base -t omn-go-base:latest .
+docker buildx build -f Dockerfile.base -t omn-go-base:latest .
 echo "-------- STAGE 2 -------"
-docker build -t omn-go-builder:latest . \
+docker buildx build -t omn-go-builder:latest . \
    $(grep -v '^#' .env | xargs -I {} echo --build-arg {})
 
 ## Extract the keystore after first run
