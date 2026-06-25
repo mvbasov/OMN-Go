@@ -404,7 +404,6 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[sync] Using SSH key: %s", keyPath)
 
-		// Check file existence and permissions
 		info, err := os.Stat(keyPath)
 		if err != nil {
 			log.Printf("[sync] SSH key file not accessible: %v", err)
@@ -421,25 +420,26 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[sync] Read %d bytes from key file", len(keyBytes))
 
-		passphrase := appConfig.SyncSSHPassphrase
-		if passphrase != "" {
-			log.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
-			auth, err = ssh.NewPublicKeys(sshUser, keyBytes, passphrase)
+		// Parse the private key with crypto/ssh (more reliable than go-git's parser)
+		var signer realssh.Signer
+		if appConfig.SyncSSHPassphrase != "" {
+			log.Printf("[sync] Passphrase provided (length %d)", len(appConfig.SyncSSHPassphrase))
+			signer, err = realssh.ParsePrivateKeyWithPassphrase(keyBytes, []byte(appConfig.SyncSSHPassphrase))
 		} else {
 			log.Printf("[sync] No passphrase")
-			auth, err = ssh.NewPublicKeys(sshUser, keyBytes, "")
+			signer, err = realssh.ParsePrivateKey(keyBytes)
 		}
 		if err != nil {
-			log.Printf("[sync] ssh.NewPublicKeys error: %v", err)
-			http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
+			log.Printf("[sync] Failed to parse private key: %v", err)
+			http.Error(w, fmt.Sprintf("SSH key parse error: %v", err), 500)
 			return
 		}
-		log.Printf("[sync] SSH auth method created successfully")
-		// Log public key fingerprint for debugging
-		if parsedKey, err := realssh.ParsePrivateKey(keyBytes); err == nil {
-			fp := realssh.FingerprintSHA256(parsedKey.PublicKey())
-			log.Printf("[sync] SSH key fingerprint: %s", fp)
-		}
+		fp := realssh.FingerprintSHA256(signer.PublicKey())
+		log.Printf("[sync] SSH key fingerprint: %s", fp)
+
+		// Use go-git's ssh.PublicKeys with the signer
+		auth = ssh.PublicKeys(signer)
+		log.Printf("[sync] SSH auth method created using crypto/ssh signer")
 	} else {
 		log.Printf("[sync] Error: No SSH key configured")
 		http.Error(w, "No SSH key configured", 500)

@@ -16,6 +16,15 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
+def apply_idempotent_replace(path, old, new, idem_marker):
+    content = read_file(path)
+    if idem_marker in content:
+        return
+    if old not in content:
+        raise ValueError(f"❌ Old block not found in {path}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
 def update_application():
     # Bump version
     ver_path = "backend/version.go"
@@ -34,39 +43,102 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # Fix imports and add fingerprint logging in handlers.go
-    h_path = "backend/handlers.go"
-    h = read_file(h_path)
+    # Replace the SSH auth block to use realssh signer directly
+    old_auth_block = """\tif appConfig.SyncSSHKey != "" {
+\t\tkeyPath := appConfig.SyncSSHKey
+\t\tif !filepath.IsAbs(keyPath) {
+\t\t\tkeyPath = filepath.Join(storageDir, keyPath)
+\t\t}
+\t\tlog.Printf("[sync] Using SSH key: %s", keyPath)
 
-    # 1. Remove any bare import of golang.org/x/crypto/ssh (without alias)
-    h = re.sub(r'^[ \t]*"golang\.org/x/crypto/ssh"\s*\n', '', h, flags=re.MULTILINE)
+\t\t// Check file existence and permissions
+\t\tinfo, err := os.Stat(keyPath)
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] SSH key file not accessible: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tlog.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
 
-    # 2. Ensure realssh import exists after the go-git ssh line
-    git_ssh_line = 'ssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"'
-    realssh_import = '\trealssh "golang.org/x/crypto/ssh"'
-    if git_ssh_line in h and realssh_import not in h:
-        # Insert realssh import right after the git ssh line
-        h = h.replace(git_ssh_line, git_ssh_line + '\n' + realssh_import)
-    elif realssh_import not in h:
-        # If git_ssh_line missing, perhaps it's aliased differently, but we expect it's present.
-        # If not, we'll add both? For now just ensure realssh import after that line.
-        # Another attempt: find any line containing "github.com/go-git/go-git/v5/plumbing/transport/ssh"
-        m = re.search(r'^(\s*)(.*"github\.com/go-git/go-git/v5/plumbing/transport/ssh".*)$', h, flags=re.MULTILINE)
-        if m:
-            indent = m.group(1)
-            h = h.replace(m.group(0), m.group(0) + '\n' + indent + 'realssh "golang.org/x/crypto/ssh"')
-    write_file(h_path, h)
+\t\tkeyBytes, err := os.ReadFile(keyPath)
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] Read key file error: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tlog.Printf("[sync] Read %d bytes from key file", len(keyBytes))
 
-    # 3. Add fingerprint logging if not present
-    old_log = '\t\tlog.Printf("[sync] SSH auth method created successfully")'
-    new_log = '\t\tlog.Printf("[sync] SSH auth method created successfully")\n\t\t// Log public key fingerprint for debugging\n\t\tif parsedKey, err := realssh.ParsePrivateKey(keyBytes); err == nil {\n\t\t\tfp := realssh.FingerprintSHA256(parsedKey.PublicKey())\n\t\t\tlog.Printf("[sync] SSH key fingerprint: %s", fp)\n\t\t}'
-    h = read_file(h_path)  # re-read after previous write
-    if old_log in h and 'realssh.FingerprintSHA256' not in h:
-        h = h.replace(old_log, new_log)
-        write_file(h_path, h)
+\t\tpassphrase := appConfig.SyncSSHPassphrase
+\t\tif passphrase != "" {
+\t\t\tlog.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
+\t\t\tauth, err = ssh.NewPublicKeys(sshUser, keyBytes, passphrase)
+\t\t} else {
+\t\t\tlog.Printf("[sync] No passphrase")
+\t\t\tauth, err = ssh.NewPublicKeys(sshUser, keyBytes, "")
+\t\t}
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] ssh.NewPublicKeys error: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tlog.Printf("[sync] SSH auth method created successfully")
+\t\t// Log public key fingerprint for debugging
+\t\tif parsedKey, err := realssh.ParsePrivateKey(keyBytes); err == nil {
+\t\t\tfp := realssh.FingerprintSHA256(parsedKey.PublicKey())
+\t\t\tlog.Printf("[sync] SSH key fingerprint: %s", fp)
+\t\t}
+\t}"""
+
+    new_auth_block = """\tif appConfig.SyncSSHKey != "" {
+\t\tkeyPath := appConfig.SyncSSHKey
+\t\tif !filepath.IsAbs(keyPath) {
+\t\t\tkeyPath = filepath.Join(storageDir, keyPath)
+\t\t}
+\t\tlog.Printf("[sync] Using SSH key: %s", keyPath)
+
+\t\tinfo, err := os.Stat(keyPath)
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] SSH key file not accessible: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tlog.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
+
+\t\tkeyBytes, err := os.ReadFile(keyPath)
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] Read key file error: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tlog.Printf("[sync] Read %d bytes from key file", len(keyBytes))
+
+\t\t// Parse the private key with crypto/ssh (more reliable than go-git's parser)
+\t\tvar signer realssh.Signer
+\t\tif appConfig.SyncSSHPassphrase != "" {
+\t\t\tlog.Printf("[sync] Passphrase provided (length %d)", len(appConfig.SyncSSHPassphrase))
+\t\t\tsigner, err = realssh.ParsePrivateKeyWithPassphrase(keyBytes, []byte(appConfig.SyncSSHPassphrase))
+\t\t} else {
+\t\t\tlog.Printf("[sync] No passphrase")
+\t\t\tsigner, err = realssh.ParsePrivateKey(keyBytes)
+\t\t}
+\t\tif err != nil {
+\t\t\tlog.Printf("[sync] Failed to parse private key: %v", err)
+\t\t\thttp.Error(w, fmt.Sprintf("SSH key parse error: %v", err), 500)
+\t\t\treturn
+\t\t}
+\t\tfp := realssh.FingerprintSHA256(signer.PublicKey())
+\t\tlog.Printf("[sync] SSH key fingerprint: %s", fp)
+
+\t\t// Use go-git's ssh.PublicKeys with the signer
+\t\tauth = ssh.PublicKeys(signer)
+\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")
+\t}"""
+
+    apply_idempotent_replace("backend/handlers.go", old_auth_block, new_auth_block,
+                             'auth = ssh.PublicKeys(signer)')
 
     commit_msg = (
-        "fix(sync): correct crypto/ssh import alias and add fingerprint logging\n\n"
+        "fix(sync): use crypto/ssh signer directly instead of ssh.NewPublicKeys\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
