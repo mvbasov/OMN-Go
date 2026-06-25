@@ -534,6 +534,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+async function syncNow() {
+            const res = await fetch('/api/sync', { method: 'POST' });
+            if (res.ok) {
+                alert('Sync complete!');
+                window.location.reload();
+            } else {
+                let msg = await res.text();
+                alert('Sync failed: ' + msg);
+            }
+        }
 window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
         window.location.reload();
