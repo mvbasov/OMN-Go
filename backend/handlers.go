@@ -19,6 +19,7 @@ import (
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
@@ -339,7 +340,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	// Prepare SSH auth
 	var auth transport.AuthMethod
 	if appConfig.SyncSSHKey != "" {
-		keyBytes, err := os.ReadFile(appConfig.SyncSSHKey)
+		keyPath := appConfig.SyncSSHKey
+		if !filepath.IsAbs(keyPath) {
+			keyPath = filepath.Join(storageDir, keyPath)
+		}
+		keyBytes, err := os.ReadFile(keyPath)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
 			return

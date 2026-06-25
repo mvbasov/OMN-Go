@@ -9,6 +9,22 @@ def write_file(path, content):
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
+def patch_file(path, old, new):
+    """Replace *old* with *new* in *path*. Raise ValueError if *old* missing."""
+    content = read_file(path)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
+def safe_patch(path, old, new):
+    """Idempotent patch: apply only if old present, skip if new already there."""
+    content = read_file(path)
+    if old in content:
+        patch_file(path, old, new)
+    elif new not in content:
+        raise ValueError(f"❌ Patch already partially applied? Neither old nor new string found in {path}")
+
 def increment_version(ver_str):
     """'1.4.3' → '1.4.4'"""
     parts = ver_str.strip().split(".")
@@ -16,30 +32,6 @@ def increment_version(ver_str):
         parts[2] = str(int(parts[2]) + 1)
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
-
-def ensure_import_in_file(path, import_path, anchor_import):
-    """
-    Idempotently add *import_path* to the Go import block in *path*,
-    placing it immediately before the line containing *anchor_import*.
-    If *import_path* already exists, do nothing.
-    Raises ValueError if *anchor_import* is not found.
-    """
-    content = read_file(path)
-    if import_path in content:
-        return  # already present
-
-    # Find the line with the anchor import (any leading whitespace)
-    anchor_regex = r'^(\s*)"' + re.escape(anchor_import) + r'"\s*$'
-    match = re.search(anchor_regex, content, flags=re.MULTILINE)
-    if not match:
-        raise ValueError(f"❌ Anchor import '{anchor_import}' not found in {path}")
-
-    indent = match.group(1)
-    new_line = f'{indent}"{import_path}"\n'
-    # Insert new import line right before the anchor line
-    insert_pos = match.start()
-    new_content = content[:insert_pos] + new_line + content[insert_pos:]
-    write_file(path, new_content)
 
 def update_application():
     # 1. Bump version
@@ -62,15 +54,19 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Add missing transport import in handlers.go
-    ensure_import_in_file(
-        "backend/handlers.go",
-        "github.com/go-git/go-git/v5/plumbing/transport",
-        "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+    # 2. Make sync_ssh_key relative to storageDir when not absolute
+    old_line = "\t\tkeyBytes, err := os.ReadFile(appConfig.SyncSSHKey)"
+    new_block = (
+        "\t\tkeyPath := appConfig.SyncSSHKey\n"
+        "\t\tif !filepath.IsAbs(keyPath) {\n"
+        "\t\t\tkeyPath = filepath.Join(storageDir, keyPath)\n"
+        "\t\t}\n"
+        "\t\tkeyBytes, err := os.ReadFile(keyPath)"
     )
+    safe_patch("backend/handlers.go", old_line, new_block)
 
     commit_msg = (
-        "fix(build): add missing go-git transport import\n\n"
+        "feat(sync): resolve sync_ssh_key relative to storageDir when not absolute\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
