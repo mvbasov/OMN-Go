@@ -19,7 +19,7 @@ def increment_version(ver_str):
 def apply_fix(path, old, new, idem_marker):
     content = read_file(path)
     if idem_marker in content:
-        return  # already applied
+        return
     if old not in content:
         raise ValueError(f"❌ Old line not found in {path}")
     content = content.replace(old, new, 1)
@@ -43,14 +43,14 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # Fix the auth creation: use struct literal instead of function call
+    # Add HostKeyCallback to ignore unknown host keys (fixes possible host key rejection)
     apply_fix("backend/handlers.go",
-              "\t\tauth = ssh.PublicKeys(signer)",
               "\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}",
-              '&ssh.PublicKeys{User: sshUser, Signer: signer}')
+              "\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: realssh.InsecureIgnoreHostKey()}",
+              'HostKeyCallback: realssh.InsecureIgnoreHostKey()')
 
     commit_msg = (
-        "fix(sync): correct SSH auth construction using PublicKeys struct\n\n"
+        "fix(sync): accept unknown SSH host keys via InsecureIgnoreHostKey\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
