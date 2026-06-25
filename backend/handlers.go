@@ -21,7 +21,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"golang.org/x/crypto/ssh"
+	realssh "golang.org/x/crypto/ssh"
 )
 
 func getConfigPageBody() string {
