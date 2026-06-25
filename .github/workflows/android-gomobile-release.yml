@@ -49,7 +49,7 @@ jobs:
       - name: Extract artifacts from container
         run: |
           mkdir -p artifacts
-          docker create --name omn-go-tmp omn-go:latest
+          docker create --name omn-go-tmp omn-go-builder:latest
           docker cp omn-go-tmp:/app/bin/. artifacts/
           docker rm omn-go-tmp
           ls -la artifacts/
