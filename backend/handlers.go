@@ -53,6 +53,18 @@ func getConfigPageBody() string {
             <input type="text" id="cfgExtCmd" value="%s" class="config-input" />
             <small class="config-hint">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
         </div>
+        <div class="config-field">
+            <label class="config-label">Sync Remote (git URL)</label>
+            <input type="text" id="cfgSyncRemote" value="%s" class="config-input" placeholder="git@host:repo.git" />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Sync SSH Key Path (relative to storage dir)</label>
+            <input type="text" id="cfgSyncSSHKey" value="%s" class="config-input" placeholder="omngo_sync_key" />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Sync SSH Passphrase (optional)</label>
+            <input type="password" id="cfgSyncPassphrase" value="%s" class="config-input" placeholder="leave empty if none" />
+        </div>
         <button type="submit" class="config-save-btn">Save Configuration</button>
     </form>
 </div>
@@ -66,6 +78,9 @@ func getConfigPageBody() string {
         params.append("author", document.getElementById("cfgAuthor").value);
         params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
         params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
+        params.append("sync_remote", document.getElementById("cfgSyncRemote").value);
+        params.append("sync_ssh_key", document.getElementById("cfgSyncSSHKey").value);
+        params.append("sync_ssh_passphrase", document.getElementById("cfgSyncPassphrase").value);
 
         const res = await fetch("/api/config", { method: "POST", body: params });
         if (res.ok) {
@@ -83,7 +98,8 @@ func getConfigPageBody() string {
 			}
 			return ""
 		}(),
-		appConfig.DesktopExtCmd)
+		appConfig.DesktopExtCmd,
+		appConfig.SyncRemote, appConfig.SyncSSHKey, appConfig.SyncSSHPassphrase)
 }
 
 func getExternalEditPageBody(fileName string, viewURL string) string {
@@ -119,6 +135,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		appConfig.Author = r.FormValue("author")
 		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+		appConfig.SyncRemote = r.FormValue("sync_remote")
+		appConfig.SyncSSHKey = r.FormValue("sync_ssh_key")
+		appConfig.SyncSSHPassphrase = r.FormValue("sync_ssh_passphrase")
 
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		configPath := filepath.Join(storageDir, "config.json")
