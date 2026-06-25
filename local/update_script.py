@@ -16,17 +16,11 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
-def patch_file(path, old, new):
-    content = read_file(path)
-    if old not in content:
-        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
-    content = content.replace(old, new, 1)
-    write_file(path, content)
-
 def safe_patch(path, old, new):
     content = read_file(path)
     if old in content:
-        patch_file(path, old, new)
+        content = content.replace(old, new, 1)
+        write_file(path, content)
     elif new not in content:
         raise ValueError(f"❌ Neither old nor new string found in {path}")
 
@@ -49,15 +43,42 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Add console.error logging before the alert in syncNow()
-    # Target: the line `alert('Sync failed: ' + msg);`
-    old_line = "alert('Sync failed: ' + msg);"
-    new_block = """console.error('OMN-Go sync failed:', msg);
-                alert('Sync failed: ' + msg + '\\n\\nOpen console (F12) to copy error details.');"""
-    safe_patch("backend/frontend/html/js/omn-go-core.js", old_line, new_block)
+    # 2. Enhance .gitignore creation to include sync key file
+    # Find the block that ensures .gitignore and replace it with a new one that also appends the key path
+    old_gitignore_block = (
+        '\t// Ensure .gitignore\n'
+        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
+        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
+        '\t\tos.WriteFile(gitignorePath, []byte("# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"), 0644)\n'
+        '\t}'
+    )
+    new_gitignore_block = (
+        '\t// Ensure .gitignore\n'
+        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
+        '\tgitignoreBase := "# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"\n'
+        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
+        '\t\tos.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)\n'
+        '\t}\n'
+        '\t// Append SSH key file to .gitignore if inside storageDir\n'
+        '\tif appConfig.SyncSSHKey != "" {\n'
+        '\t\tkeyPath := appConfig.SyncSSHKey\n'
+        '\t\tif !filepath.IsAbs(keyPath) {\n'
+        '\t\t\tkeyPath = filepath.Join(storageDir, keyPath)\n'
+        '\t\t}\n'
+        '\t\trelKey, err := filepath.Rel(storageDir, keyPath)\n'
+        '\t\tif err == nil && !strings.HasPrefix(relKey, "..") {\n'
+        '\t\t\tcurrent, _ := os.ReadFile(gitignorePath)\n'
+        '\t\t\tif !strings.Contains(string(current), relKey) {\n'
+        '\t\t\t\tnewContent := string(current) + "\\n" + relKey + "\\n"\n'
+        '\t\t\t\tos.WriteFile(gitignorePath, []byte(newContent), 0644)\n'
+        '\t\t\t}\n'
+        '\t\t}\n'
+        '\t}'
+    )
+    safe_patch("backend/handlers.go", old_gitignore_block, new_gitignore_block)
 
     commit_msg = (
-        "fix(ui): log sync errors to console.error for easier copying\n\n"
+        "fix(sync): automatically add sync_ssh_key to .gitignore\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

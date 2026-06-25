@@ -317,8 +317,24 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure .gitignore
 	gitignorePath := filepath.Join(storageDir, ".gitignore")
+	gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n"
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
-		os.WriteFile(gitignorePath, []byte("# OMN-Go sync ignore\nconfig.json\n*.html\n"), 0644)
+		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
+	}
+	// Append SSH key file to .gitignore if inside storageDir
+	if appConfig.SyncSSHKey != "" {
+		keyPath := appConfig.SyncSSHKey
+		if !filepath.IsAbs(keyPath) {
+			keyPath = filepath.Join(storageDir, keyPath)
+		}
+		relKey, err := filepath.Rel(storageDir, keyPath)
+		if err == nil && !strings.HasPrefix(relKey, "..") {
+			current, _ := os.ReadFile(gitignorePath)
+			if !strings.Contains(string(current), relKey) {
+				newContent := string(current) + "\n" + relKey + "\n"
+				os.WriteFile(gitignorePath, []byte(newContent), 0644)
+			}
+		}
 	}
 
 	// Open or init repo
