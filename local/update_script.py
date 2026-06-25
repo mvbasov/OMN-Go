@@ -16,13 +16,28 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
-def safe_patch(path, old, new):
-    content = read_file(path)
-    if old in content:
-        content = content.replace(old, new, 1)
-        write_file(path, content)
-    elif new not in content:
-        raise ValueError(f"❌ Neither old nor new string found in {path}")
+def replace_function(file_path, func_name, new_func_body):
+    """Replace the entire top-level function *func_name* with *new_func_body*."""
+    content = read_file(file_path)
+    # Find the header of the target function
+    header_pattern = r'^func ' + re.escape(func_name) + r'\(.*?\)\s*\{'
+    start_match = re.search(header_pattern, content, flags=re.MULTILINE)
+    if not start_match:
+        raise ValueError(f"❌ Function {func_name} not found in {file_path}")
+
+    start_pos = start_match.start()
+    # Find the next top-level function after the target function's start
+    # Look for "func " at start of a line, not indented
+    next_match = re.search(r'^func ', content[start_match.end():], flags=re.MULTILINE)
+    if next_match:
+        end_pos = start_match.end() + next_match.start()
+    else:
+        # No more functions, go to end of file
+        end_pos = len(content)
+
+    # Replace the old function block with the new one
+    new_content = content[:start_pos] + new_func_body.strip() + "\n" + content[end_pos:]
+    write_file(file_path, new_content)
 
 def update_application():
     # 1. Bump version
@@ -43,42 +58,219 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Enhance .gitignore creation to include sync key file
-    # Find the block that ensures .gitignore and replace it with a new one that also appends the key path
-    old_gitignore_block = (
-        '\t// Ensure .gitignore\n'
-        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
-        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
-        '\t\tos.WriteFile(gitignorePath, []byte("# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"), 0644)\n'
-        '\t}'
-    )
-    new_gitignore_block = (
-        '\t// Ensure .gitignore\n'
-        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
-        '\tgitignoreBase := "# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"\n'
-        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
-        '\t\tos.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)\n'
-        '\t}\n'
-        '\t// Append SSH key file to .gitignore if inside storageDir\n'
-        '\tif appConfig.SyncSSHKey != "" {\n'
-        '\t\tkeyPath := appConfig.SyncSSHKey\n'
-        '\t\tif !filepath.IsAbs(keyPath) {\n'
-        '\t\t\tkeyPath = filepath.Join(storageDir, keyPath)\n'
-        '\t\t}\n'
-        '\t\trelKey, err := filepath.Rel(storageDir, keyPath)\n'
-        '\t\tif err == nil && !strings.HasPrefix(relKey, "..") {\n'
-        '\t\t\tcurrent, _ := os.ReadFile(gitignorePath)\n'
-        '\t\t\tif !strings.Contains(string(current), relKey) {\n'
-        '\t\t\t\tnewContent := string(current) + "\\n" + relKey + "\\n"\n'
-        '\t\t\t\tos.WriteFile(gitignorePath, []byte(newContent), 0644)\n'
-        '\t\t\t}\n'
-        '\t\t}\n'
-        '\t}'
-    )
-    safe_patch("backend/handlers.go", old_gitignore_block, new_gitignore_block)
+    # 2. Replace handleSync with the heavily logged version (if not already done)
+    current = read_file("backend/handlers.go")
+    if 'log.Printf("[sync] Request received")' in current:
+        print("handleSync already contains debug logging, skipping replacement.")
+    else:
+        new_handleSync = r'''
+func handleSync(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[sync] Request received")
+	if r.Method != "POST" {
+		http.Error(w, "Method Not Allowed", 405)
+		return
+	}
+
+	if appConfig.SyncRemote == "" {
+		log.Printf("[sync] Error: sync_remote not configured")
+		http.Error(w, "Sync not configured: missing sync_remote in config.json", 500)
+		return
+	}
+
+	log.Printf("[sync] Remote: %s", appConfig.SyncRemote)
+
+	// Ensure .gitignore
+	gitignorePath := filepath.Join(storageDir, ".gitignore")
+	gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n"
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
+		log.Printf("[sync] Created .gitignore")
+	}
+	// Append SSH key file to .gitignore if inside storageDir
+	if appConfig.SyncSSHKey != "" {
+		keyPath := appConfig.SyncSSHKey
+		if !filepath.IsAbs(keyPath) {
+			keyPath = filepath.Join(storageDir, keyPath)
+		}
+		relKey, err := filepath.Rel(storageDir, keyPath)
+		if err == nil && !strings.HasPrefix(relKey, "..") {
+			current, _ := os.ReadFile(gitignorePath)
+			if !strings.Contains(string(current), relKey) {
+				newContent := string(current) + "\n" + relKey + "\n"
+				os.WriteFile(gitignorePath, []byte(newContent), 0644)
+				log.Printf("[sync] Added %s to .gitignore", relKey)
+			}
+		}
+	}
+
+	// Open or init repo
+	log.Printf("[sync] Opening repo at %s", storageDir)
+	repo, err := git.PlainOpen(storageDir)
+	if err != nil {
+		log.Printf("[sync] Repo not found, initializing...")
+		repo, err = git.PlainInit(storageDir, false)
+		if err != nil {
+			log.Printf("[sync] Repo init failed: %v", err)
+			http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+			return
+		}
+		log.Printf("[sync] Repo initialized")
+		// Check if remote origin exists
+		_, err = repo.Remote("origin")
+		if err != nil {
+			log.Printf("[sync] Remote origin not found, adding")
+			_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+				Name: "origin",
+				URLs: []string{appConfig.SyncRemote},
+			})
+			if err != nil {
+				log.Printf("[sync] Remote add failed: %v", err)
+				http.Error(w, fmt.Sprintf("Remote add failed: %v", err), 500)
+				return
+			}
+		}
+	} else {
+		log.Printf("[sync] Repo opened successfully")
+		// Repo exists, ensure remote
+		_, err = repo.Remote("origin")
+		if err != nil {
+			log.Printf("[sync] Remote origin missing, adding")
+			_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+				Name: "origin",
+				URLs: []string{appConfig.SyncRemote},
+			})
+			if err != nil {
+				log.Printf("[sync] Remote add failed: %v", err)
+				http.Error(w, fmt.Sprintf("Remote add failed: %v", err), 500)
+				return
+			}
+		}
+	}
+
+	// Prepare SSH auth
+	var auth transport.AuthMethod
+	if appConfig.SyncSSHKey != "" {
+		keyPath := appConfig.SyncSSHKey
+		if !filepath.IsAbs(keyPath) {
+			keyPath = filepath.Join(storageDir, keyPath)
+		}
+		log.Printf("[sync] Using SSH key: %s", keyPath)
+
+		// Check file existence and permissions
+		info, err := os.Stat(keyPath)
+		if err != nil {
+			log.Printf("[sync] SSH key file not accessible: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+			return
+		}
+		log.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
+
+		keyBytes, err := os.ReadFile(keyPath)
+		if err != nil {
+			log.Printf("[sync] Read key file error: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to read SSH key: %v", err), 500)
+			return
+		}
+		log.Printf("[sync] Read %d bytes from key file", len(keyBytes))
+
+		passphrase := appConfig.SyncSSHPassphrase
+		if passphrase != "" {
+			log.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
+			auth, err = ssh.NewPublicKeys("git", keyBytes, passphrase)
+		} else {
+			log.Printf("[sync] No passphrase")
+			auth, err = ssh.NewPublicKeys("git", keyBytes, "")
+		}
+		if err != nil {
+			log.Printf("[sync] ssh.NewPublicKeys error: %v", err)
+			http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
+			return
+		}
+		log.Printf("[sync] SSH auth method created successfully")
+	} else {
+		log.Printf("[sync] Error: No SSH key configured")
+		http.Error(w, "No SSH key configured", 500)
+		return
+	}
+
+	wTree, _ := repo.Worktree()
+
+	// Stage and commit local changes first
+	log.Printf("[sync] Staging all changes")
+	_, err = wTree.Add(".")
+	if err != nil {
+		log.Printf("[sync] Add error: %v", err)
+		http.Error(w, fmt.Sprintf("Add failed: %v", err), 500)
+		return
+	}
+	status, err := wTree.Status()
+	if err != nil {
+		log.Printf("[sync] Status error: %v", err)
+		http.Error(w, fmt.Sprintf("Status failed: %v", err), 500)
+		return
+	}
+	if !status.IsClean() {
+		log.Printf("[sync] Uncommitted changes detected, committing")
+		_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+			Author: &object.Signature{
+				Name:  "OMN-Go Sync",
+				Email: "omngo@localhost",
+				When:  time.Now(),
+			},
+		})
+		if err != nil {
+			log.Printf("[sync] Commit error: %v", err)
+			http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+			return
+		}
+	} else {
+		log.Printf("[sync] Nothing to commit")
+	}
+
+	// Pull from origin
+	log.Printf("[sync] Pulling from origin master")
+	err = wTree.Pull(&git.PullOptions{
+		RemoteName:    "origin",
+		Auth:          auth,
+		ReferenceName: plumbing.NewBranchReferenceName("master"),
+		SingleBranch:  true,
+	})
+	if err != nil {
+		if err == git.NoErrAlreadyUpToDate || strings.Contains(err.Error(), "couldn't find remote ref") {
+			log.Printf("[sync] Pull not needed (no remote ref or up to date): %v", err)
+		} else {
+			log.Printf("[sync] Pull error: %v", err)
+			http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+			return
+		}
+	} else {
+		log.Printf("[sync] Pull successful")
+	}
+
+	// Stage again after merge
+	_, _ = wTree.Add(".")
+
+	// Push
+	log.Printf("[sync] Pushing to origin master")
+	err = repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       auth,
+		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+	})
+	if err != nil {
+		log.Printf("[sync] Push error: %v", err)
+		http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
+		return
+	}
+	log.Printf("[sync] Push successful")
+
+	w.Write([]byte("Synced successfully."))
+}
+'''
+        replace_function("backend/handlers.go", "handleSync", new_handleSync)
 
     commit_msg = (
-        "fix(sync): automatically add sync_ssh_key to .gitignore\n\n"
+        "feat(sync): add extensive server-side logging for sync debugging\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
