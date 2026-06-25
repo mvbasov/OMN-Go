@@ -388,6 +388,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare SSH auth
+	// Extract user from remote URL (e.g., gitolite3@host:path -> gitolite3)
+	sshUser := "git"
+	if idx := strings.Index(appConfig.SyncRemote, "@"); idx != -1 {
+		sshUser = appConfig.SyncRemote[:idx]
+	}
+	log.Printf("[sync] SSH user: %s", sshUser)
+
 	var auth transport.AuthMethod
 	if appConfig.SyncSSHKey != "" {
 		keyPath := appConfig.SyncSSHKey
@@ -416,10 +423,10 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		passphrase := appConfig.SyncSSHPassphrase
 		if passphrase != "" {
 			log.Printf("[sync] Passphrase provided (length %d)", len(passphrase))
-			auth, err = ssh.NewPublicKeys("git", keyBytes, passphrase)
+			auth, err = ssh.NewPublicKeys(sshUser, keyBytes, passphrase)
 		} else {
 			log.Printf("[sync] No passphrase")
-			auth, err = ssh.NewPublicKeys("git", keyBytes, "")
+			auth, err = ssh.NewPublicKeys(sshUser, keyBytes, "")
 		}
 		if err != nil {
 			log.Printf("[sync] ssh.NewPublicKeys error: %v", err)
