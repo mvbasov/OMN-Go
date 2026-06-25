@@ -7,7 +7,10 @@ if [ ! -f android/app/omn-go.keystore ]; then \
 fi 
 
 # 0. Build descktop and android binary
-docker build -t omn-go-builder . \
+echo "-------- STAGE 1 -------"
+docker build -f Dockerfile.base -t omn-go-base:latest .
+echo "-------- STAGE 2 -------"
+docker build -t omn-go-builder:latest . \
    $(grep -v '^#' .env | xargs -I {} echo --build-arg {})
 
 ## Extract the keystore after first run

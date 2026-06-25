@@ -29,8 +29,11 @@ jobs:
         run: |
           echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
 
+      - name: Build Docker base image
+        run: docker build -f Dockerfile.base -t omn-go-base:latest .
+
       - name: Build Docker image
-        run: docker build -t omn-go:latest --build-arg KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD} --build-arg KEY_ALIAS=${KEY_ALIAS} --build-arg KEY_PASSWORD=${KEY_PASSWORD} .
+        run:  docker build -t omn-go-builder:latest --build-arg KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD} --build-arg KEY_ALIAS=${KEY_ALIAS} --build-arg KEY_PASSWORD=${KEY_PASSWORD} .
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
