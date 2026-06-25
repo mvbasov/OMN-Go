@@ -16,20 +16,19 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
-def ensure_snippet(path, marker_regex, snippet, idempotent_check):
-    """
-    Insert *snippet* immediately before the first occurrence of *marker_regex*.
-    If *idempotent_check* is already present in the file, skip.
-    """
+def patch_file(path, old, new):
     content = read_file(path)
-    if idempotent_check in content:
-        return
-    match = re.search(marker_regex, content, flags=re.MULTILINE)
-    if not match:
-        raise ValueError(f"❌ Marker regex not found in {path}")
-    insert_pos = match.start()
-    new_content = content[:insert_pos] + snippet + "\n" + content[insert_pos:]
-    write_file(path, new_content)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
+def safe_patch(path, old, new):
+    content = read_file(path)
+    if old in content:
+        patch_file(path, old, new)
+    elif new not in content:
+        raise ValueError(f"❌ Neither old nor new string found in {path}")
 
 def update_application():
     # 1. Bump version
@@ -50,24 +49,15 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Add syncNow() function to omn-go-core.js
-    js_path = "backend/frontend/html/js/omn-go-core.js"
-    # Marker: the last event listener before file end (pageshow)
-    marker = r"^window\.addEventListener\('pageshow', function\(event\) \{"
-    snippet = """async function syncNow() {
-            const res = await fetch('/api/sync', { method: 'POST' });
-            if (res.ok) {
-                alert('Sync complete!');
-                window.location.reload();
-            } else {
-                let msg = await res.text();
-                alert('Sync failed: ' + msg);
-            }
-        }"""
-    ensure_snippet(js_path, marker, snippet, "async function syncNow")
+    # 2. Add console.error logging before the alert in syncNow()
+    # Target: the line `alert('Sync failed: ' + msg);`
+    old_line = "alert('Sync failed: ' + msg);"
+    new_block = """console.error('OMN-Go sync failed:', msg);
+                alert('Sync failed: ' + msg + '\\n\\nOpen console (F12) to copy error details.');"""
+    safe_patch("backend/frontend/html/js/omn-go-core.js", old_line, new_block)
 
     commit_msg = (
-        "fix(ui): move syncNow() definition to omn-go-core.js\n\n"
+        "fix(ui): log sync errors to console.error for easier copying\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

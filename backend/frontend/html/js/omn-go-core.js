@@ -541,7 +541,8 @@ async function syncNow() {
                 window.location.reload();
             } else {
                 let msg = await res.text();
-                alert('Sync failed: ' + msg);
+                console.error('OMN-Go sync failed:', msg);
+                alert('Sync failed: ' + msg + '\n\nOpen console (F12) to copy error details.');
             }
         }
 window.addEventListener('pageshow', function(event) {
