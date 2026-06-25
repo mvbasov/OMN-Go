@@ -57,6 +57,5 @@ RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
-    echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}, KEY_ALIAS=${KEY_ALIAS}, KEY_PASSWORD=${KEY_PASSWORD}, $(md5sum app/omn-go.keystore)" && \
     gradle assembleRelease && \
     cp app/build/outputs/apk/release/*.apk ../bin/
