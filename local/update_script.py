@@ -43,14 +43,19 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # Add HostKeyCallback to ignore unknown host keys (fixes possible host key rejection)
+    # 1. Revert the erroneous HostKeyCallback field
     apply_fix("backend/handlers.go",
-              "\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}",
               "\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: realssh.InsecureIgnoreHostKey()}",
-              'HostKeyCallback: realssh.InsecureIgnoreHostKey()')
+              "\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}",
+              '&ssh.PublicKeys{User: sshUser, Signer: signer}')
+
+    # 2. Add logging of key type (e.g., ssh-ed25519)
+    old_fp_log = '\t\tfp := realssh.FingerprintSHA256(signer.PublicKey())'
+    new_fp_log = '\t\tfp := realssh.FingerprintSHA256(signer.PublicKey())\n\t\tkeyType := signer.PublicKey().Type()\n\t\tlog.Printf("[sync] SSH key type: %s", keyType)'
+    apply_fix("backend/handlers.go", old_fp_log, new_fp_log, 'keyType := signer.PublicKey().Type()')
 
     commit_msg = (
-        "fix(sync): accept unknown SSH host keys via InsecureIgnoreHostKey\n\n"
+        "fix(sync): revert invalid HostKeyCallback, add key type logging\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

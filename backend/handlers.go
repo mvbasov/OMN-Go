@@ -435,10 +435,12 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fp := realssh.FingerprintSHA256(signer.PublicKey())
+		keyType := signer.PublicKey().Type()
+		log.Printf("[sync] SSH key type: %s", keyType)
 		log.Printf("[sync] SSH key fingerprint: %s", fp)
 
 		// Use go-git's ssh.PublicKeys with the signer
-		auth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: realssh.InsecureIgnoreHostKey()}
+		auth = &ssh.PublicKeys{User: sshUser, Signer: signer}
 		log.Printf("[sync] SSH auth method created using crypto/ssh signer")
 	} else {
 		log.Printf("[sync] Error: No SSH key configured")
