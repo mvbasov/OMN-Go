@@ -54,7 +54,7 @@ RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     go mod tidy && \
     mkdir -p android/app/libs && \
-    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w -trimpath" -o android/app/libs/omngo.aar ./backend
+    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
     echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}, KEY_ALIAS=${KEY_ALIAS}, KEY_PASSWORD=${KEY_PASSWORD}, $(md5sum app/omn-go.keystore)" && \
