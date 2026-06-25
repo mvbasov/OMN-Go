@@ -46,6 +46,7 @@ RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest 
 
 # Desktop Binary (OMN-Go naming convention)
 RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
+    export GOFLAGS="-ldflags=-s -w -trimpath" && \
     GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
@@ -53,7 +54,7 @@ RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     go mod tidy && \
     mkdir -p android/app/libs && \
-    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
+    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w -trimpath" -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
     echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}, KEY_ALIAS=${KEY_ALIAS}, KEY_PASSWORD=${KEY_PASSWORD}, $(md5sum app/omn-go.keystore)" && \

@@ -86,42 +86,95 @@ Provide a file structure description, build instructions, and a single, self-con
 
 #### Turn 2 and Onward (All Subsequent Modifications):
 
-Do NOT output full files or standard text diffs. You must respond exclusively with a runnable Python script using standard `str.replace()` mechanisms to modify the existing baseline.
+Do **NOT** output full files or standard text diffs.  Respond exclusively with a
+runnable, **idempotent** Python script that reads the current state of the
+codebase, determines the current version automatically, and applies precise
+`str.replace()` patches.  The script must be safe to run multiple times.
 
-The Python script must strictly adhere to this template structure:
+**Required structure (evolved, stable pattern):**
 
-```
-import os
+```python
+#!/usr/bin/env python3
+import re, os
+
+def read_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def write_file(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def patch_file(path, old, new):
+    """Replace *old* with *new* in *path*.  Raise ValueError if *old* missing."""
+    content = read_file(path)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
+def increment_version(ver_str):
+    """'1.3.35' → '1.3.36'"""
+    parts = ver_str.strip().split(".")
+    if len(parts) == 3 and parts[2].isdigit():
+        parts[2] = str(int(parts[2]) + 1)
+        return ".".join(parts)
+    raise ValueError(f"Unrecognised version format: {ver_str}")
 
 def update_application():
-    # 1. Bump Global Application Version
-    version_replacements = [
-        ("main.go", 'APP_VERSION = "1.0.0"', 'APP_VERSION = "1.0.1"'),
-        ("frontend/index.html", 'const APP_VERSION = "1.0.0";', 'const APP_VERSION = "1.0.1";')
-    ]
-    
-    # 2. Define File Patches (Target exact string mapping)
-    patches = {
-        "main.go": [
-            (
-                '// old block of code to remove',
-                '// new block of code to insert'
-            )
-        ]
-    }
+    # 1.  Auto‑detect current version from backend/version.go and bump it
+    ver_path = "backend/version.go"
+    content = read_file(ver_path)
+    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
+    cur_ver = match.group(1)
+    new_ver = increment_version(cur_ver)
 
-    # Execute updates sequentially...
-    # (Implement safe execution that raises ValueError if old target string is missing)
+    # Update version.go
+    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    write_file(ver_path, content)
 
-    # 3. Output Standardized Git Commit Message matching your modifications
-    commit_msg = """feat(core): description of the change here\n\nVersion bumped to 1.0.1"""
+    # Update android/app/build.gradle (versionCode and versionName)
+    gradle_path = "android/app/build.gradle"
+    gradle = read_file(gradle_path)
+    gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}',
+                            f'versionCode {int(new_ver.replace(".", ""))}')
+    gradle = gradle.replace(f'versionName "{cur_ver}"',
+                            f'versionName "{new_ver}"')
+    write_file(gradle_path, gradle)
+
+    # 2.  Apply feature patches using patch_file()
+    patch_file("backend/server.go",
+               "// old exact code block",
+               "// new exact code block")
+
+    # 3.  Print the standardised Git commit message
+    commit_msg = (
+        "feat(core): concise description of what changed\n\n"
+        "- Bullet point details\n"
+        f"Version bumped to {new_ver}"
+    )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
     update_application()
-
 ```
 
+**Key rules (distilled from many iterations):**
+
+- **Auto‑increment**: read `APP_VERSION` from `backend/version.go` with a regex;
+  never hard‑code the old version number.
+- **Idempotent**: the script must be safe to run twice — it should either succeed
+  both times or fail cleanly on the second run because the old target string is
+  already gone.
+- **`patch_file()`**: small helper that raises a loud `ValueError` if the
+  expected old string does not exist.  This catches incomplete previous patches
+  immediately.
+- **Multiple file types**: version bumps touch `backend/version.go` and
+  `android/app/build.gradle` together.
+- **Commit message**: exactly one `[GIT_COMMIT_MESSAGE]...[/GIT_COMMIT_MESSAGE]`
+  block printed to stdout, containing the version bump note.
+- **No unused code**: do not include scaffolding you do not need; the helper
+  functions above are the minimum that has proven reliable.
 ### 7. Output Deliverables
 
 1. **File Structure & Build Instructions** Text description block.
@@ -138,6 +191,11 @@ if __name__ == "__main__":
 ```
 # STAGE 1: Toolchains & Cache
 FROM golang:1.26-bookworm AS builder
+
+ARG KEYSTORE_PASSWORD
+ARG KEY_ALIAS
+ARG KEY_PASSWORD
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -179,6 +237,7 @@ RUN go get github.com/yuin/goldmark@latest && go get golang.org/x/mobile@latest 
 
 # Desktop Binary (OMN-Go naming convention)
 RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
+    export GOFLAGS="-ldflags=-s -w -trimpath" && \
     GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
@@ -186,18 +245,12 @@ RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     go mod tidy && \
     mkdir -p android/app/libs && \
-    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -o android/app/libs/omngo.aar ./backend
+    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w -trimpath" -o android/app/libs/omngo.aar ./backend
 
 RUN cd android && \
-    if [ ! -f app/omn-go.keystore ]; then \
-      keytool -genkey -v -keystore app/omn-go.keystore \
-              -alias omn-go -keyalg RSA -keysize 2048 \
-              -validity 10000 -storepass omn-go123 -keypass omn-go123 \
-              -dname "CN=OMN-Go, O=Basov"; \
-    fi && \
+    echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}, KEY_ALIAS=${KEY_ALIAS}, KEY_PASSWORD=${KEY_PASSWORD}, $(md5sum app/omn-go.keystore)" && \
     gradle assembleRelease && \
-    cp app/build/outputs/apk/release/*.apk ../bin/ #&& \
-    #cp app/omn-go.keystore ../bin/omn-go.keystore
+    cp app/build/outputs/apk/release/*.apk ../bin/
 
 ```
 
@@ -274,8 +327,10 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed frontend/index.html
@@ -326,6 +381,34 @@ func StartServer() {
 						os.MkdirAll(filepath.Dir(physPath), 0755)
 						os.WriteFile(physPath, data, 0644)
 					}
+				}
+
+				// Check for edit mode before serving static file
+				if r.URL.Query().Get("edit") == "true" {
+					relPath := strings.TrimPrefix(r.URL.Path, "/")
+
+					// Honour external editor preference
+					if !appConfig.UseInternalEd {
+						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
+						return
+					}
+
+					rawContent, err := os.ReadFile(physPath)
+					if err != nil {
+						// File does not exist - create empty one and proceed
+						os.MkdirAll(filepath.Dir(physPath), 0755)
+						os.WriteFile(physPath, []byte{}, 0644)
+						rawContent = []byte{}
+					}
+					escapedContent := htmlEscape(string(rawContent))
+					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
+					// Pass raw content as mdContent so the textarea is populated
+					compiled := compilePageWithBody(relPath, rawContent, customBody)
+					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
+					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
+					w.Header().Set("Content-Type", "text/html")
+					w.Write(compiled)
+					return
 				}
 
 				// Serve the file dynamically from the physical directory
@@ -472,6 +555,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -482,35 +566,35 @@ import (
 
 func getConfigPageBody() string {
 	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8;">
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700; border-bottom: 2px solid #eaecef; padding-bottom: 10px;">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" style="margin-top: 20px;">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+<div class="config-panel">
+    <h2 class="config-title">Configuration Dashboard</h2>
+    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
+        <div class="config-field">
+            <label class="config-label">Server Port</label>
+            <input type="number" id="cfgPort" value="%d" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        <div class="config-field">
+            <label class="config-label">Admin Password</label>
+            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" required />
+        <div class="config-field">
+            <label class="config-label">Guest Password</label>
+            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
         </div>
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+        <div class="config-field">
+            <label class="config-label">Author Name</label>
+            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
         </div>
-        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="cfgUseInternal" %s style="width: 20px; height: 20px; cursor: pointer;" />
-            <label for="cfgUseInternal" style="font-weight: 600; color: #444; cursor: pointer;">Use HTML Internal Editor</label>
+        <div class="config-field config-checkbox-row">
+            <input type="checkbox" id="cfgUseInternal" %s class="config-checkbox" />
+            <label for="cfgUseInternal" class="config-label config-checkbox-label">Use HTML Internal Editor</label>
         </div>
-        <div style="margin-bottom: 25px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #444;">Desktop External Editor Command</label>
-            <input type="text" id="cfgExtCmd" value="%s" style="width: 100%%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
-            <small style="color: #666; display: block; margin-top: 5px;">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
+        <div class="config-field">
+            <label class="config-label">Desktop External Editor Command</label>
+            <input type="text" id="cfgExtCmd" value="%s" class="config-input" />
+            <small class="config-hint">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
         </div>
-        <button type="submit" style="background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%%; font-size: 16px; transition: background 0.2s;">Save Configuration</button>
+        <button type="submit" class="config-save-btn">Save Configuration</button>
     </form>
 </div>
 <script>
@@ -543,19 +627,19 @@ func getConfigPageBody() string {
 		appConfig.DesktopExtCmd)
 }
 
-func getExternalEditPageBody(name string) string {
+func getExternalEditPageBody(fileName string, viewURL string) string {
 	return fmt.Sprintf(`
-<div style="max-width: 600px; margin: 40px auto; background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e4e8; text-align: center;">
-    <div style="font-size: 48px; margin-bottom: 20px;">📝</div>
-    <h2 style="margin-top: 0; color: #1a1a1a; font-size: 24px; font-weight: 700;">Editing Externally</h2>
-    <p style="color: #555; font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
-        We have launched <strong>%s</strong> to edit <code>%s.md</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated page.
+<div class="ext-edit-panel">
+    <div class="ext-edit-icon">📝</div>
+    <h2 class="ext-edit-title">Editing Externally</h2>
+    <p class="ext-edit-msg">
+        We have launched <strong>%s</strong> to edit <code>%s</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
     </p>
-    <button onclick="window.location.replace('/%s.html')" style="background: #0056b3; color: white; border: none; padding: 15px 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    <button onclick="window.location.replace('/%s')" class="ext-edit-btn">
         Press after edit to refresh view
     </button>
 </div>
-`, appConfig.DesktopExtCmd, name, name)
+`, appConfig.DesktopExtCmd, fileName, viewURL)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -599,11 +683,12 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cleanName := strings.TrimSuffix(name, ".html")
-	if !strings.HasSuffix(cleanName, ".md") {
-		cleanName += ".md"
+	var filePath string
+	if strings.HasSuffix(name, ".md") {
+		filePath = filepath.Join(storageDir, "md", filepath.Clean(name))
+	} else {
+		filePath = filepath.Join(storageDir, "html", filepath.Clean(name))
 	}
-	filePath := filepath.Join(storageDir, "md", cleanName)
 
 	var cmd *exec.Cmd
 	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
@@ -635,9 +720,13 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	pageName := strings.TrimSuffix(cleanName, ".md")
-	waitBody := getExternalEditPageBody(pageName)
-	compiledWait := compilePageWithBody(pageName, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", pageName, time.Now().Format("2006-01-02 15:04:05")), waitBody)
+	// Compute the correct view URL (.html for markdown, raw name otherwise)
+	viewURL := name
+	if strings.HasSuffix(name, ".md") {
+		viewURL = strings.TrimSuffix(name, ".md") + ".html"
+	}
+	waitBody := getExternalEditPageBody(name, viewURL)
+	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }
 
@@ -994,6 +1083,43 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Serve editor for any file when ?edit=true
+	if r.URL.Query().Get("edit") == "true" {
+		relPath := strings.TrimPrefix(r.URL.Path, "/")
+
+		// Honour external editor preference
+		if !appConfig.UseInternalEd {
+			http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
+			return
+		}
+
+		var filePath string
+		var rawContent []byte
+		if strings.HasSuffix(relPath, ".md") {
+			filePath = filepath.Join(storageDir, "md", filepath.Clean(relPath))
+		} else {
+			filePath = filepath.Join(storageDir, "html", filepath.Clean(relPath))
+		}
+		if data, err := os.ReadFile(filePath); err == nil {
+			rawContent = data
+		} else {
+			// File does not exist - create empty one and proceed
+			os.MkdirAll(filepath.Dir(filePath), 0755)
+			os.WriteFile(filePath, []byte{}, 0644)
+			rawContent = []byte{}
+		}
+		// Show raw content in preview and populate textarea
+		escapedContent := htmlEscape(string(rawContent))
+		customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
+		compiled := compilePageWithBody(relPath, rawContent, customBody)
+		// Tell the frontend this is not a Pelican markdown page + auto-enter edit mode
+		scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
+		compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(compiled)
+		return
+	}
+
 	// Unified Content-Type Resolver based strictly on extension
 	ext := strings.ToLower(filepath.Ext(path))
 	mimeType, exists := appConfig.MimeTypes[ext]
@@ -1037,6 +1163,7 @@ package backend
 
 import (
 	"bytes"
+	"path/filepath"
 	"fmt"
 	"regexp"
 	"strings"
@@ -1153,19 +1280,48 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	}
 	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
 
+	// Determine file extension for editor use
+	pageExt := ""
+	if strings.HasSuffix(name, ".md") {
+		pageExt = ".md"
+	} else if strings.Contains(name, ".") {
+		// non-markdown file — keep its extension (e.g. .js, .css, .json)
+		pageExt = filepath.Ext(name)
+	}
 	metaScript := fmt.Sprintf(`    <script>
       var PackageName = 'net.basov.omngo';
       var PageName = '%s';
       var Title = '%s';
-    </script>`, name, title)
+      var PAGE_EXT = '%s';
+    </script>`, name, title, pageExt)
+
+	// Build tag links for the header
+	var tagLinks []string
+	for _, h := range headers {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "tags") {
+			for _, tag := range strings.Split(parts[1], ",") {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					tagLinks = append(tagLinks, fmt.Sprintf(`<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, htmlEscape(tag), htmlEscape(tag)))
+				}
+			}
+		}
+	}
+	tagsHTML := strings.Join(tagLinks, "\n")
 
 	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
 
+	// Explicitly set IS_MARKDOWN = true for markdown pages (overrides any previous false)
+	if pageExt == ".md" || pageExt == "" {
+		metaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"
+	}
 	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
 
 	return []byte(layout)
@@ -1408,7 +1564,7 @@ func precompileAllPages() {
 ```
 package backend
 
-const APP_VERSION = "1.3.25"
+const APP_VERSION = "1.4.2"
 
 ```
 
@@ -1431,7 +1587,7 @@ const APP_VERSION = "1.3.25"
 <body>
     
     <!-- Login Overlay -->
-    <div id="loginOverlay" class="overlay" style="display: none;">
+    <div id="loginOverlay" class="overlay">
         <div class="modal">
             <h2>OMN-Go Login</h2>
             <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
@@ -1440,38 +1596,51 @@ const APP_VERSION = "1.3.25"
     </div>
 
     <!-- Main UI -->
-    <div id="mainUI">
-        <div class="header">
-            <strong><!-- OMN_GO_PAGE_TITLE --></strong>
-            <a href="/Welcome.html"><i class="material-icons">home</i></a>
-            <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
-            <button onclick="createNewPage()" class="admin-only" style="background: #17a2b8; border-color: #17a2b8;"><i class="material-icons">note_add</i></button>
-            <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only" style="background: #6c757d; border-color: #6c757d;"><i class="material-icons">refresh</i></button>
-            <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
-            <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
-            <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
-            <a href="#" onclick="window.location.replace('/Config.html'); return false;" style="background: #444; border-color: #666;"><i class="material-icons">settings</i></a>
+    <div id="mainUI" class="page_container">
+        <div id="ptitle" class="page-header">
+            <div id="hidable_header" class="collapsible-header hidden">
+                <!-- Actions row: navigation + editing + admin -->
+                <div class="header-actions">
+                    <a href="/Welcome.html"><i class="material-icons">home</i></a>
+                    <a href="/Welcome.html#help"><i class="material-icons">help</i></a>
+                    <button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>
+                    <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
+                    <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bolt</i></button>
+                    <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only"><i class="material-icons">bookmark_add</i></button>
+                    <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
+                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
+                    <!-- Editing controls -->
+                    <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
+                    <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
+                    <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
+                </div>
+                <!-- Tag pills -->
+                <div id="headerTags"><!-- OMN_GO_TAGS --></div>
+            </div>
+            <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
+                <!-- OMN_GO_PAGE_TITLE -->
+                <span id="title_arrow" class="title-arrow">+</span>
+            </h4>
         </div>
 
-        <div class="content-area">
-            <div class="toolbar">
-                <button id="metaToggleBtn" onclick="document.getElementById('metadataPanel').classList.toggle('hidden')" style="display: block; background: #17a2b8; color: white; border: none;"><i class="material-icons">info</i></button>
-                <button id="saveBtn" onclick="saveNote()" class="admin-only" style="display: none; background: #28a745; color: white; border: none;"><i class="material-icons">save</i></button>
-                <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
-            </div>
-            <div id="metadataPanel" class="hidden" style="background: #e9ecef; padding: 15px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; font-size: 13px;"><!-- OMN_GO_METADATA_PANEL --></div>
+        <div id="content" class="page-content">
+            <div id="metadataPanel" class="hidden metadata-panel"><!-- OMN_GO_METADATA_PANEL --></div>
             <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
             <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>
         </div>
+    </div>
+
+    <div id="status" class="page-footer">
+        <span class="version-footer-inline" id="omn-go-version-footer"></span>
     </div>
 
     <!-- Quick Note Modal -->
     <div id="quickPanel" class="panel hidden">
         <h3>Quick Note</h3>
         <textarea id="quickText" rows="4"></textarea>
-        <div style="display: flex; gap: 10px;">
+        <div class="modal-buttons-row">
             <button onclick="submitQuickNote()">Save</button>
-            <button onclick="document.getElementById('quickPanel').classList.add('hidden')" style="background: #dc3545;">Cancel</button>
+            <button onclick="document.getElementById('quickPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
         </div>
     </div>
 
@@ -1482,9 +1651,9 @@ const APP_VERSION = "1.3.25"
         <input id="bmTitle" placeholder="Title">
         <input id="bmTags" placeholder="Tags (comma separated)">
         <textarea id="bmNotes" rows="2" placeholder="Notes"></textarea>
-        <div style="display: flex; gap: 10px;">
+        <div class="modal-buttons-row">
             <button onclick="submitBookmark()">Save</button>
-            <button onclick="document.getElementById('bmPanel').classList.add('hidden')" style="background: #dc3545;">Cancel</button>
+            <button onclick="document.getElementById('bmPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
         </div>
     </div>
 
@@ -1499,7 +1668,7 @@ const APP_VERSION = "1.3.25"
     <script src="/js/auto-render.min.js"></script>
 
     <!-- Small Version Footer -->
-    <div id="omn-go-version-footer" style="position: fixed; bottom: 4px; right: 8px; font-size: 0.75rem; color: #888; z-index: 9999; opacity: 0.7; pointer-events: none;"></div>
+    <!-- version footer now inline in #status -->
 
 </body>
 </html>
@@ -1562,7 +1731,7 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 .btn-console { color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .btn-console-clear { background: #888; }
 .btn-console-close { background: #ff5555; }
-.btn-console-main { margin-left: 8px; padding: 4px 8px; background: #ff9800; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; }
+.btn-console-main { margin-left: 8px; padding: 4px 8px; background: #ff9800 !important; color: #fff !important; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; }
 .btn-console-main-fixed { position: fixed; bottom: 4px; left: 8px; z-index: 9999; margin-left: 0; }
 .icon-sm { font-size: 18px; }
 .icon-xs { font-size: 16px; margin-right: 4px; }
@@ -1580,6 +1749,430 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     .content-area { padding: 10px; }
     .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
     .modal { width: 90%; }
+}
+
+/* Configuration Dashboard */
+.config-panel {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid #e1e4e8;
+}
+.config-title {
+    margin-top: 0;
+    color: #1a1a1a;
+    font-size: 24px;
+    font-weight: 700;
+    border-bottom: 2px solid #eaecef;
+    padding-bottom: 10px;
+}
+.config-form {
+    margin-top: 20px;
+}
+.config-field {
+    margin-bottom: 20px;
+}
+.config-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #444;
+}
+.config-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+.config-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.config-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+.config-checkbox-label {
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+}
+.config-hint {
+    color: #666;
+    display: block;
+    margin-top: 5px;
+}
+.config-save-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+.config-save-btn:hover {
+    background: #218838;
+}
+
+/* External Editor Page */
+.ext-edit-panel {
+    max-width: 600px;
+    margin: 40px auto;
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid #e1e4e8;
+    text-align: center;
+}
+.ext-edit-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+.ext-edit-title {
+    margin-top: 0;
+    color: #1a1a1a;
+    font-size: 24px;
+    font-weight: 700;
+}
+.ext-edit-msg {
+    color: #555;
+    font-size: 16px;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+.ext-edit-btn {
+    background: #0056b3;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.ext-edit-btn:hover {
+    background: #004494;
+}
+
+/* ---------- Header Buttons (replacing inline styles) ---------- */
+.btn-create-page {
+    background: #17a2b8 !important;
+    border-color: #17a2b8 !important;
+}
+.btn-refresh {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+}
+.btn-settings {
+    background: #444 !important;
+    border-color: #666 !important;
+}
+
+/* ---------- Toolbar Buttons ---------- */
+.btn-metadata-toggle {
+    display: block;
+    background: #17a2b8;
+    color: white;
+    border: none;
+}
+#saveBtn.btn-save-note {
+    display: none;                   /* hidden in view mode; inline style takes over in edit */
+    background: #28a745;
+    color: white;
+    border: none;
+}
+
+/* ---------- Metadata Panel ---------- */
+.metadata-panel {
+    background: #e9ecef;
+    padding: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* ---------- Modal Button Rows ---------- */
+.modal-buttons-row {
+    display: flex;
+    gap: 10px;
+}
+.btn-cancel {
+    background: #dc3545;
+}
+
+/* ---------- Version Footer ---------- */
+.version-footer {
+    position: fixed;
+    bottom: 4px;
+    right: 8px;
+    font-size: 0.75rem;
+    color: #888;
+    z-index: 9999;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* ---------- Overlay default state (hidden, toggled by JS) ---------- */
+.overlay {
+    display: none;   /* overwritten by JS to flex when needed */
+}
+
+/* ====== Legacy OMN Design: Page Container Flex Layout ====== */
+.page_container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+}
+
+/* ====== Collapsible Page Header ====== */
+.page-header {
+    overflow: hidden;
+    background-color: #e8e8e8;
+    width: 100%;
+    margin: 0;
+    flex-shrink: 0;
+    user-select: none;
+}
+.collapsible-header {
+    background-color: #e8e8e8;
+    width: 100%;
+    padding: 0.5em;
+    box-sizing: border-box;
+}
+.collapsible-header.hidden {
+    display: none;
+}
+.header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.header-actions a,
+.header-actions button {
+    color: #333;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid #999;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+.header-actions a:hover,
+.header-actions button:hover {
+    background: #d0d0d0;
+}
+.header-info {
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 4px;
+}
+.header-info span {
+    font-weight: bold;
+    color: #222;
+}
+.page-title {
+    margin: 0.4em 0 0.5em 0;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #1a1a1a;
+}
+.page-title:hover {
+    color: #0056b3;
+}
+.title-arrow {
+    display: inline-block;
+    border: 1px solid #666;
+    border-radius: 6px;
+    padding: 0.1em 0.4em;
+    margin-left: 6px;
+    font-size: 0.9em;
+    color: #444;
+    background: #f5f5f5;
+    vertical-align: middle;
+}
+
+/* ====== Page Content (flex:1 scrollable, no borders) ====== */
+.page-content {
+    padding: 0.5em;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;       /* allow shrinking below content size */
+    overflow: hidden;    /* prevent double scrollbars; children scroll */
+}
+.page-content #preview {
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;    /* scroll if content overflows */
+}
+.page-content #editor {
+    border: 1px solid #ddd;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    resize: vertical;    /* allow manual resize if desired */
+    box-sizing: border-box;
+}
+
+/* ====== Page Footer (status bar) ====== */
+.page-footer {
+    overflow-x: hidden;
+    flex-shrink: 0;
+    background-color: #e8e8e8;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.version-footer-inline {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* ====== Tag Display (from legacy common.css) ====== */
+#headerTags {
+    margin-top: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+a.taglink {
+    text-decoration: none;
+    color: black;
+}
+.tagmark {
+    background-color: #E7E7E7;
+    padding: 2px 8px;
+    border: 1px solid #505050;
+    border-radius: 8px;
+    font-size: 0.85em;
+    display: inline-block;
+}
+.tagmark:hover {
+    background-color: #d0d0d0;
+}
+.tagmarkselected {
+    color: white;
+    background-color: #888;
+}
+
+/* ====== TOC (Table of Contents) ====== */
+#TOC {
+    border: solid black 1px;
+    margin: 10px;
+    padding: 10px;
+    background: #fafafa;
+}
+.TOCEntry {
+    font-family: sans-serif;
+}
+.TOCEntry a {
+    text-decoration: none;
+}
+.TOCLevel1 { font-weight: bold; }
+.TOCLevel2 { font-weight: bold; }
+.TOCLevel3 { font-weight: bold; }
+.TOCLevel4 { font-weight: bold; margin-left: 0.5em; }
+.TOCLevel5 { font-weight: bold; margin-left: 1em; }
+.TOCLevel6 { font-weight: bold; margin-left: 1.5em; }
+
+/* ====== Table Styling (from legacy common.css) ====== */
+#preview table,
+#content table {
+    border-collapse: collapse;
+}
+#preview table,
+#preview th,
+#preview td,
+#content table,
+#content th,
+#content td {
+    border: 2px solid #4d6bfe;
+}
+#preview th,
+#content th {
+    background-color: #CCCCCC;
+    color: black;
+}
+#preview tr:nth-child(odd),
+#content tr:nth-child(odd) {
+    background-color: #EEEEEE;
+    color: black;
+}
+#preview tr:nth-child(even),
+#content tr:nth-child(even) {
+    background-color: #FFFFFF;
+    color: black;
+}
+
+/* ====== Utility Color Classes (from legacy common.css) ====== */
+.bg-yellow { background-color: yellow; }
+.bg-aqua   { background-color: aqua; }
+.fg-red    { color: red; }
+.fg-green  { color: green; }
+
+/* ====== Paragraph Indent (legacy style) ====== */
+#preview p {
+    text-indent: 1em;
+    margin: 0 3px;
+}
+
+/* ====== Remove old .header (replaced by .page-header) ====== */
+.header {
+    display: none;  /* deprecated, kept for compatibility */
+}
+.content-area {
+    /* deprecated, kept for compatibility */
+}
+
+/* ====== Adjust old version-footer (now inline) ====== */
+.version-footer {
+    position: static;  /* override fixed positioning */
+    font-size: inherit;
+    color: inherit;
+    z-index: auto;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Toolbar no longer a standalone element, but integrated in .header-actions */
+.toolbar {
+    display: none;
+}
+.btn-metadata-toggle,
+.btn-save-note {
+    /* inherit from .header-actions styling */
 }
 
 ```
@@ -1664,7 +2257,7 @@ if (typeof currentNote === 'undefined') {
                 //    consoleBtn.classList.add('btn-console-main-fixed');
                 //    document.body.appendChild(consoleBtn);
                 //}
-                document.querySelector('.toolbar').appendChild(consoleBtn);
+                var target = document.querySelector('.header-actions'); if (target) { target.appendChild(consoleBtn); } else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
             function appendLog(type, args) {
@@ -1739,7 +2332,10 @@ function executeScripts(container) {
         }
 
         // Intercept Markdown links for standard browser-side redirects
-        document.getElementById('preview').addEventListener('click', (e) => {
+        function setupPreviewLinkInterceptor() {
+            var preview = document.getElementById('preview');
+            if (!preview) return;
+            preview.addEventListener('click', (e) => {
             let target = e.target.closest('a');
             if(target) {
                 const href = target.getAttribute('href');
@@ -1760,6 +2356,8 @@ function executeScripts(container) {
                 }
             }
         });
+        }
+        document.addEventListener('DOMContentLoaded', setupPreviewLinkInterceptor);
 
         async function loadNoteIntoEditor() {
             const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
@@ -1772,7 +2370,8 @@ function executeScripts(container) {
         async function toggleMode() {
             if (currentMode === 'view') {
                 if (typeof USE_INTERNAL_ED !== 'undefined' && !USE_INTERNAL_ED) {
-                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote));
+                    var ext = (typeof PAGE_EXT !== 'undefined' && PAGE_EXT) ? PAGE_EXT : '.md';
+                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote + ext));
                     return;
                 }
                 
@@ -1826,9 +2425,11 @@ function executeScripts(container) {
         });
 
         // Image Drag & Drop
-        const editor = document.getElementById('editor');
-        editor.addEventListener('dragover', e => e.preventDefault());
-        editor.addEventListener('drop', async e => {
+        function setupEditorDragDrop() {
+            const editor = document.getElementById('editor');
+            if (!editor) return;
+            editor.addEventListener('dragover', e => e.preventDefault());
+            editor.addEventListener('drop', async e => {
             e.preventDefault();
             if(e.dataTransfer.files.length > 0) {
                 const fd = new FormData();
@@ -1842,6 +2443,8 @@ function executeScripts(container) {
                 }
             }
         });
+        }
+        document.addEventListener('DOMContentLoaded', setupEditorDragDrop);
 
         async function login() {
             const pwd = document.getElementById('pwdInput').value;
@@ -1988,7 +2591,29 @@ function executeScripts(container) {
             }
         };
 
-        window.onload = () => {
+        
+        window.toggleHeader = function() {
+    var header = document.getElementById('hidable_header');
+    var arrow = document.getElementById('title_arrow');
+    if (header) {
+        if (header.classList.contains('hidden')) {
+            header.classList.remove('hidden');
+            if (arrow) arrow.textContent = '\u2212';
+        } else {
+            header.classList.add('hidden');
+            if (arrow) arrow.textContent = '+';
+        }
+    }
+};
+window.updateArrow = function() {
+    var header = document.getElementById('hidable_header');
+    var arrow = document.getElementById('title_arrow');
+    if (header && arrow) {
+        arrow.textContent = header.classList.contains('hidden') ? '+' : '\u2212';
+    }
+};
+
+window.onload = () => {
             checkSession();
             
             const params = new URLSearchParams(window.location.search);
@@ -2063,7 +2688,26 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');
     if (panel) {
-        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName + '.md' : ''}</div>`;
+        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName : ''}</div>`;
+        // Also update the header name display
+        var nameDisplay = document.getElementById('pageNameDisplay');
+        if (nameDisplay && typeof PageName !== 'undefined') {
+            nameDisplay.textContent = '/' + PageName;
+        }
+        // Populate header metadata line (Author, Date, Modified) from meta tags
+        var hMeta = document.getElementById('headerMetadata');
+        if (hMeta) {
+            var parts = [];
+            document.querySelectorAll('meta[name]').forEach(function(m) {
+                var n = m.getAttribute('name').toLowerCase();
+                if (n === 'author' || n === 'date' || n === 'modified') {
+                    parts.push(m.getAttribute('name') + ': ' + m.getAttribute('content'));
+                }
+            });
+            if (parts.length) {
+                hMeta.innerHTML = ' — ' + parts.join(' · ');
+            }
+        }
         document.querySelectorAll('meta').forEach(m => {
             const name = m.getAttribute('name');
             const content = m.getAttribute('content');
@@ -2136,16 +2780,17 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10325
-        versionName "1.3.25"
+        versionCode 10402
+        versionName "1.4.2"
     }
 
     signingConfigs {
         release {
             storeFile file('omn-go.keystore')
-            storePassword 'omn-go123'
-            keyAlias 'omn-go'
-            keyPassword 'omn-go123'
+            storeFile file('omn-go.keystore')
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "fallback"
+            keyAlias System.getenv("KEY_ALIAS") ?: "omn-go"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "fallback"
         }
     }
     splits {
@@ -2160,7 +2805,8 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -2188,6 +2834,21 @@ tasks.withType(JavaCompile).configureEach {
 ```
 
 -------- android/app/build.gradle END --------
+
+
+-------- android/app/proguard-rules.pro START --------
+
+```
+-keep class net.basov.omngo.** { *; }
+-keep class go.** { *; }
+-keep class Seq { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+```
+
+-------- android/app/proguard-rules.pro END --------
 
 
 -------- android/app/src/main/java/net/basov/omngo/MainActivity.java START --------
@@ -2308,7 +2969,13 @@ public class MainActivity extends Activity {
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
                         android.os.StrictMode.setVmPolicy(builder.build());
 
-                        java.io.File file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name + ".md");
+                        // Determine correct subdirectory and extension
+                        java.io.File file;
+                        if (name.endsWith(".md")) {
+                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name);
+                        } else {
+                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/html/" + name);
+                        }
                         if (!file.exists()) {
                             file.getParentFile().mkdirs();
                             file.createNewFile();
@@ -2449,6 +3116,7 @@ public class MainActivity extends Activity {
 │   ├── app
 │   │   ├── build.gradle
 │   │   ├── omn-go.keystore
+│   │   ├── proguard-rules.pro
 │   │   └── src
 │   │       ├── fdroid
 │   │       │   └── res
@@ -2504,13 +3172,15 @@ public class MainActivity extends Activity {
 │   │   │   │   ├── highlight.default.min.css
 │   │   │   │   ├── katex.min.css
 │   │   │   │   ├── markdown.css
-│   │   │   │   └── omn-go-core.css
+│   │   │   │   ├── omn-go-core.css
+│   │   │   │   └── test.css
 │   │   │   ├── js
 │   │   │   │   ├── auto-render.min.js
 │   │   │   │   ├── Bookmarker.js
 │   │   │   │   ├── highlight.min.js
 │   │   │   │   ├── katex.min.js
-│   │   │   │   └── omn-go-core.js
+│   │   │   │   ├── omn-go-core.js
+│   │   │   │   └── test.js
 │   │   │   └── json
 │   │   │       └── test.json
 │   │   ├── index.html
@@ -2521,8 +3191,11 @@ public class MainActivity extends Activity {
 │   │       ├── Test
 │   │       │   └── OMN-Go
 │   │       │       ├── Console.md
+│   │       │       ├── EditNot-md.md
 │   │       │       ├── Fetch.md
-│   │       │       └── OMN-Go.md
+│   │       │       ├── OMN-Go.md
+│   │       │       ├── SetStatus.md
+│   │       │       └── TestPageVariables.md
 │   │       └── Welcome.md
 │   ├── handlers.go
 │   ├── markdown.go
@@ -2533,7 +3206,7 @@ public class MainActivity extends Activity {
 ├── doc
 │   ├── github_workflow.md
 │   ├── initial_prompt.md
-│   ├── OMN-Go_1.3.25_Context.md
+│   ├── OMN-Go_1.4.2_Context.md
 │   ├── README.md
 │   └── URLs.md
 ├── Dockerfile
@@ -2554,19 +3227,25 @@ public class MainActivity extends Activity {
 │   ├── initial
 │   │   ├── offline_asset_downloader.sh
 │   │   └── project_setup_script.py
+│   ├── ollama
+│   │   ├── ask_omnicoder.sh
+│   │   ├── init_ollama.sh
+│   │   └── pull_omnicoder.sh
+│   ├── output-binaries
 │   └── update_script.py
 ├── main_desktop.go
 ├── output-binaries
-│   ├── omn-go-v1.3.25-arm64-v8a-release.apk
-│   ├── omn-go-v1.3.25-armeabi-v7a-release.apk
-│   ├── omn-go-v1.3.25-desktop-linux-amd64
-│   ├── omn-go-v1.3.25-desktop-windows-amd64.exe
-│   ├── omn-go-v1.3.25-universal-release.apk
-│   ├── omn-go-v1.3.25-x86_64-release.apk
-│   └── omn-go-v1.3.25-x86-release.apk
-└── README.md
+│   ├── omn-go-v1.4.2-arm64-v8a-release.apk
+│   ├── omn-go-v1.4.2-armeabi-v7a-release.apk
+│   ├── omn-go-v1.4.2-desktop-linux-amd64
+│   ├── omn-go-v1.4.2-desktop-windows-amd64.exe
+│   ├── omn-go-v1.4.2-universal-release.apk
+│   ├── omn-go-v1.4.2-x86_64-release.apk
+│   └── omn-go-v1.4.2-x86-release.apk
+├── README.md
+└── tools.go
 
-29 directories, 91 files
+31 directories, 101 files
 
 ### FULL PR0JECT DIRECTORY TREE END
 

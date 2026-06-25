@@ -103,3 +103,8 @@ For newer Apple Silicon Macs:
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o bin/omn-go-mac-arm main_desktop.go
 ```
 Note: Because you are cross-compiling from Linux, the binary won't have an "Apple Developer Signature." When a Mac user tries to run it, Apple's "Gatekeeper" will block it by default. The user will have to manually bypass it by going to System Settings -> Privacy & Security -> "Open Anyway".
+
+Note: to analyze .apk size:
+```
+unzip -l omn-go-v1.4.2-arm64-v8a-release.apk | sort -k3 -rn | head -20
+```

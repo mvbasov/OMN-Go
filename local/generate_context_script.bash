@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.3.47"
-CUR_OMN_GO_VER_A="10347"
+CUR_OMN_GO_VER="1.4.2"
+CUR_OMN_GO_VER_A="10402"
 
 # Define color codes for output
 GREEN='\033[0;32m'
@@ -42,6 +42,7 @@ FILES=(
     "android/build.gradle"
     "android/settings.gradle"
     "android/app/build.gradle"
+    "android/app/proguard-rules.pro"
     "android/app/src/main/java/net/basov/omngo/MainActivity.java"
     "android/app/src/main/AndroidManifest.xml"
 )
