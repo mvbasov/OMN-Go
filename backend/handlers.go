@@ -502,12 +502,43 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				Email: authorEmail,
 				When:  time.Now(),
 			}
-			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
-				Author:    sig,
-				Committer: sig, // CRITICAL: Fixes 'function not implemented'
-			})
+			// Write tree from index (avoids worktree.Commit which may call os/user on Android)
+			treeHash, err := wTree.WriteTree()
 			if err != nil {
-				log.Printf("[sync] Commit error: %v", err)
+				log.Printf("[sync] WriteTree error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			// Build commit manually without config or user.Current
+			headRef, errHead := repo.Head()
+			var parents []plumbing.Hash
+			if errHead == nil {
+				parents = []plumbing.Hash{headRef.Hash()}
+			}
+			commit := &object.Commit{
+				Author:       sig,
+				Committer:    sig,
+				Message:      "Local changes before sync",
+				TreeHash:     treeHash,
+				ParentHashes: parents,
+			}
+			obj := repo.Storer.NewEncodedObject()
+			if err = commit.Encode(obj); err != nil {
+				log.Printf("[sync] Commit encode error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			commitHash, err := repo.Storer.SetEncodedObject(obj)
+			if err != nil {
+				log.Printf("[sync] Store commit error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			// Update master branch reference
+			refName := plumbing.NewBranchReferenceName("master")
+			err = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))
+			if err != nil {
+				log.Printf("[sync] SetReference error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
