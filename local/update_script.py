@@ -2,18 +2,18 @@ import os
 import re
 import glob
 
-print("[*] Upgrading OMN-Go to Version 1.4.34...")
+print("[*] Upgrading OMN-Go to Version 1.4.35...")
 
 def bump_version():
-    new_v = "1.4.34"
-    new_v_c = "10434"
+    new_v = "1.4.35"
+    new_v_c = "10435"
 
     # 1. Update version.go
     ver_path = "backend/version.go"
     if os.path.exists(ver_path):
         with open(ver_path, "w") as f: 
             f.write(f'package backend\n\n// APP_VERSION is the global application version\nconst APP_VERSION = "{new_v}"\n')
-        print(f"  [+] Hard-rewrote {ver_path} with APP_VERSION")
+        print(f"  [+] Hard-rewrote {ver_path} with APP_VERSION = {new_v}")
     else:
         print(f"  [-] Warning: {ver_path} not found")
 
@@ -26,13 +26,15 @@ def bump_version():
         with open(gradle_path, "w") as f: f.write(c)
         print("  [+] Bumped version in android/app/build.gradle")
 
-def rebuild_git_helper():
-    # Completely rebuild the file to guarantee a clean, compiling state
+def rebuild_git_helper_with_key_logger():
+    # Completely rebuild the file to include the Public Key Extractor
     helper_path = "backend/git_helper.go"
     helper_code = """package backend
 
 import (
+\t"log"
 \t"os"
+\t"strings"
 \t"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 \tgossh "golang.org/x/crypto/ssh"
 )
@@ -47,6 +49,16 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 \tif err != nil {
 \t\treturn nil, err
 \t}
+\t
+\t// EXPLICIT PUBKEY EXTRACTION: Output the exact string needed for gitolite-admin
+\tsigner := publicKeys.Signer
+\tpubKeyBytes := gossh.MarshalAuthorizedKey(signer.PublicKey())
+\tpubKeyStr := strings.TrimSpace(string(pubKeyBytes))
+\t
+\tlog.Printf("\\n[CRITICAL] To fix 'unable to authenticate', add THIS EXACT KEY to your gitolite-admin repo:")
+\tlog.Printf("[CRITICAL] %s", pubKeyStr)
+\tlog.Printf("[CRITICAL] Your desktop CLI likely succeeded by silently falling back to ~/.ssh/id_rsa!\\n")
+
 \t// CRITICAL FIX: Ignore host key verification for gitolite3 servers
 \tpublicKeys.HostKeyCallback = gossh.InsecureIgnoreHostKey()
 \treturn publicKeys, nil
@@ -54,7 +66,7 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 """
     with open(helper_path, "w") as f: 
         f.write(helper_code)
-    print("  [+] Cleanly rebuilt backend/git_helper.go (Fixes 'gossh imported and not used')")
+    print("  [+] Cleanly rebuilt backend/git_helper.go with explicit PubKey logging")
 
 def force_auth_injection():
     for go_file in glob.glob("backend/*.go"):
@@ -80,14 +92,14 @@ def force_auth_injection():
 
 if __name__ == "__main__":
     bump_version()
-    rebuild_git_helper()
+    rebuild_git_helper_with_key_logger()
     force_auth_injection()
-    print("[*] Update complete! Version 1.4.34 ready for compilation.")
+    print("[*] Update complete! Version 1.4.35 ready for compilation.")
     
     print("\n" + "="*55)
     print("COMMIT MESSAGE TO USE:")
-    print("Fix: Resolve build errors and cleanly rebuild Git SSH helper")
-    print("\n- Bumped application version to 1.4.34")
-    print("- Completely rebuilt backend/git_helper.go to fix 'gossh imported and not used'")
-    print("- Ensured APP_VERSION constant remains intact")
+    print("Fix: Add exact public key extractor to git_helper.go")
+    print("\n- Bumped application version to 1.4.35")
+    print("- Modified GetInsecureSSHAuth to extract and log the exact OpenSSH")
+    print("  public key format required for Gitolite server authentication.")
     print("="*55 + "\n")
