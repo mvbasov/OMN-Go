@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	ForcePullOneTime bool `json:"force_pull_one_time"`
 	ServerPort       int               `json:"server_port"`
 	AdminPassword    string            `json:"admin_password"`
 	GuestPassword    string            `json:"guest_password"`
