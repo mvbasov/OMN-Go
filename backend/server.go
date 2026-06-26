@@ -43,6 +43,9 @@ func StartServer() {
 		}()
 
 		mux := http.NewServeMux()
+		// Initialize logger to stream Go logs to the frontend via SSE
+		log.SetOutput(&JSLogger{})
+		mux.HandleFunc("/api/logs", HandleLogsSSE)
 		mux.HandleFunc("/", serveFrontend)
 
 		serveLazyEmbed := func() http.Handler {

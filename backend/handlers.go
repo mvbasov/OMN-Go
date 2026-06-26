@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 	realgobase64 "encoding/base64"
 
@@ -504,12 +505,20 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				Email: authorEmail,
 				When:  time.Now(),
 			}
+			log.Printf("[sync] Attempting commit with author=%q, email=%q", sig.Name, sig.Email)
 			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
 				Author:    sig,
 				Committer: sig, // CRITICAL: both set to avoid os/user.Current() on Android
 			})
 			if err != nil {
-				log.Printf("[sync] Commit error: %v", err)
+				log.Printf("[sync] Commit error: %v (type: %T)", err, err)
+				log.Printf("[sync] Commit options – Author: %v, Committer: %v", sig, sig)
+				log.Printf("[sync] Worktree status – IsClean: %v", status.IsClean())
+				// Dump the underlying system error if it's a syscall error
+				if errno, ok := err.(syscall.Errno); ok {
+					log.Printf("[sync] System call error number: %d", errno)
+				}
+				log.Printf("[sync] Full error: %#v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
