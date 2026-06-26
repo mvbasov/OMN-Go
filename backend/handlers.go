@@ -600,11 +600,15 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
-			// Update master branch
-			refName := plumbing.NewBranchReferenceName("master")
-			err = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))
-			if err != nil {
-				log.Printf("[sync] SetReference error: %v", err)
+			// Update master branch (write ref directly to filesystem to avoid unimplemented syscalls)
+			refPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")
+			if err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {
+				log.Printf("[sync] MkdirAll ref error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			if err := os.WriteFile(refPath, []byte(commitHash.String()+"\n"), 0644); err != nil {
+				log.Printf("[sync] Write ref error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
