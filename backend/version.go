@@ -1,3 +1,3 @@
 package backend
 
-const APP_VERSION = "1.4.27"
+const APP_VERSION = "1.4.29"

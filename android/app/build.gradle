@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10429
-        versionName "1.4.29"
+        versionCode 10430
+        versionName "1.4.30"
     }
 
     signingConfigs {
