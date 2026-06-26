@@ -2,11 +2,11 @@ import os
 import re
 import glob
 
-print("[*] Upgrading OMN-Go to Version 1.4.39...")
+print("[*] Upgrading OMN-Go to Version 1.4.40...")
 
 def bump_version():
-    new_v = "1.4.39"
-    new_v_c = "10439"
+    new_v = "1.4.40"
+    new_v_c = "10440"
 
     # 1. Update version.go
     ver_path = "backend/version.go"
@@ -127,36 +127,39 @@ def patch_network_options_with_brace_counting():
             if 'plumbing/object' not in content:
                 content = re.sub(r'import \(\n', 'import (\n\t"github.com/go-git/go-git/v5/plumbing/object"\n', content, count=1)
 
-            # SMART BRACE COUNTING PARSER (Fixes nested regex bug)
+            # 1. NUCLEAR CLEANUP: Eradicate ALL previously injected Author blocks.
+            # This fixes the syntax errors caused by blind injections into function bodies.
+            clean_content = re.sub(r'\s*Author:\s*&object\.Signature\s*\{[^}]+\},?', '', content)
+            if clean_content != content:
+                content = clean_content
+                modified = True
+
+            # 2. PRECISE INJECTION: Only target true struct literals via regex (\s*\{)
             start = 0
             while True:
-                idx = content.find('git.CommitOptions', start)
-                if idx == -1: break
-                
-                open_brace = content.find('{', idx)
+                match = re.search(r'git\.CommitOptions\s*\{', content[start:])
+                if not match: break
+
+                open_brace = start + match.end() - 1
                 brace_count = 1
                 curr = open_brace + 1
                 while brace_count > 0 and curr < len(content):
                     if content[curr] == '{': brace_count += 1
                     elif content[curr] == '}': brace_count -= 1
                     curr += 1
-                
+
                 close_brace = curr - 1
                 inner = content[open_brace+1:close_brace]
-                
-                # Nuke ALL existing Author blocks inside this specific struct
-                clean_inner = re.sub(r'\s*Author:\s*&object\.Signature\s*\{[^}]+\},?', '', inner)
-                
+
                 author_block = """
 \t\tAuthor: &object.Signature{
 \t\t\tName:  GetConfigAuthor(),
 \t\t\tEmail: "sync@omn-go.local",
 \t\t\tWhen:  time.Now(),
 \t\t},"""
-                
-                # Reconstruct the file with precisely one author block
-                content = content[:open_brace+1] + author_block + clean_inner + content[close_brace:]
-                start = open_brace + len(author_block) + len(clean_inner) + 1
+
+                content = content[:open_brace+1] + author_block + inner + content[close_brace:]
+                start = open_brace + 1 + len(author_block) + len(inner) + 1
                 modified = True
 
         m = re.search(r'([a-zA-Z0-9_]+)(?:,\s*[a-zA-Z0-9_]+)?\s*:=\s*(?:backend\.)?GetInsecureSSHAuth', content)
@@ -166,7 +169,7 @@ def patch_network_options_with_brace_counting():
         if m:
             auth_var = m.group(1)
             for opt in ['PullOptions', 'PushOptions', 'CloneOptions', 'FetchOptions']:
-                if f"&git.{opt}{{" in content or f"git.{opt}{{" in content:
+                if f"&git.{opt}" in content or f"git.{opt}" in content:
                     content = re.sub(rf'\s*Auth:\s*[a-zA-Z0-9_.]+,\s*', '\n\t\t', content)
                     content = re.sub(rf'\s*Force:\s*(true|false|GetForcePullAndReset\(\)),\s*', '\n\t\t', content)
                     
@@ -180,7 +183,7 @@ def patch_network_options_with_brace_counting():
         
         if modified:
             with open(go_file, "w") as f: f.write(content)
-            print(f"  [+] Scrubbed Duplicates & Patched Network Auth in {go_file}")
+            print(f"  [+] Repaired Syntax & Patched Network Auth in {go_file}")
 
 def patch_config_ui():
     for file_path in glob.glob("backend/*.go") + glob.glob("backend/frontend/*.html"):
@@ -200,13 +203,14 @@ if __name__ == "__main__":
     rebuild_git_helper_with_smart_config()
     patch_network_options_with_brace_counting()
     patch_config_ui()
-    print("[*] Update complete! Version 1.4.39 ready for compilation.")
+    print("[*] Update complete! Version 1.4.40 ready for compilation.")
     
     print("\n" + "="*55)
     print("COMMIT MESSAGE TO USE:")
-    print("Fix: Eradicate Duplicate Commit Authors via AST-style Parsing")
-    print("\n- Bumped application version to 1.4.39")
-    print("- Replaced flawed non-greedy regex with a robust brace-counting")
-    print("  parser to safely isolate and clean git.CommitOptions structs.")
-    print("- Ensured exact singleton Author injection for Android OS compatibility.")
+    print("Fix: Repair Go Compilation Errors via Strict Regex Matching")
+    print("\n- Bumped application version to 1.4.40")
+    print("- Deployed Nuclear Cleanup pass to obliterate mis-injected")
+    print("  Author blocks inside function definitions.")
+    print("- Hardened git.CommitOptions matching to exclusively target")
+    print("  struct literals to guarantee perfect syntax.")
     print("="*55 + "\n")
