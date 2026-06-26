@@ -9,7 +9,6 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-// GetInsecureSSHAuth bypasses strict host key checking which blocks Android from connecting to gitolite
 func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKeys, error) {
 	_, err := os.Stat(privateKeyPath)
 	if err != nil {
@@ -20,7 +19,6 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 		return nil, err
 	}
 	
-	// EXPLICIT PUBKEY EXTRACTION
 	signer := publicKeys.Signer
 	pubKeyBytes := gossh.MarshalAuthorizedKey(signer.PublicKey())
 	pubKeyStr := strings.TrimSpace(string(pubKeyBytes))
@@ -29,12 +27,10 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 	log.Printf("[CRITICAL] %s", pubKeyStr)
 	log.Printf("[CRITICAL] Your desktop CLI likely succeeded by silently falling back to ~/.ssh/id_rsa!\n")
 
-	// CRITICAL FIX: Ignore host key verification for gitolite3 servers
 	publicKeys.HostKeyCallback = gossh.InsecureIgnoreHostKey()
 	return publicKeys, nil
 }
 
-// GetForcePullAndReset reads config.json, checks the one-time flag, and auto-resets it to false.
 func GetForcePullAndReset() bool {
 	configPath := "data/config.json"
 	configData, err := os.ReadFile(configPath)
@@ -46,7 +42,14 @@ func GetForcePullAndReset() bool {
 		return false
 	}
 	
-	force, ok := cfg["force_pull_one_time"].(bool)
+	force := false
+	// FIX: Safely parse both actual booleans and stringified booleans from the JS UI
+	if valBool, ok := cfg["force_pull_one_time"].(bool); ok {
+		force = valBool
+	} else if valStr, ok := cfg["force_pull_one_time"].(string); ok {
+		force = (valStr == "true" || valStr == "on")
+	}
+	
 	if force {
 		log.Printf("[SYNC] ForcePullOneTime detected! Executing destructive Force Pull and resetting flag to false.")
 		cfg["force_pull_one_time"] = false
@@ -57,7 +60,6 @@ func GetForcePullAndReset() bool {
 	return force
 }
 
-// GetConfigAuthor dynamically extracts the author from the config JSON.
 func GetConfigAuthor() string {
 	author := "OMN-Go App"
 	configPath := "data/config.json"

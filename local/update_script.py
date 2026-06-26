@@ -2,11 +2,11 @@ import os
 import re
 import glob
 
-print("[*] Upgrading OMN-Go to Version 1.4.37...")
+print("[*] Upgrading OMN-Go to Version 1.4.38...")
 
 def bump_version():
-    new_v = "1.4.37"
-    new_v_c = "10437"
+    new_v = "1.4.38"
+    new_v_c = "10438"
 
     # 1. Update version.go
     ver_path = "backend/version.go"
@@ -14,8 +14,6 @@ def bump_version():
         with open(ver_path, "w") as f: 
             f.write(f'package backend\n\n// APP_VERSION is the global application version\nconst APP_VERSION = "{new_v}"\n')
         print(f"  [+] Hard-rewrote {ver_path} with APP_VERSION = {new_v}")
-    else:
-        print(f"  [-] Warning: {ver_path} not found")
 
     # 2. Update Android Gradle
     gradle_path = "android/app/build.gradle"
@@ -31,13 +29,12 @@ def patch_config_struct():
     if os.path.exists(cfg_path):
         with open(cfg_path, "r") as f: content = f.read()
         if "ForcePullOneTime" not in content and "type Config struct" in content:
-            # Add to Config struct safely
             content = re.sub(r'(type\s+Config\s+struct\s*\{)', r'\1\n\tForcePullOneTime bool `json:"force_pull_one_time"`', content)
             with open(cfg_path, "w") as f: f.write(content)
-            print("  [+] Added ForcePullOneTime to Config struct in backend/config.go")
+            print("  [+] Added ForcePullOneTime to Config struct")
 
 def rebuild_git_helper_with_smart_config():
-    # Completely rebuild the file to include our JSON readers for Config
+    # Completely rebuild the file to fix the `ok` variable and handle JSON string fallbacks
     helper_path = "backend/git_helper.go"
     helper_code = """package backend
 
@@ -50,7 +47,6 @@ import (
 \tgossh "golang.org/x/crypto/ssh"
 )
 
-// GetInsecureSSHAuth bypasses strict host key checking which blocks Android from connecting to gitolite
 func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKeys, error) {
 \t_, err := os.Stat(privateKeyPath)
 \tif err != nil {
@@ -61,7 +57,6 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 \t\treturn nil, err
 \t}
 \t
-\t// EXPLICIT PUBKEY EXTRACTION
 \tsigner := publicKeys.Signer
 \tpubKeyBytes := gossh.MarshalAuthorizedKey(signer.PublicKey())
 \tpubKeyStr := strings.TrimSpace(string(pubKeyBytes))
@@ -70,12 +65,10 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 \tlog.Printf("[CRITICAL] %s", pubKeyStr)
 \tlog.Printf("[CRITICAL] Your desktop CLI likely succeeded by silently falling back to ~/.ssh/id_rsa!\\n")
 
-\t// CRITICAL FIX: Ignore host key verification for gitolite3 servers
 \tpublicKeys.HostKeyCallback = gossh.InsecureIgnoreHostKey()
 \treturn publicKeys, nil
 }
 
-// GetForcePullAndReset reads config.json, checks the one-time flag, and auto-resets it to false.
 func GetForcePullAndReset() bool {
 \tconfigPath := "data/config.json"
 \tconfigData, err := os.ReadFile(configPath)
@@ -87,7 +80,14 @@ func GetForcePullAndReset() bool {
 \t\treturn false
 \t}
 \t
-\tforce, ok := cfg["force_pull_one_time"].(bool)
+\tforce := false
+\t// FIX: Safely parse both actual booleans and stringified booleans from the JS UI
+\tif valBool, ok := cfg["force_pull_one_time"].(bool); ok {
+\t\tforce = valBool
+\t} else if valStr, ok := cfg["force_pull_one_time"].(string); ok {
+\t\tforce = (valStr == "true" || valStr == "on")
+\t}
+\t
 \tif force {
 \t\tlog.Printf("[SYNC] ForcePullOneTime detected! Executing destructive Force Pull and resetting flag to false.")
 \t\tcfg["force_pull_one_time"] = false
@@ -98,7 +98,6 @@ func GetForcePullAndReset() bool {
 \treturn force
 }
 
-// GetConfigAuthor dynamically extracts the author from the config JSON.
 func GetConfigAuthor() string {
 \tauthor := "OMN-Go App"
 \tconfigPath := "data/config.json"
@@ -117,7 +116,7 @@ func GetConfigAuthor() string {
 """
     with open(helper_path, "w") as f: 
         f.write(helper_code)
-    print("  [+] Cleanly rebuilt backend/git_helper.go with Smart Config extractors")
+    print("  [+] Rebuilt backend/git_helper.go (Fixed 'ok declared not used')")
 
 def patch_network_options():
     for go_file in glob.glob("backend/*.go"):
@@ -125,9 +124,7 @@ def patch_network_options():
         with open(go_file, "r") as f: content = f.read()
         modified = False
 
-        # 1. Update Commits to use Config Author
         if "git.CommitOptions" in content:
-            # Ensure required packages are imported
             if '"time"' not in content:
                 content = re.sub(r'import \(\n', 'import (\n\t"time"\n', content, count=1)
             if 'plumbing/object' not in content:
@@ -135,22 +132,35 @@ def patch_network_options():
 
             def inject_author(match):
                 inner = match.group(2)
-                # Scrub old Author injections
-                inner = re.sub(r'\s*Author:\s*&object\.Signature\{[^}]+\},', '\n\t\t', inner)
+                # FIX: Bulletproof line-by-line scrubber to prevent 'duplicate Author'
+                lines = inner.split('\n')
+                clean_lines = []
+                in_author_block = False
+                for line in lines:
+                    if 'Author:' in line:
+                        if '{' in line and '}' not in line:
+                            in_author_block = True
+                        continue
+                    if in_author_block:
+                        if '}' in line:
+                            in_author_block = False
+                        continue
+                    clean_lines.append(line)
+                
+                clean_inner = '\n'.join(clean_lines)
                 author_block = """
 \t\tAuthor: &object.Signature{
 \t\t\tName:  GetConfigAuthor(),
 \t\t\tEmail: "sync@omn-go.local",
 \t\t\tWhen:  time.Now(),
 \t\t},"""
-                return match.group(1) + author_block + inner + "}"
+                return match.group(1) + author_block + clean_inner + "}"
 
             new_content = re.sub(r'(git\.CommitOptions\s*\{)(.*?)\}', inject_author, content, flags=re.DOTALL)
             if new_content != content:
                 content = new_content
                 modified = True
 
-        # 2. Update Auth and Remove unsafe Force injections
         m = re.search(r'([a-zA-Z0-9_]+)(?:,\s*[a-zA-Z0-9_]+)?\s*:=\s*(?:backend\.)?GetInsecureSSHAuth', content)
         if not m:
             m = re.search(r'([a-zA-Z0-9_]+),\s*[a-zA-Z0-9_]+\s*:=\s*ssh\.NewPublicKeysFromFile', content)
@@ -159,11 +169,9 @@ def patch_network_options():
             auth_var = m.group(1)
             for opt in ['PullOptions', 'PushOptions', 'CloneOptions', 'FetchOptions']:
                 if f"&git.{opt}{{" in content or f"git.{opt}{{" in content:
-                    # Scrub existing fields
                     content = re.sub(rf'\s*Auth:\s*[a-zA-Z0-9_.]+,\s*', '\n\t\t', content)
                     content = re.sub(rf'\s*Force:\s*(true|false|GetForcePullAndReset\(\)),\s*', '\n\t\t', content)
                     
-                    # Only PullOptions gets the One-Time Force override!
                     force_str = r'\n\t\tForce: GetForcePullAndReset(),' if opt == 'PullOptions' else ''
                     injection = r'\1\n\t\tAuth: ' + auth_var + r',' + force_str
                     
@@ -174,22 +182,34 @@ def patch_network_options():
         
         if modified:
             with open(go_file, "w") as f: f.write(content)
-            print(f"  [+] Patched Auth & Smart Force policies in {go_file}")
+            print(f"  [+] Patched Network Auth & Scrubbed Duplicate Authors in {go_file}")
+
+def patch_config_ui():
+    # Dynamically inject the checkbox into the Config HTML wherever the Author field exists
+    for file_path in glob.glob("backend/*.go") + glob.glob("backend/frontend/*.html"):
+        if not os.path.exists(file_path): continue
+        with open(file_path, "r") as f: content = f.read()
+        
+        if "force_pull_one_time" not in content and re.search(r'name=["\']?[aA]uthor["\']?', content):
+            pattern = r'(<input[^>]+name=["\']?[aA]uthor["\']?[^>]*>)'
+            checkbox = r'\1\n\t\t\t<div style="margin-top: 15px;">\n\t\t\t\t<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">\n\t\t\t\t\t<input type="checkbox" name="force_pull_one_time" value="true">\n\t\t\t\t\t<span>⚠ Force Initial Pull (One Time Overwrite)</span>\n\t\t\t\t</label>\n\t\t\t</div>'
+            content = re.sub(pattern, checkbox, content)
+            with open(file_path, "w") as f: f.write(content)
+            print(f"  [+] Injected Force Pull Checkbox UI into {file_path}")
 
 if __name__ == "__main__":
     bump_version()
     patch_config_struct()
     rebuild_git_helper_with_smart_config()
     patch_network_options()
-    print("[*] Update complete! Version 1.4.37 ready for compilation.")
+    patch_config_ui()
+    print("[*] Update complete! Version 1.4.38 ready for compilation.")
     
     print("\n" + "="*55)
     print("COMMIT MESSAGE TO USE:")
-    print("Feature: Secure Force Pull & Dynamic Config Authors")
-    print("\n- Bumped application version to 1.4.37")
-    print("- Replaced dangerous hardcoded Force Push/Pull with a one-time")
-    print("  ForcePullOneTime toggle inside data/config.json.")
-    print("- Implemented automatic reset of force flag after successful read.")
-    print("- Replaced hardcoded 'OMN-Go App' commit author with dynamic")
-    print("  extraction from config.json.")
+    print("Fix: Resolve Go compilation strictness & Add Config UI")
+    print("\n- Bumped application version to 1.4.38")
+    print("- Fixed 'declared and not used: ok' in GetForcePullAndReset")
+    print("- Implemented multi-line scrub to resolve 'duplicate field Author'")
+    print("- Injected dynamic Force Pull Checkbox directly into the Config UI")
     print("="*55 + "\n")
