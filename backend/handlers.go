@@ -305,6 +305,28 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Saved"))
 }
 
+func manualGitInit(dir string) error {
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
+		return err
+	}
+	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+
 func handleSync(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[sync] Request received")
 	if r.Method != "POST" {
@@ -351,9 +373,19 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[sync] Repo not found, initializing...")
 		repo, err = git.PlainInit(storageDir, false)
 		if err != nil {
-			log.Printf("[sync] Repo init failed: %v", err)
-			http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
-			return
+			log.Printf("[sync] git.PlainInit failed: %v; attempting manual init", err)
+			if initErr := manualGitInit(storageDir); initErr != nil {
+				log.Printf("[sync] Manual init also failed: %v", initErr)
+				http.Error(w, fmt.Sprintf("Repo init failed: %v", initErr), 500)
+				return
+			}
+			// Try opening again
+			repo, err = git.PlainOpen(storageDir)
+			if err != nil {
+				log.Printf("[sync] Failed to open manually created repo: %v", err)
+				http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+				return
+			}
 		}
 		log.Printf("[sync] Repo initialized")
 		// Check if remote origin exists
