@@ -507,6 +507,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 			Email: "sync@omn-go.local",
 			When:  time.Now(),
 		},
+		Author: &object.Signature{
+			Name:  GetConfigAuthor(),
+			Email: "sync@omn-go.local",
+			When:  time.Now(),
+		},
 			Author: &object.Signature{
 				Name:  "OMN-Go Sync",
 				Email: "omngo@localhost",
