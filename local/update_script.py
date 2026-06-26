@@ -26,7 +26,7 @@ def apply_fix(path, old, new, idem_marker):
     write_file(path, content)
 
 def update_application():
-    # 1. Bump version
+    # Bump version
     ver_path = "backend/version.go"
     content = read_file(ver_path)
     match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
@@ -43,77 +43,26 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
+    # Log the base64 of the public key exactly as it will be sent
+    old_log = '\t\tkeyType := signer.PublicKey().Type()\n\t\tlog.Printf("[sync] SSH key type: %s", keyType)'
+    new_log = '\t\tkeyType := signer.PublicKey().Type()\n\t\tlog.Printf("[sync] SSH key type: %s", keyType)\n\t\tpubKeyBlob := signer.PublicKey().Marshal()\n\t\tlog.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))'
+    apply_fix("backend/handlers.go", old_log, new_log, 'pubKeyBlob := signer.PublicKey().Marshal()')
+
+    # Ensure encoding/base64 is imported (as realgobase64 to avoid conflict)
     h_path = "backend/handlers.go"
     h = read_file(h_path)
-
-    # 2. Insert manualGitInit helper function right before func handleSync
-    helper_func = r'''func manualGitInit(dir string) error {
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
-		return err
-	}
-	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
-	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-'''
-    # Check if function already present
-    if "func manualGitInit(dir string) error" not in h:
-        # Insert before "func handleSync"
-        idx = h.find("\nfunc handleSync(")
-        if idx == -1:
-            raise ValueError("Could not locate handleSync function")
-        h = h[:idx] + "\n" + helper_func + h[idx:]
+    if '"encoding/base64"' not in h:
+        # Insert after "time" import or similar
+        h = h.replace('"time"', '"time"\n\t"encoding/base64"')
         write_file(h_path, h)
-        h = read_file(h_path)  # refresh
 
-    # 3. Modify repo initialization to use manual fallback on PlainInit failure
-    old_block = (
-        '\tif err != nil {\n'
-        '\t\tlog.Printf("[sync] Repo not found, initializing...")\n'
-        '\t\trepo, err = git.PlainInit(storageDir, false)\n'
-        '\t\tif err != nil {\n'
-        '\t\t\tlog.Printf("[sync] Repo init failed: %v", err)\n'
-        '\t\t\thttp.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)\n'
-        '\t\t\treturn\n'
-        '\t\t}\n'
-    )
-    new_block = (
-        '\tif err != nil {\n'
-        '\t\tlog.Printf("[sync] Repo not found, initializing...")\n'
-        '\t\trepo, err = git.PlainInit(storageDir, false)\n'
-        '\t\tif err != nil {\n'
-        '\t\t\tlog.Printf("[sync] git.PlainInit failed: %v; attempting manual init", err)\n'
-        '\t\t\tif initErr := manualGitInit(storageDir); initErr != nil {\n'
-        '\t\t\t\tlog.Printf("[sync] Manual init also failed: %v", initErr)\n'
-        '\t\t\t\thttp.Error(w, fmt.Sprintf("Repo init failed: %v", initErr), 500)\n'
-        '\t\t\t\treturn\n'
-        '\t\t\t}\n'
-        '\t\t\t// Try opening again\n'
-        '\t\t\trepo, err = git.PlainOpen(storageDir)\n'
-        '\t\t\tif err != nil {\n'
-        '\t\t\t\tlog.Printf("[sync] Failed to open manually created repo: %v", err)\n'
-        '\t\t\t\thttp.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)\n'
-        '\t\t\t\treturn\n'
-        '\t\t\t}\n'
-        '\t\t}\n'
-    )
-    apply_fix(h_path, old_block, new_block, "manualGitInit(storageDir)")
+    # Also add an alias for base64 if needed
+    if 'realgobase64' not in h and '"encoding/base64"' in h:
+        h = h.replace('"encoding/base64"', 'realgobase64 "encoding/base64"')
+        write_file(h_path, h)
 
     commit_msg = (
-        "fix(sync): add manual Git repo init fallback for Android/restricted environments\n\n"
+        "feat(sync): log SSH public key blob for server-side comparison\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

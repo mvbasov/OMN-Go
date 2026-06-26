@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"encoding/base64"
 
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
@@ -469,6 +470,8 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		fp := realssh.FingerprintSHA256(signer.PublicKey())
 		keyType := signer.PublicKey().Type()
 		log.Printf("[sync] SSH key type: %s", keyType)
+		pubKeyBlob := signer.PublicKey().Marshal()
+		log.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))
 		log.Printf("[sync] SSH key fingerprint: %s", fp)
 
 		// Use go-git's ssh.PublicKeys with the signer
