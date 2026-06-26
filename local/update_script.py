@@ -41,26 +41,54 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Fix the SSH known_hosts problem by setting HostKeyCallback to insecure
-    old_auth_line = (
-        '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}\n'
-        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")'
-    )
-    new_auth_line = (
+    # 2. Revert the broken HostKeyCallback line back to original
+    old_broken_auth = (
         '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: ssh.InsecureIgnoreHostKey()}\n'
         '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")'
     )
+    original_auth = (
+        '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}\n'
+        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")'
+    )
     try:
-        patch_file("backend/handlers.go", old_auth_line, new_auth_line)
-        print("✅ Added HostKeyCallback to SSH auth to bypass known_hosts requirement.")
-    except ValueError as e:
-        print(f"⚠️ Could not patch SSH auth line: {e}")
+        patch_file("backend/handlers.go", old_broken_auth, original_auth)
+        print("✅ Reverted SSH auth to original (without HostKeyCallback).")
+    except ValueError:
+        print("⚠️ Broken auth line not found, maybe already fixed.")
 
-    # 3. Print commit message
+    # 3. Add known_hosts file creation and env setup before the SSH operations
+    # Insert right before the comment "// Stage and commit local changes first"
+    insert_marker = (
+        '\t// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)'
+    )
+    known_hosts_block = (
+        '\t// Create an empty known_hosts file to bypass go-git SSH check on Android\n'
+        '\tknownHostsPath := filepath.Join(storageDir, ".git", "known_hosts")\n'
+        '\tif _, err := os.Stat(knownHostsPath); os.IsNotExist(err) {\n'
+        '\t\tif err := os.MkdirAll(filepath.Dir(knownHostsPath), 0755); err != nil {\n'
+        '\t\t\tlog.Printf("[sync] Failed to create .git dir: %v", err)\n'
+        '\t\t} else if err := os.WriteFile(knownHostsPath, []byte{}, 0644); err != nil {\n'
+        '\t\t\tlog.Printf("[sync] Failed to write known_hosts: %v", err)\n'
+        '\t\t} else {\n'
+        '\t\t\tlog.Printf("[sync] Created empty known_hosts file")\n'
+        '\t\t}\n'
+        '\t}\n'
+        '\tos.Setenv("SSH_KNOWN_HOSTS", knownHostsPath)\n'
+        '\n'
+        '\t// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)'
+    )
+    if insert_marker in read_file("backend/handlers.go"):
+        patch_file("backend/handlers.go", insert_marker, known_hosts_block)
+        print("✅ Added known_hosts creation and SSH_KNOWN_HOSTS env setup.")
+    else:
+        print("❌ Insert marker not found – could not add known_hosts logic.")
+
+    # 4. Commit message
     commit_msg = (
-        "fix(sync): bypass known_hosts by setting HostKeyCallback to InsecureIgnoreHostKey\n\n"
-        "- The SSH pull failed with 'unable to find any valid known_hosts file'\n"
-        "- Now uses go-git's InsecureIgnoreHostKey callback, consistent with GetInsecureSSHAuth\n"
+        "fix(sync): provide known_hosts file to bypass SSH host key check\n\n"
+        "- Create empty .git/known_hosts and set SSH_KNOWN_HOSTS env variable\n"
+        "- Avoids 'unable to find any valid known_hosts file' error during pull/push\n"
+        "- Removed broken HostKeyCallback approach that caused compile errors\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

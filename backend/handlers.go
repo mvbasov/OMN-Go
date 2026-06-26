@@ -540,8 +540,8 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[sync] SSH key fingerprint: %s", fp)
 
 		// Use go-git's ssh.PublicKeys with the signer
-		auth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: ssh.InsecureIgnoreHostKey()}
-		log.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")
+		auth = &ssh.PublicKeys{User: sshUser, Signer: signer}
+		log.Printf("[sync] SSH auth method created using crypto/ssh signer")
 	} else {
 		log.Printf("[sync] Error: No SSH key configured")
 		http.Error(w, "No SSH key configured", 500)
@@ -552,6 +552,19 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
+
+	// Create an empty known_hosts file to bypass go-git SSH check on Android
+	knownHostsPath := filepath.Join(storageDir, ".git", "known_hosts")
+	if _, err := os.Stat(knownHostsPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(knownHostsPath), 0755); err != nil {
+			log.Printf("[sync] Failed to create .git dir: %v", err)
+		} else if err := os.WriteFile(knownHostsPath, []byte{}, 0644); err != nil {
+			log.Printf("[sync] Failed to write known_hosts: %v", err)
+		} else {
+			log.Printf("[sync] Created empty known_hosts file")
+		}
+	}
+	os.Setenv("SSH_KNOWN_HOSTS", knownHostsPath)
 
 	// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)
 	log.Printf("[sync] Staging all changes")
