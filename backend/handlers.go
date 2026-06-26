@@ -496,7 +496,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		status, _ := wTree.Status()
 		if !status.IsClean() {
-			log.Printf("[sync] Uncommitted changes detected, writing tree and committing")
+			log.Printf("[sync] Uncommitted changes detected, committing")
 			authorName := GetConfigAuthor()
 			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 			sig := &object.Signature{
@@ -504,44 +504,12 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				Email: authorEmail,
 				When:  time.Now(),
 			}
-
-			// Write tree from index (works on Android, no user.Current dependency)
-			treeHash, err := wTree.WriteTree()
+			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+				Author:    sig,
+				Committer: sig, // CRITICAL: both set to avoid os/user.Current() on Android
+			})
 			if err != nil {
-				log.Printf("[sync] WriteTree error: %v", err)
-				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
-				return
-			}
-			// Build commit object manually
-			headRef, errHead := repo.Head()
-			var parents []plumbing.Hash
-			if errHead == nil {
-				parents = []plumbing.Hash{headRef.Hash()}
-			}
-			commit := &object.Commit{
-				Author:       *sig,
-				Committer:    *sig,
-				Message:      "Local changes before sync",
-				TreeHash:     treeHash,
-				ParentHashes: parents,
-			}
-			obj := repo.Storer.NewEncodedObject()
-			if err = commit.Encode(obj); err != nil {
-				log.Printf("[sync] Commit encode error: %v", err)
-				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
-				return
-			}
-			commitHash, err := repo.Storer.SetEncodedObject(obj)
-			if err != nil {
-				log.Printf("[sync] Store commit error: %v", err)
-				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
-				return
-			}
-			// Update master branch
-			refName := plumbing.NewBranchReferenceName("master")
-			err = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))
-			if err != nil {
-				log.Printf("[sync] SetReference error: %v", err)
+				log.Printf("[sync] Commit error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
