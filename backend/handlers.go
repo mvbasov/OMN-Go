@@ -22,8 +22,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"sort"
-	"github.com/go-git/go-git/v5/storage"
 	realssh "golang.org/x/crypto/ssh"
 )
 
@@ -331,68 +329,6 @@ func manualGitInit(dir string) error {
 
 
 
-// writeTreeFromDir recursively creates a sorted git tree object from the given directory.
-// It skips .git directory and returns the tree hash.
-func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
-	entries := []object.TreeEntry{}
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return plumbing.Hash{}, err
-	}
-	for _, f := range files {
-		if f.Name() == ".git" || f.Name() == ".gitignore" {
-			continue
-		}
-		fullPath := filepath.Join(dir, f.Name())
-		if f.IsDir() {
-			subTreeHash, err := writeTreeFromDir(fullPath, storer)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			entries = append(entries, object.TreeEntry{
-				Name: f.Name(),
-				Mode: 0040000, // directory
-				Hash: subTreeHash,
-			})
-		} else {
-			data, err := os.ReadFile(fullPath)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			blobObj := storer.NewEncodedObject()
-			blobObj.SetType(plumbing.BlobObject)
-			blobObj.SetSize(int64(len(data)))
-			w, err := blobObj.Writer()
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			if _, err = w.Write(data); err != nil {
-				return plumbing.Hash{}, err
-			}
-			w.Close()
-			blobHash, err := storer.SetEncodedObject(blobObj)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			entries = append(entries, object.TreeEntry{
-				Name: f.Name(),
-				Mode: 0100644, // regular file
-				Hash: blobHash,
-			})
-		}
-	}
-	// Sort entries by name (required by git)
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name < entries[j].Name
-	})
-	// Create tree object
-	treeObj := object.Tree{Entries: entries}
-	encoded := storer.NewEncodedObject()
-	if err := treeObj.Encode(encoded); err != nil {
-		return plumbing.Hash{}, err
-	}
-	return storer.SetEncodedObject(encoded)
-}
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[sync] Request received")
@@ -554,13 +490,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
-	// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)
+	// Stage and commit local changes first (manual commit to avoid os/user on Android)
 	log.Printf("[sync] Staging all changes")
 	_, err = wTree.Add(".")
 	if err == nil {
 		status, _ := wTree.Status()
 		if !status.IsClean() {
-			log.Printf("[sync] Uncommitted changes detected, building commit manually")
+			log.Printf("[sync] Uncommitted changes detected, writing tree and committing")
 			authorName := GetConfigAuthor()
 			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 			sig := &object.Signature{
@@ -569,10 +505,10 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				When:  time.Now(),
 			}
 
-			// Build sorted git tree from the working directory (avoids Worktree.WriteTree)
-			treeHash, err := writeTreeFromDir(storageDir, repo.Storer)
+			// Write tree from index (works on Android, no user.Current dependency)
+			treeHash, err := wTree.WriteTree()
 			if err != nil {
-				log.Printf("[sync] writeTreeFromDir error: %v", err)
+				log.Printf("[sync] WriteTree error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
