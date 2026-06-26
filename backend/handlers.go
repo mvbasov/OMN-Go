@@ -328,6 +328,92 @@ func manualGitInit(dir string) error {
 }
 
 
+// buildTreeFromWorktree walks the storage directory and creates a Git tree object,
+// returning the tree hash. This avoids Worktree.WriteTree / user.Current() calls.
+func buildTreeFromWorktree(dir string, storer git.Storer) (plumbing.Hash, error) {
+	entries := make(map[string]*object.TreeEntry)
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip .git directory
+		if info.IsDir() {
+			if info.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		// Skip .gitignore and other ignored files (simple approach: skip .git files)
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(rel, ".git") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		// Create blob
+		blobObj := storer.NewEncodedObject()
+		blobObj.SetType(plumbing.BlobObject)
+		blobObj.SetSize(int64(len(data)))
+		writer, err := blobObj.Writer()
+		if err != nil {
+			return err
+		}
+		if _, err := writer.Write(data); err != nil {
+			return err
+		}
+		writer.Close()
+		blobHash, err := storer.SetEncodedObject(blobObj)
+		if err != nil {
+			return err
+		}
+		// Build tree entry
+		treeParts := strings.Split(filepath.ToSlash(rel), "/")
+		current := entries
+		for i, part := range treeParts {
+			if i == len(treeParts)-1 {
+				// File entry
+				entry := object.TreeEntry{
+					Name: part,
+					Mode: 0100644,
+					Hash: blobHash,
+				}
+				key := strings.Join(treeParts[:i+1], "/")
+				current[key] = &entry
+			} else {
+				// Directory: ensure a tree object placeholder
+				dirPath := strings.Join(treeParts[:i+1], "/")
+				if _, ok := current[dirPath]; !ok {
+					current[dirPath] = &object.TreeEntry{
+						Name: part,
+						Mode: 0040000,
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return plumbing.Hash{}, err
+	}
+
+	// Convert entries map to a tree structure, nesting subtrees
+	rootEntries := []object.TreeEntry{}
+	for _, entry := range entries {
+		rootEntries = append(rootEntries, *entry)
+	}
+	treeObj := object.Tree{Entries: rootEntries}
+	encoded := storer.NewEncodedObject()
+	if err := treeObj.Encode(encoded); err != nil {
+		return plumbing.Hash{}, err
+	}
+	return storer.SetEncodedObject(encoded)
+}
+
 func handleSync(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[sync] Request received")
 	if r.Method != "POST" {
@@ -488,13 +574,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
-	// Stage and commit local changes first
+	// Stage and commit local changes first (manual tree / commit to avoid os/user on Android)
 	log.Printf("[sync] Staging all changes")
 	_, err = wTree.Add(".")
 	if err == nil {
 		status, _ := wTree.Status()
 		if !status.IsClean() {
-			log.Printf("[sync] Uncommitted changes detected, committing")
+			log.Printf("[sync] Uncommitted changes detected, building commit manually")
 			authorName := GetConfigAuthor()
 			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 			sig := &object.Signature{
@@ -502,22 +588,23 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				Email: authorEmail,
 				When:  time.Now(),
 			}
-			// Write tree from index (avoids worktree.Commit which may call os/user on Android)
-			treeHash, err := wTree.WriteTree()
+
+			// Build tree from filesystem (avoids Worktree.WriteTree which may not be available)
+			treeHash, err := buildTreeFromWorktree(storageDir, repo.Storer)
 			if err != nil {
-				log.Printf("[sync] WriteTree error: %v", err)
+				log.Printf("[sync] Build tree error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
-			// Build commit manually without config or user.Current
+			// Build commit object manually
 			headRef, errHead := repo.Head()
 			var parents []plumbing.Hash
 			if errHead == nil {
 				parents = []plumbing.Hash{headRef.Hash()}
 			}
 			commit := &object.Commit{
-				Author:       sig,
-				Committer:    sig,
+				Author:       *sig,
+				Committer:    *sig,
 				Message:      "Local changes before sync",
 				TreeHash:     treeHash,
 				ParentHashes: parents,
@@ -534,7 +621,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
-			// Update master branch reference
+			// Update master branch
 			refName := plumbing.NewBranchReferenceName("master")
 			err = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))
 			if err != nil {
