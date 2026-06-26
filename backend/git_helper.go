@@ -19,7 +19,7 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 		return nil, err
 	}
 	
-	// EXPLICIT PUBKEY EXTRACTION: Output the exact string needed for gitolite-admin
+	// EXPLICIT PUBKEY EXTRACTION
 	signer := publicKeys.Signer
 	pubKeyBytes := gossh.MarshalAuthorizedKey(signer.PublicKey())
 	pubKeyStr := strings.TrimSpace(string(pubKeyBytes))
