@@ -185,17 +185,27 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 }
 
 /* ---------- Header Buttons (replacing inline styles) ---------- */
+/* --- Change --- */
 .btn-create-page {
     background: #17a2b8 !important;
     border-color: #17a2b8 !important;
 }
+.btn-quick-note {
+    background: #17a2b8 !important;
+    border-color: #17a2b8 !important;
+}
+.btn-add-bookmark {
+    background: #17a2b8 !important;
+    border-color: #17a2b8 !important;
+}
+/* --- System --- */
 .btn-refresh {
     background: #6c757d !important;
     border-color: #6c757d !important;
 }
 .btn-settings {
-    background: #444 !important;
-    border-color: #666 !important;
+    background: #6c757d !important;
+    border-color: #6c757d !important;
 }
 
 /* ---------- Toolbar Buttons ---------- */

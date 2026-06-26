@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.4.27"
-CUR_OMN_GO_VER_A="10427"
+CUR_OMN_GO_VER="1.4.42"
+CUR_OMN_GO_VER_A="10442"
 
 # Define color codes for output
 GREEN='\033[0;32m'
@@ -37,6 +37,8 @@ FILES=(
     "backend/middleware.go"
     "backend/storage.go"
     "backend/version.go"
+    "git_helper.go"
+    "logger.go"
     "backend/frontend/index.html"
     "backend/frontend/html/css/omn-go-core.css"
     "backend/frontend/html/js/omn-go-core.js"
