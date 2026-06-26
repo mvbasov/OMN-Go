@@ -16,5 +16,7 @@ func GetInsecureSSHAuth(sshUser, privateKeyPath, password string) (*ssh.PublicKe
 	if err != nil {
 		return nil, err
 	}
+	// CRITICAL FIX: Ignore host key verification for gitolite3 servers
+	publicKeys.HostKeyCallback = gossh.InsecureIgnoreHostKey()
 	return publicKeys, nil
 }
