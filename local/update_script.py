@@ -41,46 +41,26 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Replace the reference update block from SetReference to direct filesystem write
-    old_ref_update = (
-        '\t\t\t// Update master branch\n'
-        '\t\t\trefName := plumbing.NewBranchReferenceName("master")\n'
-        '\t\t\terr = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))\n'
-        '\t\t\tif err != nil {\n'
-        '\t\t\t\tlog.Printf("[sync] SetReference error: %v", err)\n'
-        '\t\t\t\thttp.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)\n'
-        '\t\t\t\treturn\n'
-        '\t\t\t}'
+    # 2. Fix the SSH known_hosts problem by setting HostKeyCallback to insecure
+    old_auth_line = (
+        '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}\n'
+        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")'
     )
-    new_ref_update = (
-        '\t\t\t// Update master branch (write ref directly to filesystem to avoid unimplemented syscalls)\n'
-        '\t\t\trefPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")\n'
-        '\t\t\tif err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {\n'
-        '\t\t\t\tlog.Printf("[sync] MkdirAll ref error: %v", err)\n'
-        '\t\t\t\thttp.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)\n'
-        '\t\t\t\treturn\n'
-        '\t\t\t}\n'
-        '\t\t\tif err := os.WriteFile(refPath, []byte(commitHash.String()+"\\n"), 0644); err != nil {\n'
-        '\t\t\t\tlog.Printf("[sync] Write ref error: %v", err)\n'
-        '\t\t\t\thttp.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)\n'
-        '\t\t\t\treturn\n'
-        '\t\t\t}'
+    new_auth_line = (
+        '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: ssh.InsecureIgnoreHostKey()}\n'
+        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")'
     )
     try:
-        patch_file("backend/handlers.go", old_ref_update, new_ref_update)
-        print("✅ Replaced SetReference with direct ref file write.")
+        patch_file("backend/handlers.go", old_auth_line, new_auth_line)
+        print("✅ Added HostKeyCallback to SSH auth to bypass known_hosts requirement.")
     except ValueError as e:
-        print(f"⚠️ Could not replace SetReference: {e}")
+        print(f"⚠️ Could not patch SSH auth line: {e}")
 
-    # 3. (Optional) Remove unused "refName" variable if any leftover (should be gone)
-    # No other parts use refName, so we're good.
-
-    # 4. Commit message
+    # 3. Print commit message
     commit_msg = (
-        "fix(sync): replace SetReference with direct filesystem write to avoid ENOSYS\n\n"
-        "- On Android, SetReference calls an unimplemented function (syscall 38)\n"
-        "- Write the reference directly to .git/refs/heads/master using os.WriteFile\n"
-        "- This bypasses the problematic call and should allow commits on Android\n"
+        "fix(sync): bypass known_hosts by setting HostKeyCallback to InsecureIgnoreHostKey\n\n"
+        "- The SSH pull failed with 'unable to find any valid known_hosts file'\n"
+        "- Now uses go-git's InsecureIgnoreHostKey callback, consistent with GetInsecureSSHAuth\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
