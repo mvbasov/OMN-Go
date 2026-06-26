@@ -485,76 +485,88 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	wTree, _ := repo.Worktree()
 
+	action := r.FormValue("action")
+	force := r.FormValue("force") == "true"
+
 	// Stage and commit local changes first
 	log.Printf("[sync] Staging all changes")
 	_, err = wTree.Add(".")
-	if err != nil {
-		log.Printf("[sync] Add error: %v", err)
-		http.Error(w, fmt.Sprintf("Add failed: %v", err), 500)
-		return
-	}
-	status, err := wTree.Status()
-	if err != nil {
-		log.Printf("[sync] Status error: %v", err)
-		http.Error(w, fmt.Sprintf("Status failed: %v", err), 500)
-		return
-	}
-	if !status.IsClean() {
-		log.Printf("[sync] Uncommitted changes detected, committing")
-		_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
-			Author: &object.Signature{
-				Name:  GetConfigAuthor(),
-				Email: "sync@omn-go.local",
+	if err == nil {
+		status, _ := wTree.Status()
+		if !status.IsClean() {
+			log.Printf("[sync] Uncommitted changes detected, committing")
+			authorName := GetConfigAuthor()
+			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
+			sig := &object.Signature{
+				Name:  authorName,
+				Email: authorEmail,
 				When:  time.Now(),
-			},
-		})
-		if err != nil {
-			log.Printf("[sync] Commit error: %v", err)
-			http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
-			return
-		}
-	} else {
-		log.Printf("[sync] Nothing to commit")
-	}
-
-	// Pull from origin
-	log.Printf("[sync] Pulling from origin master")
-	err = wTree.Pull(&git.PullOptions{
-		RemoteName:    "origin",
-		Auth:          auth,
-		ReferenceName: plumbing.NewBranchReferenceName("master"),
-		SingleBranch:  true,
-	})
-	if err != nil {
-		if err == git.NoErrAlreadyUpToDate || strings.Contains(err.Error(), "couldn't find remote ref") {
-			log.Printf("[sync] Pull not needed (no remote ref or up to date): %v", err)
+			}
+			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+				Author:    sig,
+				Committer: sig, // CRITICAL: Fixes 'function not implemented'
+			})
+			if err != nil {
+				log.Printf("[sync] Commit error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
 		} else {
-			log.Printf("[sync] Pull error: %v", err)
-			http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+			log.Printf("[sync] Nothing to commit")
+		}
+	}
+
+	if action == "download" {
+		if force {
+			log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+			err = repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+			if err != nil && err != git.NoErrAlreadyUpToDate {
+				http.Error(w, fmt.Sprintf("Fetch failed: %v", err), 500)
+				return
+			}
+			ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to find origin/master: %v", err), 500)
+				return
+			}
+			err = wTree.Reset(&git.ResetOptions{Commit: ref.Hash(), Mode: git.HardReset})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Hard reset failed: %v", err), 500)
+				return
+			}
+		} else {
+			log.Printf("[sync] Pulling from origin master")
+			err = wTree.Pull(&git.PullOptions{
+				RemoteName:    "origin",
+				Auth:          auth,
+				ReferenceName: plumbing.NewBranchReferenceName("master"),
+				SingleBranch:  true,
+			})
+			if err != nil && err != git.NoErrAlreadyUpToDate && !strings.Contains(err.Error(), "couldn't find remote ref") {
+				log.Printf("[sync] Pull error: %v", err)
+				http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+				return
+			}
+		}
+	} else if action == "upload" {
+		log.Printf("[sync] Pushing to origin master (Force: %v)", force)
+		err = repo.Push(&git.PushOptions{
+			RemoteName: "origin",
+			Auth:       auth,
+			RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+			Force:      force,
+		})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
+			log.Printf("[sync] Push error: %v", err)
+			http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
 			return
 		}
 	} else {
-		log.Printf("[sync] Pull successful")
-	}
-
-	// Stage again after merge
-	_, _ = wTree.Add(".")
-
-	// Push
-	log.Printf("[sync] Pushing to origin master")
-	err = repo.Push(&git.PushOptions{
-		RemoteName: "origin",
-		Auth:       auth,
-		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
-	})
-	if err != nil {
-		log.Printf("[sync] Push error: %v", err)
-		http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
+		http.Error(w, "Invalid action. Use 'upload' or 'download'.", 400)
 		return
 	}
-	log.Printf("[sync] Push successful")
 
-	w.Write([]byte("Synced successfully."))
+	w.Write([]byte("Sync action completed successfully."))
 }
 func handleUpload(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10MB

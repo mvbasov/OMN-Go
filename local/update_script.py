@@ -1,136 +1,273 @@
-import os
-import re
-import glob
+#!/usr/bin/env python3
+import re, os
 
-print("[*] Upgrading OMN-Go to Version 1.4.41...")
+def read_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
-def bump_version():
-    new_v = "1.4.41"
-    new_v_c = "10441"
+def write_file(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
-    # 1. Update version.go
+def patch_file(path, old, new):
+    """Replace *old* with *new* in *path*. Raise ValueError if *old* missing."""
+    content = read_file(path)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
+
+def increment_version(ver_str):
+    """'1.4.42' → '1.4.43'"""
+    parts = ver_str.strip().split(".")
+    if len(parts) == 3 and parts[2].isdigit():
+        parts[2] = str(int(parts[2]) + 1)
+        return ".".join(parts)
+    raise ValueError(f"Unrecognised version format: {ver_str}")
+
+def update_application():
+    # 1. Auto-detect current version and bump it
     ver_path = "backend/version.go"
-    if os.path.exists(ver_path):
-        with open(ver_path, "w") as f: 
-            f.write(f'package backend\n\n// APP_VERSION is the global application version\nconst APP_VERSION = "{new_v}"\n')
-        print(f"  [+] Hard-rewrote {ver_path} with APP_VERSION = {new_v}")
+    content = read_file(ver_path)
+    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
+    cur_ver = match.group(1)
+    new_ver = increment_version(cur_ver)
 
-    # 2. Update Android Gradle
+    # Update version.go
+    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    write_file(ver_path, content)
+
+    # Update android/app/build.gradle
     gradle_path = "android/app/build.gradle"
-    if os.path.exists(gradle_path):
-        with open(gradle_path, "r") as f: c = f.read()
-        c = re.sub(r'versionCode\s+\d+', f'versionCode {new_v_c}', c)
-        c = re.sub(r'versionName\s+"[^"]+"', f'versionName "{new_v}"', c)
-        with open(gradle_path, "w") as f: f.write(c)
-        print("  [+] Bumped version in android/app/build.gradle")
+    gradle = read_file(gradle_path)
+    gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}',
+                            f'versionCode {int(new_ver.replace(".", ""))}')
+    gradle = gradle.replace(f'versionName "{cur_ver}"',
+                            f'versionName "{new_ver}"')
+    write_file(gradle_path, gradle)
 
-def fix_dangling_braces_in_commit_options():
-    # Uses AST-style Parenthesis Counting to find the exact boundaries of .Commit(...)
-    # This mathematically guarantees we remove all trailing braces `}` or garbage inside the options.
-    for go_file in glob.glob("backend/*.go"):
-        if not os.path.exists(go_file): continue
-        with open(go_file, "r") as f: content = f.read()
-        
-        modified = False
-        
-        # Ensure required packages exist
-        if '"time"' not in content and 'git.CommitOptions' in content:
-            content = re.sub(r'import \(\n', 'import (\n\t"time"\n', content, count=1)
-            modified = True
-        if 'plumbing/object' not in content and 'git.CommitOptions' in content:
-            content = re.sub(r'import \(\n', 'import (\n\t"github.com/go-git/go-git/v5/plumbing/object"\n', content, count=1)
-            modified = True
+    # 2. Patch backend/handlers.go (Fix Committer & Split Sync)
+    old_handlers = """\
+	wTree, _ := repo.Worktree()
 
-        start = 0
-        while True:
-            idx = content.find('.Commit(', start)
-            if idx == -1: break
+	// Stage and commit local changes first
+	log.Printf("[sync] Staging all changes")
+	_, err = wTree.Add(".")
+	if err != nil {
+		log.Printf("[sync] Add error: %v", err)
+		http.Error(w, fmt.Sprintf("Add failed: %v", err), 500)
+		return
+	}
+	status, err := wTree.Status()
+	if err != nil {
+		log.Printf("[sync] Status error: %v", err)
+		http.Error(w, fmt.Sprintf("Status failed: %v", err), 500)
+		return
+	}
+	if !status.IsClean() {
+		log.Printf("[sync] Uncommitted changes detected, committing")
+		_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+			Author: &object.Signature{
+				Name:  GetConfigAuthor(),
+				Email: "sync@omn-go.local",
+				When:  time.Now(),
+			},
+		})
+		if err != nil {
+			log.Printf("[sync] Commit error: %v", err)
+			http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+			return
+		}
+	} else {
+		log.Printf("[sync] Nothing to commit")
+	}
+
+	// Pull from origin
+	log.Printf("[sync] Pulling from origin master")
+	err = wTree.Pull(&git.PullOptions{
+		RemoteName:    "origin",
+		Auth:          auth,
+		ReferenceName: plumbing.NewBranchReferenceName("master"),
+		SingleBranch:  true,
+	})
+	if err != nil {
+		if err == git.NoErrAlreadyUpToDate || strings.Contains(err.Error(), "couldn't find remote ref") {
+			log.Printf("[sync] Pull not needed (no remote ref or up to date): %v", err)
+		} else {
+			log.Printf("[sync] Pull error: %v", err)
+			http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+			return
+		}
+	} else {
+		log.Printf("[sync] Pull successful")
+	}
+
+	// Stage again after merge
+	_, _ = wTree.Add(".")
+
+	// Push
+	log.Printf("[sync] Pushing to origin master")
+	err = repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       auth,
+		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+	})
+	if err != nil {
+		log.Printf("[sync] Push error: %v", err)
+		http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
+		return
+	}
+	log.Printf("[sync] Push successful")
+
+	w.Write([]byte("Synced successfully."))
+}"""
+
+    new_handlers = """\
+	wTree, _ := repo.Worktree()
+
+	action := r.FormValue("action")
+	force := r.FormValue("force") == "true"
+
+	// Stage and commit local changes first
+	log.Printf("[sync] Staging all changes")
+	_, err = wTree.Add(".")
+	if err == nil {
+		status, _ := wTree.Status()
+		if !status.IsClean() {
+			log.Printf("[sync] Uncommitted changes detected, committing")
+			authorName := GetConfigAuthor()
+			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
+			sig := &object.Signature{
+				Name:  authorName,
+				Email: authorEmail,
+				When:  time.Now(),
+			}
+			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
+				Author:    sig,
+				Committer: sig, // CRITICAL: Fixes 'function not implemented'
+			})
+			if err != nil {
+				log.Printf("[sync] Commit error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+		} else {
+			log.Printf("[sync] Nothing to commit")
+		}
+	}
+
+	if action == "download" {
+		if force {
+			log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+			err = repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+			if err != nil && err != git.NoErrAlreadyUpToDate {
+				http.Error(w, fmt.Sprintf("Fetch failed: %v", err), 500)
+				return
+			}
+			ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to find origin/master: %v", err), 500)
+				return
+			}
+			err = wTree.Reset(&git.ResetOptions{Commit: ref.Hash(), Mode: git.HardReset})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Hard reset failed: %v", err), 500)
+				return
+			}
+		} else {
+			log.Printf("[sync] Pulling from origin master")
+			err = wTree.Pull(&git.PullOptions{
+				RemoteName:    "origin",
+				Auth:          auth,
+				ReferenceName: plumbing.NewBranchReferenceName("master"),
+				SingleBranch:  true,
+			})
+			if err != nil && err != git.NoErrAlreadyUpToDate && !strings.Contains(err.Error(), "couldn't find remote ref") {
+				log.Printf("[sync] Pull error: %v", err)
+				http.Error(w, fmt.Sprintf("Pull failed: %v", err), 500)
+				return
+			}
+		}
+	} else if action == "upload" {
+		log.Printf("[sync] Pushing to origin master (Force: %v)", force)
+		err = repo.Push(&git.PushOptions{
+			RemoteName: "origin",
+			Auth:       auth,
+			RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+			Force:      force,
+		})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
+			log.Printf("[sync] Push error: %v", err)
+			http.Error(w, fmt.Sprintf("Push failed: %v", err), 500)
+			return
+		}
+	} else {
+		http.Error(w, "Invalid action. Use 'upload' or 'download'.", 400)
+		return
+	}
+
+	w.Write([]byte("Sync action completed successfully."))
+}"""
+    patch_file("backend/handlers.go", old_handlers, new_handlers)
+
+    # 3. Patch backend/frontend/index.html (Update UI buttons)
+    old_html = """<button onclick="syncNow()" class="admin-only"><i class="material-icons">sync</i></button>"""
+    new_html = """<label class="admin-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
+                    <button onclick="syncAction('download')" class="admin-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
+                    <button onclick="syncAction('upload')" class="admin-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>"""
+    patch_file("backend/frontend/index.html", old_html, new_html)
+
+    # 4. Patch backend/frontend/html/js/omn-go-core.js (Update JS logic)
+    old_js = """async function syncNow() {
+            const res = await fetch('/api/sync', { method: 'POST' });
+            if (res.ok) {
+                alert('Sync complete!');
+                window.location.reload();
+            } else {
+                let msg = await res.text();
+                console.error('OMN-Go sync failed:', msg);
+                alert('Sync failed: ' + msg + '\\n\\nOpen console (F12) to copy error details.');
+            }
+        }"""
+        
+    new_js = """async function syncAction(action) {
+            let force = document.getElementById('forceSyncCb') && document.getElementById('forceSyncCb').checked;
+            if (force) {
+                if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
+                    return;
+                }
+            }
+            const fd = new URLSearchParams();
+            fd.append('action', action);
+            if (force) fd.append('force', 'true');
             
-            open_paren = content.find('(', idx)
-            paren_count = 1
-            curr = open_paren + 1
+            const res = await fetch('/api/sync', { method: 'POST', body: fd });
             
-            while paren_count > 0 and curr < len(content):
-                if content[curr] == '(': paren_count += 1
-                elif content[curr] == ')': paren_count -= 1
-                curr += 1
+            if (force && document.getElementById('forceSyncCb')) {
+                document.getElementById('forceSyncCb').checked = false;
+            }
             
-            close_paren = curr - 1
-            inner_call = content[open_paren+1:close_paren]
-            
-            if '&git.CommitOptions' in inner_call:
-                # Safely extract the commit message (even if it contains commas)
-                idx_opts = inner_call.find('&git.CommitOptions')
-                prefix = inner_call[:idx_opts].strip()
-                if prefix.endswith(','):
-                    prefix = prefix[:-1].strip()
-                
-                # Reconstruct the flawless struct
-                clean_call = f'{prefix}, &git.CommitOptions{{\n\t\t\tAuthor: &object.Signature{{\n\t\t\t\tName:  GetConfigAuthor(),\n\t\t\t\tEmail: "sync@omn-go.local",\n\t\t\t\tWhen:  time.Now(),\n\t\t\t}},\n\t\t}}'
-                
-                content = content[:open_paren+1] + clean_call + content[close_paren:]
-                start = open_paren + len(clean_call) + 2
-                modified = True
-            else:
-                start = close_paren + 1
+            if (res.ok) {
+                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' complete!');
+                window.location.reload();
+            } else {
+                let msg = await res.text();
+                console.error('OMN-Go sync failed:', msg);
+                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed: ' + msg + '\\n\\nOpen console (F12) to copy error details.');
+            }
+        }"""
+    patch_file("backend/frontend/html/js/omn-go-core.js", old_js, new_js)
 
-        if modified:
-            with open(go_file, "w") as f: f.write(content)
-            print(f"  [+] Purged syntax errors and perfectly formatted Commit Options in {go_file}")
-
-def patch_network_options():
-    # Preserves the idempotent network auth injection just in case
-    for go_file in glob.glob("backend/*.go"):
-        if not os.path.exists(go_file): continue
-        with open(go_file, "r") as f: content = f.read()
-        modified = False
-
-        m = re.search(r'([a-zA-Z0-9_]+)(?:,\s*[a-zA-Z0-9_]+)?\s*:=\s*(?:backend\.)?GetInsecureSSHAuth', content)
-        if not m:
-            m = re.search(r'([a-zA-Z0-9_]+),\s*[a-zA-Z0-9_]+\s*:=\s*ssh\.NewPublicKeysFromFile', content)
-        
-        if m:
-            auth_var = m.group(1)
-            for opt in ['PullOptions', 'PushOptions', 'CloneOptions', 'FetchOptions']:
-                if f"&git.{opt}" in content or f"git.{opt}" in content:
-                    content = re.sub(rf'\s*Auth:\s*[a-zA-Z0-9_.]+,\s*', '\n\t\t', content)
-                    content = re.sub(rf'\s*Force:\s*(true|false|GetForcePullAndReset\(\)),\s*', '\n\t\t', content)
-                    
-                    force_str = r'\n\t\tForce: GetForcePullAndReset(),' if opt == 'PullOptions' else ''
-                    injection = r'\1\n\t\tAuth: ' + auth_var + r',' + force_str
-                    
-                    new_content = re.sub(r'(git\.' + opt + r'\s*\{)', injection, content)
-                    if new_content != content:
-                        content = new_content
-                        modified = True
-        
-        if modified:
-            with open(go_file, "w") as f: f.write(content)
-            print(f"  [+] Verified Network Auth in {go_file}")
-
-def patch_config_ui():
-    for file_path in glob.glob("backend/*.go") + glob.glob("backend/frontend/*.html"):
-        if not os.path.exists(file_path): continue
-        with open(file_path, "r") as f: content = f.read()
-        
-        if "force_pull_one_time" not in content and re.search(r'name=["\']?[aA]uthor["\']?', content):
-            pattern = r'(<input[^>]+name=["\']?[aA]uthor["\']?[^>]*>)'
-            checkbox = r'\1\n\t\t\t<div style="margin-top: 15px;">\n\t\t\t\t<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">\n\t\t\t\t\t<input type="checkbox" name="force_pull_one_time" value="true">\n\t\t\t\t\t<span>⚠ Force Initial Pull (One Time Overwrite)</span>\n\t\t\t\t</label>\n\t\t\t</div>'
-            content = re.sub(pattern, checkbox, content)
-            with open(file_path, "w") as f: f.write(content)
-            print(f"  [+] Verified Force Pull Checkbox UI in {file_path}")
+    # 5. Print standardised Git commit message
+    commit_msg = (
+        "feat(core): fix sync author signing and split into upload/download\n\n"
+        "- Resolve 'function not implemented' error by explicitly passing Committer sig\n"
+        "- Generate email fallback properly using config author name\n"
+        "- Split unified sync into distinct download (pull) and upload (push) buttons\n"
+        "- Add UI checkbox for one-time forced execution with secondary confirmation alert\n"
+        f"Version bumped to {new_ver}"
+    )
+    print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
-    bump_version()
-    fix_dangling_braces_in_commit_options()
-    patch_network_options()
-    patch_config_ui()
-    print("[*] Update complete! Version 1.4.41 ready for compilation.")
-    
-    print("\n" + "="*55)
-    print("COMMIT MESSAGE TO USE:")
-    print("Fix: Apply AST Parenthesis Parsing to Eradicate Stray Braces")
-    print("\n- Bumped application version to 1.4.41")
-    print("- Replaced unstable regex with deterministic AST-level parenthesis counting.")
-    print("- Safely resolved 'unexpected }' syntax panic inside handlers.go.")
-    print("="*55 + "\n")
+    update_application()

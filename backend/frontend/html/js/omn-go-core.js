@@ -534,15 +534,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-async function syncNow() {
-            const res = await fetch('/api/sync', { method: 'POST' });
+async function syncAction(action) {
+            let force = document.getElementById('forceSyncCb') && document.getElementById('forceSyncCb').checked;
+            if (force) {
+                if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
+                    return;
+                }
+            }
+            const fd = new URLSearchParams();
+            fd.append('action', action);
+            if (force) fd.append('force', 'true');
+            
+            const res = await fetch('/api/sync', { method: 'POST', body: fd });
+            
+            if (force && document.getElementById('forceSyncCb')) {
+                document.getElementById('forceSyncCb').checked = false;
+            }
+            
             if (res.ok) {
-                alert('Sync complete!');
+                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' complete!');
                 window.location.reload();
             } else {
                 let msg = await res.text();
                 console.error('OMN-Go sync failed:', msg);
-                alert('Sync failed: ' + msg + '\n\nOpen console (F12) to copy error details.');
+                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed: ' + msg + '\n\nOpen console (F12) to copy error details.');
             }
         }
 window.addEventListener('pageshow', function(event) {

@@ -31,7 +31,9 @@
                     <button onclick="document.getElementById('bmPanel').classList.toggle('hidden')" class="admin-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
                     <a href="/Bookmarks.html"><i class="material-icons">bookmarks</i></a>
                     <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
-                    <button onclick="syncNow()" class="admin-only"><i class="material-icons">sync</i></button>
+                    <label class="admin-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
+                    <button onclick="syncAction('download')" class="admin-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
+                    <button onclick="syncAction('upload')" class="admin-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
                     <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
                     <!-- Editing controls -->
                     <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
