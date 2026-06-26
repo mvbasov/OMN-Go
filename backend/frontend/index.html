@@ -95,5 +95,22 @@
     <!-- Small Version Footer -->
     <!-- version footer now inline in #status -->
 
+
+    <script>
+        // GoOMN Log Interceptor - Bridges Go background logs to JS UI
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const logSource = new EventSource('/api/logs');
+                logSource.onmessage = function(event) {
+                    let msg = event.data.trim();
+                    if(msg) {
+                        console.log("[GO] " + msg);
+                    }
+                };
+            } catch(e) {
+                console.error("Log source error:", e);
+            }
+        });
+    </script>
 </body>
 </html>
