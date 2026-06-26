@@ -16,7 +16,6 @@ import (
 	"sort"
 	"github.com/go-git/go-git/v5/storage"
 	"time"
-	realgobase64 "encoding/base64"
 
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
@@ -24,7 +23,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	realssh "golang.org/x/crypto/ssh"
 )
 
 func getConfigPageBody() string {
@@ -329,9 +327,6 @@ func manualGitInit(dir string) error {
 	return nil
 }
 
-
-
-
 // writeTreeFromDir recursively creates a sorted git tree object from the given directory.
 // It skips .git and .gitignore, and ensures entries are sorted by name.
 func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
@@ -518,30 +513,14 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[sync] Read %d bytes from key file", len(keyBytes))
 
-		// Parse the private key with crypto/ssh (more reliable than go-git's parser)
-		var signer realssh.Signer
-		if appConfig.SyncSSHPassphrase != "" {
-			log.Printf("[sync] Passphrase provided (length %d)", len(appConfig.SyncSSHPassphrase))
-			signer, err = realssh.ParsePrivateKeyWithPassphrase(keyBytes, []byte(appConfig.SyncSSHPassphrase))
-		} else {
-			log.Printf("[sync] No passphrase")
-			signer, err = realssh.ParsePrivateKey(keyBytes)
-		}
+		// Use GetInsecureSSHAuth to bypass host key checking
+		auth, err = GetInsecureSSHAuth(sshUser, keyPath, appConfig.SyncSSHPassphrase)
 		if err != nil {
-			log.Printf("[sync] Failed to parse private key: %v", err)
-			http.Error(w, fmt.Sprintf("SSH key parse error: %v", err), 500)
+			log.Printf("[sync] GetInsecureSSHAuth error: %v", err)
+			http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
 			return
 		}
-		fp := realssh.FingerprintSHA256(signer.PublicKey())
-		keyType := signer.PublicKey().Type()
-		log.Printf("[sync] SSH key type: %s", keyType)
-		pubKeyBlob := signer.PublicKey().Marshal()
-		log.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))
-		log.Printf("[sync] SSH key fingerprint: %s", fp)
-
-		// Use go-git's ssh.PublicKeys with the signer
-		auth = &ssh.PublicKeys{User: sshUser, Signer: signer}
-		log.Printf("[sync] SSH auth method created using crypto/ssh signer")
+		log.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")
 	} else {
 		log.Printf("[sync] Error: No SSH key configured")
 		http.Error(w, "No SSH key configured", 500)
@@ -552,19 +531,6 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
-
-	// Create an empty known_hosts file to bypass go-git SSH check on Android
-	knownHostsPath := filepath.Join(storageDir, ".git", "known_hosts")
-	if _, err := os.Stat(knownHostsPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(knownHostsPath), 0755); err != nil {
-			log.Printf("[sync] Failed to create .git dir: %v", err)
-		} else if err := os.WriteFile(knownHostsPath, []byte{}, 0644); err != nil {
-			log.Printf("[sync] Failed to write known_hosts: %v", err)
-		} else {
-			log.Printf("[sync] Created empty known_hosts file")
-		}
-	}
-	os.Setenv("SSH_KNOWN_HOSTS", knownHostsPath)
 
 	// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)
 	log.Printf("[sync] Staging all changes")

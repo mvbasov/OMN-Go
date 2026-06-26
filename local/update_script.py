@@ -41,26 +41,47 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Revert the broken HostKeyCallback line back to original
-    old_broken_auth = (
-        '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer, HostKeyCallback: ssh.InsecureIgnoreHostKey()}\n'
-        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")'
-    )
-    original_auth = (
+    # 2. Replace manual SSH auth with GetInsecureSSHAuth (bypasses known_hosts)
+    old_auth_block = (
+        '\t\t// Parse the private key with crypto/ssh (more reliable than go-git\'s parser)\n'
+        '\t\tvar signer realssh.Signer\n'
+        '\t\tif appConfig.SyncSSHPassphrase != "" {\n'
+        '\t\t\tlog.Printf("[sync] Passphrase provided (length %d)", len(appConfig.SyncSSHPassphrase))\n'
+        '\t\t\tsigner, err = realssh.ParsePrivateKeyWithPassphrase(keyBytes, []byte(appConfig.SyncSSHPassphrase))\n'
+        '\t\t} else {\n'
+        '\t\t\tlog.Printf("[sync] No passphrase")\n'
+        '\t\t\tsigner, err = realssh.ParsePrivateKey(keyBytes)\n'
+        '\t\t}\n'
+        '\t\tif err != nil {\n'
+        '\t\t\tlog.Printf("[sync] Failed to parse private key: %v", err)\n'
+        '\t\t\thttp.Error(w, fmt.Sprintf("SSH key parse error: %v", err), 500)\n'
+        '\t\t\treturn\n'
+        '\t\t}\n'
+        '\t\tfp := realssh.FingerprintSHA256(signer.PublicKey())\n'
+        '\t\tkeyType := signer.PublicKey().Type()\n'
+        '\t\tlog.Printf("[sync] SSH key type: %s", keyType)\n'
+        '\t\tpubKeyBlob := signer.PublicKey().Marshal()\n'
+        '\t\tlog.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))\n'
+        '\t\tlog.Printf("[sync] SSH key fingerprint: %s", fp)\n'
+        '\n'
+        '\t\t// Use go-git\'s ssh.PublicKeys with the signer\n'
         '\t\tauth = &ssh.PublicKeys{User: sshUser, Signer: signer}\n'
         '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")'
     )
-    try:
-        patch_file("backend/handlers.go", old_broken_auth, original_auth)
-        print("✅ Reverted SSH auth to original (without HostKeyCallback).")
-    except ValueError:
-        print("⚠️ Broken auth line not found, maybe already fixed.")
-
-    # 3. Add known_hosts file creation and env setup before the SSH operations
-    # Insert right before the comment "// Stage and commit local changes first"
-    insert_marker = (
-        '\t// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)'
+    new_auth_block = (
+        '\t\t// Use GetInsecureSSHAuth to bypass host key checking\n'
+        '\t\tauth, err = GetInsecureSSHAuth(sshUser, keyPath, appConfig.SyncSSHPassphrase)\n'
+        '\t\tif err != nil {\n'
+        '\t\t\tlog.Printf("[sync] GetInsecureSSHAuth error: %v", err)\n'
+        '\t\t\thttp.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)\n'
+        '\t\t\treturn\n'
+        '\t\t}\n'
+        '\t\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer (insecure host key)")'
     )
+    patch_file("backend/handlers.go", old_auth_block, new_auth_block)
+    print("✅ Replaced manual SSH auth with GetInsecureSSHAuth call.")
+
+    # 3. Remove the now-useless known_hosts file workaround
     known_hosts_block = (
         '\t// Create an empty known_hosts file to bypass go-git SSH check on Android\n'
         '\tknownHostsPath := filepath.Join(storageDir, ".git", "known_hosts")\n'
@@ -77,18 +98,36 @@ def update_application():
         '\n'
         '\t// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)'
     )
-    if insert_marker in read_file("backend/handlers.go"):
-        patch_file("backend/handlers.go", insert_marker, known_hosts_block)
-        print("✅ Added known_hosts creation and SSH_KNOWN_HOSTS env setup.")
+    new_marker = (
+        '\t// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)'
+    )
+    if known_hosts_block in read_file("backend/handlers.go"):
+        patch_file("backend/handlers.go", known_hosts_block, new_marker)
+        print("✅ Removed useless known_hosts block.")
     else:
-        print("❌ Insert marker not found – could not add known_hosts logic.")
+        print("⚠️ known_hosts block not found (maybe already removed).")
 
-    # 4. Commit message
+    # 4. Remove unused imports: realssh and realgobase64
+    handlers = read_file("backend/handlers.go")
+    imports_to_remove = [
+        '\trealgobase64 "encoding/base64"\n',
+        '\trealssh "golang.org/x/crypto/ssh"\n'
+    ]
+    for imp in imports_to_remove:
+        if imp in handlers:
+            handlers = handlers.replace(imp, '')
+            write_file("backend/handlers.go", handlers)
+            print(f"✅ Removed unused import: {imp.strip()}")
+    # Clean any extra blank lines left by import removals
+    handlers = re.sub(r'\n\n\n+', '\n\n', read_file("backend/handlers.go"))
+    write_file("backend/handlers.go", handlers)
+
+    # 5. Print commit message
     commit_msg = (
-        "fix(sync): provide known_hosts file to bypass SSH host key check\n\n"
-        "- Create empty .git/known_hosts and set SSH_KNOWN_HOSTS env variable\n"
-        "- Avoids 'unable to find any valid known_hosts file' error during pull/push\n"
-        "- Removed broken HostKeyCallback approach that caused compile errors\n"
+        "fix(sync): use GetInsecureSSHAuth to ignore host key checking\n\n"
+        "- Replace manual crypto/ssh parsing with existing helper that sets HostKeyCallback\n"
+        "- Removes the empty known_hosts workaround which caused 'key is unknown' errors\n"
+        "- Cleans up now‑unused realssh and realgobase64 imports\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
