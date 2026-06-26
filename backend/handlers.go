@@ -614,8 +614,6 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	}
-
 	if action == "download" {
 		if force {
 			log.Printf("[sync] Force Download: Fetching and Hard Resetting")
