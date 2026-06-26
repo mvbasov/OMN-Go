@@ -43,7 +43,6 @@ func GetForcePullAndReset() bool {
 	}
 	
 	force := false
-	// FIX: Safely parse both actual booleans and stringified booleans from the JS UI
 	if valBool, ok := cfg["force_pull_one_time"].(bool); ok {
 		force = valBool
 	} else if valStr, ok := cfg["force_pull_one_time"].(string); ok {
