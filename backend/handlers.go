@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"encoding/base64"
+	realgobase64 "encoding/base64"
 
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"

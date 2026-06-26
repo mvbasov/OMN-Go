@@ -43,26 +43,20 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # Log the base64 of the public key exactly as it will be sent
-    old_log = '\t\tkeyType := signer.PublicKey().Type()\n\t\tlog.Printf("[sync] SSH key type: %s", keyType)'
-    new_log = '\t\tkeyType := signer.PublicKey().Type()\n\t\tlog.Printf("[sync] SSH key type: %s", keyType)\n\t\tpubKeyBlob := signer.PublicKey().Marshal()\n\t\tlog.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))'
-    apply_fix("backend/handlers.go", old_log, new_log, 'pubKeyBlob := signer.PublicKey().Marshal()')
+    # Fix the import: replace unaliased "encoding/base64" with realgobase64 alias
+    apply_fix("backend/handlers.go",
+              '\t"encoding/base64"',
+              '\trealgobase64 "encoding/base64"',
+              'realgobase64 "encoding/base64"')
 
-    # Ensure encoding/base64 is imported (as realgobase64 to avoid conflict)
-    h_path = "backend/handlers.go"
-    h = read_file(h_path)
-    if '"encoding/base64"' not in h:
-        # Insert after "time" import or similar
-        h = h.replace('"time"', '"time"\n\t"encoding/base64"')
-        write_file(h_path, h)
-
-    # Also add an alias for base64 if needed
-    if 'realgobase64' not in h and '"encoding/base64"' in h:
-        h = h.replace('"encoding/base64"', 'realgobase64 "encoding/base64"')
-        write_file(h_path, h)
+    # Ensure the log line uses realgobase64 (already present, but just in case)
+    apply_fix("backend/handlers.go",
+              'log.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))',
+              'log.Printf("[sync] SSH public key blob (base64): %s", realgobase64.StdEncoding.EncodeToString(pubKeyBlob))',
+              'realgobase64.StdEncoding.EncodeToString')
 
     commit_msg = (
-        "feat(sync): log SSH public key blob for server-side comparison\n\n"
+        "fix(build): correct encoding/base64 import alias\n\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
