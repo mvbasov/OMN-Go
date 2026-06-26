@@ -502,11 +502,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	if !status.IsClean() {
 		log.Printf("[sync] Uncommitted changes detected, committing")
 		_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  GetConfigAuthor(),
-			Email: "sync@omn-go.local",
-			When:  time.Now(),
-		},},
+			Author: &object.Signature{
+				Name:  GetConfigAuthor(),
+				Email: "sync@omn-go.local",
+				When:  time.Now(),
+			},
 		})
 		if err != nil {
 			log.Printf("[sync] Commit error: %v", err)
