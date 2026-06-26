@@ -12,9 +12,9 @@ echo -e "${YELLOW}  GoOMN Offline Asset Downloader${NC}"
 echo -e "${BLUE}=======================================${NC}"
 
 # Define target directories (aligning with backend restructuring)
-JS_DIR="backend/frontend/js"
-CSS_DIR="backend/frontend/css"
-FONT_DIR="backend/frontend/css/fonts"
+JS_DIR="backend/frontend/html/js"
+CSS_DIR="backend/frontend/html/css"
+FONT_DIR="backend/frontend/html/css/fonts"
 
 # Create directories if they don't exist
 mkdir -p "$JS_DIR"
@@ -37,11 +37,11 @@ download_file() {
     fi
 }
 
-# 1. Download Marked.js (Markdown parser)
-download_file "https://cdn.jsdelivr.net/npm/marked/marked.min.js" "$JS_DIR/marked.min.js" "Marked.js"
+## 1. Download Marked.js (Markdown parser)
+#download_file "https://cdn.jsdelivr.net/npm/marked/marked.min.js" "$JS_DIR/marked.min.js" "Marked.js"
 
 # 2. Download DOMPurify (Crucial for sanitizing marked.js output securely)
-download_file "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" "$JS_DIR/purify.min.js" "DOMPurify"
+#download_file "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" "$JS_DIR/purify.min.js" "DOMPurify"
 
 # 3. Download a minimal Markdown CSS styling (e.g., Github Markdown CSS)
 download_file "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css" "$CSS_DIR/markdown.css" "Markdown CSS"
