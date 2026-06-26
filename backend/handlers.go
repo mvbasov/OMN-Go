@@ -22,6 +22,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/storage"
 	realssh "golang.org/x/crypto/ssh"
 )
 
@@ -330,7 +331,7 @@ func manualGitInit(dir string) error {
 
 // buildTreeFromWorktree walks the storage directory and creates a Git tree object,
 // returning the tree hash. This avoids Worktree.WriteTree / user.Current() calls.
-func buildTreeFromWorktree(dir string, storer git.Storer) (plumbing.Hash, error) {
+func buildTreeFromWorktree(dir string, storer storage.Storer) (plumbing.Hash, error) {
 	entries := make(map[string]*object.TreeEntry)
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
