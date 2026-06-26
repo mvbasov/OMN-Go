@@ -13,7 +13,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
+	"sort"
+	"github.com/go-git/go-git/v5/storage"
 	"time"
 	realgobase64 "encoding/base64"
 
@@ -331,6 +332,67 @@ func manualGitInit(dir string) error {
 
 
 
+// writeTreeFromDir recursively creates a sorted git tree object from the given directory.
+// It skips .git and .gitignore, and ensures entries are sorted by name.
+func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return plumbing.Hash{}, err
+	}
+	// Sort directory entries for deterministic order
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+	entries := []object.TreeEntry{}
+	for _, f := range files {
+		if f.Name() == ".git" || f.Name() == ".gitignore" {
+			continue
+		}
+		fullPath := filepath.Join(dir, f.Name())
+		if f.IsDir() {
+			subTreeHash, err := writeTreeFromDir(fullPath, storer)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			entries = append(entries, object.TreeEntry{
+				Name: f.Name(),
+				Mode: 0040000,
+				Hash: subTreeHash,
+			})
+		} else {
+			data, err := os.ReadFile(fullPath)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			blobObj := storer.NewEncodedObject()
+			blobObj.SetType(plumbing.BlobObject)
+			blobObj.SetSize(int64(len(data)))
+			w, err := blobObj.Writer()
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			if _, err = w.Write(data); err != nil {
+				return plumbing.Hash{}, err
+			}
+			w.Close()
+			blobHash, err := storer.SetEncodedObject(blobObj)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			entries = append(entries, object.TreeEntry{
+				Name: f.Name(),
+				Mode: 0100644,
+				Hash: blobHash,
+			})
+		}
+	}
+	// Build tree object
+	treeObj := object.Tree{Entries: entries}
+	encoded := storer.NewEncodedObject()
+	if err := treeObj.Encode(encoded); err != nil {
+		return plumbing.Hash{}, err
+	}
+	return storer.SetEncodedObject(encoded)
+}
+
 func handleSync(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[sync] Request received")
 	if r.Method != "POST" {
@@ -491,13 +553,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
-	// Stage and commit local changes first (manual commit to avoid os/user on Android)
+	// Stage and commit local changes first (manual tree & commit to avoid os/user on Android)
 	log.Printf("[sync] Staging all changes")
 	_, err = wTree.Add(".")
 	if err == nil {
 		status, _ := wTree.Status()
 		if !status.IsClean() {
-			log.Printf("[sync] Uncommitted changes detected, committing")
+			log.Printf("[sync] Uncommitted changes detected, building commit manually")
 			authorName := GetConfigAuthor()
 			authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 			sig := &object.Signature{
@@ -505,20 +567,44 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 				Email: authorEmail,
 				When:  time.Now(),
 			}
-			log.Printf("[sync] Attempting commit with author=%q, email=%q", sig.Name, sig.Email)
-			_, err = wTree.Commit("Local changes before sync", &git.CommitOptions{
-				Author:    sig,
-				Committer: sig, // CRITICAL: both set to avoid os/user.Current() on Android
-			})
+
+			// Build sorted git tree from the working directory
+			treeHash, err := writeTreeFromDir(storageDir, repo.Storer)
 			if err != nil {
-				log.Printf("[sync] Commit error: %v (type: %T)", err, err)
-				log.Printf("[sync] Commit options – Author: %v, Committer: %v", sig, sig)
-				log.Printf("[sync] Worktree status – IsClean: %v", status.IsClean())
-				// Dump the underlying system error if it's a syscall error
-				if errno, ok := err.(syscall.Errno); ok {
-					log.Printf("[sync] System call error number: %d", errno)
-				}
-				log.Printf("[sync] Full error: %#v", err)
+				log.Printf("[sync] writeTreeFromDir error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			// Build commit object manually
+			headRef, errHead := repo.Head()
+			var parents []plumbing.Hash
+			if errHead == nil {
+				parents = []plumbing.Hash{headRef.Hash()}
+			}
+			commit := &object.Commit{
+				Author:       *sig,
+				Committer:    *sig,
+				Message:      "Local changes before sync",
+				TreeHash:     treeHash,
+				ParentHashes: parents,
+			}
+			obj := repo.Storer.NewEncodedObject()
+			if err = commit.Encode(obj); err != nil {
+				log.Printf("[sync] Commit encode error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			commitHash, err := repo.Storer.SetEncodedObject(obj)
+			if err != nil {
+				log.Printf("[sync] Store commit error: %v", err)
+				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+				return
+			}
+			// Update master branch
+			refName := plumbing.NewBranchReferenceName("master")
+			err = repo.Storer.SetReference(plumbing.NewHashReference(refName, commitHash))
+			if err != nil {
+				log.Printf("[sync] SetReference error: %v", err)
 				http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 				return
 			}
