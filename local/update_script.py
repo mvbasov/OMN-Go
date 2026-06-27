@@ -38,7 +38,7 @@ def replace_function_ast(content, func_name, new_code):
     return content[:start_idx] + new_code + "\n" + content[end_idx:], True
 
 def update_application():
-    print("[ ] Starting Android FS flock() ENOSYS Bypass...")
+    print("[ ] Starting Android FS flock() ENOSYS Bypass & Import Fix...")
     
     # 1. Auto-detect and bump version
     ver_path = "backend/version.go"
@@ -178,7 +178,7 @@ func (f *NoLockFile) Unlock() error {
     else:
         print("[-] getOrInitRepo not found!")
 
-    # 6. Dynamic Import Scanner (Adding the new go-billy / filesystem storer dependencies)
+    # 6. Dynamic Import Scanner (Adding storage, go-billy, cache)
     imports = set([
         '"github.com/go-git/go-git/v5"',
         'gitconfig "github.com/go-git/go-git/v5/config"',
@@ -187,6 +187,7 @@ func (f *NoLockFile) Unlock() error {
         '"github.com/go-git/go-git/v5/plumbing/transport"',
         '"github.com/go-git/go-billy/v5"',
         '"github.com/go-git/go-billy/v5/osfs"',
+        '"github.com/go-git/go-git/v5/storage"',             # <-- Restored missing storage
         '"github.com/go-git/go-git/v5/storage/filesystem"',
         '"github.com/go-git/go-git/v5/plumbing/cache"'
     ])
@@ -199,7 +200,7 @@ func (f *NoLockFile) Unlock() error {
     if re.search(r'\bstrings\.', body_code): imports.add('"strings"')
     if re.search(r'\btime\.', body_code): imports.add('"time"')
     if re.search(r'\bio\.', body_code): imports.add('"io"')
-    if re.search(r'\bfs\.', body_code): imports.add('"io/fs"')
+    # Removed the buggy io/fs scanner line
     if re.search(r'\bbytes\.', body_code): imports.add('"bytes"')
     if re.search(r'\bsort\.', body_code): imports.add('"sort"')
 
@@ -216,10 +217,9 @@ func (f *NoLockFile) Unlock() error {
     print(f"[+] Reconstructed backend/git_helper.go with correct imports")
 
     commit_msg = (
-        "fix(git): implement NoLockFS to bypass Android ENOSYS crash\n\n"
-        "- Injected billy.Filesystem wrapper to neutralize Lock() on Android\n"
-        "- Refactored getOrInitRepo() to boot go-git using custom mocked filesystem\n"
-        "- Added required imports for go-billy and go-git cache\n"
+        "fix(git): rectify import generation bugs in flock() bypass patch\n\n"
+        "- Restored missing go-git/v5/storage package required by Storer\n"
+        "- Removed overzealous io/fs regex that triggered unused import panic\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
