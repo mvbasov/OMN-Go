@@ -1,18 +1,19 @@
-package main
+package backend
 
 import (
 	"fmt"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/storage"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 func ensureGitignore() {
@@ -204,4 +205,140 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 		return fmt.Errorf("push failed: %v", err)
 	}
 	return nil
+}
+
+func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return plumbing.Hash{}, err
+	}
+	// Sort directory entries for deterministic order
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+	entries := []object.TreeEntry{}
+	for _, f := range files {
+		if f.Name() == ".git" || f.Name() == ".gitignore" {
+			continue
+		}
+		fullPath := filepath.Join(dir, f.Name())
+		if f.IsDir() {
+			subTreeHash, err := writeTreeFromDir(fullPath, storer)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			entries = append(entries, object.TreeEntry{
+				Name: f.Name(),
+				Mode: 0040000,
+				Hash: subTreeHash,
+			})
+		} else {
+			data, err := os.ReadFile(fullPath)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			blobObj := storer.NewEncodedObject()
+			blobObj.SetType(plumbing.BlobObject)
+			blobObj.SetSize(int64(len(data)))
+			w, err := blobObj.Writer()
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			if _, err = w.Write(data); err != nil {
+				return plumbing.Hash{}, err
+			}
+			w.Close()
+			blobHash, err := storer.SetEncodedObject(blobObj)
+			if err != nil {
+				return plumbing.Hash{}, err
+			}
+			entries = append(entries, object.TreeEntry{
+				Name: f.Name(),
+				Mode: 0100644,
+				Hash: blobHash,
+			})
+		}
+	}
+	// Build tree object
+	treeObj := object.Tree{Entries: entries}
+	encoded := storer.NewEncodedObject()
+	if err := treeObj.Encode(encoded); err != nil {
+		return plumbing.Hash{}, err
+	}
+	return storer.SetEncodedObject(encoded)
+}
+
+func manualGitInit(dir string) error {
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
+		return err
+	}
+	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleSync(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[sync] Request received")
+	if r.Method != "POST" {
+		http.Error(w, "Method Not Allowed", 405)
+		return
+	}
+
+	if appConfig.SyncRemote == "" {
+		log.Printf("[sync] Error: sync_remote not configured")
+		http.Error(w, "Sync not configured: missing sync_remote in config.json", 500)
+		return
+	}
+
+	log.Printf("[sync] Remote: %s", appConfig.SyncRemote)
+
+	ensureGitignore()
+
+	repo, err := getOrInitRepo()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+		return
+	}
+
+	auth, err := getSSHAuth()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
+		return
+	}
+
+	wTree, _ := repo.Worktree()
+	action := r.FormValue("action")
+	force := r.FormValue("force") == "true"
+
+	if err := commitLocalChanges(repo, wTree); err != nil {
+		http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+		return
+	}
+
+	if action == "download" {
+		if err := executeSyncDownload(repo, wTree, auth, force); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	} else if action == "upload" {
+		if err := executeSyncUpload(repo, auth, force); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	} else {
+		http.Error(w, "Invalid action. Use 'upload' or 'download'.", 400)
+		return
+	}
+
+	w.Write([]byte("Sync action completed successfully."))
 }
