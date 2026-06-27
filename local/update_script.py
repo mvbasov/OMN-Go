@@ -16,8 +16,29 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
+def replace_function_ast(content, func_name, new_code):
+    start_idx = content.find(f"func {func_name}(")
+    if start_idx == -1:
+        return content, False
+    
+    brace_start = content.find("{", start_idx)
+    if brace_start == -1:
+        return content, False
+
+    brace_count = 1
+    idx = brace_start + 1
+    while idx < len(content) and brace_count > 0:
+        if content[idx] == '{':
+            brace_count += 1
+        elif content[idx] == '}':
+            brace_count -= 1
+        idx += 1
+
+    end_idx = idx
+    return content[:start_idx] + new_code + "\n" + content[end_idx:], True
+
 def update_application():
-    print("[ ] Starting Final Dependency Sync & Build Fix...")
+    print("[ ] Starting Android FS flock() ENOSYS Bypass...")
     
     # 1. Auto-detect and bump version
     ver_path = "backend/version.go"
@@ -41,65 +62,133 @@ def update_application():
     write_file(gradle_path, gradle)
     print(f"[+] Bumped version in {gradle_path}")
 
-    # 3. Clean up orphaned "sort" import from handlers.go
-    handlers_path = "backend/handlers.go"
-    handlers_code = read_file(handlers_path)
-    handlers_code = re.sub(r'(?m)^\s*"sort"\s*\n', '', handlers_code)
-    handlers_code = re.sub(r'(?m)^\s*import\s+"sort"\s*\n', '', handlers_code)
-    handlers_code = re.sub(r'import\s*\(\s*\)', '', handlers_code) # Clean empty blocks
-    write_file(handlers_path, handlers_code)
-    print("[+] Cleared unused 'sort' import from handlers.go")
-
-    # 4. Read git_helper.go and parse its namespace
+    # 3. Read git_helper.go
     git_helper_path = "backend/git_helper.go"
     git_helper_code = read_file(git_helper_path)
     
     pkg_match = re.search(r'^package\s+([a-zA-Z0-9_]+)', git_helper_code, re.MULTILINE)
     pkg_decl = pkg_match.group(0) if pkg_match else "package backend"
 
-    # Remove existing import blocks safely so we can perfectly reconstruct them
+    # Remove existing import blocks safely so we can reconstruct them with go-billy
     body_code = re.sub(r'import\s*\([\s\S]*?\)', '', git_helper_code)
     body_code = re.sub(r'import\s+"[^"]+"\n', '', body_code)
     body_code = body_code.replace(pkg_decl, "").strip()
 
-    # 5. Inject missing GetConfigAuthor if it doesn't exist
-    if "func GetConfigAuthor" not in body_code:
-        author_func = """
-func GetConfigAuthor() string {
-\tif appConfig.Author != "" {
-\t\treturn appConfig.Author
-\t}
-\treturn "OMN-Go User"
+    # 4. Inject the Custom Android FS Wrapper if it doesn't exist
+    if "type NoLockFS struct" not in body_code:
+        no_lock_impl = """
+// --- Android Flock() Bypass ---
+// Android's sdcardfs does not implement file locking (ENOSYS / function not implemented).
+// This wrapper neutralizes Lock() calls gracefully across go-git operations.
+
+type NoLockFS struct {
+\tbilly.Filesystem
+}
+
+func (fs *NoLockFS) Create(filename string) (billy.File, error) {
+\tf, err := fs.Filesystem.Create(filename)
+\tif err != nil { return nil, err }
+\treturn &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Open(filename string) (billy.File, error) {
+\tf, err := fs.Filesystem.Open(filename)
+\tif err != nil { return nil, err }
+\treturn &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) OpenFile(filename string, flag int, perm os.FileMode) (billy.File, error) {
+\tf, err := fs.Filesystem.OpenFile(filename, flag, perm)
+\tif err != nil { return nil, err }
+\treturn &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) TempFile(dir, prefix string) (billy.File, error) {
+\tf, err := fs.Filesystem.TempFile(dir, prefix)
+\tif err != nil { return nil, err }
+\treturn &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Chroot(path string) (billy.Filesystem, error) {
+\tc, err := fs.Filesystem.Chroot(path)
+\tif err != nil { return nil, err }
+\treturn &NoLockFS{c}, nil
+}
+
+type NoLockFile struct {
+\tbilly.File
+}
+
+func (f *NoLockFile) Lock() error {
+\treturn nil // Safely bypass Android flock ENOSYS
+}
+
+func (f *NoLockFile) Unlock() error {
+\treturn nil // Safely bypass Android flock ENOSYS
 }
 """
-        body_code += author_func
-        print("[+] Injected missing GetConfigAuthor() fallback")
+        body_code += no_lock_impl
+        print("[+] Injected Android NoLockFS middleware wrapper")
 
-    # 6. Inject bulletproof GetInsecureSSHAuth if it doesn't exist
-    if "func GetInsecureSSHAuth" not in body_code:
-        ssh_auth_impl = """
-func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
-\tpublicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
+    # 5. Overwrite getOrInitRepo to utilize the new NoLockFS Wrapper
+    repo_init_code = """func getOrInitRepo() (*git.Repository, error) {
+\tlog.Printf("[sync] Opening repo at %s", storageDir)
+\t
+\tbaseFS := osfs.New(storageDir)
+\twtFS := &NoLockFS{baseFS}
+\tdotFS, err := wtFS.Chroot(".git")
 \tif err != nil {
-\t\treturn nil, err
+\t\treturn nil, fmt.Errorf("chroot .git failed: %v", err)
 \t}
-\tpublicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
-\t\tHostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
+\t
+\tstorer := filesystem.NewStorage(dotFS, cache.NewObjectLRUDefault())
+\trepo, err := git.Open(storer, wtFS)
+\t
+\tif err != nil {
+\t\tlog.Printf("[sync] Repo not found, initializing...")
+\t\tif initErr := manualGitInit(storageDir); initErr != nil {
+\t\t\treturn nil, fmt.Errorf("manual init failed: %v", initErr)
+\t\t}
+\t\trepo, err = git.Open(storer, wtFS)
+\t\tif err != nil {
+\t\t\treturn nil, fmt.Errorf("failed to open manually created repo: %v", err)
+\t\t}
+\t\tlog.Printf("[sync] Repo initialized")
+\t} else {
+\t\tlog.Printf("[sync] Repo opened successfully")
 \t}
-\treturn publicKeys, nil
-}
-"""
-        body_code += ssh_auth_impl
-        print("[+] Injected robust GetInsecureSSHAuth() implementation")
 
-    # 7. Dynamic Import Scanner (Now strictly enforcing 'sort' and 'crypto/ssh')
+\t_, err = repo.Remote("origin")
+\tif err != nil {
+\t\tlog.Printf("[sync] Remote origin missing, adding")
+\t\t_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+\t\t\tName: "origin",
+\t\t\tURLs: []string{appConfig.SyncRemote},
+\t\t})
+\t\tif err != nil {
+\t\t\treturn nil, fmt.Errorf("remote add failed: %v", err)
+\t\t}
+\t}
+\treturn repo, nil
+}"""
+    
+    body_code, success = replace_function_ast(body_code, "getOrInitRepo", repo_init_code)
+    if success:
+        print("[+] Wired getOrInitRepo() to route through NoLockFS interceptor")
+    else:
+        print("[-] getOrInitRepo not found!")
+
+    # 6. Dynamic Import Scanner (Adding the new go-billy / filesystem storer dependencies)
     imports = set([
         '"github.com/go-git/go-git/v5"',
         'gitconfig "github.com/go-git/go-git/v5/config"',
         '"github.com/go-git/go-git/v5/plumbing"',
         '"github.com/go-git/go-git/v5/plumbing/object"',
         '"github.com/go-git/go-git/v5/plumbing/transport"',
-        '"github.com/go-git/go-git/v5/storage"'
+        '"github.com/go-git/go-billy/v5"',
+        '"github.com/go-git/go-billy/v5/osfs"',
+        '"github.com/go-git/go-git/v5/storage/filesystem"',
+        '"github.com/go-git/go-git/v5/plumbing/cache"'
     ])
 
     if re.search(r'\bfmt\.', body_code): imports.add('"fmt"')
@@ -114,7 +203,6 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
     if re.search(r'\bbytes\.', body_code): imports.add('"bytes"')
     if re.search(r'\bsort\.', body_code): imports.add('"sort"')
 
-    # Smart SSH resolution (Guaranteed to trigger now because of the injected function)
     if re.search(r'\bgitssh\.', body_code):
         imports.add('gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"')
     if re.search(r'\bcryptossh\.', body_code):
@@ -122,17 +210,16 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 
     import_block = "import (\n\t" + "\n\t".join(sorted(list(imports))) + "\n)"
 
-    # 8. Write the finalized file
+    # 7. Write the finalized file
     final_git_helper = f"{pkg_decl}\n\n{import_block}\n\n{body_code}\n"
     write_file(git_helper_path, final_git_helper)
-    print(f"[+] Reconstructed backend/git_helper.go with missing functions and correct imports")
+    print(f"[+] Reconstructed backend/git_helper.go with correct imports")
 
     commit_msg = (
-        "fix(git): resolve missing function dependencies and unused imports\n\n"
-        "- Removed orphaned 'sort' import from handlers.go\n"
-        "- Injected GetConfigAuthor safety fallback into git_helper.go\n"
-        "- Injected robust GetInsecureSSHAuth implementation for go-git\n"
-        "- Dynamically hydrated missing 'sort' and 'crypto/ssh' imports\n"
+        "fix(git): implement NoLockFS to bypass Android ENOSYS crash\n\n"
+        "- Injected billy.Filesystem wrapper to neutralize Lock() on Android\n"
+        "- Refactored getOrInitRepo() to boot go-git using custom mocked filesystem\n"
+        "- Added required imports for go-billy and go-git cache\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

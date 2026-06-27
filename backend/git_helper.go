@@ -2,11 +2,15 @@ package backend
 
 import (
 	"fmt"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/storage"
+	"github.com/go-git/go-git/v5/storage/filesystem"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -45,19 +49,25 @@ func ensureGitignore() {
 
 func getOrInitRepo() (*git.Repository, error) {
 	log.Printf("[sync] Opening repo at %s", storageDir)
-	repo, err := git.PlainOpen(storageDir)
+	
+	baseFS := osfs.New(storageDir)
+	wtFS := &NoLockFS{baseFS}
+	dotFS, err := wtFS.Chroot(".git")
+	if err != nil {
+		return nil, fmt.Errorf("chroot .git failed: %v", err)
+	}
+	
+	storer := filesystem.NewStorage(dotFS, cache.NewObjectLRUDefault())
+	repo, err := git.Open(storer, wtFS)
+	
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
-		repo, err = git.PlainInit(storageDir, false)
+		if initErr := manualGitInit(storageDir); initErr != nil {
+			return nil, fmt.Errorf("manual init failed: %v", initErr)
+		}
+		repo, err = git.Open(storer, wtFS)
 		if err != nil {
-			log.Printf("[sync] git.PlainInit failed: %v; attempting manual init", err)
-			if initErr := manualGitInit(storageDir); initErr != nil {
-				return nil, fmt.Errorf("manual init failed: %v", initErr)
-			}
-			repo, err = git.PlainOpen(storageDir)
-			if err != nil {
-				return nil, fmt.Errorf("failed to open manually created repo: %v", err)
-			}
+			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
 		log.Printf("[sync] Repo initialized")
 	} else {
@@ -77,6 +87,7 @@ func getOrInitRepo() (*git.Repository, error) {
 	}
 	return repo, nil
 }
+
 
 func getSSHAuth() (transport.AuthMethod, error) {
 	sshUser := "git"
@@ -361,5 +372,54 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
 	}
 	return publicKeys, nil
+}
+// --- Android Flock() Bypass ---
+// Android's sdcardfs does not implement file locking (ENOSYS / function not implemented).
+// This wrapper neutralizes Lock() calls gracefully across go-git operations.
+
+type NoLockFS struct {
+	billy.Filesystem
+}
+
+func (fs *NoLockFS) Create(filename string) (billy.File, error) {
+	f, err := fs.Filesystem.Create(filename)
+	if err != nil { return nil, err }
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Open(filename string) (billy.File, error) {
+	f, err := fs.Filesystem.Open(filename)
+	if err != nil { return nil, err }
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) OpenFile(filename string, flag int, perm os.FileMode) (billy.File, error) {
+	f, err := fs.Filesystem.OpenFile(filename, flag, perm)
+	if err != nil { return nil, err }
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) TempFile(dir, prefix string) (billy.File, error) {
+	f, err := fs.Filesystem.TempFile(dir, prefix)
+	if err != nil { return nil, err }
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Chroot(path string) (billy.Filesystem, error) {
+	c, err := fs.Filesystem.Chroot(path)
+	if err != nil { return nil, err }
+	return &NoLockFS{c}, nil
+}
+
+type NoLockFile struct {
+	billy.File
+}
+
+func (f *NoLockFile) Lock() error {
+	return nil // Safely bypass Android flock ENOSYS
+}
+
+func (f *NoLockFile) Unlock() error {
+	return nil // Safely bypass Android flock ENOSYS
 }
 
