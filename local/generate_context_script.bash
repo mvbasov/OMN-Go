@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUR_OMN_GO_VER="1.4.43"
-CUR_OMN_GO_VER_A="10443"
+CUR_OMN_GO_VER="1.5.5"
+CUR_OMN_GO_VER_A="10505"
 
 # Define color codes for output
 GREEN='\033[0;32m'
@@ -42,6 +42,7 @@ FILES=(
     "backend/frontend/index.html"
     "backend/frontend/html/css/omn-go-core.css"
     "backend/frontend/html/js/omn-go-core.js"
+    "backend/frontend/html/js/omn-go-sse.js"
     "android/build.gradle"
     "android/settings.gradle"
     "android/app/build.gradle"

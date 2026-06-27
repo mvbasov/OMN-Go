@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="/css/omn-go-core.css">
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
+    <script src="/js/omn-go-core.js" defer></script>
+    <script src="/js/omn-go-sse.js" defer></script>
 </head>
 <body>
     
@@ -86,8 +88,6 @@
     <script>
         /* OMN_GO_PAGE_NAME_JS */
     </script>
-    <script src="/js/omn-go-core.js"></script>
-    <script src="/js/omn-go-sse.js"></script>
 
     <!-- Code & Math Formatting Assets -->
     <script src="/js/highlight.min.js"></script>
@@ -97,22 +97,5 @@
     <!-- Small Version Footer -->
     <!-- version footer now inline in #status -->
 
-
-    <script>
-        // GoOMN Log Interceptor - Bridges Go background logs to JS UI
-        document.addEventListener('DOMContentLoaded', () => {
-            try {
-                const logSource = new EventSource('/api/logs');
-                logSource.onmessage = function(event) {
-                    let msg = event.data.trim();
-                    if(msg) {
-                        console.log("[GO] " + msg);
-                    }
-                };
-            } catch(e) {
-                console.error("Log source error:", e);
-            }
-        });
-    </script>
 </body>
 </html>

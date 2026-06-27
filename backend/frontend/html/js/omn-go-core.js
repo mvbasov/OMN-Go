@@ -184,48 +184,7 @@ if (typeof currentNote === 'undefined') {
         }
         document.addEventListener('DOMContentLoaded', setupPreviewLinkInterceptor);
 
-        async function loadNoteIntoEditor() {
-            const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
-            if (res.ok) {
-                document.getElementById('editor').value = await res.text();
-            }
-        }
-
         let currentMode = 'view';
-        async function toggleMode() {
-            if (currentMode === 'view') {
-                if (typeof USE_INTERNAL_ED !== 'undefined' && !USE_INTERNAL_ED) {
-                    var ext = (typeof PAGE_EXT !== 'undefined' && PAGE_EXT) ? PAGE_EXT : '.md';
-                    window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote + ext));
-                    return;
-                }
-
-                await loadNoteIntoEditor();
-
-                const editor = document.getElementById('editor');
-                const preview = document.getElementById('preview');
-                const btn = document.getElementById('toggleBtn');
-
-                editor.style.display = 'block';
-                preview.style.display = 'none';
-                btn.innerHTML = '<i class="material-icons" title="Switch to View Mode">visibility</i>';
-                document.getElementById('saveBtn').style.display = 'block';
-                document.getElementById('metaToggleBtn').style.display = 'none';
-                document.getElementById('metadataPanel').classList.add('hidden');
-                currentMode = 'edit';
-            } else {
-                const editor = document.getElementById('editor');
-                const preview = document.getElementById('preview');
-                const btn = document.getElementById('toggleBtn');
-
-                editor.style.display = 'none';
-                preview.style.display = 'block';
-                btn.innerHTML = '<i class="material-icons" title="Switch to Edit Mode">edit</i>';
-                document.getElementById('saveBtn').style.display = 'none';
-                document.getElementById('metaToggleBtn').style.display = 'block';
-                currentMode = 'view';
-            }
-        }
 
         // Global Drag & Drop for URLs (Bookmarks)
         document.body.addEventListener('dragover', e => {
@@ -249,44 +208,6 @@ if (typeof currentNote === 'undefined') {
             }
         });
 
-        // Image Drag & Drop
-        function setupEditorDragDrop() {
-            const editor = document.getElementById('editor');
-            if (!editor) return;
-            editor.addEventListener('dragover', e => e.preventDefault());
-            editor.addEventListener('drop', async e => {
-            e.preventDefault();
-            if(e.dataTransfer.files.length > 0) {
-                const fd = new FormData();
-                fd.append('image', e.dataTransfer.files[0]);
-                const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                if(res.ok) {
-                    const text = await res.text();
-                    const cursor = editor.selectionStart;
-                    editor.value = editor.value.substring(0, cursor) + text + editor.value.substring(cursor);
-                    editor.dispatchEvent(new Event('input'));
-                }
-            }
-        });
-        }
-        document.addEventListener('DOMContentLoaded', setupEditorDragDrop);
-
-        async function login() {
-            const pwd = document.getElementById('pwdInput').value;
-            const res = await fetch('/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'password=' + encodeURIComponent(pwd)
-            });
-            if(res.ok) {
-                document.getElementById('loginOverlay').style.display = 'none';
-                document.getElementById('mainUI').style.display = 'flex';
-                checkRole();
-            } else {
-                alert('Invalid Password');
-            }
-        }
-
         function checkRole() {
             if(document.cookie.includes('session_role=guest')) {
                 document.querySelectorAll('.admin-only').forEach(el => {
@@ -299,88 +220,6 @@ if (typeof currentNote === 'undefined') {
         function toCamelCase(str) {
             let words = str.split(/[-_\s]+/);
             return words.map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
-        }
-
-        async function createNewPage() {
-            let title = prompt("Enter New Page Title:");
-            if (!title) return;
-            let camel = toCamelCase(title);
-            let safeName = camel.replace(/[^a-zA-Z0-9-]/g, '-');
-            let fileName = prompt("Confirm File Name:", safeName);
-            if (!fileName) return;
-
-            let src = typeof currentNote !== 'undefined' ? currentNote : 'Welcome';
-            const fd = new URLSearchParams();
-            fd.append('source', src);
-            fd.append('target', fileName);
-            fd.append('title', title);
-
-            const res = await fetch('/api/newpage', { method: 'POST', body: fd });
-            if (res.ok) {
-                window.location.href = '/' + fileName + '.html?edit=true';
-            } else {
-                alert("Failed to create new page!");
-            }
-        }
-
-        async function saveNote() {
-            let content = document.getElementById('editor').value;
-            const fd = new URLSearchParams();
-            fd.append('name', currentNote);
-            fd.append('content', content);
-            const res = await fetch('/api/save', { method: 'POST', body: fd });
-            if(res.ok) {
-                alert('Note saved!');
-                window.location.reload();
-            } else {
-                alert('Failed to save!');
-            }
-        }
-
-        async function submitQuickNote() {
-            const fd = new URLSearchParams();
-            fd.append('note', document.getElementById('quickText').value);
-            const res = await fetch('/api/quick', { method: 'POST', body: fd });
-            if(res.ok) {
-                document.getElementById('quickText').value = '';
-                document.getElementById('quickPanel').classList.add('hidden');
-                alert('Saved!');
-                window.location.reload();
-            }
-        }
-
-        async function submitBookmark() {
-            const fd = new URLSearchParams();
-            fd.append('url', document.getElementById('bmUrl').value);
-            fd.append('title', document.getElementById('bmTitle').value);
-            fd.append('tags', document.getElementById('bmTags').value);
-            fd.append('notes', document.getElementById('bmNotes').value);
-            const res = await fetch('/api/bookmark', { method: 'POST', body: fd });
-            if(res.ok) {
-                document.getElementById('bmPanel').classList.add('hidden');
-                document.querySelectorAll('#bmPanel input, #bmPanel textarea').forEach(el => el.value = '');
-                alert('Saved!');
-                window.location.reload();
-            }
-        }
-
-        async function checkSession() {
-            // Unhide UI if role cookies exist
-            if (document.cookie.includes('session_role=')) {
-                document.getElementById('loginOverlay').style.display = 'none';
-                document.getElementById('mainUI').style.display = 'flex';
-                checkRole();
-            } else {
-                // Check if server is configured with public role or check backend
-                const test = await fetch('/api/config');
-                if (test.status === 401) {
-                    document.getElementById('loginOverlay').style.display = 'flex';
-                    document.getElementById('mainUI').style.display = 'none';
-                } else {
-                    document.getElementById('loginOverlay').style.display = 'none';
-                    document.getElementById('mainUI').style.display = 'flex';
-                }
-            }
         }
 
         window.handleShare = function(text, subject) {
