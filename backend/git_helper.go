@@ -11,9 +11,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+	cryptossh "golang.org/x/crypto/ssh"
 	gitconfig "github.com/go-git/go-git/v5/config"
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 func ensureGitignore() {
@@ -342,3 +345,21 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Sync action completed successfully."))
 }
+func GetConfigAuthor() string {
+	if appConfig.Author != "" {
+		return appConfig.Author
+	}
+	return "OMN-Go User"
+}
+
+func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
+	publicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
+	if err != nil {
+		return nil, err
+	}
+	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
+	}
+	return publicKeys, nil
+}
+

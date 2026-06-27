@@ -16,39 +16,8 @@ def increment_version(ver_str):
         return ".".join(parts)
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
-def extract_and_remove_function(content, func_name):
-    """
-    AST-style parser that finds a function, extracts its exact body mathematically 
-    using brace counting, and seamlessly removes it from the parent source file.
-    """
-    start_idx = content.find(f"func {func_name}(")
-    if start_idx == -1:
-        return content, ""
-
-    brace_start = content.find("{", start_idx)
-    if brace_start == -1:
-        return content, ""
-
-    brace_count = 1
-    idx = brace_start + 1
-    while idx < len(content) and brace_count > 0:
-        if content[idx] == '{':
-            brace_count += 1
-        elif content[idx] == '}':
-            brace_count -= 1
-        idx += 1
-
-    end_idx = idx
-    func_code = content[start_idx:end_idx]
-    
-    # Remove it completely from the original content, bridging the gap gracefully
-    prefix = content[:start_idx].rstrip()
-    suffix = content[end_idx:].lstrip()
-    new_content = prefix + "\n\n" + suffix
-    return new_content, func_code
-
 def update_application():
-    print("[ ] Starting Git Package Consolidation & Cleanup...")
+    print("[ ] Starting Final Dependency Sync & Build Fix...")
     
     # 1. Auto-detect and bump version
     ver_path = "backend/version.go"
@@ -72,50 +41,58 @@ def update_application():
     write_file(gradle_path, gradle)
     print(f"[+] Bumped version in {gradle_path}")
 
-    # 3. Read handlers.go and dynamically extract the true package namespace
+    # 3. Clean up orphaned "sort" import from handlers.go
     handlers_path = "backend/handlers.go"
     handlers_code = read_file(handlers_path)
-    
-    pkg_match = re.search(r'^package\s+([a-zA-Z0-9_]+)', handlers_code, re.MULTILINE)
-    pkg_name = pkg_match.group(1) if pkg_match else "main"
-    print(f"[+] Detected backend namespace: '{pkg_name}'")
-
-    # 4. Extract the forgotten legacy Git functions from handlers.go
-    funcs_to_evacuate = [
-        "writeTreeFromDir",
-        "buildTree",
-        "manualGitInit",
-        "GetInsecureSSHAuth",
-        "handleSync"
-    ]
-
-    extracted_bodies = []
-    for fn in funcs_to_evacuate:
-        handlers_code, code = extract_and_remove_function(handlers_code, fn)
-        if code:
-            extracted_bodies.append(code)
-            print(f"[+] Evacuated {fn}() from handlers.go")
-
-    # Clean up any leftover Git or SSH imports from handlers.go
-    handlers_code = re.sub(r'(?m)^\s*"github\.com/go-git/go-git/v5/storage"\s*\n', '', handlers_code)
-    handlers_code = re.sub(r'(?m)^\s*"golang\.org/x/crypto/ssh"\s*\n', '', handlers_code)
-    handlers_code = re.sub(r'(?m)^\s*(?:[a-zA-Z0-9_]+\s+)?"github\.com/go-git/go-git/v5(?:/[^"]*)?"\s*\n', '', handlers_code)
-    handlers_code = re.sub(r'import\s*\(\s*\)', '', handlers_code)
+    handlers_code = re.sub(r'(?m)^\s*"sort"\s*\n', '', handlers_code)
+    handlers_code = re.sub(r'(?m)^\s*import\s+"sort"\s*\n', '', handlers_code)
+    handlers_code = re.sub(r'import\s*\(\s*\)', '', handlers_code) # Clean empty blocks
     write_file(handlers_path, handlers_code)
+    print("[+] Cleared unused 'sort' import from handlers.go")
 
-    # 5. Read existing git_helper.go and rescue its functions (ignoring broken headers)
+    # 4. Read git_helper.go and parse its namespace
     git_helper_path = "backend/git_helper.go"
-    if os.path.exists(git_helper_path):
-        git_helper_code = read_file(git_helper_path)
-        func_start_idx = git_helper_code.find("func ")
-        existing_funcs = git_helper_code[func_start_idx:] if func_start_idx != -1 else ""
-    else:
-        existing_funcs = ""
+    git_helper_code = read_file(git_helper_path)
+    
+    pkg_match = re.search(r'^package\s+([a-zA-Z0-9_]+)', git_helper_code, re.MULTILINE)
+    pkg_decl = pkg_match.group(0) if pkg_match else "package backend"
 
-    # Combine all Git logic into one massive block
-    all_git_funcs = existing_funcs.strip() + "\n\n" + "\n\n".join(extracted_bodies)
+    # Remove existing import blocks safely so we can perfectly reconstruct them
+    body_code = re.sub(r'import\s*\([\s\S]*?\)', '', git_helper_code)
+    body_code = re.sub(r'import\s+"[^"]+"\n', '', body_code)
+    body_code = body_code.replace(pkg_decl, "").strip()
 
-    # 6. Dynamic Import Scanner (Prevents "imported and not used" Go compiler panics)
+    # 5. Inject missing GetConfigAuthor if it doesn't exist
+    if "func GetConfigAuthor" not in body_code:
+        author_func = """
+func GetConfigAuthor() string {
+\tif appConfig.Author != "" {
+\t\treturn appConfig.Author
+\t}
+\treturn "OMN-Go User"
+}
+"""
+        body_code += author_func
+        print("[+] Injected missing GetConfigAuthor() fallback")
+
+    # 6. Inject bulletproof GetInsecureSSHAuth if it doesn't exist
+    if "func GetInsecureSSHAuth" not in body_code:
+        ssh_auth_impl = """
+func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
+\tpublicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
+\tif err != nil {
+\t\treturn nil, err
+\t}
+\tpublicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+\t\tHostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
+\t}
+\treturn publicKeys, nil
+}
+"""
+        body_code += ssh_auth_impl
+        print("[+] Injected robust GetInsecureSSHAuth() implementation")
+
+    # 7. Dynamic Import Scanner (Now strictly enforcing 'sort' and 'crypto/ssh')
     imports = set([
         '"github.com/go-git/go-git/v5"',
         'gitconfig "github.com/go-git/go-git/v5/config"',
@@ -125,40 +102,37 @@ def update_application():
         '"github.com/go-git/go-git/v5/storage"'
     ])
 
-    if re.search(r'\bfmt\.', all_git_funcs): imports.add('"fmt"')
-    if re.search(r'\blog\.', all_git_funcs): imports.add('"log"')
-    if re.search(r'\bhttp\.', all_git_funcs) or "http.ResponseWriter" in all_git_funcs: imports.add('"net/http"')
-    if re.search(r'\bos\.', all_git_funcs): imports.add('"os"')
-    if re.search(r'\bfilepath\.', all_git_funcs): imports.add('"path/filepath"')
-    if re.search(r'\bstrings\.', all_git_funcs): imports.add('"strings"')
-    if re.search(r'\btime\.', all_git_funcs): imports.add('"time"')
-    if re.search(r'\bio\.', all_git_funcs): imports.add('"io"')
-    if re.search(r'\bfs\.', all_git_funcs): imports.add('"io/fs"')
-    if re.search(r'\bbytes\.', all_git_funcs): imports.add('"bytes"')
+    if re.search(r'\bfmt\.', body_code): imports.add('"fmt"')
+    if re.search(r'\blog\.', body_code): imports.add('"log"')
+    if re.search(r'\bhttp\.', body_code) or "http.ResponseWriter" in body_code: imports.add('"net/http"')
+    if re.search(r'\bos\.', body_code): imports.add('"os"')
+    if re.search(r'\bfilepath\.', body_code): imports.add('"path/filepath"')
+    if re.search(r'\bstrings\.', body_code): imports.add('"strings"')
+    if re.search(r'\btime\.', body_code): imports.add('"time"')
+    if re.search(r'\bio\.', body_code): imports.add('"io"')
+    if re.search(r'\bfs\.', body_code): imports.add('"io/fs"')
+    if re.search(r'\bbytes\.', body_code): imports.add('"bytes"')
+    if re.search(r'\bsort\.', body_code): imports.add('"sort"')
 
-    # Smart SSH resolution
-    if re.search(r'\bgitssh\.', all_git_funcs):
+    # Smart SSH resolution (Guaranteed to trigger now because of the injected function)
+    if re.search(r'\bgitssh\.', body_code):
         imports.add('gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"')
-        if re.search(r'\bssh\.', all_git_funcs):
-            imports.add('"golang.org/x/crypto/ssh"')
-    else:
-        if re.search(r'\bssh\.', all_git_funcs):
-            imports.add('"github.com/go-git/go-git/v5/plumbing/transport/ssh"')
-        if re.search(r'\bcryptossh\.', all_git_funcs):
-            imports.add('cryptossh "golang.org/x/crypto/ssh"')
+    if re.search(r'\bcryptossh\.', body_code):
+        imports.add('cryptossh "golang.org/x/crypto/ssh"')
 
     import_block = "import (\n\t" + "\n\t".join(sorted(list(imports))) + "\n)"
 
-    # 7. Write the perfectly reconstructed git_helper.go
-    final_git_helper = f"package {pkg_name}\n\n{import_block}\n\n{all_git_funcs}\n"
+    # 8. Write the finalized file
+    final_git_helper = f"{pkg_decl}\n\n{import_block}\n\n{body_code}\n"
     write_file(git_helper_path, final_git_helper)
-    print(f"[+] Reconstructed backend/git_helper.go with synchronized namespace and dynamic imports")
+    print(f"[+] Reconstructed backend/git_helper.go with missing functions and correct imports")
 
     commit_msg = (
-        "fix(git): consolidate remaining git utilities and sync package namespaces\n\n"
-        f"- Dynamically aligned git_helper.go to package '{pkg_name}'\n"
-        "- Evacuated manualGitInit, writeTreeFromDir, and handleSync from handlers.go\n"
-        "- Implemented dynamic import scanning to prevent unused import panics\n"
+        "fix(git): resolve missing function dependencies and unused imports\n\n"
+        "- Removed orphaned 'sort' import from handlers.go\n"
+        "- Injected GetConfigAuthor safety fallback into git_helper.go\n"
+        "- Injected robust GetInsecureSSHAuth implementation for go-git\n"
+        "- Dynamically hydrated missing 'sort' and 'crypto/ssh' imports\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
