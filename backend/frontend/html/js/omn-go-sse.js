@@ -20,14 +20,17 @@ const Logger = (function() {
                     if (force && document.getElementById('forceSyncCb')) {
                         document.getElementById('forceSyncCb').checked = false;
                     }
+
+		    const capAction = action.charAt(0).toUpperCase() + action.slice(1);
                     
                     if (res.ok) {
-                        alert(action.charAt(0).toUpperCase() + action.slice(1) + ' complete!');
-                        window.location.reload();
+			if (confirm(capAction + ' complete!\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
+                            window.location.reload();
+			}
                     } else {
                         let msg = await res.text();
                         console.error('OMN-Go sync failed:', msg);
-                        alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed: ' + msg + '\n\nOpen console (F12) to copy error details.');
+                        alert(capAction + ' failed: ' + msg + '\n\nOpen console to copy error details.');
                     }
                 }
     
