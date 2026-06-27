@@ -1,3 +1,24 @@
+// --- OMN-Go Core Architecture ---
+// These modules are strictly for offline viewing, Markdown rendering, and UI manipulation.
+
+const UI = (function() {
+    function executeScripts(container) {
+                const scripts = container.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                    newScript.async = false;
+                    if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            }
+
+    // Export to global scope to preserve HTML onclick attributes
+    window.executeScripts = executeScripts;
+    return { executeScripts };
+})();
+
+// --- Global Listeners & State ---
 if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
@@ -96,7 +117,7 @@ if (typeof currentNote === 'undefined') {
                         try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
                         catch(e) { return String(a); }
                     }).join(' ');
-                    
+
                     msg.textContent = `[${type.toUpperCase()}] ${text}`;
                     logsContainer.appendChild(msg);
                     logsContainer.scrollTop = logsContainer.scrollHeight;
@@ -113,7 +134,7 @@ if (typeof currentNote === 'undefined') {
                         // Fallback if native apply fails
                         originalMethod(...args);
                     }
-            
+
                     // Capture
                     appendLog(level, args);
                };
@@ -134,17 +155,6 @@ if (typeof currentNote === 'undefined') {
                 console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
             });
 })();
-
-function executeScripts(container) {
-            const scripts = container.querySelectorAll('script');
-            scripts.forEach(oldScript => {
-                const newScript = document.createElement('script');
-                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                newScript.async = false;
-                if (oldScript.innerHTML) newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-                oldScript.parentNode.replaceChild(newScript, oldScript);
-            });
-        }
 
         // Intercept Markdown links for standard browser-side redirects
         function setupPreviewLinkInterceptor() {
@@ -189,13 +199,13 @@ function executeScripts(container) {
                     window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote + ext));
                     return;
                 }
-                
+
                 await loadNoteIntoEditor();
-                
+
                 const editor = document.getElementById('editor');
                 const preview = document.getElementById('preview');
                 const btn = document.getElementById('toggleBtn');
-                
+
                 editor.style.display = 'block';
                 preview.style.display = 'none';
                 btn.innerHTML = '<i class="material-icons" title="Switch to View Mode">visibility</i>';
@@ -207,7 +217,7 @@ function executeScripts(container) {
                 const editor = document.getElementById('editor');
                 const preview = document.getElementById('preview');
                 const btn = document.getElementById('toggleBtn');
-                
+
                 editor.style.display = 'none';
                 preview.style.display = 'block';
                 btn.innerHTML = '<i class="material-icons" title="Switch to Edit Mode">edit</i>';
@@ -376,21 +386,21 @@ function executeScripts(container) {
         window.handleShare = function(text, subject) {
             text = text || '';
             subject = subject || '';
-            
+
             // Regex to find the first valid URL
             const urlMatch = text.match(/(https?:\/\/[^\s]+)/) || subject.match(/(https?:\/\/[^\s]+)/);
-            
+
             if (urlMatch) {
                 // URL Found -> Route to Bookmark Panel
                 const url = urlMatch[0];
                 document.getElementById('bmUrl').value = url;
-                
+
                 let title = subject;
                 if (!title || title.includes(url)) {
                     title = text.replace(url, '').trim();
                 }
                 if (!title) title = "Shared Link";
-                
+
                 document.getElementById('bmTitle').value = title;
                 document.getElementById('bmPanel').classList.remove('hidden');
                 document.getElementById('quickPanel').classList.add('hidden');
@@ -399,14 +409,13 @@ function executeScripts(container) {
                 let content = '';
                 if (subject) content += subject + "\n\n";
                 if (text) content += text;
-                
+
                 document.getElementById('quickText').value = content.trim();
                 document.getElementById('quickPanel').classList.remove('hidden');
                 document.getElementById('bmPanel').classList.add('hidden');
             }
         };
 
-        
         window.toggleHeader = function() {
     var header = document.getElementById('hidable_header');
     var arrow = document.getElementById('title_arrow');
@@ -430,7 +439,7 @@ window.updateArrow = function() {
 
 window.onload = () => {
             checkSession();
-            
+
             const params = new URLSearchParams(window.location.search);
             if (params.has('share_text') || params.has('share_subject')) {
                 window.handleShare(params.get('share_text'), params.get('share_subject'));
@@ -498,7 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
 
-
 // --- Dynamic Metadata Panel Extractor ---
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');
@@ -534,32 +542,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-async function syncAction(action) {
-            let force = document.getElementById('forceSyncCb') && document.getElementById('forceSyncCb').checked;
-            if (force) {
-                if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
-                    return;
-                }
-            }
-            const fd = new URLSearchParams();
-            fd.append('action', action);
-            if (force) fd.append('force', 'true');
-            
-            const res = await fetch('/api/sync', { method: 'POST', body: fd });
-            
-            if (force && document.getElementById('forceSyncCb')) {
-                document.getElementById('forceSyncCb').checked = false;
-            }
-            
-            if (res.ok) {
-                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' complete!');
-                window.location.reload();
-            } else {
-                let msg = await res.text();
-                console.error('OMN-Go sync failed:', msg);
-                alert(action.charAt(0).toUpperCase() + action.slice(1) + ' failed: ' + msg + '\n\nOpen console (F12) to copy error details.');
-            }
-        }
 window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
         window.location.reload();

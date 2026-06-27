@@ -2,6 +2,8 @@
 import re, os
 
 def read_file(path):
+    if not os.path.exists(path):
+        return ""
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
@@ -9,218 +11,183 @@ def write_file(path, content):
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
-def increment_version(ver_str):
-    parts = ver_str.strip().split(".")
-    if len(parts) == 3 and parts[2].isdigit():
-        parts[2] = str(int(parts[2]) + 1)
-        return ".".join(parts)
-    raise ValueError(f"Unrecognised version format: {ver_str}")
-
-def replace_function_ast(content, func_name, new_code):
-    start_idx = content.find(f"func {func_name}(")
-    if start_idx == -1:
-        return content, False
+def extract_js_entities(code):
+    """
+    AST-style JS parser. Finds all top-level functions and expressions,
+    counts their braces safely, and extracts them without breaking inner scope.
+    """
+    entities = []
     
-    brace_start = content.find("{", start_idx)
-    if brace_start == -1:
-        return content, False
+    # 1. Top-level functions
+    idx = 0
+    while True:
+        match = re.search(r'^(?:async\s+)?function\s+([a-zA-Z0-9_]+)\s*\(', code[idx:], re.MULTILINE)
+        if not match: break
+        
+        start_idx = idx + match.start()
+        brace_start = code.find('{', start_idx)
+        if brace_start == -1: break
+        
+        brace_count = 1
+        curr = brace_start + 1
+        while curr < len(code) and brace_count > 0:
+            if code[curr] == '{': brace_count += 1
+            elif code[curr] == '}': brace_count -= 1
+            curr += 1
+            
+        func_name = match.group(1)
+        func_body = code[start_idx:curr]
+        
+        entities.append(('function', func_name, func_body))
+        code = code[:start_idx] + (" " * (curr - start_idx)) + code[curr:]
+        idx = curr
+        
+    # 2. Top-level function expressions (const myFunc = () => {)
+    idx = 0
+    while True:
+        match = re.search(r'^(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s+)?(?:function\s*\(|\([^)]*\)\s*=>|[a-zA-Z0-9_]+\s*=>)\s*{', code[idx:], re.MULTILINE)
+        if not match: break
+        
+        start_idx = idx + match.start()
+        brace_start = code.find('{', start_idx)
+        if brace_start == -1: break
+        
+        brace_count = 1
+        curr = brace_start + 1
+        while curr < len(code) and brace_count > 0:
+            if code[curr] == '{': brace_count += 1
+            elif code[curr] == '}': brace_count -= 1
+            curr += 1
+            
+        func_name = match.group(1)
+        func_body = code[start_idx:curr]
+        
+        entities.append(('expression', func_name, func_body))
+        code = code[:start_idx] + (" " * (curr - start_idx)) + code[curr:]
+        idx = curr
+        
+    # Clean up massive blank gaps left by extraction
+    clean_remainder = re.sub(r'\n\s*\n+', '\n\n', code).strip()
+    return entities, clean_remainder
 
-    brace_count = 1
-    idx = brace_start + 1
-    while idx < len(content) and brace_count > 0:
-        if content[idx] == '{':
-            brace_count += 1
-        elif content[idx] == '}':
-            brace_count -= 1
-        idx += 1
-
-    end_idx = idx
-    return content[:start_idx] + new_code + "\n" + content[end_idx:], True
+def create_iife(module_name, funcs):
+    if not funcs: return ""
+    lines = [f"const {module_name} = (function() {{"]
+    exports = []
+    
+    for name, body in funcs:
+        indented_body = body.replace("\n", "\n    ")
+        lines.append(f"    {indented_body}")
+        exports.append(name)
+        
+    lines.append("\n    // Export to global scope to preserve HTML onclick attributes")
+    for e in exports:
+        lines.append(f"    window.{e} = {e};")
+        
+    export_str = ", ".join(exports)
+    lines.append(f"    return {{ {export_str} }};")
+    lines.append("})();\n")
+    return "\n".join(lines)
 
 def update_application():
-    print("[ ] Starting Android FS flock() ENOSYS Bypass & Import Fix...")
+    print("[ ] Starting Frontend Componentization (v1.5.0)...")
     
-    # 1. Auto-detect and bump version
+    # 1. Force version bump to 1.5.0
+    new_ver = "1.5.0"
+    new_code = "10500"
+    
     ver_path = "backend/version.go"
     content = read_file(ver_path)
-    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
-    if not match:
-        raise ValueError("Version string not found in version.go")
-        
-    cur_ver = match.group(1)
-    new_ver = increment_version(cur_ver)
-    
-    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    content = re.sub(r'APP_VERSION\s*=\s*"[^"]+"', f'APP_VERSION = "{new_ver}"', content)
     write_file(ver_path, content)
-    print(f"[+] Bumped version in {ver_path} to {new_ver}")
+    print(f"[+] Bumped backend version to {new_ver}")
 
-    # 2. Bump Android configs
     gradle_path = "android/app/build.gradle"
     gradle = read_file(gradle_path)
-    gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}', f'versionCode {int(new_ver.replace(".", ""))}')
-    gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
+    gradle = re.sub(r'versionCode\s+\d+', f'versionCode {new_code}', gradle)
+    gradle = re.sub(r'versionName\s+"[^"]+"', f'versionName "{new_ver}"', gradle)
     write_file(gradle_path, gradle)
-    print(f"[+] Bumped version in {gradle_path}")
+    print(f"[+] Bumped Android configurations to {new_code} / {new_ver}")
 
-    # 3. Read git_helper.go
-    git_helper_path = "backend/git_helper.go"
-    git_helper_code = read_file(git_helper_path)
+    # 2. Extract and Sort JS Entities
+    core_js_path = "backend/frontend/html/js/omn-go-core.js"
+    sse_js_path = "backend/frontend/html/js/omn-go-sse.js"
     
-    pkg_match = re.search(r'^package\s+([a-zA-Z0-9_]+)', git_helper_code, re.MULTILINE)
-    pkg_decl = pkg_match.group(0) if pkg_match else "package backend"
+    core_code = read_file(core_js_path)
+    if not core_code:
+        print("[-] omn-go-core.js not found. Are you in the project root?")
+        return
 
-    # Remove existing import blocks safely so we can reconstruct them with go-billy
-    body_code = re.sub(r'import\s*\([\s\S]*?\)', '', git_helper_code)
-    body_code = re.sub(r'import\s+"[^"]+"\n', '', body_code)
-    body_code = body_code.replace(pkg_decl, "").strip()
+    entities, global_remainder = extract_js_entities(core_code)
+    print(f"[+] Extracted {len(entities)} top-level functions for componentization")
 
-    # 4. Inject the Custom Android FS Wrapper if it doesn't exist
-    if "type NoLockFS struct" not in body_code:
-        no_lock_impl = """
-// --- Android Flock() Bypass ---
-// Android's sdcardfs does not implement file locking (ENOSYS / function not implemented).
-// This wrapper neutralizes Lock() calls gracefully across go-git operations.
+    logger_funcs = []
+    syncer_funcs = []
+    editor_funcs = []
+    ui_funcs = []
 
-type NoLockFS struct {
-\tbilly.Filesystem
-}
+    for type_, name, body in entities:
+        lower = body.lower()
+        # Intelligent Domain Sorting
+        if 'eventsource' in lower or 'console.' in lower or '/api/log' in lower:
+            logger_funcs.append((name, body))
+        elif 'fetch(' in lower or '/api/' in lower or 'xmlhttprequest' in lower:
+            syncer_funcs.append((name, body))
+        elif 'katex' in lower or 'hljs' in lower or 'mode' in lower or 'editor' in lower or 'textarea' in lower:
+            editor_funcs.append((name, body))
+        else:
+            ui_funcs.append((name, body))
 
-func (fs *NoLockFS) Create(filename string) (billy.File, error) {
-\tf, err := fs.Filesystem.Create(filename)
-\tif err != nil { return nil, err }
-\treturn &NoLockFile{f}, nil
-}
+    # 3. Build omn-go-core.js (Always Required)
+    new_core_js = "// --- OMN-Go Core Architecture ---\n// These modules are strictly for offline viewing, Markdown rendering, and UI manipulation.\n\n"
+    new_core_js += create_iife("Editor", editor_funcs)
+    new_core_js += create_iife("UI", ui_funcs)
+    
+    if global_remainder:
+        new_core_js += "\n// --- Global Listeners & State ---\n" + global_remainder + "\n"
+        
+    write_file(core_js_path, new_core_js)
+    print("[+] Refactored omn-go-core.js (Editor & UI IIFEs)")
 
-func (fs *NoLockFS) Open(filename string) (billy.File, error) {
-\tf, err := fs.Filesystem.Open(filename)
-\tif err != nil { return nil, err }
-\treturn &NoLockFile{f}, nil
-}
+    # 4. Build omn-go-sse.js (Server Required)
+    new_sse_js = """// --- OMN-Go Server Extensions ---
+// These modules interact with the Go backend API. They will cleanly bypass themselves
+// if the user is merely viewing an exported HTML file locally without the server.
 
-func (fs *NoLockFS) OpenFile(filename string, flag int, perm os.FileMode) (billy.File, error) {
-\tf, err := fs.Filesystem.OpenFile(filename, flag, perm)
-\tif err != nil { return nil, err }
-\treturn &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) TempFile(dir, prefix string) (billy.File, error) {
-\tf, err := fs.Filesystem.TempFile(dir, prefix)
-\tif err != nil { return nil, err }
-\treturn &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) Chroot(path string) (billy.Filesystem, error) {
-\tc, err := fs.Filesystem.Chroot(path)
-\tif err != nil { return nil, err }
-\treturn &NoLockFS{c}, nil
-}
-
-type NoLockFile struct {
-\tbilly.File
-}
-
-func (f *NoLockFile) Lock() error {
-\treturn nil // Safely bypass Android flock ENOSYS
-}
-
-func (f *NoLockFile) Unlock() error {
-\treturn nil // Safely bypass Android flock ENOSYS
+if (window.location.protocol !== 'file:') {
+"""
+    new_sse_js += create_iife("Logger", logger_funcs).replace("\n", "\n    ")
+    new_sse_js += create_iife("Syncer", syncer_funcs).replace("\n", "\n    ")
+    new_sse_js += """
+} else {
+    console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
 }
 """
-        body_code += no_lock_impl
-        print("[+] Injected Android NoLockFS middleware wrapper")
+    write_file(sse_js_path, new_sse_js)
+    print("[+] Generated omn-go-sse.js (Logger & Syncer IIFEs)")
 
-    # 5. Overwrite getOrInitRepo to utilize the new NoLockFS Wrapper
-    repo_init_code = """func getOrInitRepo() (*git.Repository, error) {
-\tlog.Printf("[sync] Opening repo at %s", storageDir)
-\t
-\tbaseFS := osfs.New(storageDir)
-\twtFS := &NoLockFS{baseFS}
-\tdotFS, err := wtFS.Chroot(".git")
-\tif err != nil {
-\t\treturn nil, fmt.Errorf("chroot .git failed: %v", err)
-\t}
-\t
-\tstorer := filesystem.NewStorage(dotFS, cache.NewObjectLRUDefault())
-\trepo, err := git.Open(storer, wtFS)
-\t
-\tif err != nil {
-\t\tlog.Printf("[sync] Repo not found, initializing...")
-\t\tif initErr := manualGitInit(storageDir); initErr != nil {
-\t\t\treturn nil, fmt.Errorf("manual init failed: %v", initErr)
-\t\t}
-\t\trepo, err = git.Open(storer, wtFS)
-\t\tif err != nil {
-\t\t\treturn nil, fmt.Errorf("failed to open manually created repo: %v", err)
-\t\t}
-\t\tlog.Printf("[sync] Repo initialized")
-\t} else {
-\t\tlog.Printf("[sync] Repo opened successfully")
-\t}
-
-\t_, err = repo.Remote("origin")
-\tif err != nil {
-\t\tlog.Printf("[sync] Remote origin missing, adding")
-\t\t_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
-\t\t\tName: "origin",
-\t\t\tURLs: []string{appConfig.SyncRemote},
-\t\t})
-\t\tif err != nil {
-\t\t\treturn nil, fmt.Errorf("remote add failed: %v", err)
-\t\t}
-\t}
-\treturn repo, nil
-}"""
+    # 5. Inject the new file into the main HTML layout
+    html_path = "backend/frontend/index.html"
+    index_html = read_file(html_path)
     
-    body_code, success = replace_function_ast(body_code, "getOrInitRepo", repo_init_code)
-    if success:
-        print("[+] Wired getOrInitRepo() to route through NoLockFS interceptor")
-    else:
-        print("[-] getOrInitRepo not found!")
-
-    # 6. Dynamic Import Scanner (Adding storage, go-billy, cache)
-    imports = set([
-        '"github.com/go-git/go-git/v5"',
-        'gitconfig "github.com/go-git/go-git/v5/config"',
-        '"github.com/go-git/go-git/v5/plumbing"',
-        '"github.com/go-git/go-git/v5/plumbing/object"',
-        '"github.com/go-git/go-git/v5/plumbing/transport"',
-        '"github.com/go-git/go-billy/v5"',
-        '"github.com/go-git/go-billy/v5/osfs"',
-        '"github.com/go-git/go-git/v5/storage"',             # <-- Restored missing storage
-        '"github.com/go-git/go-git/v5/storage/filesystem"',
-        '"github.com/go-git/go-git/v5/plumbing/cache"'
-    ])
-
-    if re.search(r'\bfmt\.', body_code): imports.add('"fmt"')
-    if re.search(r'\blog\.', body_code): imports.add('"log"')
-    if re.search(r'\bhttp\.', body_code) or "http.ResponseWriter" in body_code: imports.add('"net/http"')
-    if re.search(r'\bos\.', body_code): imports.add('"os"')
-    if re.search(r'\bfilepath\.', body_code): imports.add('"path/filepath"')
-    if re.search(r'\bstrings\.', body_code): imports.add('"strings"')
-    if re.search(r'\btime\.', body_code): imports.add('"time"')
-    if re.search(r'\bio\.', body_code): imports.add('"io"')
-    # Removed the buggy io/fs scanner line
-    if re.search(r'\bbytes\.', body_code): imports.add('"bytes"')
-    if re.search(r'\bsort\.', body_code): imports.add('"sort"')
-
-    if re.search(r'\bgitssh\.', body_code):
-        imports.add('gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"')
-    if re.search(r'\bcryptossh\.', body_code):
-        imports.add('cryptossh "golang.org/x/crypto/ssh"')
-
-    import_block = "import (\n\t" + "\n\t".join(sorted(list(imports))) + "\n)"
-
-    # 7. Write the finalized file
-    final_git_helper = f"{pkg_decl}\n\n{import_block}\n\n{body_code}\n"
-    write_file(git_helper_path, final_git_helper)
-    print(f"[+] Reconstructed backend/git_helper.go with correct imports")
+    core_script_match = re.search(r'<script[^>]*src=[\'"]([^\'"]*omn-go-core\.js)[\'"][^>]*></script>', index_html)
+    if core_script_match and "omn-go-sse.js" not in index_html:
+        core_script_tag = core_script_match.group(0)
+        src_path = core_script_match.group(1)
+        sse_path = src_path.replace("omn-go-core.js", "omn-go-sse.js")
+        sse_script_tag = f'<script src="{sse_path}"></script>'
+        
+        index_html = index_html.replace(core_script_tag, f'{core_script_tag}\n    {sse_script_tag}')
+        write_file(html_path, index_html)
+        print("[+] Wired omn-go-sse.js into backend/frontend/index.html")
 
     commit_msg = (
-        "fix(git): rectify import generation bugs in flock() bypass patch\n\n"
-        "- Restored missing go-git/v5/storage package required by Storer\n"
-        "- Removed overzealous io/fs regex that triggered unused import panic\n"
-        f"Version bumped to {new_ver}"
+        "refactor(frontend): componentize app shell and isolate SSE/API logic\n\n"
+        "- Extracted domains into Editor, Syncer, Logger, and UI IIFEs\n"
+        "- Split omn-go-core.js into offline core logic and omn-go-sse.js for backend APIs\n"
+        "- Exposed component methods globally to securely preserve HTML onclick handlers\n"
+        "- Guarded API execution for static local-file viewing scenarios\n"
+        "- Bumped application to v1.5.0"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
