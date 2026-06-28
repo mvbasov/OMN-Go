@@ -2,8 +2,8 @@ import os
 import re
 import sys
 
-VERSION = "1.5.16"
-VERSION_CODE = "10516"
+VERSION = "1.5.17"
+VERSION_CODE = "10517"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -36,6 +36,14 @@ def patch_config_struct():
     content = read_file(path)
     if not content: return
     
+    # 0. Wipe existing GitServerConfig struct to avoid Redeclaration compiler errors
+    git_struct_idx = content.find("type GitServerConfig struct {")
+    if git_struct_idx != -1:
+        end_idx = content.find("}", git_struct_idx)
+        if end_idx != -1:
+            # Clear the old struct block entirely
+            content = content[:git_struct_idx] + content[end_idx+1:]
+
     # 1. Physically Replace the Config Struct block using brace counting
     struct_start = content.find("type Config struct {")
     if struct_start != -1:
@@ -105,7 +113,7 @@ type Config struct {
         if unmarshal_idx != -1:
             brace_idx = content.find("}", unmarshal_idx)
             if brace_idx != -1:
-                injection = """\t// [OMN-Go 1.5.16] Enforce 5 empty slots natively
+                injection = """\t// [OMN-Go 1.5.17] Enforce 5 empty slots natively
 \tfor len(appConfig.GitServers) < 5 {
 \t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 \t}\n"""
@@ -115,6 +123,49 @@ type Config struct {
         content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
 
     write_file(path, content)
+
+def patch_all_legacy_vars():
+    # Global Scrubber: Finds ALL old string variables across the ENTIRE backend and safely reroutes them
+    for filename in os.listdir("backend"):
+        if not filename.endswith(".go"): continue
+        
+        filepath = os.path.join("backend", filename)
+        content = read_file(filepath)
+        if not content: continue
+        
+        orig = content
+        # Completely routes handlers.go and git_helper.go to the new Array infrastructure
+        content = content.replace("appConfig.SyncRemote", "appConfig.GitServers[appConfig.ActiveGitIndex].URL")
+        content = content.replace("appConfig.SyncSSHKey", "appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath")
+        content = content.replace("appConfig.SyncSSHPassphrase", "appConfig.GitServers[appConfig.ActiveGitIndex].Password")
+        
+        if orig != content:
+            write_file(filepath, content)
+
+def patch_git_helper():
+    path = os.path.join("backend", "git_helper.go")
+    content = read_file(path)
+    if not content: return
+
+    # Inject Dynamic Remote cache bypass if it isn't there
+    if "DeleteRemote" not in content:
+        fix_logic = """
+\t// [OMN-Go 1.5.17] Dynamically update remote origin cache
+\tactiveGit := appConfig.GitServers[appConfig.ActiveGitIndex]
+\tremote, remoteErr := repo.Remote("origin")
+\tif remoteErr == nil && len(remote.Config().URLs) > 0 && remote.Config().URLs[0] != activeGit.URL {
+\t\trepo.DeleteRemote("origin")
+\t\trepo.CreateRemote(&gitconfig.RemoteConfig{
+\t\t\tName: "origin",
+\t\t\tURLs: []string{activeGit.URL},
+\t\t})
+\t}
+"""
+        content = re.sub(r'(repo,\s*err\s*:=\s*git\.PlainOpen[^\n]+\n\s*if\s*err\s*!=\s*nil\s*\{[^\}]+\}\n)', r'\1' + fix_logic, content)
+        if '"github.com/go-git/go-git/v5/config"' not in content:
+            content = re.sub(r'(import\s*\()', r'\1\n\tgitconfig "github.com/go-git/go-git/v5/config"\n', content)
+        
+        write_file(path, content)
 
 def patch_handlers_ui():
     path = os.path.join("backend", "handlers.go")
@@ -249,43 +300,14 @@ def patch_handlers_ui():
     content = content[:start_idx] + new_func + content[end_idx:]
     write_file(path, content)
 
-def patch_git_helper():
-    path = os.path.join("backend", "git_helper.go")
-    content = read_file(path)
-    if not content: return
-
-    # Reroute old variables straight to the new Active Array
-    content = content.replace("appConfig.SyncRemote", "appConfig.GitServers[appConfig.ActiveGitIndex].URL")
-    content = content.replace("appConfig.SyncSSHKey", "appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath")
-    content = content.replace("appConfig.SyncSSHPassphrase", "appConfig.GitServers[appConfig.ActiveGitIndex].Password")
-    
-    # Inject Dynamic Remote cache bypass
-    if "DeleteRemote" not in content:
-        fix_logic = """
-\t// [OMN-Go 1.5.16] Dynamically update remote origin cache
-\tactiveGit := appConfig.GitServers[appConfig.ActiveGitIndex]
-\tremote, remoteErr := repo.Remote("origin")
-\tif remoteErr == nil && len(remote.Config().URLs) > 0 && remote.Config().URLs[0] != activeGit.URL {
-\t\trepo.DeleteRemote("origin")
-\t\trepo.CreateRemote(&gitconfig.RemoteConfig{
-\t\t\tName: "origin",
-\t\t\tURLs: []string{activeGit.URL},
-\t\t})
-\t}
-"""
-        content = re.sub(r'(repo,\s*err\s*:=\s*git\.PlainOpen[^\n]+\n\s*if\s*err\s*!=\s*nil\s*\{[^\}]+\}\n)', r'\1' + fix_logic, content)
-        if '"github.com/go-git/go-git/v5/config"' not in content:
-            content = re.sub(r'(import\s*\()', r'\1\n\tgitconfig "github.com/go-git/go-git/v5/config"\n', content)
-
-    write_file(path, content)
-
 def main():
     print(f"[*] Starting OMN-Go update to Version {VERSION}...")
     bump_versions()
     patch_config_struct()
+    patch_all_legacy_vars() # Crucial: This fixes the undefined errors dynamically across the entire backend
     patch_git_helper()
     patch_handlers_ui()
-    print("[*] Update complete. Structs successfully rewritten via AST and CRLF bugs eradicated!")
+    print("[*] Update complete. Duplicate structs cleared and legacy handler variables rerouted!")
 
 if __name__ == "__main__":
     main()

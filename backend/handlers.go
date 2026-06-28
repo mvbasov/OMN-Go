@@ -157,9 +157,9 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		appConfig.Author = r.FormValue("author")
 		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
-		appConfig.SyncRemote = r.FormValue("sync_remote")
-		appConfig.SyncSSHKey = r.FormValue("sync_ssh_key")
-		appConfig.SyncSSHPassphrase = r.FormValue("sync_ssh_passphrase")
+		appConfig.GitServers[appConfig.ActiveGitIndex].URL = r.FormValue("sync_remote")
+		appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath = r.FormValue("sync_ssh_key")
+		appConfig.GitServers[appConfig.ActiveGitIndex].Password = r.FormValue("sync_ssh_passphrase")
 
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		configPath := filepath.Join(storageDir, "config.json")
