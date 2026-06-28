@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"strconv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -60,11 +59,12 @@ func getConfigPageBody() string {
             <input type="password" id="cfgSyncPassphrase" value="%s" class="config-input" placeholder="leave empty if none" />
         </div>
         
+		
 		` + (func() string {
 	gitHTML := "<h3>Git Servers</h3>"
-	for i, gs := range cfg.GitServers {
+	for i, gs := range appConfig.GitServers {
 		checked := ""
-		if cfg.ActiveGitIndex == i {
+		if appConfig.ActiveGitIndex == i {
 			checked = "checked"
 		}
 		gitHTML += fmt.Sprintf(`
