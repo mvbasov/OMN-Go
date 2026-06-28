@@ -58,7 +58,8 @@ func getConfigPageBody() string {
             <label class="config-label">Sync SSH Passphrase (optional)</label>
             <input type="password" id="cfgSyncPassphrase" value="%s" class="config-input" placeholder="leave empty if none" />
         </div>
-        <button type="submit" class="config-save-btn">Save Configuration</button>
+        `+gitHTML+`
+		<button type="submit" class="config-save-btn">Save Configuration</button>
     </form>
 </div>
 <script>

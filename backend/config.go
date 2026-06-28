@@ -6,7 +6,17 @@ import (
 	"path/filepath"
 )
 
+
+type GitServerConfig struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	SSHKeyPath string `json:"ssh_key_path"`
+	Password   string `json:"password"`
+}
+
 type Config struct {
+	ActiveGitIndex int                `json:"active_git_index"`
+	GitServers     []GitServerConfig  `json:"git_servers"`
 	ForcePullOneTime bool `json:"force_pull_one_time"`
 	ServerPort       int               `json:"server_port"`
 	AdminPassword    string            `json:"admin_password"`
