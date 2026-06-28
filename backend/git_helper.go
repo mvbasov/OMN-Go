@@ -124,7 +124,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 	log.Printf("[sync] Staging all changes")
-	_, err := wTree.AddWithOptions(&git.AddOptions{All: true})
+	err := wTree.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
 		return err
 	}

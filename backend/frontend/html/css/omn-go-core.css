@@ -501,3 +501,11 @@ a.taglink {
 .btn-save-note {
     /* inherit from .header-actions styling */
 }
+
+
+/* ====== Git Server UI Styles ====== */
+.git-server-card { padding: 1rem; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); background-color: #f9fafb; color: #000; }
+.git-server-label { font-weight: bold; display: flex; align-items: center; gap: 0.5rem; }
+.git-server-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
+.git-server-input { border: 1px solid #ccc; padding: 0.5rem; width: 100%; box-sizing: border-box; border-radius: 4px; }
+@media (max-width: 600px) { .git-server-grid { grid-template-columns: 1fr; } }

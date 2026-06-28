@@ -59,23 +59,24 @@ func getConfigPageBody() string {
             <label class="config-label">Sync SSH Passphrase (optional)</label>
             <input type="password" id="cfgSyncPassphrase" value="%s" class="config-input" placeholder="leave empty if none" />
         </div>
-        ` + (func() string {
+        
+		` + (func() string {
 	gitHTML := "<h3>Git Servers</h3>"
 	for i, gs := range cfg.GitServers {
 		checked := ""
 		if cfg.ActiveGitIndex == i {
 			checked = "checked"
-	}
+		}
 		gitHTML += fmt.Sprintf(`
-			<div class="p-4 mb-4 border rounded shadow-sm bg-gray-50 text-black">
-				<label class="font-bold flex items-center gap-2">
+			<div class="git-server-card">
+				<label class="git-server-label">
 					<input type="radio" name="active_git_index" value="%d" %s> Use as Active Server (Slot %d)
 				</label>
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-					<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" class="border p-2 w-full rounded">
-					<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" class="border p-2 w-full rounded">
-					<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" class="border p-2 w-full rounded">
-					<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" class="border p-2 w-full rounded">
+				<div class="git-server-grid">
+					<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" class="git-server-input">
+					<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" class="git-server-input">
+					<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" class="git-server-input">
+					<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" class="git-server-input">
 				</div>
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
