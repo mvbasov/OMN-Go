@@ -2,8 +2,8 @@ import os
 import re
 import sys
 
-VERSION = "1.5.14"
-VERSION_CODE = "10514"
+VERSION = "1.5.15"
+VERSION_CODE = "10515"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -44,20 +44,11 @@ def patch_git_helper():
     write_file(path, content)
 
 def patch_config_struct():
-    # Dynamically find where the Config struct actually lives
-    target_path = None
-    for file in ["config.go", "storage.go", "server.go", "handlers.go"]:
-        path = os.path.join("backend", file)
-        content = read_file(path)
-        if content and "type Config struct" in content:
-            target_path = path
-            break
-    
-    if not target_path:
-        print("[-] Critical Error: Could not find 'type Config struct' in backend files.")
+    path = os.path.join("backend", "config.go")
+    content = read_file(path)
+    if not content:
+        print("[-] Critical Error: backend/config.go not found.")
         return
-        
-    content = read_file(target_path)
     
     # Inject GitServerConfig struct safely
     if "type GitServerConfig struct" not in content:
@@ -77,35 +68,29 @@ type GitServerConfig struct {
                          r'\1\n\tActiveGitIndex int                `json:"active_git_index"`\n\tGitServers     []GitServerConfig  `json:"git_servers"`', 
                          content)
 
-    # Ensure empty slots are initialized when config loads
-    load_idx = content.find("func LoadConfig")
-    if load_idx != -1 and "fmt.Sprintf(\"Server" not in content:
-        end_idx = content.find("\n}\n", load_idx)
-        if end_idx == -1: end_idx = len(content)
-        func_body = content[load_idx:end_idx+3]
-        
-        m = re.search(r'return &?([a-zA-Z0-9_]+)\n?\}', func_body)
-        if m:
-            c_var = m.group(1)
-            init_logic = f"""
-\t// Ensure 5 Git server slots exist dynamically
-\tfor len({c_var}.GitServers) < 5 {{
-\t\t{c_var}.GitServers = append({c_var}.GitServers, GitServerConfig{{Name: fmt.Sprintf("Server %d", len({c_var}.GitServers)+1)}})
-\t}}
+    # Ensure empty slots are initialized specifically for func loadConfig 
+    if "for len(appConfig.GitServers) < 5" not in content:
+        init_logic = """
+\t// [OMN-Go 1.5.15] Ensure 5 Git server slots exist dynamically
+\tfor len(appConfig.GitServers) < 5 {
+\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+\t}
 """
-            new_func_body = func_body.replace(f"return {c_var}", init_logic + f"\treturn {c_var}")
-            content = content.replace(func_body, new_func_body)
-            if '"fmt"' not in content:
-                content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
+        # Hook exactly right after json.Unmarshal in the else block
+        content = re.sub(r'(json\.Unmarshal\([^)]+\)\n[ \t]*\})', r'\1\n' + init_logic, content)
+        
+        # Ensure fmt is imported for Sprintf
+        if '"fmt"' not in content:
+            content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
                 
-    write_file(target_path, content)
+    write_file(path, content)
 
 def patch_handlers_ui():
     path = os.path.join("backend", "handlers.go")
     content = read_file(path)
     if not content: return
 
-    # Clean up broken strconv
+    # Clean up broken strconv if any
     content = re.sub(r'\n\s*"strconv"', '', content)
     content = re.sub(r'import\s+"strconv"\s*\n', '', content)
 
@@ -119,20 +104,20 @@ def patch_handlers_ui():
 
     func_body = content[func_start:func_end]
 
-    # Clean any old injections
+    # Clean any old injections to prevent duplication
     idx = func_body.find("` + (func() string {")
     if idx != -1:
         end_idx = func_body.find("})() + `", idx)
         if end_idx != -1:
             func_body = func_body[:idx] + func_body[end_idx+len("})() + `"):]
 
-    # Resolve config variable (usually 'appConfig')
+    # Resolve config variable (defaults to appConfig in your handlers.go)
     conf_var = "appConfig"
     m_var = re.search(r'\b([a-zA-Z0-9_]+)\.(?:Author|Port|Theme|GitServers|ActiveGitIndex|GitPassword)\b', func_body)
     if m_var:
         conf_var = m_var.group(1)
 
-    # Inject the HTML UI paired with the JS payload interceptor
+    # Inject the HTML UI paired with the highly robust JS payload interceptor
     inline_ui = f'''` + (func() string {{
 \tgitHTML := "<h3>Git Servers</h3>"
 \tfor i, gs := range {conf_var}.GitServers {{
@@ -154,15 +139,15 @@ def patch_handlers_ui():
 \t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 \t}}
 \t
-\t// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it naturally!
+\t// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it natively!
 \tgitHTML += `<script>
 \t(function() {{
 \t\tfunction injectGitData(bodyStr) {{
 \t\t\ttry {{
 \t\t\t\tlet parsed = JSON.parse(bodyStr);
-\t\t\t\tlet activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-\t\t\t\tif (activeIndex && parsed) {{
-\t\t\t\t\tparsed.active_git_index = parseInt(activeIndex.value);
+\t\t\t\tif (parsed) {{
+\t\t\t\t\tlet activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+\t\t\t\t\tparsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
 \t\t\t\t\tparsed.git_servers = [];
 \t\t\t\t\tfor(let i=0; i<5; i++) {{
 \t\t\t\t\t\tparsed.git_servers.push({{
@@ -204,7 +189,7 @@ def patch_handlers_ui():
             button_tag = parts[0][button_start:]
             func_body = before_button + inline_ui + "\n\t\t" + button_tag + ">Save Configuration</button>" + parts[1]
 
-    # Remove the broken Go post parser from 1.5.13 completely
+    # Clean old Go POST regex parsing if it accidentally stayed in the code from 1.5.13
     func_body = re.sub(r'// Parse Git array safely.*?\}', '', func_body, flags=re.DOTALL)
 
     content = content[:func_start] + func_body + content[func_end:]
@@ -216,7 +201,7 @@ def main():
     patch_config_struct()
     patch_git_helper()
     patch_handlers_ui()
-    print("[*] Update complete. Structural config found, and JSON Payload Interceptor is active!")
+    print("[*] Update complete. Array limits forcefully initialized! You may now safely compile!")
 
 if __name__ == "__main__":
     main()

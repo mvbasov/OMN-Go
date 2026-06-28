@@ -62,6 +62,7 @@ func getConfigPageBody() string {
 		
 		
 		
+		
 		` + (func() string {
 	gitHTML := "<h3>Git Servers</h3>"
 	for i, gs := range appConfig.GitServers {
@@ -83,15 +84,15 @@ func getConfigPageBody() string {
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
 	
-	// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it naturally!
+	// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it natively!
 	gitHTML += `<script>
 	(function() {
 		function injectGitData(bodyStr) {
 			try {
 				let parsed = JSON.parse(bodyStr);
-				let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-				if (activeIndex && parsed) {
-					parsed.active_git_index = parseInt(activeIndex.value);
+				if (parsed) {
+					let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+					parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
 					parsed.git_servers = [];
 					for(let i=0; i<5; i++) {
 						parsed.git_servers.push({
