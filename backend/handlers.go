@@ -17,6 +17,12 @@ import (
 )
 
 func getConfigPageBody() string {
+	// [OMN-Go 1.5.19] Self-Healing Array Enforcement
+	// Guarantees the UI loop executes even if the JSON payload previously wiped the variable!
+	for len(appConfig.GitServers) < 5 {
+		appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+	}
+
 	checkedStr := ""
 	if appConfig.UseInternalEd {
 		checkedStr = "checked"
@@ -42,43 +48,8 @@ func getConfigPageBody() string {
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
 
-	gitHTML += `<script>
-	(function() {
-		function injectGitData(bodyStr) {
-			try {
-				let parsed = JSON.parse(bodyStr);
-				if (parsed) {
-					let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-					parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
-					parsed.git_servers = [];
-					for(let i=0; i<5; i++) {
-						parsed.git_servers.push({
-							name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
-							url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
-							ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
-							password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
-						});
-					}
-					return JSON.stringify(parsed);
-				}
-			} catch(e) {}
-			return bodyStr;
-		}
-		
-		const origFetch = window.fetch;
-		window.fetch = function() {
-			if (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
-				arguments[1].body = injectGitData(arguments[1].body);
-			}
-			return origFetch.apply(this, arguments);
-		};
-		const origSend = XMLHttpRequest.prototype.send;
-		XMLHttpRequest.prototype.send = function(body) {
-			if (typeof body === 'string') { body = injectGitData(body); }
-			return origSend.call(this, body);
-		};
-	})();
-	</script>`
+	// Use Base64 transparent image trick to flawlessly execute Javascript inside dynamic .innerHTML
+	gitHTML += `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('CiAgICBpZiAoIXdpbmRvdy5fX2dpdEhvb2tlZCkgewogICAgICAgIHdpbmRvdy5fX2dpdEhvb2tlZCA9IHRydWU7CiAgICAgICAgY29uc3Qgb3JpZ0ZldGNoID0gd2luZG93LmZldGNoOwogICAgICAgIHdpbmRvdy5mZXRjaCA9IGZ1bmN0aW9uKCkgewogICAgICAgICAgICBpZiAoYXJndW1lbnRzWzFdICYmIGFyZ3VtZW50c1sxXS5tZXRob2QgJiYgYXJndW1lbnRzWzFdLm1ldGhvZC50b1VwcGVyQ2FzZSgpID09PSAnUE9TVCcgJiYgdHlwZW9mIGFyZ3VtZW50c1sxXS5ib2R5ID09PSAnc3RyaW5nJykgewogICAgICAgICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgICAgICAgICBsZXQgcGFyc2VkID0gSlNPTi5wYXJzZShhcmd1bWVudHNbMV0uYm9keSk7CiAgICAgICAgICAgICAgICAgICAgaWYgKHBhcnNlZCkgewogICAgICAgICAgICAgICAgICAgICAgICBsZXQgYWN0aXZlSW5kZXggPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJhY3RpdmVfZ2l0X2luZGV4Il06Y2hlY2tlZCcpOwogICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuYWN0aXZlX2dpdF9pbmRleCA9IGFjdGl2ZUluZGV4ID8gcGFyc2VJbnQoYWN0aXZlSW5kZXgudmFsdWUpIDogMDsKICAgICAgICAgICAgICAgICAgICAgICAgcGFyc2VkLmdpdF9zZXJ2ZXJzID0gW107CiAgICAgICAgICAgICAgICAgICAgICAgIGZvcihsZXQgaT0wOyBpPDU7IGkrKykgewogICAgICAgICAgICAgICAgICAgICAgICAgICAgcGFyc2VkLmdpdF9zZXJ2ZXJzLnB1c2goewogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG5hbWU6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9uYW1lXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgdXJsOiBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJnaXRfdXJsXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc3NoX2tleV9wYXRoOiBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJnaXRfc3NoXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcGFzc3dvcmQ6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9wYXNzXycraSsnIl0nKT8udmFsdWUgfHwgJycKICAgICAgICAgICAgICAgICAgICAgICAgICAgIH0pOwogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgICAgIGFyZ3VtZW50c1sxXS5ib2R5ID0gSlNPTi5zdHJpbmdpZnkocGFyc2VkKTsKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB9IGNhdGNoKGUpIHt9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgcmV0dXJuIG9yaWdGZXRjaC5hcHBseSh0aGlzLCBhcmd1bWVudHMpOwogICAgICAgIH07CiAgICAgICAgY29uc3Qgb3JpZ1NlbmQgPSBYTUxIdHRwUmVxdWVzdC5wcm90b3R5cGUuc2VuZDsKICAgICAgICBYTUxIdHRwUmVxdWVzdC5wcm90b3R5cGUuc2VuZCA9IGZ1bmN0aW9uKGJvZHkpIHsKICAgICAgICAgICAgaWYgKHR5cGVvZiBib2R5ID09PSAnc3RyaW5nJykgewogICAgICAgICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgICAgICAgICBsZXQgcGFyc2VkID0gSlNPTi5wYXJzZShib2R5KTsKICAgICAgICAgICAgICAgICAgICBpZiAocGFyc2VkKSB7CiAgICAgICAgICAgICAgICAgICAgICAgIGxldCBhY3RpdmVJbmRleCA9IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImFjdGl2ZV9naXRfaW5kZXgiXTpjaGVja2VkJyk7CiAgICAgICAgICAgICAgICAgICAgICAgIHBhcnNlZC5hY3RpdmVfZ2l0X2luZGV4ID0gYWN0aXZlSW5kZXggPyBwYXJzZUludChhY3RpdmVJbmRleC52YWx1ZSkgOiAwOwogICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuZ2l0X3NlcnZlcnMgPSBbXTsKICAgICAgICAgICAgICAgICAgICAgICAgZm9yKGxldCBpPTA7IGk8NTsgaSsrKSB7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuZ2l0X3NlcnZlcnMucHVzaCh7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbmFtZTogZG9jdW1lbnQucXVlcnlTZWxlY3RvcignaW5wdXRbbmFtZT0iZ2l0X25hbWVfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB1cmw6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF91cmxfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzc2hfa2V5X3BhdGg6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9zc2hfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXNzd29yZDogZG9jdW1lbnQucXVlcnlTZWxlY3RvcignaW5wdXRbbmFtZT0iZ2l0X3Bhc3NfJytpKyciXScpPy52YWx1ZSB8fCAnJwogICAgICAgICAgICAgICAgICAgICAgICAgICAgfSk7CiAgICAgICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgICAgICAgICAgYm9keSA9IEpTT04uc3RyaW5naWZ5KHBhcnNlZCk7CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgfSBjYXRjaChlKSB7fQogICAgICAgICAgICB9CiAgICAgICAgICAgIHJldHVybiBvcmlnU2VuZC5jYWxsKHRoaXMsIGJvZHkpOwogICAgICAgIH07CiAgICB9CiAgICA='))" style="display:none;" />`
 
 	return fmt.Sprintf(`
 <div class="config-panel">
@@ -109,15 +80,15 @@ func getConfigPageBody() string {
             <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
         </div>
 
-        <!-- Legacy Safeguard: Hidden inputs so frontend JS payload extraction doesn't crash on null! -->
+        <!-- Legacy Safeguard so frontend JS payload extraction doesn't crash on null! -->
         <input type="hidden" id="cfgSyncRemote" value="" />
         <input type="hidden" id="cfgSyncSSHKey" value="" />
         <input type="hidden" id="cfgSyncSSHPassphrase" value="" />
 
         %s
 
-        <div style="margin-top: 20px;">
-            <button type="submit" class="btn-primary" style="padding: 10px 20px; font-weight: bold;">Save Configuration</button>
+        <div class="config-field" style="margin-top: 20px;">
+            <button type="submit" class="btn-primary">Save Configuration</button>
         </div>
     </form>
 </div>

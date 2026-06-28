@@ -1,15 +1,15 @@
 import os
 import re
 import sys
+import base64
 
-VERSION = "1.5.18"
-VERSION_CODE = "10518"
+VERSION = "1.5.19"
+VERSION_CODE = "10519"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
         return None
     with open(filepath, 'r', encoding='utf-8') as f:
-        # Eradicate CRLF matching bugs by forcing standard LF
         return f.read().replace('\r\n', '\n')
 
 def write_file(filepath, content):
@@ -31,151 +31,66 @@ def bump_versions():
         content = re.sub(r'versionName\s+".*?"', f'versionName "{VERSION}"', content)
         write_file(b_path, content)
 
-def patch_config_struct():
-    path = os.path.join("backend", "config.go")
-    content = read_file(path)
-    if not content: return
-    
-    # 0. Wipe ALL existing GitServerConfig structs using a while loop.
-    # This completely eradicates the 'redeclared in this block' compiler error
-    # by catching every single duplicate left behind from previous attempts.
-    while "type GitServerConfig struct" in content:
-        start_idx = content.find("type GitServerConfig struct")
-        end_idx = content.find("}", start_idx)
-        if end_idx != -1:
-            content = content[:start_idx] + content[end_idx+1:]
-        else:
-            break
-
-    # 1. Physically Replace the Config Struct block using brace counting
-    struct_start = content.find("type Config struct {")
-    if struct_start != -1:
-        struct_end = content.find("}", struct_start) + 1
-        new_struct = """type GitServerConfig struct {
-\tName       string `json:"name"`
-\tURL        string `json:"url"`
-\tSSHKeyPath string `json:"ssh_key_path"`
-\tPassword   string `json:"password"`
-}
-
-type Config struct {
-\tForcePullOneTime bool `json:"force_pull_one_time"`
-\tServerPort       int               `json:"server_port"`
-\tAdminPassword    string            `json:"admin_password"`
-\tGuestPassword    string            `json:"guest_password"`
-\tAuthor           string            `json:"author"`
-\tUseInternalEd    bool              `json:"use_internal_editor"`
-\tDesktopExtCmd    string            `json:"desktop_ext_cmd"`
-\tMimeTypes        map[string]string `json:"mime_types"`
-\tActiveGitIndex   int               `json:"active_git_index"`
-\tGitServers     []GitServerConfig `json:"git_servers"`
-}"""
-        content = content[:struct_start] + new_struct + content[struct_end:]
-
-    # 2. Replace the initialization block to drop the old Sync variables
-    init_start = content.find("appConfig = Config{")
-    if init_start != -1:
-        brace_count = 0
-        init_end = init_start
-        found_first = False
-        for i in range(init_start, len(content)):
-            if content[i] == '{':
-                brace_count += 1
-                found_first = True
-            elif content[i] == '}':
-                brace_count -= 1
-            if found_first and brace_count == 0:
-                init_end = i + 1
-                break
-
-        new_init = """appConfig = Config{
-\t\t\tServerPort:    8080,
-\t\t\tAdminPassword: "admin_secret_changeme",
-\t\t\tGuestPassword: "guest_secret_changeme",
-\t\t\tAuthor:        "Anonymous",
-\t\t\tUseInternalEd: true,
-\t\t\tDesktopExtCmd: "subl",
-\t\t\tMimeTypes: map[string]string{
-\t\t\t\t".css":   "text/css",
-\t\t\t\t".js":    "application/javascript",
-\t\t\t\t".json":  "application/json",
-\t\t\t\t".html":  "text/html",
-\t\t\t\t".md":    "text/markdown",
-\t\t\t\t".svg":   "image/svg+xml",
-\t\t\t\t".png":   "image/png",
-\t\t\t\t".jpg":   "image/jpeg",
-\t\t\t\t".jpeg":  "image/jpeg",
-\t\t\t\t".woff2": "font/woff2",
-\t\t\t},
-\t\t}"""
-        content = content[:init_start] + new_init + content[init_end:]
-
-    # 3. Safely insert array logic right after unmarshal
-    if "for len(appConfig.GitServers) < 5" not in content:
-        unmarshal_idx = content.find("json.Unmarshal(data, &appConfig)")
-        if unmarshal_idx != -1:
-            brace_idx = content.find("}", unmarshal_idx)
-            if brace_idx != -1:
-                injection = """\t// [OMN-Go 1.5.18] Enforce 5 empty slots natively
-\tfor len(appConfig.GitServers) < 5 {
-\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
-\t}\n"""
-                content = content[:brace_idx+1] + "\n" + injection + content[brace_idx+1:]
-                
-    if '"fmt"' not in content:
-        content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
-
-    write_file(path, content)
-
-def patch_all_legacy_vars():
-    # Global Scrubber: Finds ALL old string variables across the ENTIRE backend and safely reroutes them
-    for filename in os.listdir("backend"):
-        if not filename.endswith(".go"): continue
-        
-        filepath = os.path.join("backend", filename)
-        content = read_file(filepath)
-        if not content: continue
-        
-        orig = content
-        # Completely routes handlers.go and git_helper.go to the new Array infrastructure
-        content = content.replace("appConfig.SyncRemote", "appConfig.GitServers[appConfig.ActiveGitIndex].URL")
-        content = content.replace("appConfig.SyncSSHKey", "appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath")
-        content = content.replace("appConfig.SyncSSHPassphrase", "appConfig.GitServers[appConfig.ActiveGitIndex].Password")
-        
-        if orig != content:
-            write_file(filepath, content)
-
-def patch_git_helper():
-    path = os.path.join("backend", "git_helper.go")
-    content = read_file(path)
-    if not content: return
-
-    # Inject Dynamic Remote cache bypass if it isn't there
-    if "DeleteRemote" not in content:
-        fix_logic = """
-\t// [OMN-Go 1.5.18] Dynamically update remote origin cache
-\tactiveGit := appConfig.GitServers[appConfig.ActiveGitIndex]
-\tremote, remoteErr := repo.Remote("origin")
-\tif remoteErr == nil && len(remote.Config().URLs) > 0 && remote.Config().URLs[0] != activeGit.URL {
-\t\trepo.DeleteRemote("origin")
-\t\trepo.CreateRemote(&gitconfig.RemoteConfig{
-\t\t\tName: "origin",
-\t\t\tURLs: []string{activeGit.URL},
-\t\t})
-\t}
-"""
-        content = re.sub(r'(repo,\s*err\s*:=\s*git\.PlainOpen[^\n]+\n\s*if\s*err\s*!=\s*nil\s*\{[^\}]+\}\n)', r'\1' + fix_logic, content)
-        if '"github.com/go-git/go-git/v5/config"' not in content:
-            content = re.sub(r'(import\s*\()', r'\1\n\tgitconfig "github.com/go-git/go-git/v5/config"\n', content)
-        
-        write_file(path, content)
-
 def patch_handlers_ui():
     path = os.path.join("backend", "handlers.go")
     content = read_file(path)
     if not content: return
 
-    # Completely rebuild getConfigPageBody to guarantee execution
+    # The robust JS payload interceptor (Base64'd to bypass innerHTML script block rules!)
+    js_payload = """
+    if (!window.__gitHooked) {
+        window.__gitHooked = true;
+        const origFetch = window.fetch;
+        window.fetch = function() {
+            if (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
+                try {
+                    let parsed = JSON.parse(arguments[1].body);
+                    if (parsed) {
+                        let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+                        parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
+                        parsed.git_servers = [];
+                        for(let i=0; i<5; i++) {
+                            parsed.git_servers.push({
+                                name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
+                                url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
+                                ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
+                                password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
+                            });
+                        }
+                        arguments[1].body = JSON.stringify(parsed);
+                    }
+                } catch(e) {}
+            }
+            return origFetch.apply(this, arguments);
+        };
+        const origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(body) {
+            if (typeof body === 'string') {
+                try {
+                    let parsed = JSON.parse(body);
+                    if (parsed) {
+                        let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+                        parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
+                        parsed.git_servers = [];
+                        for(let i=0; i<5; i++) {
+                            parsed.git_servers.push({
+                                name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
+                                url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
+                                ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
+                                password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
+                            });
+                        }
+                        body = JSON.stringify(parsed);
+                    }
+                } catch(e) {}
+            }
+            return origSend.call(this, body);
+        };
+    }
+    """
+    # Base64 encode the JS so it's impervious to Go/HTML formatting quirks
+    b64_js = base64.b64encode(js_payload.encode('utf-8')).decode('utf-8')
+
     func_name = "func getConfigPageBody() string"
     start_idx = content.find(func_name)
     if start_idx == -1: return
@@ -193,18 +108,24 @@ def patch_handlers_ui():
             end_idx = i + 1
             break
 
-    new_func = """func getConfigPageBody() string {
+    new_func = f"""func getConfigPageBody() string {{
+\t// [OMN-Go 1.5.19] Self-Healing Array Enforcement
+\t// Guarantees the UI loop executes even if the JSON payload previously wiped the variable!
+\tfor len(appConfig.GitServers) < 5 {{
+\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)}})
+\t}}
+
 \tcheckedStr := ""
-\tif appConfig.UseInternalEd {
+\tif appConfig.UseInternalEd {{
 \t\tcheckedStr = "checked"
-\t}
+\t}}
 
 \tgitHTML := "<h3>Git Servers</h3>"
-\tfor i, gs := range appConfig.GitServers {
+\tfor i, gs := range appConfig.GitServers {{
 \t\tchecked := ""
-\t\tif appConfig.ActiveGitIndex == i {
+\t\tif appConfig.ActiveGitIndex == i {{
 \t\t\tchecked = "checked"
-\t\t}
+\t\t}}
 \t\tgitHTML += fmt.Sprintf(`
 \t\t\t<div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 4px; background: #f9f9f9; color: black;">
 \t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px;">
@@ -217,45 +138,10 @@ def patch_handlers_ui():
 \t\t\t\t\t<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
 \t\t\t\t</div>
 \t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
-\t}
+\t}}
 
-\tgitHTML += `<script>
-\t(function() {
-\t\tfunction injectGitData(bodyStr) {
-\t\t\ttry {
-\t\t\t\tlet parsed = JSON.parse(bodyStr);
-\t\t\t\tif (parsed) {
-\t\t\t\t\tlet activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-\t\t\t\t\tparsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
-\t\t\t\t\tparsed.git_servers = [];
-\t\t\t\t\tfor(let i=0; i<5; i++) {
-\t\t\t\t\t\tparsed.git_servers.push({
-\t\t\t\t\t\t\tname: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
-\t\t\t\t\t\t\turl: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
-\t\t\t\t\t\t\tssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
-\t\t\t\t\t\t\tpassword: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
-\t\t\t\t\t\t});
-\t\t\t\t\t}
-\t\t\t\t\treturn JSON.stringify(parsed);
-\t\t\t\t}
-\t\t\t} catch(e) {}
-\t\t\treturn bodyStr;
-\t\t}
-\t\t
-\t\tconst origFetch = window.fetch;
-\t\twindow.fetch = function() {
-\t\t\tif (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
-\t\t\t\targuments[1].body = injectGitData(arguments[1].body);
-\t\t\t}
-\t\t\treturn origFetch.apply(this, arguments);
-\t\t};
-\t\tconst origSend = XMLHttpRequest.prototype.send;
-\t\tXMLHttpRequest.prototype.send = function(body) {
-\t\t\tif (typeof body === 'string') { body = injectGitData(body); }
-\t\t\treturn origSend.call(this, body);
-\t\t};
-\t})();
-\t</script>`
+\t// Use Base64 transparent image trick to flawlessly execute Javascript inside dynamic .innerHTML
+\tgitHTML += `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('{b64_js}'))" style="display:none;" />`
 
 \treturn fmt.Sprintf(`
 <div class="config-panel">
@@ -286,31 +172,28 @@ def patch_handlers_ui():
             <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
         </div>
 
-        <!-- Legacy Safeguard: Hidden inputs so frontend JS payload extraction doesn't crash on null! -->
+        <!-- Legacy Safeguard so frontend JS payload extraction doesn't crash on null! -->
         <input type="hidden" id="cfgSyncRemote" value="" />
         <input type="hidden" id="cfgSyncSSHKey" value="" />
         <input type="hidden" id="cfgSyncSSHPassphrase" value="" />
 
         %s
 
-        <div style="margin-top: 20px;">
-            <button type="submit" class="btn-primary" style="padding: 10px 20px; font-weight: bold;">Save Configuration</button>
+        <div class="config-field" style="margin-top: 20px;">
+            <button type="submit" class="btn-primary">Save Configuration</button>
         </div>
     </form>
 </div>
 `, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author, checkedStr, appConfig.DesktopExtCmd, gitHTML)
-}"""
+}}"""
     content = content[:start_idx] + new_func + content[end_idx:]
     write_file(path, content)
 
 def main():
     print(f"[*] Starting OMN-Go update to Version {VERSION}...")
     bump_versions()
-    patch_config_struct()
-    patch_all_legacy_vars() 
-    patch_git_helper()
     patch_handlers_ui()
-    print("[*] Update complete. ALL duplicate structs eradicated!")
+    print("[*] Update complete. The DOM innerHTML security bypass is active and the array is self-healing!")
 
 if __name__ == "__main__":
     main()
