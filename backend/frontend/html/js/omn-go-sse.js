@@ -36,6 +36,24 @@ if (window.location.protocol !== 'file:') {
     
         // Export to global scope to preserve HTML onclick attributes
         window.syncAction = syncAction;
+
+    window.saveConfig = async function() {
+        const form = document.getElementById('configForm');
+        if (!form) { alert('Config form not found'); return; }
+        const fd = new FormData(form);
+        try {
+            const res = await fetch('/api/config', { method: 'POST', body: fd });
+            if (res.ok) {
+                alert('Configuration saved. Reloading...');
+                window.location.reload();
+            } else {
+                let msg = await res.text();
+                alert('Failed to save configuration: ' + msg);
+            }
+        } catch (e) {
+            alert('Network error: ' + e);
+        }
+    };
         return { syncAction };
     })();
 

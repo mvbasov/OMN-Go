@@ -39,12 +39,12 @@ func getConfigPageBody() string {
 					<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)
 				</label>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-					<input type="text" id="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-					<input type="text" id="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-					<input type="text" id="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-					<input type="password" id="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="text" id="git_name_%d" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="text" id="git_url_%d" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="text" id="git_ssh_%d" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="password" id="git_pass_%d" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
 				</div>
-			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
+			</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyPath, i, i, gs.Password)
 	}
 
 	return fmt.Sprintf(`
@@ -53,74 +53,33 @@ func getConfigPageBody() string {
     <form id="configForm" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" class="config-input" required />
+            <input type="number" id="cfgPort" name="server_port" value="%d" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
+            <input type="password" id="cfgAdminPwd" name="admin_password" value="%s" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
+            <input type="password" id="cfgGuestPwd" name="guest_password" value="%s" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
+            <input type="text" id="cfgAuthor" name="author" value="%s" class="config-input" />
         </div>
         <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgInternalEd" %s />
+            <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %s />
             <label class="config-label">Use Internal Editor</label>
         </div>
         <div class="config-field">
             <label class="config-label">Desktop External Cmd</label>
-            <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
+            <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%s" class="config-input" />
         </div>
 
         %s
 
         <div class="config-field" style="margin-top: 20px;">
-            <button type="button" class="btn-primary" onclick="
-                let injectData = function(bodyStr) {
-                    try {
-                        let parsed = JSON.parse(bodyStr);
-                        let activeEl = document.querySelector('input[name=active_git_index]:checked');
-                        parsed.active_git_index = activeEl ? parseInt(activeEl.value) : 0;
-                        parsed.git_servers = [];
-                        for(let i=0; i<5; i++) {
-                            let sn = document.getElementById('git_name_'+i);
-                            let su = document.getElementById('git_url_'+i);
-                            let sp = document.getElementById('git_ssh_'+i);
-                            let sw = document.getElementById('git_pass_'+i);
-                            parsed.git_servers.push({
-                                name: sn ? sn.value : '',
-                                url: su ? su.value : '',
-                                ssh_key_path: sp ? sp.value : '',
-                                password: sw ? sw.value : ''
-                            });
-                        }
-                        return JSON.stringify(parsed);
-                    } catch(e) { return bodyStr; }
-                };
-                let origFetch = window.fetch;
-                window.fetch = function(url, options) {
-                    if (options && options.body && typeof options.body === 'string') {
-                        options.body = injectData(options.body);
-                    }
-                    window.fetch = origFetch;
-                    return origFetch.call(this, url, options);
-                };
-                let origSend = XMLHttpRequest.prototype.send;
-                XMLHttpRequest.prototype.send = function(body) {
-                    if (typeof body === 'string') {
-                        body = injectData(body);
-                    }
-                    XMLHttpRequest.prototype.send = origSend;
-                    return origSend.call(this, body);
-                };
-                if(typeof saveConfig === 'function') {
-                    saveConfig({ preventDefault: function(){}, target: document.getElementById('configForm') });
-                }
-            ">Save Configuration</button>
+            <button type="button" class="btn-primary" onclick="saveConfig()">Save Configuration</button>
         </div>
     </form>
 </div>
@@ -160,9 +119,28 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		appConfig.Author = r.FormValue("author")
 		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
-		appConfig.GitServers[appConfig.ActiveGitIndex].URL = r.FormValue("sync_remote")
-		appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath = r.FormValue("sync_ssh_key")
-		appConfig.GitServers[appConfig.ActiveGitIndex].Password = r.FormValue("sync_ssh_passphrase")
+		// Apply active git index from radio selection
+		if idxStr := r.FormValue("active_git_index"); idxStr != "" {
+			var idx int
+			fmt.Sscanf(idxStr, "%d", &idx)
+			if idx >= 0 && idx < len(appConfig.GitServers) {
+				appConfig.ActiveGitIndex = idx
+			}
+		}
+		// Update all 5 git server slots
+		for i := 0; i < 5; i++ {
+			name := r.FormValue(fmt.Sprintf("git_name_%d", i))
+			url := r.FormValue(fmt.Sprintf("git_url_%d", i))
+			ssh := r.FormValue(fmt.Sprintf("git_ssh_%d", i))
+			pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
+			// update fields if any non‑empty value is supplied (allows clearing)
+			if name != "" || url != "" || ssh != "" || pass != "" {
+				appConfig.GitServers[i].Name = name
+				appConfig.GitServers[i].URL = url
+				appConfig.GitServers[i].SSHKeyPath = ssh
+				appConfig.GitServers[i].Password = pass
+			}
+		}
 
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		configPath := filepath.Join(storageDir, "config.json")

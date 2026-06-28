@@ -1,146 +1,137 @@
-import os
-import re
-import sys
+#!/usr/bin/env python3
+import re, os
 
-VERSION = "1.5.21"
-VERSION_CODE = "10521"
+def read_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
-def read_file(filepath):
-    if not os.path.exists(filepath):
-        return None
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return f.read().replace('\r\n', '\n')
-
-def write_file(filepath, content):
-    with open(filepath, 'w', encoding='utf-8') as f:
+def write_file(path, content):
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print(f"[+] Successfully patched {filepath}")
 
-def bump_versions():
-    v_path = os.path.join("backend", "version.go")
-    content = read_file(v_path)
-    if content:
-        content = re.sub(r'APP_VERSION\s*=\s*".*?"', f'APP_VERSION = "{VERSION}"', content)
-        write_file(v_path, content)
-    
-    b_path = os.path.join("android", "app", "build.gradle")
-    content = read_file(b_path)
-    if content:
-        content = re.sub(r'versionCode\s+\d+', f'versionCode {VERSION_CODE}', content)
-        content = re.sub(r'versionName\s+".*?"', f'versionName "{VERSION}"', content)
-        write_file(b_path, content)
-
-def patch_config_struct():
-    path = os.path.join("backend", "config.go")
+def patch_file(path, old, new):
+    """Replace *old* with *new* in *path*.  Raise ValueError if *old* missing."""
     content = read_file(path)
-    if not content: return
-
-    # Clean out any previous patch attempts to avoid duplicate loops
-    content = re.sub(r'\t\t// \[OMN-Go 1\.5\.\d+\].*?appConfig\.GitServers = append[^\}]+?\}', '', content, flags=re.DOTALL)
-    
-    # Inject the absolute Array Lock right after json.Unmarshal
-    unmarshal_target = "json.Unmarshal(data, &appConfig)"
-    if unmarshal_target in content:
-        injection = """
-\t\t// [OMN-Go 1.5.21] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
-\t\tfor len(appConfig.GitServers) < 5 {
-\t\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
-\t\t}"""
-        content = content.replace(unmarshal_target, unmarshal_target + injection)
-
-    if '"fmt"' not in content:
-        content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
-
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
     write_file(path, content)
 
-def patch_handlers_ui():
-    path = os.path.join("backend", "handlers.go")
-    content = read_file(path)
-    if not content: return
+def increment_version(ver_str):
+    parts = ver_str.strip().split(".")
+    if len(parts) == 3 and parts[2].isdigit():
+        parts[2] = str(int(parts[2]) + 1)
+        return ".".join(parts)
+    raise ValueError(f"Unrecognised version format: {ver_str}")
 
-    func_name = "func getConfigPageBody() string"
-    start_idx = content.find(func_name)
-    if start_idx == -1: return
+def update_application():
+    # 1. Auto‑detect current version and bump
+    ver_path = "backend/version.go"
+    content = read_file(ver_path)
+    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
+    cur_ver = match.group(1)
+    new_ver = increment_version(cur_ver)
+    new_code = int(new_ver.replace(".", ""))
 
-    brace_count = 0
-    end_idx = start_idx
-    found_first = False
-    for i in range(start_idx, len(content)):
-        if content[i] == '{':
-            brace_count += 1
-            found_first = True
-        elif content[i] == '}':
-            brace_count -= 1
-        if found_first and brace_count == 0:
-            end_idx = i + 1
-            break
+    # Update version.go
+    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    write_file(ver_path, content)
 
-    # The Ghost Hook Override Template
-    # We securely intercept the native fetch mechanism without any quote escaping bugs
-    new_func = """func getConfigPageBody() string {
-\t// Redundant safety lock to ensure UI generation never crashes
-\tfor len(appConfig.GitServers) < 5 {
-\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
-\t}
+    # Update android/app/build.gradle
+    gradle_path = "android/app/build.gradle"
+    gradle = read_file(gradle_path)
+    old_code = int(cur_ver.replace(".", ""))
+    gradle = gradle.replace(f"versionCode {old_code}", f"versionCode {new_code}")
+    gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
+    write_file(gradle_path, gradle)
 
-\tcheckedStr := ""
-\tif appConfig.UseInternalEd {
-\t\tcheckedStr = "checked"
-\t}
+    # 2. Apply feature patches (with exact whitespace matching)
 
-\tgitHTML := "<h3>Git Servers</h3>"
-\tfor i, gs := range appConfig.GitServers {
-\t\tchecked := ""
-\t\tif appConfig.ActiveGitIndex == i {
-\t\t\tchecked = "checked"
-\t}
-\t\tgitHTML += fmt.Sprintf(`
-\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">
-\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)
-\t\t\t\t</label>
-\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-\t\t\t\t\t<input type="text" id="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-\t\t\t\t\t<input type="text" id="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-\t\t\t\t\t<input type="text" id="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-\t\t\t\t\t<input type="password" id="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-\t\t\t\t</div>
-\t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
-\t}
+    # 2a. backend/handlers.go – handleConfig POST: full git server parsing + active index
+    old_sync = (
+        "\t\tappConfig.GitServers[appConfig.ActiveGitIndex].URL = r.FormValue(\"sync_remote\")\n"
+        "\t\tappConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath = r.FormValue(\"sync_ssh_key\")\n"
+        "\t\tappConfig.GitServers[appConfig.ActiveGitIndex].Password = r.FormValue(\"sync_ssh_passphrase\")"
+    )
+    new_sync = (
+        "\t\t// Apply active git index from radio selection\n"
+        "\t\tif idxStr := r.FormValue(\"active_git_index\"); idxStr != \"\" {\n"
+        "\t\t\tvar idx int\n"
+        "\t\t\tfmt.Sscanf(idxStr, \"%d\", &idx)\n"
+        "\t\t\tif idx >= 0 && idx < len(appConfig.GitServers) {\n"
+        "\t\t\t\tappConfig.ActiveGitIndex = idx\n"
+        "\t\t\t}\n"
+        "\t\t}\n"
+        "\t\t// Update all 5 git server slots\n"
+        "\t\tfor i := 0; i < 5; i++ {\n"
+        "\t\t\tname := r.FormValue(fmt.Sprintf(\"git_name_%d\", i))\n"
+        "\t\t\turl := r.FormValue(fmt.Sprintf(\"git_url_%d\", i))\n"
+        "\t\t\tssh := r.FormValue(fmt.Sprintf(\"git_ssh_%d\", i))\n"
+        "\t\t\tpass := r.FormValue(fmt.Sprintf(\"git_pass_%d\", i))\n"
+        "\t\t\t// update fields if any non‑empty value is supplied (allows clearing)\n"
+        "\t\t\tif name != \"\" || url != \"\" || ssh != \"\" || pass != \"\" {\n"
+        "\t\t\t\tappConfig.GitServers[i].Name = name\n"
+        "\t\t\t\tappConfig.GitServers[i].URL = url\n"
+        "\t\t\t\tappConfig.GitServers[i].SSHKeyPath = ssh\n"
+        "\t\t\t\tappConfig.GitServers[i].Password = pass\n"
+        "\t\t\t}\n"
+        "\t\t}"
+    )
+    patch_file("backend/handlers.go", old_sync, new_sync)
 
-\treturn fmt.Sprintf(`
-<div class="config-panel">
-    <h2 class="config-title">Configuration Dashboard</h2>
-    <form id="configForm" class="config-form">
-        <div class="config-field">
-            <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
-        </div>
-        <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgInternalEd" %s />
-            <label class="config-label">Use Internal Editor</label>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Desktop External Cmd</label>
-            <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
-        </div>
+    # 2b. Add name attributes to config form fields (with leading spaces)
+    patch_file("backend/handlers.go",
+        '            <input type="number" id="cfgPort" value="%d" class="config-input" required />',
+        '            <input type="number" id="cfgPort" name="server_port" value="%d" class="config-input" required />')
+    patch_file("backend/handlers.go",
+        '            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />',
+        '            <input type="password" id="cfgAdminPwd" name="admin_password" value="%s" class="config-input" required />')
+    patch_file("backend/handlers.go",
+        '            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />',
+        '            <input type="password" id="cfgGuestPwd" name="guest_password" value="%s" class="config-input" required />')
+    patch_file("backend/handlers.go",
+        '            <input type="text" id="cfgAuthor" value="%s" class="config-input" />',
+        '            <input type="text" id="cfgAuthor" name="author" value="%s" class="config-input" />')
+    patch_file("backend/handlers.go",
+        '            <input type="checkbox" id="cfgInternalEd" %s />',
+        '            <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %s />')
+    patch_file("backend/handlers.go",
+        '            <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />',
+        '            <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%s" class="config-input" />')
 
-        %s
+    # 2c. Fix git server card inputs – add name attributes and update Sprintf args
+    old_git_block = (
+        '\t\tgitHTML += fmt.Sprintf(`\n'
+        '\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">\n'
+        '\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">\n'
+        '\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)\n'
+        '\t\t\t\t</label>\n'
+        '\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="password" id="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t</div>\n'
+        '\t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)'
+    )
+    new_git_block = (
+        '\t\tgitHTML += fmt.Sprintf(`\n'
+        '\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">\n'
+        '\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">\n'
+        '\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)\n'
+        '\t\t\t\t</label>\n'
+        '\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_name_%d" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_url_%d" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="text" id="git_ssh_%d" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t\t<input type="password" id="git_pass_%d" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
+        '\t\t\t\t</div>\n'
+        '\t\t\t</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyPath, i, i, gs.Password)'
+    )
+    patch_file("backend/handlers.go", old_git_block, new_git_block)
 
-        <div class="config-field" style="margin-top: 20px;">
-            <button type="button" class="btn-primary" onclick="
+    # 2d. Replace complex button onclick with simple saveConfig() call
+    old_button_onclick = '''<button type="button" class="btn-primary" onclick="
                 let injectData = function(bodyStr) {
                     try {
                         let parsed = JSON.parse(bodyStr);
@@ -181,21 +172,43 @@ def patch_handlers_ui():
                 if(typeof saveConfig === 'function') {
                     saveConfig({ preventDefault: function(){}, target: document.getElementById('configForm') });
                 }
-            ">Save Configuration</button>
-        </div>
-    </form>
-</div>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author, checkedStr, appConfig.DesktopExtCmd, gitHTML)
-}"""
-    content = content[:start_idx] + new_func + content[end_idx:]
-    write_file(path, content)
+            ">Save Configuration</button>'''
+    new_button_onclick = '<button type="button" class="btn-primary" onclick="saveConfig()">Save Configuration</button>'
+    patch_file("backend/handlers.go", old_button_onclick, new_button_onclick)
 
-def main():
-    print(f"[*] Starting OMN-Go update to Version {VERSION}...")
-    bump_versions()
-    patch_config_struct()
-    patch_handlers_ui()
-    print("[*] Update complete. Quote escaping syntax errors are annihilated and CSS is restored!")
+    # 2e. Add saveConfig() to omn-go-sse.js
+    patch_file("backend/frontend/html/js/omn-go-sse.js",
+        "window.syncAction = syncAction;",
+        "window.syncAction = syncAction;\n\n"
+        "    window.saveConfig = async function() {\n"
+        "        const form = document.getElementById('configForm');\n"
+        "        if (!form) { alert('Config form not found'); return; }\n"
+        "        const fd = new FormData(form);\n"
+        "        try {\n"
+        "            const res = await fetch('/api/config', { method: 'POST', body: fd });\n"
+        "            if (res.ok) {\n"
+        "                alert('Configuration saved. Reloading...');\n"
+        "                window.location.reload();\n"
+        "            } else {\n"
+        "                let msg = await res.text();\n"
+        "                alert('Failed to save configuration: ' + msg);\n"
+        "            }\n"
+        "        } catch (e) {\n"
+        "            alert('Network error: ' + e);\n"
+        "        }\n"
+        "    };"
+    )
+
+    # 3. Print Git commit message
+    commit_msg = (
+        "fix(config): repair broken config initialisation and page handling\n\n"
+        "- Add name attributes to all config form fields (including git servers)\n"
+        "- Implement full 5‑slot git server parsing in POST handler\n"
+        "- Replace buggy fetch injection with a dedicated saveConfig() JS function\n"
+        "- Ensure config page save button works correctly\n"
+        f"Version bumped to {new_ver}"
+    )
+    print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
-    main()
+    update_application()
