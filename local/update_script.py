@@ -2,8 +2,8 @@ import os
 import re
 import sys
 
-VERSION = "1.5.17"
-VERSION_CODE = "10517"
+VERSION = "1.5.18"
+VERSION_CODE = "10518"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -36,13 +36,16 @@ def patch_config_struct():
     content = read_file(path)
     if not content: return
     
-    # 0. Wipe existing GitServerConfig struct to avoid Redeclaration compiler errors
-    git_struct_idx = content.find("type GitServerConfig struct {")
-    if git_struct_idx != -1:
-        end_idx = content.find("}", git_struct_idx)
+    # 0. Wipe ALL existing GitServerConfig structs using a while loop.
+    # This completely eradicates the 'redeclared in this block' compiler error
+    # by catching every single duplicate left behind from previous attempts.
+    while "type GitServerConfig struct" in content:
+        start_idx = content.find("type GitServerConfig struct")
+        end_idx = content.find("}", start_idx)
         if end_idx != -1:
-            # Clear the old struct block entirely
-            content = content[:git_struct_idx] + content[end_idx+1:]
+            content = content[:start_idx] + content[end_idx+1:]
+        else:
+            break
 
     # 1. Physically Replace the Config Struct block using brace counting
     struct_start = content.find("type Config struct {")
@@ -113,7 +116,7 @@ type Config struct {
         if unmarshal_idx != -1:
             brace_idx = content.find("}", unmarshal_idx)
             if brace_idx != -1:
-                injection = """\t// [OMN-Go 1.5.17] Enforce 5 empty slots natively
+                injection = """\t// [OMN-Go 1.5.18] Enforce 5 empty slots natively
 \tfor len(appConfig.GitServers) < 5 {
 \t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 \t}\n"""
@@ -150,7 +153,7 @@ def patch_git_helper():
     # Inject Dynamic Remote cache bypass if it isn't there
     if "DeleteRemote" not in content:
         fix_logic = """
-\t// [OMN-Go 1.5.17] Dynamically update remote origin cache
+\t// [OMN-Go 1.5.18] Dynamically update remote origin cache
 \tactiveGit := appConfig.GitServers[appConfig.ActiveGitIndex]
 \tremote, remoteErr := repo.Remote("origin")
 \tif remoteErr == nil && len(remote.Config().URLs) > 0 && remote.Config().URLs[0] != activeGit.URL {
@@ -304,10 +307,10 @@ def main():
     print(f"[*] Starting OMN-Go update to Version {VERSION}...")
     bump_versions()
     patch_config_struct()
-    patch_all_legacy_vars() # Crucial: This fixes the undefined errors dynamically across the entire backend
+    patch_all_legacy_vars() 
     patch_git_helper()
     patch_handlers_ui()
-    print("[*] Update complete. Duplicate structs cleared and legacy handler variables rerouted!")
+    print("[*] Update complete. ALL duplicate structs eradicated!")
 
 if __name__ == "__main__":
     main()
