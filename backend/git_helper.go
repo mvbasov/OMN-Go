@@ -30,8 +30,8 @@ func ensureGitignore() {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
 		log.Printf("[sync] Created .gitignore")
 	}
-	if appConfig.SyncSSHKey != "" {
-		keyPath := appConfig.SyncSSHKey
+	if appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath != "" {
+		keyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath
 		if !filepath.IsAbs(keyPath) {
 			keyPath = filepath.Join(storageDir, keyPath)
 		}
@@ -79,7 +79,7 @@ func getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Remote origin missing, adding")
 		_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
 			Name: "origin",
-			URLs: []string{appConfig.SyncRemote},
+			URLs: []string{appConfig.GitServers[appConfig.ActiveGitIndex].URL},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("remote add failed: %v", err)
@@ -92,17 +92,17 @@ func getOrInitRepo() (*git.Repository, error) {
 
 func getSSHAuth() (transport.AuthMethod, error) {
 	sshUser := "git"
-	if idx := strings.Index(appConfig.SyncRemote, "@"); idx != -1 {
-		sshUser = appConfig.SyncRemote[:idx]
+	if idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {
+		sshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]
 	}
 	log.Printf("[sync] SSH user: %s", sshUser)
 
-	if appConfig.SyncSSHKey == "" {
+	if appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath == "" {
 		log.Printf("[sync] Error: No SSH key configured")
 		return nil, fmt.Errorf("no SSH key configured")
 	}
 
-	keyPath := appConfig.SyncSSHKey
+	keyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath
 	if !filepath.IsAbs(keyPath) {
 		keyPath = filepath.Join(storageDir, keyPath)
 	}
@@ -114,7 +114,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 	}
 	log.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
 
-	auth, err := GetInsecureSSHAuth(sshUser, keyPath, appConfig.SyncSSHPassphrase)
+	auth, err := GetInsecureSSHAuth(sshUser, keyPath, appConfig.GitServers[appConfig.ActiveGitIndex].Password)
 	if err != nil {
 		return nil, fmt.Errorf("GetInsecureSSHAuth error: %v", err)
 	}
@@ -309,13 +309,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if appConfig.SyncRemote == "" {
+	if appConfig.GitServers[appConfig.ActiveGitIndex].URL == "" {
 		log.Printf("[sync] Error: sync_remote not configured")
 		http.Error(w, "Sync not configured: missing sync_remote in config.json", 500)
 		return
 	}
 
-	log.Printf("[sync] Remote: %s", appConfig.SyncRemote)
+	log.Printf("[sync] Remote: %s", appConfig.GitServers[appConfig.ActiveGitIndex].URL)
 
 	ensureGitignore()
 

@@ -17,53 +17,11 @@ import (
 )
 
 func getConfigPageBody() string {
-	return fmt.Sprintf(`
-<div class="config-panel">
-    <h2 class="config-title">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
-        <div class="config-field">
-            <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" value="%d" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
-        </div>
-        <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgUseInternal" %s class="config-checkbox" />
-            <label for="cfgUseInternal" class="config-label config-checkbox-label">Use HTML Internal Editor</label>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Desktop External Editor Command</label>
-            <input type="text" id="cfgExtCmd" value="%s" class="config-input" />
-            <small class="config-hint">Example: <code>subl</code> or <code>code</code> or <code>nano</code></small>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Sync Remote (git URL)</label>
-            <input type="text" id="cfgSyncRemote" value="%s" class="config-input" placeholder="git@host:repo.git" />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Sync SSH Key Path (relative to storage dir)</label>
-            <input type="text" id="cfgSyncSSHKey" value="%s" class="config-input" placeholder="omngo_sync_key" />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Sync SSH Passphrase (optional)</label>
-            <input type="password" id="cfgSyncPassphrase" value="%s" class="config-input" placeholder="leave empty if none" />
-        </div>
-        
-		
-		
-		
-		
-		` + (func() string {
+	checkedStr := ""
+	if appConfig.UseInternalEd {
+		checkedStr = "checked"
+	}
+
 	gitHTML := "<h3>Git Servers</h3>"
 	for i, gs := range appConfig.GitServers {
 		checked := ""
@@ -71,20 +29,19 @@ func getConfigPageBody() string {
 			checked = "checked"
 		}
 		gitHTML += fmt.Sprintf(`
-			<div class="git-server-card">
-				<label class="git-server-label">
+			<div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 4px; background: #f9f9f9; color: black;">
+				<label style="font-weight: bold; display: flex; align-items: center; gap: 8px;">
 					<input type="radio" name="active_git_index" value="%d" %s> Use as Active Server (Slot %d)
 				</label>
-				<div class="git-server-grid">
-					<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" class="git-server-input">
-					<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" class="git-server-input">
-					<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" class="git-server-input">
-					<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" class="git-server-input">
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+					<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+					<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+					<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+					<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
 				</div>
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
-	
-	// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it natively!
+
 	gitHTML += `<script>
 	(function() {
 		function injectGitData(bodyStr) {
@@ -108,7 +65,6 @@ func getConfigPageBody() string {
 			return bodyStr;
 		}
 		
-		// Hook native fetch and XHR to seamlessly append the data
 		const origFetch = window.fetch;
 		window.fetch = function() {
 			if (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
@@ -123,43 +79,49 @@ func getConfigPageBody() string {
 		};
 	})();
 	</script>`
-	return gitHTML
-})() + `
-		<button type="submit" class="config-save-btn">Save Configuration</button>
+
+	return fmt.Sprintf(`
+<div class="config-panel">
+    <h2 class="config-title">Configuration Dashboard</h2>
+    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
+        <div class="config-field">
+            <label class="config-label">Server Port</label>
+            <input type="number" id="cfgPort" value="%d" class="config-input" required />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Admin Password</label>
+            <input type="password" id="cfgAdminPwd" value="%s" class="config-input" required />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Guest Password</label>
+            <input type="password" id="cfgGuestPwd" value="%s" class="config-input" required />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Author Name</label>
+            <input type="text" id="cfgAuthor" value="%s" class="config-input" />
+        </div>
+        <div class="config-field config-checkbox-row">
+            <input type="checkbox" id="cfgInternalEd" %s />
+            <label class="config-label">Use Internal Editor</label>
+        </div>
+        <div class="config-field">
+            <label class="config-label">Desktop External Cmd</label>
+            <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
+        </div>
+
+        <!-- Legacy Safeguard: Hidden inputs so frontend JS payload extraction doesn't crash on null! -->
+        <input type="hidden" id="cfgSyncRemote" value="" />
+        <input type="hidden" id="cfgSyncSSHKey" value="" />
+        <input type="hidden" id="cfgSyncSSHPassphrase" value="" />
+
+        %s
+
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn-primary" style="padding: 10px 20px; font-weight: bold;">Save Configuration</button>
+        </div>
     </form>
 </div>
-<script>
-    async function saveConfig(event) {
-        event.preventDefault();
-        const params = new URLSearchParams();
-        params.append("server_port", document.getElementById("cfgPort").value);
-        params.append("admin_password", document.getElementById("cfgAdminPwd").value);
-        params.append("guest_password", document.getElementById("cfgGuestPwd").value);
-        params.append("author", document.getElementById("cfgAuthor").value);
-        params.append("use_internal_editor", document.getElementById("cfgUseInternal").checked ? "true" : "false");
-        params.append("desktop_ext_cmd", document.getElementById("cfgExtCmd").value);
-        params.append("sync_remote", document.getElementById("cfgSyncRemote").value);
-        params.append("sync_ssh_key", document.getElementById("cfgSyncSSHKey").value);
-        params.append("sync_ssh_passphrase", document.getElementById("cfgSyncPassphrase").value);
-
-        const res = await fetch("/api/config", { method: "POST", body: params });
-        if (res.ok) {
-            alert("Configuration saved successfully! Server port changes will take effect after restarting the application.");
-            window.location.reload();
-        } else {
-            alert("Failed to save configuration.");
-        }
-    }
-</script>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author,
-		func() string {
-			if appConfig.UseInternalEd {
-				return "checked"
-			}
-			return ""
-		}(),
-		appConfig.DesktopExtCmd,
-		appConfig.SyncRemote, appConfig.SyncSSHKey, appConfig.SyncSSHPassphrase)
+`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author, checkedStr, appConfig.DesktopExtCmd, gitHTML)
 }
 
 func getExternalEditPageBody(fileName string, viewURL string) string {

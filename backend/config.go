@@ -15,9 +15,14 @@ type GitServerConfig struct {
 	Password   string `json:"password"`
 }
 
+type GitServerConfig struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	SSHKeyPath string `json:"ssh_key_path"`
+	Password   string `json:"password"`
+}
+
 type Config struct {
-	ActiveGitIndex int                `json:"active_git_index"`
-	GitServers     []GitServerConfig  `json:"git_servers"`
 	ForcePullOneTime bool `json:"force_pull_one_time"`
 	ServerPort       int               `json:"server_port"`
 	AdminPassword    string            `json:"admin_password"`
@@ -26,9 +31,8 @@ type Config struct {
 	UseInternalEd    bool              `json:"use_internal_editor"`
 	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
 	MimeTypes        map[string]string `json:"mime_types"`
-	SyncRemote       string            `json:"sync_remote"`
-	SyncSSHKey       string            `json:"sync_ssh_key"`
-	SyncSSHPassphrase string           `json:"sync_ssh_passphrase"`
+	ActiveGitIndex   int               `json:"active_git_index"`
+	GitServers     []GitServerConfig `json:"git_servers"`
 }
 
 var appConfig Config
@@ -55,9 +59,6 @@ func loadConfig(storageDir string) {
 				".jpeg":  "image/jpeg",
 				".woff2": "font/woff2",
 			},
-			SyncRemote:       "",
-			SyncSSHKey:       "",
-			SyncSSHPassphrase: "",
 		}
 		data, _ := json.MarshalIndent(appConfig, "", "  ")
 		os.WriteFile(configPath, data, 0644)
@@ -67,6 +68,11 @@ func loadConfig(storageDir string) {
 		if appConfig.ServerPort == 0 {
 			appConfig.ServerPort = 8080
 		}
+	// [OMN-Go 1.5.16] Enforce 5 empty slots natively
+	for len(appConfig.GitServers) < 5 {
+		appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+	}
+
 		if appConfig.MimeTypes == nil {
 			appConfig.MimeTypes = map[string]string{
 				".css":   "text/css",
