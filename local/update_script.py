@@ -2,8 +2,8 @@ import os
 import re
 import sys
 
-VERSION = "1.5.12"
-VERSION_CODE = "10512"
+VERSION = "1.5.14"
+VERSION_CODE = "10514"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -35,7 +35,7 @@ def patch_git_helper():
     content = read_file(path)
     if not content: return
 
-    # Ensure assignment mismatch is handled
+    # Ensure assignment mismatch is handled cleanly
     content = re.sub(r'[a-zA-Z0-9_]+\s*,\s*err\s*:=\s*([a-zA-Z0-9_]+)\.AddWithOptions', r'err := \1.AddWithOptions', content)
     content = re.sub(r'_\s*,\s*err\s*:=\s*([a-zA-Z0-9_]+)\.AddWithOptions', r'err := \1.AddWithOptions', content)
     content = re.sub(r'[a-zA-Z0-9_]+\s*,\s*err\s*=\s*([a-zA-Z0-9_]+)\.AddWithOptions', r'err = \1.AddWithOptions', content)
@@ -43,18 +43,73 @@ def patch_git_helper():
 
     write_file(path, content)
 
+def patch_config_struct():
+    # Dynamically find where the Config struct actually lives
+    target_path = None
+    for file in ["config.go", "storage.go", "server.go", "handlers.go"]:
+        path = os.path.join("backend", file)
+        content = read_file(path)
+        if content and "type Config struct" in content:
+            target_path = path
+            break
+    
+    if not target_path:
+        print("[-] Critical Error: Could not find 'type Config struct' in backend files.")
+        return
+        
+    content = read_file(target_path)
+    
+    # Inject GitServerConfig struct safely
+    if "type GitServerConfig struct" not in content:
+        git_struct = """
+type GitServerConfig struct {
+\tName       string `json:"name"`
+\tURL        string `json:"url"`
+\tSSHKeyPath string `json:"ssh_key_path"`
+\tPassword   string `json:"password"`
+}
+"""
+        content = re.sub(r'(type Config struct\s*\{)', git_struct + r'\n\1', content)
+
+    # Add Git array fields
+    if "GitServers" not in content:
+        content = re.sub(r'(type Config struct\s*\{)', 
+                         r'\1\n\tActiveGitIndex int                `json:"active_git_index"`\n\tGitServers     []GitServerConfig  `json:"git_servers"`', 
+                         content)
+
+    # Ensure empty slots are initialized when config loads
+    load_idx = content.find("func LoadConfig")
+    if load_idx != -1 and "fmt.Sprintf(\"Server" not in content:
+        end_idx = content.find("\n}\n", load_idx)
+        if end_idx == -1: end_idx = len(content)
+        func_body = content[load_idx:end_idx+3]
+        
+        m = re.search(r'return &?([a-zA-Z0-9_]+)\n?\}', func_body)
+        if m:
+            c_var = m.group(1)
+            init_logic = f"""
+\t// Ensure 5 Git server slots exist dynamically
+\tfor len({c_var}.GitServers) < 5 {{
+\t\t{c_var}.GitServers = append({c_var}.GitServers, GitServerConfig{{Name: fmt.Sprintf("Server %d", len({c_var}.GitServers)+1)}})
+\t}}
+"""
+            new_func_body = func_body.replace(f"return {c_var}", init_logic + f"\treturn {c_var}")
+            content = content.replace(func_body, new_func_body)
+            if '"fmt"' not in content:
+                content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
+                
+    write_file(target_path, content)
+
 def patch_handlers_ui():
     path = os.path.join("backend", "handlers.go")
-    if not os.path.exists(path):
-        path = os.path.join("backend", "handlers_web.go")
     content = read_file(path)
     if not content: return
 
-    # 1. Strip out unused strconv cleanly to fix the compiler error
+    # Clean up broken strconv
     content = re.sub(r'\n\s*"strconv"', '', content)
     content = re.sub(r'import\s+"strconv"\s*\n', '', content)
 
-    # 2. Extract only the Config Handler Block for intelligent parsing
+    # Extract the Config HTML generator
     btn_idx = content.find(">Save Configuration</button>")
     if btn_idx == -1: return
     
@@ -64,26 +119,20 @@ def patch_handlers_ui():
 
     func_body = content[func_start:func_end]
 
-    # 3. Clean up the previous broken injection BEFORE scanning for the variable
+    # Clean any old injections
     idx = func_body.find("` + (func() string {")
     if idx != -1:
         end_idx = func_body.find("})() + `", idx)
         if end_idx != -1:
             func_body = func_body[:idx] + func_body[end_idx+len("})() + `"):]
 
-    # 4. Deep-Inspect to find the REAL configuration variable name
-    conf_var = "cfg" # fallback
+    # Resolve config variable (usually 'appConfig')
+    conf_var = "appConfig"
     m_var = re.search(r'\b([a-zA-Z0-9_]+)\.(?:Author|Port|Theme|GitServers|ActiveGitIndex|GitPassword)\b', func_body)
     if m_var:
         conf_var = m_var.group(1)
-    else:
-        m_save = re.search(r'Save[a-zA-Z0-9_]*\(\s*(?:&)?([a-zA-Z0-9_]+)\s*\)', func_body)
-        if m_save:
-            conf_var = m_save.group(1)
 
-    print(f"[*] Detected actual config variable name as: '{conf_var}'")
-
-    # 5. Inject the UI perfectly using the resolved variable
+    # Inject the HTML UI paired with the JS payload interceptor
     inline_ui = f'''` + (func() string {{
 \tgitHTML := "<h3>Git Servers</h3>"
 \tfor i, gs := range {conf_var}.GitServers {{
@@ -104,6 +153,46 @@ def patch_handlers_ui():
 \t\t\t\t</div>
 \t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 \t}}
+\t
+\t// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it naturally!
+\tgitHTML += `<script>
+\t(function() {{
+\t\tfunction injectGitData(bodyStr) {{
+\t\t\ttry {{
+\t\t\t\tlet parsed = JSON.parse(bodyStr);
+\t\t\t\tlet activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+\t\t\t\tif (activeIndex && parsed) {{
+\t\t\t\t\tparsed.active_git_index = parseInt(activeIndex.value);
+\t\t\t\t\tparsed.git_servers = [];
+\t\t\t\t\tfor(let i=0; i<5; i++) {{
+\t\t\t\t\t\tparsed.git_servers.push({{
+\t\t\t\t\t\t\tname: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
+\t\t\t\t\t\t\turl: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
+\t\t\t\t\t\t\tssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
+\t\t\t\t\t\t\tpassword: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
+\t\t\t\t\t\t}});
+\t\t\t\t\t}}
+\t\t\t\t\treturn JSON.stringify(parsed);
+\t\t\t\t}}
+\t\t\t}} catch(e) {{}}
+\t\t\treturn bodyStr;
+\t\t}}
+\t\t
+\t\t// Hook native fetch and XHR to seamlessly append the data
+\t\tconst origFetch = window.fetch;
+\t\twindow.fetch = function() {{
+\t\t\tif (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {{
+\t\t\t\targuments[1].body = injectGitData(arguments[1].body);
+\t\t\t}}
+\t\t\treturn origFetch.apply(this, arguments);
+\t\t}};
+\t\tconst origSend = XMLHttpRequest.prototype.send;
+\t\tXMLHttpRequest.prototype.send = function(body) {{
+\t\t\tif (typeof body === 'string') {{ body = injectGitData(body); }}
+\t\t\treturn origSend.call(this, body);
+\t\t}};
+\t}})();
+\t</script>`
 \treturn gitHTML
 }})() + `'''
 
@@ -115,35 +204,19 @@ def patch_handlers_ui():
             button_tag = parts[0][button_start:]
             func_body = before_button + inline_ui + "\n\t\t" + button_tag + ">Save Configuration</button>" + parts[1]
 
-    # 6. Inject POST Parser using fmt.Sscanf (avoiding the strconv error entirely)
-    if 'FormValue("active_git_index")' not in func_body:
-        post_logic = f"""
-\t\t// Parse Git array
-\t\tfmt.Sscanf(r.FormValue("active_git_index"), "%d", &{conf_var}.ActiveGitIndex)
-\t\tfor i := 0; i < 5; i++ {{
-\t\t\t{conf_var}.GitServers[i].Name = r.FormValue(fmt.Sprintf("git_name_%d", i))
-\t\t\t{conf_var}.GitServers[i].URL = r.FormValue(fmt.Sprintf("git_url_%d", i))
-\t\t\t{conf_var}.GitServers[i].SSHKeyPath = r.FormValue(fmt.Sprintf("git_ssh_%d", i))
-\t\t\t{conf_var}.GitServers[i].Password = r.FormValue(fmt.Sprintf("git_pass_%d", i))
-\t\t}}
-"""
-        # Place it right before the save function executes
-        m_save = re.search(r'([a-zA-Z0-9_]*\.)?Save[a-zA-Z0-9_]*\(.*?\)', func_body)
-        if m_save:
-            func_body = func_body.replace(m_save.group(0), post_logic + '\n\t\t' + m_save.group(0))
-        else:
-            print("[-] Warning: Could not find Save method to inject POST logic!")
+    # Remove the broken Go post parser from 1.5.13 completely
+    func_body = re.sub(r'// Parse Git array safely.*?\}', '', func_body, flags=re.DOTALL)
 
-    # Save the repaired function body back to the file
     content = content[:func_start] + func_body + content[func_end:]
     write_file(path, content)
 
 def main():
     print(f"[*] Starting OMN-Go update to Version {VERSION}...")
     bump_versions()
+    patch_config_struct()
     patch_git_helper()
     patch_handlers_ui()
-    print("[*] Update complete. The scope mismatch and unused import are completely eliminated!")
+    print("[*] Update complete. Structural config found, and JSON Payload Interceptor is active!")
 
 if __name__ == "__main__":
     main()

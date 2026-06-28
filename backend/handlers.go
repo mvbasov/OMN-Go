@@ -60,6 +60,8 @@ func getConfigPageBody() string {
         </div>
         
 		
+		
+		
 		` + (func() string {
 	gitHTML := "<h3>Git Servers</h3>"
 	for i, gs := range appConfig.GitServers {
@@ -80,6 +82,46 @@ func getConfigPageBody() string {
 				</div>
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
+	
+	// Automatically pack the Git settings into the JSON fetch payload so the Go backend catches it naturally!
+	gitHTML += `<script>
+	(function() {
+		function injectGitData(bodyStr) {
+			try {
+				let parsed = JSON.parse(bodyStr);
+				let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
+				if (activeIndex && parsed) {
+					parsed.active_git_index = parseInt(activeIndex.value);
+					parsed.git_servers = [];
+					for(let i=0; i<5; i++) {
+						parsed.git_servers.push({
+							name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
+							url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
+							ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
+							password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
+						});
+					}
+					return JSON.stringify(parsed);
+				}
+			} catch(e) {}
+			return bodyStr;
+		}
+		
+		// Hook native fetch and XHR to seamlessly append the data
+		const origFetch = window.fetch;
+		window.fetch = function() {
+			if (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
+				arguments[1].body = injectGitData(arguments[1].body);
+			}
+			return origFetch.apply(this, arguments);
+		};
+		const origSend = XMLHttpRequest.prototype.send;
+		XMLHttpRequest.prototype.send = function(body) {
+			if (typeof body === 'string') { body = injectGitData(body); }
+			return origSend.call(this, body);
+		};
+	})();
+	</script>`
 	return gitHTML
 })() + `
 		<button type="submit" class="config-save-btn">Save Configuration</button>
