@@ -2,8 +2,8 @@ import os
 import re
 import sys
 
-VERSION = "1.5.20"
-VERSION_CODE = "10520"
+VERSION = "1.5.21"
+VERSION_CODE = "10521"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -35,14 +35,14 @@ def patch_config_struct():
     content = read_file(path)
     if not content: return
 
-    # 1. Clean out any previous patch attempts to avoid duplicate loops
-    content = re.sub(r'\t// \[OMN-Go 1\.5\.\d+\].*?appConfig\.GitServers = append[^\}]+?\}\n', '', content, flags=re.DOTALL)
+    # Clean out any previous patch attempts to avoid duplicate loops
+    content = re.sub(r'\t\t// \[OMN-Go 1\.5\.\d+\].*?appConfig\.GitServers = append[^\}]+?\}', '', content, flags=re.DOTALL)
     
-    # 2. Inject the absolute Array Lock right after json.Unmarshal
+    # Inject the absolute Array Lock right after json.Unmarshal
     unmarshal_target = "json.Unmarshal(data, &appConfig)"
     if unmarshal_target in content:
         injection = """
-\t\t// [OMN-Go 1.5.20] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
+\t\t// [OMN-Go 1.5.21] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
 \t\tfor len(appConfig.GitServers) < 5 {
 \t\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 \t\t}"""
@@ -75,8 +75,8 @@ def patch_handlers_ui():
             end_idx = i + 1
             break
 
-    # The Ultimate Backend Override Template
-    # We bypass omn-go-core.js completely using inline `onclick` execution
+    # The Ghost Hook Override Template
+    # We securely intercept the native fetch mechanism without any quote escaping bugs
     new_func = """func getConfigPageBody() string {
 \t// Redundant safety lock to ensure UI generation never crashes
 \tfor len(appConfig.GitServers) < 5 {
@@ -111,8 +111,7 @@ def patch_handlers_ui():
 \treturn fmt.Sprintf(`
 <div class="config-panel">
     <h2 class="config-title">Configuration Dashboard</h2>
-    <!-- Notice ID V2: This deliberately breaks old broken frontend bindings -->
-    <form id="configFormV2" class="config-form">
+    <form id="configForm" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
             <input type="number" id="cfgPort" value="%d" class="config-input" required />
@@ -140,46 +139,49 @@ def patch_handlers_ui():
 
         %s
 
-        <div style="margin-top: 30px;">
-            <!-- Self-contained inline save logic guarantees 100%% native execution bypassing DOM Security -->
-            <button type="button" style="width: 100%%; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 6px; background-color: #4d6bfe; color: white; border: none; cursor: pointer; box-shadow: 0 4px 6px rgba(77, 107, 254, 0.3);" onclick="
-                let btn = this;
-                btn.innerText = 'Saving Configuration...';
-                btn.style.opacity = '0.7';
-                
-                let activeEl = document.querySelector('input[name=\'active_git_index\']:checked');
-                let payload = {
-                    server_port: parseInt(document.getElementById('cfgPort').value),
-                    admin_password: document.getElementById('cfgAdminPwd').value,
-                    guest_password: document.getElementById('cfgGuestPwd').value,
-                    author: document.getElementById('cfgAuthor').value,
-                    use_internal_editor: document.getElementById('cfgInternalEd').checked,
-                    desktop_ext_cmd: document.getElementById('cfgDesktopExtCmd').value,
-                    active_git_index: activeEl ? parseInt(activeEl.value) : 0,
-                    git_servers: []
+        <div class="config-field" style="margin-top: 20px;">
+            <button type="button" class="btn-primary" onclick="
+                let injectData = function(bodyStr) {
+                    try {
+                        let parsed = JSON.parse(bodyStr);
+                        let activeEl = document.querySelector('input[name=active_git_index]:checked');
+                        parsed.active_git_index = activeEl ? parseInt(activeEl.value) : 0;
+                        parsed.git_servers = [];
+                        for(let i=0; i<5; i++) {
+                            let sn = document.getElementById('git_name_'+i);
+                            let su = document.getElementById('git_url_'+i);
+                            let sp = document.getElementById('git_ssh_'+i);
+                            let sw = document.getElementById('git_pass_'+i);
+                            parsed.git_servers.push({
+                                name: sn ? sn.value : '',
+                                url: su ? su.value : '',
+                                ssh_key_path: sp ? sp.value : '',
+                                password: sw ? sw.value : ''
+                            });
+                        }
+                        return JSON.stringify(parsed);
+                    } catch(e) { return bodyStr; }
                 };
-                
-                for(let i=0; i<5; i++) {
-                    payload.git_servers.push({
-                        name: document.getElementById('git_name_'+i).value,
-                        url: document.getElementById('git_url_'+i).value,
-                        ssh_key_path: document.getElementById('git_ssh_'+i).value,
-                        password: document.getElementById('git_pass_'+i).value
-                    });
+                let origFetch = window.fetch;
+                window.fetch = function(url, options) {
+                    if (options && options.body && typeof options.body === 'string') {
+                        options.body = injectData(options.body);
+                    }
+                    window.fetch = origFetch;
+                    return origFetch.call(this, url, options);
+                };
+                let origSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.send = function(body) {
+                    if (typeof body === 'string') {
+                        body = injectData(body);
+                    }
+                    XMLHttpRequest.prototype.send = origSend;
+                    return origSend.call(this, body);
+                };
+                if(typeof saveConfig === 'function') {
+                    saveConfig({ preventDefault: function(){}, target: document.getElementById('configForm') });
                 }
-                
-                fetch('/api/config', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                }).then(function() {
-                    window.location.reload();
-                }).catch(function(e) {
-                    alert('Save Error: ' + e);
-                    btn.innerText = 'Save Configuration';
-                    btn.style.opacity = '1';
-                });
-            ">💾 Save Configuration</button>
+            ">Save Configuration</button>
         </div>
     </form>
 </div>
@@ -193,7 +195,7 @@ def main():
     bump_versions()
     patch_config_struct()
     patch_handlers_ui()
-    print("[*] Update complete. Array Lock injected and Javascript payload natively bypassed!")
+    print("[*] Update complete. Quote escaping syntax errors are annihilated and CSS is restored!")
 
 if __name__ == "__main__":
     main()
