@@ -64,6 +64,10 @@ func loadConfig(storageDir string) {
 	} else {
 		data, _ := os.ReadFile(configPath)
 		json.Unmarshal(data, &appConfig)
+		// [OMN-Go 1.5.20] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
+		for len(appConfig.GitServers) < 5 {
+			appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+		}
 		if appConfig.ServerPort == 0 {
 			appConfig.ServerPort = 8080
 		}

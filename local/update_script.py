@@ -1,10 +1,9 @@
 import os
 import re
 import sys
-import base64
 
-VERSION = "1.5.19"
-VERSION_CODE = "10519"
+VERSION = "1.5.20"
+VERSION_CODE = "10520"
 
 def read_file(filepath):
     if not os.path.exists(filepath):
@@ -31,65 +30,33 @@ def bump_versions():
         content = re.sub(r'versionName\s+".*?"', f'versionName "{VERSION}"', content)
         write_file(b_path, content)
 
+def patch_config_struct():
+    path = os.path.join("backend", "config.go")
+    content = read_file(path)
+    if not content: return
+
+    # 1. Clean out any previous patch attempts to avoid duplicate loops
+    content = re.sub(r'\t// \[OMN-Go 1\.5\.\d+\].*?appConfig\.GitServers = append[^\}]+?\}\n', '', content, flags=re.DOTALL)
+    
+    # 2. Inject the absolute Array Lock right after json.Unmarshal
+    unmarshal_target = "json.Unmarshal(data, &appConfig)"
+    if unmarshal_target in content:
+        injection = """
+\t\t// [OMN-Go 1.5.20] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
+\t\tfor len(appConfig.GitServers) < 5 {
+\t\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+\t\t}"""
+        content = content.replace(unmarshal_target, unmarshal_target + injection)
+
+    if '"fmt"' not in content:
+        content = re.sub(r'(import\s*\()', r'\1\n\t"fmt"', content)
+
+    write_file(path, content)
+
 def patch_handlers_ui():
     path = os.path.join("backend", "handlers.go")
     content = read_file(path)
     if not content: return
-
-    # The robust JS payload interceptor (Base64'd to bypass innerHTML script block rules!)
-    js_payload = """
-    if (!window.__gitHooked) {
-        window.__gitHooked = true;
-        const origFetch = window.fetch;
-        window.fetch = function() {
-            if (arguments[1] && arguments[1].method && arguments[1].method.toUpperCase() === 'POST' && typeof arguments[1].body === 'string') {
-                try {
-                    let parsed = JSON.parse(arguments[1].body);
-                    if (parsed) {
-                        let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-                        parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
-                        parsed.git_servers = [];
-                        for(let i=0; i<5; i++) {
-                            parsed.git_servers.push({
-                                name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
-                                url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
-                                ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
-                                password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
-                            });
-                        }
-                        arguments[1].body = JSON.stringify(parsed);
-                    }
-                } catch(e) {}
-            }
-            return origFetch.apply(this, arguments);
-        };
-        const origSend = XMLHttpRequest.prototype.send;
-        XMLHttpRequest.prototype.send = function(body) {
-            if (typeof body === 'string') {
-                try {
-                    let parsed = JSON.parse(body);
-                    if (parsed) {
-                        let activeIndex = document.querySelector('input[name="active_git_index"]:checked');
-                        parsed.active_git_index = activeIndex ? parseInt(activeIndex.value) : 0;
-                        parsed.git_servers = [];
-                        for(let i=0; i<5; i++) {
-                            parsed.git_servers.push({
-                                name: document.querySelector('input[name="git_name_'+i+'"]')?.value || '',
-                                url: document.querySelector('input[name="git_url_'+i+'"]')?.value || '',
-                                ssh_key_path: document.querySelector('input[name="git_ssh_'+i+'"]')?.value || '',
-                                password: document.querySelector('input[name="git_pass_'+i+'"]')?.value || ''
-                            });
-                        }
-                        body = JSON.stringify(parsed);
-                    }
-                } catch(e) {}
-            }
-            return origSend.call(this, body);
-        };
-    }
-    """
-    # Base64 encode the JS so it's impervious to Go/HTML formatting quirks
-    b64_js = base64.b64encode(js_payload.encode('utf-8')).decode('utf-8')
 
     func_name = "func getConfigPageBody() string"
     start_idx = content.find(func_name)
@@ -108,45 +75,44 @@ def patch_handlers_ui():
             end_idx = i + 1
             break
 
-    new_func = f"""func getConfigPageBody() string {{
-\t// [OMN-Go 1.5.19] Self-Healing Array Enforcement
-\t// Guarantees the UI loop executes even if the JSON payload previously wiped the variable!
-\tfor len(appConfig.GitServers) < 5 {{
-\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)}})
-\t}}
+    # The Ultimate Backend Override Template
+    # We bypass omn-go-core.js completely using inline `onclick` execution
+    new_func = """func getConfigPageBody() string {
+\t// Redundant safety lock to ensure UI generation never crashes
+\tfor len(appConfig.GitServers) < 5 {
+\t\tappConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+\t}
 
 \tcheckedStr := ""
-\tif appConfig.UseInternalEd {{
+\tif appConfig.UseInternalEd {
 \t\tcheckedStr = "checked"
-\t}}
+\t}
 
 \tgitHTML := "<h3>Git Servers</h3>"
-\tfor i, gs := range appConfig.GitServers {{
+\tfor i, gs := range appConfig.GitServers {
 \t\tchecked := ""
-\t\tif appConfig.ActiveGitIndex == i {{
+\t\tif appConfig.ActiveGitIndex == i {
 \t\t\tchecked = "checked"
-\t\t}}
+\t}
 \t\tgitHTML += fmt.Sprintf(`
-\t\t\t<div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 4px; background: #f9f9f9; color: black;">
-\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px;">
-\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s> Use as Active Server (Slot %d)
+\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">
+\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)
 \t\t\t\t</label>
-\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-\t\t\t\t\t<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-\t\t\t\t\t<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-\t\t\t\t\t<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-\t\t\t\t\t<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+\t\t\t\t\t<input type="text" id="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+\t\t\t\t\t<input type="text" id="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+\t\t\t\t\t<input type="text" id="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+\t\t\t\t\t<input type="password" id="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
 \t\t\t\t</div>
 \t\t\t</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
-\t}}
-
-\t// Use Base64 transparent image trick to flawlessly execute Javascript inside dynamic .innerHTML
-\tgitHTML += `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('{b64_js}'))" style="display:none;" />`
+\t}
 
 \treturn fmt.Sprintf(`
 <div class="config-panel">
     <h2 class="config-title">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
+    <!-- Notice ID V2: This deliberately breaks old broken frontend bindings -->
+    <form id="configFormV2" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
             <input type="number" id="cfgPort" value="%d" class="config-input" required />
@@ -172,28 +138,62 @@ def patch_handlers_ui():
             <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
         </div>
 
-        <!-- Legacy Safeguard so frontend JS payload extraction doesn't crash on null! -->
-        <input type="hidden" id="cfgSyncRemote" value="" />
-        <input type="hidden" id="cfgSyncSSHKey" value="" />
-        <input type="hidden" id="cfgSyncSSHPassphrase" value="" />
-
         %s
 
-        <div class="config-field" style="margin-top: 20px;">
-            <button type="submit" class="btn-primary">Save Configuration</button>
+        <div style="margin-top: 30px;">
+            <!-- Self-contained inline save logic guarantees 100%% native execution bypassing DOM Security -->
+            <button type="button" style="width: 100%%; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 6px; background-color: #4d6bfe; color: white; border: none; cursor: pointer; box-shadow: 0 4px 6px rgba(77, 107, 254, 0.3);" onclick="
+                let btn = this;
+                btn.innerText = 'Saving Configuration...';
+                btn.style.opacity = '0.7';
+                
+                let activeEl = document.querySelector('input[name=\'active_git_index\']:checked');
+                let payload = {
+                    server_port: parseInt(document.getElementById('cfgPort').value),
+                    admin_password: document.getElementById('cfgAdminPwd').value,
+                    guest_password: document.getElementById('cfgGuestPwd').value,
+                    author: document.getElementById('cfgAuthor').value,
+                    use_internal_editor: document.getElementById('cfgInternalEd').checked,
+                    desktop_ext_cmd: document.getElementById('cfgDesktopExtCmd').value,
+                    active_git_index: activeEl ? parseInt(activeEl.value) : 0,
+                    git_servers: []
+                };
+                
+                for(let i=0; i<5; i++) {
+                    payload.git_servers.push({
+                        name: document.getElementById('git_name_'+i).value,
+                        url: document.getElementById('git_url_'+i).value,
+                        ssh_key_path: document.getElementById('git_ssh_'+i).value,
+                        password: document.getElementById('git_pass_'+i).value
+                    });
+                }
+                
+                fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                }).then(function() {
+                    window.location.reload();
+                }).catch(function(e) {
+                    alert('Save Error: ' + e);
+                    btn.innerText = 'Save Configuration';
+                    btn.style.opacity = '1';
+                });
+            ">💾 Save Configuration</button>
         </div>
     </form>
 </div>
 `, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author, checkedStr, appConfig.DesktopExtCmd, gitHTML)
-}}"""
+}"""
     content = content[:start_idx] + new_func + content[end_idx:]
     write_file(path, content)
 
 def main():
     print(f"[*] Starting OMN-Go update to Version {VERSION}...")
     bump_versions()
+    patch_config_struct()
     patch_handlers_ui()
-    print("[*] Update complete. The DOM innerHTML security bypass is active and the array is self-healing!")
+    print("[*] Update complete. Array Lock injected and Javascript payload natively bypassed!")
 
 if __name__ == "__main__":
     main()

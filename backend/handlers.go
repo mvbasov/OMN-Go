@@ -17,8 +17,7 @@ import (
 )
 
 func getConfigPageBody() string {
-	// [OMN-Go 1.5.19] Self-Healing Array Enforcement
-	// Guarantees the UI loop executes even if the JSON payload previously wiped the variable!
+	// Redundant safety lock to ensure UI generation never crashes
 	for len(appConfig.GitServers) < 5 {
 		appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 	}
@@ -33,28 +32,26 @@ func getConfigPageBody() string {
 		checked := ""
 		if appConfig.ActiveGitIndex == i {
 			checked = "checked"
-		}
+	}
 		gitHTML += fmt.Sprintf(`
-			<div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 4px; background: #f9f9f9; color: black;">
-				<label style="font-weight: bold; display: flex; align-items: center; gap: 8px;">
-					<input type="radio" name="active_git_index" value="%d" %s> Use as Active Server (Slot %d)
+			<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+				<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">
+					<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)
 				</label>
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-					<input type="text" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-					<input type="text" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-					<input type="text" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-					<input type="password" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+					<input type="text" id="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="text" id="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="text" id="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<input type="password" id="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
 				</div>
 			</div>`, i, checked, i+1, i, gs.Name, i, gs.URL, i, gs.SSHKeyPath, i, gs.Password)
 	}
 
-	// Use Base64 transparent image trick to flawlessly execute Javascript inside dynamic .innerHTML
-	gitHTML += `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="eval(atob('CiAgICBpZiAoIXdpbmRvdy5fX2dpdEhvb2tlZCkgewogICAgICAgIHdpbmRvdy5fX2dpdEhvb2tlZCA9IHRydWU7CiAgICAgICAgY29uc3Qgb3JpZ0ZldGNoID0gd2luZG93LmZldGNoOwogICAgICAgIHdpbmRvdy5mZXRjaCA9IGZ1bmN0aW9uKCkgewogICAgICAgICAgICBpZiAoYXJndW1lbnRzWzFdICYmIGFyZ3VtZW50c1sxXS5tZXRob2QgJiYgYXJndW1lbnRzWzFdLm1ldGhvZC50b1VwcGVyQ2FzZSgpID09PSAnUE9TVCcgJiYgdHlwZW9mIGFyZ3VtZW50c1sxXS5ib2R5ID09PSAnc3RyaW5nJykgewogICAgICAgICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgICAgICAgICBsZXQgcGFyc2VkID0gSlNPTi5wYXJzZShhcmd1bWVudHNbMV0uYm9keSk7CiAgICAgICAgICAgICAgICAgICAgaWYgKHBhcnNlZCkgewogICAgICAgICAgICAgICAgICAgICAgICBsZXQgYWN0aXZlSW5kZXggPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJhY3RpdmVfZ2l0X2luZGV4Il06Y2hlY2tlZCcpOwogICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuYWN0aXZlX2dpdF9pbmRleCA9IGFjdGl2ZUluZGV4ID8gcGFyc2VJbnQoYWN0aXZlSW5kZXgudmFsdWUpIDogMDsKICAgICAgICAgICAgICAgICAgICAgICAgcGFyc2VkLmdpdF9zZXJ2ZXJzID0gW107CiAgICAgICAgICAgICAgICAgICAgICAgIGZvcihsZXQgaT0wOyBpPDU7IGkrKykgewogICAgICAgICAgICAgICAgICAgICAgICAgICAgcGFyc2VkLmdpdF9zZXJ2ZXJzLnB1c2goewogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG5hbWU6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9uYW1lXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgdXJsOiBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJnaXRfdXJsXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc3NoX2tleV9wYXRoOiBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdpbnB1dFtuYW1lPSJnaXRfc3NoXycraSsnIl0nKT8udmFsdWUgfHwgJycsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcGFzc3dvcmQ6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9wYXNzXycraSsnIl0nKT8udmFsdWUgfHwgJycKICAgICAgICAgICAgICAgICAgICAgICAgICAgIH0pOwogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgICAgIGFyZ3VtZW50c1sxXS5ib2R5ID0gSlNPTi5zdHJpbmdpZnkocGFyc2VkKTsKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB9IGNhdGNoKGUpIHt9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgcmV0dXJuIG9yaWdGZXRjaC5hcHBseSh0aGlzLCBhcmd1bWVudHMpOwogICAgICAgIH07CiAgICAgICAgY29uc3Qgb3JpZ1NlbmQgPSBYTUxIdHRwUmVxdWVzdC5wcm90b3R5cGUuc2VuZDsKICAgICAgICBYTUxIdHRwUmVxdWVzdC5wcm90b3R5cGUuc2VuZCA9IGZ1bmN0aW9uKGJvZHkpIHsKICAgICAgICAgICAgaWYgKHR5cGVvZiBib2R5ID09PSAnc3RyaW5nJykgewogICAgICAgICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgICAgICAgICBsZXQgcGFyc2VkID0gSlNPTi5wYXJzZShib2R5KTsKICAgICAgICAgICAgICAgICAgICBpZiAocGFyc2VkKSB7CiAgICAgICAgICAgICAgICAgICAgICAgIGxldCBhY3RpdmVJbmRleCA9IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImFjdGl2ZV9naXRfaW5kZXgiXTpjaGVja2VkJyk7CiAgICAgICAgICAgICAgICAgICAgICAgIHBhcnNlZC5hY3RpdmVfZ2l0X2luZGV4ID0gYWN0aXZlSW5kZXggPyBwYXJzZUludChhY3RpdmVJbmRleC52YWx1ZSkgOiAwOwogICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuZ2l0X3NlcnZlcnMgPSBbXTsKICAgICAgICAgICAgICAgICAgICAgICAgZm9yKGxldCBpPTA7IGk8NTsgaSsrKSB7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXJzZWQuZ2l0X3NlcnZlcnMucHVzaCh7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgbmFtZTogZG9jdW1lbnQucXVlcnlTZWxlY3RvcignaW5wdXRbbmFtZT0iZ2l0X25hbWVfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB1cmw6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF91cmxfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzc2hfa2V5X3BhdGg6IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ2lucHV0W25hbWU9ImdpdF9zc2hfJytpKyciXScpPy52YWx1ZSB8fCAnJywKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBwYXNzd29yZDogZG9jdW1lbnQucXVlcnlTZWxlY3RvcignaW5wdXRbbmFtZT0iZ2l0X3Bhc3NfJytpKyciXScpPy52YWx1ZSB8fCAnJwogICAgICAgICAgICAgICAgICAgICAgICAgICAgfSk7CiAgICAgICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgICAgICAgICAgYm9keSA9IEpTT04uc3RyaW5naWZ5KHBhcnNlZCk7CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgfSBjYXRjaChlKSB7fQogICAgICAgICAgICB9CiAgICAgICAgICAgIHJldHVybiBvcmlnU2VuZC5jYWxsKHRoaXMsIGJvZHkpOwogICAgICAgIH07CiAgICB9CiAgICA='))" style="display:none;" />`
-
 	return fmt.Sprintf(`
 <div class="config-panel">
     <h2 class="config-title">Configuration Dashboard</h2>
-    <form id="configForm" onsubmit="saveConfig(event)" class="config-form">
+    <!-- Notice ID V2: This deliberately breaks old broken frontend bindings -->
+    <form id="configFormV2" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
             <input type="number" id="cfgPort" value="%d" class="config-input" required />
@@ -80,15 +77,48 @@ func getConfigPageBody() string {
             <input type="text" id="cfgDesktopExtCmd" value="%s" class="config-input" />
         </div>
 
-        <!-- Legacy Safeguard so frontend JS payload extraction doesn't crash on null! -->
-        <input type="hidden" id="cfgSyncRemote" value="" />
-        <input type="hidden" id="cfgSyncSSHKey" value="" />
-        <input type="hidden" id="cfgSyncSSHPassphrase" value="" />
-
         %s
 
-        <div class="config-field" style="margin-top: 20px;">
-            <button type="submit" class="btn-primary">Save Configuration</button>
+        <div style="margin-top: 30px;">
+            <!-- Self-contained inline save logic guarantees 100%% native execution bypassing DOM Security -->
+            <button type="button" style="width: 100%%; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 6px; background-color: #4d6bfe; color: white; border: none; cursor: pointer; box-shadow: 0 4px 6px rgba(77, 107, 254, 0.3);" onclick="
+                let btn = this;
+                btn.innerText = 'Saving Configuration...';
+                btn.style.opacity = '0.7';
+                
+                let activeEl = document.querySelector('input[name='active_git_index']:checked');
+                let payload = {
+                    server_port: parseInt(document.getElementById('cfgPort').value),
+                    admin_password: document.getElementById('cfgAdminPwd').value,
+                    guest_password: document.getElementById('cfgGuestPwd').value,
+                    author: document.getElementById('cfgAuthor').value,
+                    use_internal_editor: document.getElementById('cfgInternalEd').checked,
+                    desktop_ext_cmd: document.getElementById('cfgDesktopExtCmd').value,
+                    active_git_index: activeEl ? parseInt(activeEl.value) : 0,
+                    git_servers: []
+                };
+                
+                for(let i=0; i<5; i++) {
+                    payload.git_servers.push({
+                        name: document.getElementById('git_name_'+i).value,
+                        url: document.getElementById('git_url_'+i).value,
+                        ssh_key_path: document.getElementById('git_ssh_'+i).value,
+                        password: document.getElementById('git_pass_'+i).value
+                    });
+                }
+                
+                fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                }).then(function() {
+                    window.location.reload();
+                }).catch(function(e) {
+                    alert('Save Error: ' + e);
+                    btn.innerText = 'Save Configuration';
+                    btn.style.opacity = '1';
+                });
+            ">💾 Save Configuration</button>
         </div>
     </form>
 </div>
