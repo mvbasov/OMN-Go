@@ -1,18 +1,11 @@
 package backend
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
-
-
-
-
-
-
-
 
 type GitServerConfig struct {
 	Name       string `json:"name"`
@@ -22,7 +15,7 @@ type GitServerConfig struct {
 }
 
 type Config struct {
-	ForcePullOneTime bool `json:"force_pull_one_time"`
+	ForcePullOneTime bool              `json:"force_pull_one_time"`
 	ServerPort       int               `json:"server_port"`
 	AdminPassword    string            `json:"admin_password"`
 	GuestPassword    string            `json:"guest_password"`
@@ -31,7 +24,7 @@ type Config struct {
 	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
 	MimeTypes        map[string]string `json:"mime_types"`
 	ActiveGitIndex   int               `json:"active_git_index"`
-	GitServers     []GitServerConfig `json:"git_servers"`
+	GitServers       []GitServerConfig `json:"git_servers"`
 }
 
 var appConfig Config
@@ -68,25 +61,25 @@ func loadConfig(storageDir string) {
 		for len(appConfig.GitServers) < 5 {
 			appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 		}
-)
-		}
-		if appConfig.ServerPort == 0 {
-			appConfig.ServerPort = 8080
-		}
+
+	}
+	if appConfig.ServerPort == 0 {
+		appConfig.ServerPort = 8080
+	}
 	// [OMN-Go 1.5.16] Enforce 5 empty slots natively
 	for len(appConfig.GitServers) < 5 {
 		appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
 	}
 
-		if appConfig.MimeTypes == nil {
-			appConfig.MimeTypes = map[string]string{
-				".css":   "text/css",
-				".js":    "application/javascript",
-				".json":  "application/json",
-				".woff2": "font/woff2",
-			}
-			data, _ := json.MarshalIndent(appConfig, "", "  ")
-			os.WriteFile(configPath, data, 0644)
+	if appConfig.MimeTypes == nil {
+		appConfig.MimeTypes = map[string]string{
+			".css":   "text/css",
+			".js":    "application/javascript",
+			".json":  "application/json",
+			".woff2": "font/woff2",
 		}
+		data, _ := json.MarshalIndent(appConfig, "", "  ")
+		os.WriteFile(configPath, data, 0644)
 	}
+
 }
