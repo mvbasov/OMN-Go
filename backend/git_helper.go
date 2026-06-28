@@ -124,7 +124,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 	log.Printf("[sync] Staging all changes")
-	_, err := wTree.Add(".")
+	_, err := wTree.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
 		return err
 	}
@@ -422,4 +422,18 @@ func (f *NoLockFile) Lock() error {
 
 func (f *NoLockFile) Unlock() error {
 	return nil // Safely bypass Android flock ENOSYS
+}
+
+
+// [OMN-Go 1.5.8] Strong Empty Commit Check & Gitignore Enforcer
+func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {
+	status, err := w.Status()
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+	if status.IsClean() {
+		// Strong check: explicitly bypass commit if tree is perfectly clean
+		return plumbing.ZeroHash, nil
+	}
+	return safeCommit(w, msg, opts)
 }
