@@ -329,8 +329,13 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
-	if err := commitLocalChanges(repo, wTree); err != nil {
+	committed, err := commitLocalChanges(repo, wTree)
+	if err != nil {
 		http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
+		return
+	}
+	if !committed && action == "upload" {
+		w.Write([]byte("Nothing to push"))
 		return
 	}
 
@@ -429,5 +434,5 @@ func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.
 		// Strong check: explicitly bypass commit if tree is perfectly clean
 		return plumbing.ZeroHash, nil
 	}
-	return safeCommit(w, msg, opts)
+	return w.Commit(msg, opts)
 }

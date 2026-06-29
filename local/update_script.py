@@ -54,9 +54,7 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Apply missing patches idempotently
-
-    # 2a. handlers.go – fix call site (still using old single return)
+    # 2. Fix the call site that still uses single return value
     old_call = (
         "\tif err := commitLocalChanges(repo, wTree); err != nil {\n"
         "\t\thttp.Error(w, fmt.Sprintf(\"Commit failed: %v\", err), 500)\n"
@@ -78,13 +76,48 @@ def update_application():
         "\n"
         "\tif action == \"download\" {"
     )
-    applied = patch_file_if_needed("backend/handlers.go", old_call, new_call)
-    if applied:
-        print("✓ Patched handlers.go call site")
-    else:
-        print("⚠ handlers.go already up‑to‑date (skipping)")
 
-    # 2b. frontend JS – show server response message
+    applied1 = patch_file_if_needed("backend/handlers.go", old_call, new_call)
+    applied2 = patch_file_if_needed("backend/git_helper.go", old_call, new_call)
+
+    if applied1 or applied2:
+        print("✓ Fixed call site(s) for commitLocalChanges")
+    else:
+        # Might already be fixed; just ensure no compile error
+        pass
+
+    # 3. Fix the safeCommit recursion bug (calling itself without termination)
+    old_safe_commit = (
+        "func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {\n"
+        "\tstatus, err := w.Status()\n"
+        "\tif err != nil {\n"
+        "\t\treturn plumbing.ZeroHash, err\n"
+        "\t}\n"
+        "\tif status.IsClean() {\n"
+        "\t\t// Strong check: explicitly bypass commit if tree is perfectly clean\n"
+        "\t\treturn plumbing.ZeroHash, nil\n"
+        "\t}\n"
+        "\treturn safeCommit(w, msg, opts)\n"
+        "}"
+    )
+    new_safe_commit = (
+        "func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {\n"
+        "\tstatus, err := w.Status()\n"
+        "\tif err != nil {\n"
+        "\t\treturn plumbing.ZeroHash, err\n"
+        "\t}\n"
+        "\tif status.IsClean() {\n"
+        "\t\t// Strong check: explicitly bypass commit if tree is perfectly clean\n"
+        "\t\treturn plumbing.ZeroHash, nil\n"
+        "\t}\n"
+        "\treturn w.Commit(msg, opts)\n"
+        "}"
+    )
+    # Apply only if the old version exists
+    if patch_file_if_needed("backend/git_helper.go", old_safe_commit, new_safe_commit):
+        print("✓ Fixed safeCommit recursion")
+
+    # 4. Frontend JS – show server response message (if not already done)
     old_js = (
         "            if (res.ok) {\n"
         "                if (confirm(capAction + ' complete!\\n\\nWould you like to reload the page now to see updated content (console will be reset)?')) {\n"
@@ -102,17 +135,15 @@ def update_application():
         "                }\n"
         "            } else {"
     )
-    applied = patch_file_if_needed("backend/frontend/html/js/omn-go-sse.js", old_js, new_js)
-    if applied:
-        print("✓ Patched omn-go-sse.js")
-    else:
-        print("⚠ omn-go-sse.js already up‑to‑date (skipping)")
+    if patch_file_if_needed("backend/frontend/html/js/omn-go-sse.js", old_js, new_js):
+        print("✓ Updated frontend sync dialogue")
 
-    # 3. Print the standardised Git commit message
+    # 5. Print commit message
     commit_msg = (
-        "fix(sync): prevent empty push and display 'Nothing to push' in UI\n\n"
-        "- Update call site to use new (bool, error) signature of commitLocalChanges\n"
-        "- Show server response message in sync action dialogue\n"
+        "fix(sync): correct commitLocalChanges call and fix safeCommit recursion\n\n"
+        "- Update handleSync call to capture (bool, error) returned by commitLocalChanges\n"
+        "- Replace infinite recursion in safeCommit with actual w.Commit call\n"
+        "- Frontend shows 'Nothing to push' when upload has nothing to do\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
