@@ -30,21 +30,6 @@ func ensureGitignore() {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
 		log.Printf("[sync] Created .gitignore")
 	}
-	if appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath != "" {
-		keyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath
-		if !filepath.IsAbs(keyPath) {
-			keyPath = filepath.Join(storageDir, keyPath)
-		}
-		relKey, err := filepath.Rel(storageDir, keyPath)
-		if err == nil && !strings.HasPrefix(relKey, "..") {
-			current, _ := os.ReadFile(gitignorePath)
-			if !strings.Contains(string(current), relKey) {
-				newContent := string(current) + "\n" + relKey + "\n"
-				os.WriteFile(gitignorePath, []byte(newContent), 0644)
-				log.Printf("[sync] Added %s to .gitignore", relKey)
-			}
-		}
-	}
 }
 
 func getOrInitRepo() (*git.Repository, error) {
@@ -97,29 +82,30 @@ func getSSHAuth() (transport.AuthMethod, error) {
 	}
 	log.Printf("[sync] SSH user: %s", sshUser)
 
-	if appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath == "" {
+	keyData := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyData
+	if keyData == "" {
 		log.Printf("[sync] Error: No SSH key configured")
 		return nil, fmt.Errorf("no SSH key configured")
 	}
 
-	keyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath
-	if !filepath.IsAbs(keyPath) {
-		keyPath = filepath.Join(storageDir, keyPath)
+	var signer cryptossh.Signer
+	var err error
+	passphrase := appConfig.GitServers[appConfig.ActiveGitIndex].Password
+	if passphrase == "" {
+		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
+	} else {
+		signer, err = cryptossh.ParsePrivateKeyWithPassphrase([]byte(keyData), []byte(passphrase))
 	}
-	log.Printf("[sync] Using SSH key: %s", keyPath)
-
-	info, err := os.Stat(keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read SSH key: %v", err)
+		return nil, fmt.Errorf("failed to parse SSH key: %v", err)
 	}
-	log.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())
 
-	auth, err := GetInsecureSSHAuth(sshUser, keyPath, appConfig.GitServers[appConfig.ActiveGitIndex].Password)
-	if err != nil {
-		return nil, fmt.Errorf("GetInsecureSSHAuth error: %v", err)
+	publicKeys := &gitssh.PublicKeys{User: sshUser, Signer: signer}
+	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
 	}
-	log.Printf("[sync] SSH auth method created using crypto/ssh signer")
-	return auth, nil
+	log.Printf("[sync] SSH auth method created using inline key data")
+	return publicKeys, nil
 }
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {

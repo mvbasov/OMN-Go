@@ -10,7 +10,7 @@ import (
 type GitServerConfig struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
-	SSHKeyPath string `json:"ssh_key_path"`
+	SSHKeyData string `json:"ssh_key_data"`
 	Password   string `json:"password"`
 }
 

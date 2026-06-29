@@ -41,10 +41,10 @@ func getConfigPageBody() string {
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
 					<input type="text" id="git_name_%d" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
 					<input type="text" id="git_url_%d" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-					<input type="text" id="git_ssh_%d" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+					<textarea id="git_key_%d" name="git_key_%d" placeholder="SSH Private Key" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: monospace; min-height: 60px;">%s</textarea>
 					<input type="password" id="git_pass_%d" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
 				</div>
-			</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyPath, i, i, gs.Password)
+			</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyData, i, i, gs.Password)
 	}
 
 	return fmt.Sprintf(`
@@ -131,13 +131,13 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < 5; i++ {
 			name := r.FormValue(fmt.Sprintf("git_name_%d", i))
 			url := r.FormValue(fmt.Sprintf("git_url_%d", i))
-			ssh := r.FormValue(fmt.Sprintf("git_ssh_%d", i))
+			keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
 			pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
 			// update fields if any non‑empty value is supplied (allows clearing)
-			if name != "" || url != "" || ssh != "" || pass != "" {
+			if name != "" || url != "" || keyData != "" || pass != "" {
 				appConfig.GitServers[i].Name = name
 				appConfig.GitServers[i].URL = url
-				appConfig.GitServers[i].SSHKeyPath = ssh
+				appConfig.GitServers[i].SSHKeyData = keyData
 				appConfig.GitServers[i].Password = pass
 			}
 		}
