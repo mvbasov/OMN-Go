@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"runtime"
 	"fmt"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -176,6 +177,12 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
 	if force {
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+		// Fix Android TMPDIR constraint for go-git packfiles
+		if runtime.GOOS == "android" {
+			tmpDir := "/storage/emulated/0/Android/media/net.basov.omngo/.tmp"
+			os.MkdirAll(tmpDir, 0755)
+			os.Setenv("TMPDIR", tmpDir)
+		}
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
 		if err != nil && err != git.NoErrAlreadyUpToDate {
 			return fmt.Errorf("fetch failed: %v", err)
@@ -184,7 +191,13 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		if err != nil {
 			return fmt.Errorf("failed to find origin/master: %v", err)
 		}
-		err = wTree.Reset(&git.ResetOptions{Commit: ref.Hash(), Mode: git.HardReset})
+		err = wTree.Checkout(&git.CheckoutOptions{
+			Hash:  ref.Hash(),
+			Force: true,
+		})
+		// Fix detached HEAD and update branch ref safely
+		repo.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/main"), ref.Hash()))
+		repo.Storer.SetReference(plumbing.NewSymbolicReference(plumbing.HEAD, plumbing.ReferenceName("refs/heads/main")))
 		if err != nil {
 			return fmt.Errorf("hard reset failed: %v", err)
 		}

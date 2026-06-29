@@ -1,77 +1,114 @@
-#!/usr/bin/env python3
-import re, os
+import os
+import re
+import glob
 
-def read_file(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+def update_version():
+    """Bumps the application version globally to 1.5.38"""
+    # Bump Go Backend version
+    for go_file in glob.glob("backend/*.go"):
+        if not os.path.isfile(go_file): continue
+        with open(go_file, 'r') as f: content = f.read()
+        if "1.5.37" in content and ("APP_VERSION" in content or "Version" in content):
+            with open(go_file, 'w') as f:
+                f.write(content.replace("1.5.37", "1.5.38"))
+            print(f"[+] Bumped version in {go_file}")
 
-def write_file(path, content):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-def patch_file(path, old, new):
-    """Replace *old* with *new* in *path*.  Raise ValueError if *old* missing."""
-    content = read_file(path)
-    if old not in content:
-        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
-    content = content.replace(old, new, 1)
-    write_file(path, content)
-
-def increment_version(ver_str):
-    parts = ver_str.strip().split(".")
-    if len(parts) == 3 and parts[2].isdigit():
-        parts[2] = str(int(parts[2]) + 1)
-        return ".".join(parts)
-    raise ValueError(f"Unrecognised version format: {ver_str}")
-
-def update_application():
-    # 1. Auto‑detect current version and bump
-    ver_path = "backend/version.go"
-    content = read_file(ver_path)
-    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
-    cur_ver = match.group(1)
-    new_ver = increment_version(cur_ver)
-    new_code = int(new_ver.replace(".", ""))
-
-    # Update version.go
-    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
-    write_file(ver_path, content)
-
-    # Update android/app/build.gradle
+    # Bump Android Gradle version
     gradle_path = "android/app/build.gradle"
-    gradle = read_file(gradle_path)
-    old_code = int(cur_ver.replace(".", ""))
-    gradle = gradle.replace(f"versionCode {old_code}", f"versionCode {new_code}")
-    gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
-    write_file(gradle_path, gradle)
+    if os.path.exists(gradle_path):
+        with open(gradle_path, 'r') as f: content = f.read()
+        content = re.sub(r'versionCode \d+', 'versionCode 10538', content)
+        content = re.sub(r'versionName "[\d\.]+"', 'versionName "1.5.38"', content)
+        with open(gradle_path, 'w') as f:
+            f.write(content)
+        print("[+] Bumped version in android/app/build.gradle")
 
-    # 2. Fix: check error on blob writer Close to prevent silent failures on Android
-    old_close = (
-        "\t\t\tif _, err = w.Write(data); err != nil {\n"
-        "\t\t\t\treturn plumbing.Hash{}, err\n"
-        "\t\t\t}\n"
-        "\t\t\tw.Close()\n"
-        "\t\t\tblobHash, err := storer.SetEncodedObject(blobObj)"
-    )
-    new_close = (
-        "\t\t\tif _, err = w.Write(data); err != nil {\n"
-        "\t\t\t\treturn plumbing.Hash{}, err\n"
-        "\t\t\t}\n"
-        "\t\t\tif err = w.Close(); err != nil {\n"
-        "\t\t\t\treturn plumbing.Hash{}, fmt.Errorf(\"close blob writer: %%v\", err)\n"
-        "\t\t\t}\n"
-        "\t\t\tblobHash, err := storer.SetEncodedObject(blobObj)"
-    )
-    patch_file("backend/git_helper.go", old_close, new_close)
+def ensure_imports(content, packages):
+    """Safely injects missing Go packages"""
+    for pkg in packages:
+        if f'"{pkg}"' not in content:
+            import_idx = content.find('import (')
+            if import_idx != -1:
+                content = content[:import_idx+8] + f'\n\t"{pkg}"' + content[import_idx+8:]
+    return content
 
-    # 3. Print commit message
-    commit_msg = (
-        "fix(sync): check Close error on blob writer to avoid 'entry not found' on Android\n\n"
-        "- Ignored error from blobObj.Writer().Close() could leave objects incomplete\n"
-        "- Now returns the Close error, which may reveal Android filesystem quirks\n"
-        f"Version bumped to {new_ver}"
-    )
-    print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
+def patch_sync_logic():
+    """Fixes the untracked file deletion and Android TMPDIR bugs"""
+    for filename in glob.glob("backend/*.go"):
+        if not os.path.isfile(filename): continue
+        
+        with open(filename, 'r') as f: content = f.read()
+        changed = False
+        
+        # 1. Replace git.HardReset with Safe Force Checkout (preserves untracked files)
+        while "git.HardReset" in content:
+            idx = content.find("Reset(&git.ResetOptions")
+            if idx == -1: break
+            
+            # Count braces to capture the exact struct
+            start_brace = content.find("{", idx)
+            if start_brace == -1: break
+            
+            brace_count = 1
+            end_brace = start_brace
+            for i in range(start_brace + 1, len(content)):
+                if content[i] == '{': brace_count += 1
+                elif content[i] == '}': brace_count -= 1
+                if brace_count == 0:
+                    end_brace = i
+                    break
+            
+            close_paren = content.find(")", end_brace)
+            if close_paren == -1: close_paren = end_brace + 1
+            reset_block = content[idx:close_paren+1]
+            
+            # Extract the commit hash they were trying to reset to
+            commit_match = re.search(r'Commit:\s*([^,}\n]+)', reset_block)
+            commit_hash = commit_match.group(1).strip() if commit_match else "plumbing.ZeroHash"
+            
+            # Dynamically detect the repo variable name (e.g. r, repo, etc.)
+            wt_decl = re.search(r'([a-zA-Z0-9_]+)\s*,\s*([a-zA-Z0-9_]+)\s*(:=|=)\s*([a-zA-Z0-9_]+)\.Worktree\(\)', content)
+            repo_var = wt_decl.group(4) if wt_decl else "r"
+            
+            replacement = f'''Checkout(&git.CheckoutOptions{{
+\t\t\tHash:  {commit_hash},
+\t\t\tForce: true,
+\t\t}})
+\t\t// Fix detached HEAD and update branch ref safely
+\t\t{repo_var}.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/main"), {commit_hash}))
+\t\t{repo_var}.Storer.SetReference(plumbing.NewSymbolicReference(plumbing.HEAD, plumbing.ReferenceName("refs/heads/main")))'''
 
-if __name__ == "__main__":
-    update_application()
+            content = content[:idx] + replacement + content[close_paren+1:]
+            changed = True
+
+        # 2. Inject TMPDIR for Android before Fetch (fixes broken sync on Android)
+        if ("Fetch(&git.FetchOptions" in content or "Pull(&git.PullOptions" in content) and "TMPDIR" not in content:
+            lines = content.split('\n')
+            for i in range(len(lines)):
+                if (".Fetch(" in lines[i] or ".Pull(" in lines[i]) and not ("//" in lines[i]):
+                    indent = len(lines[i]) - len(lines[i].lstrip())
+                    tab = lines[i][:indent]
+                    injection = [
+                        f"{tab}// Fix Android TMPDIR constraint for go-git packfiles",
+                        f"{tab}if runtime.GOOS == \"android\" {{",
+                        f"{tab}\ttmpDir := \"/storage/emulated/0/Android/media/net.basov.omngo/.tmp\"",
+                        f"{tab}\tos.MkdirAll(tmpDir, 0755)",
+                        f"{tab}\tos.Setenv(\"TMPDIR\", tmpDir)",
+                        f"{tab}}}"
+                    ]
+                    lines = lines[:i] + injection + lines[i:]
+                    content = '\n'.join(lines)
+                    changed = True
+                    break
+
+        # Save if modifications occurred
+        if changed:
+            content = ensure_imports(content, ["runtime", "os", "github.com/go-git/go-git/v5/plumbing"])
+            with open(filename, 'w') as f: 
+                f.write(content)
+            print(f"[+] Patched sync and TMPDIR logic in {filename}")
+
+if __name__ == '__main__':
+    update_version()
+    patch_sync_logic()
+    print("[+] Application upgraded to Version 1.5.38 successfully!")
