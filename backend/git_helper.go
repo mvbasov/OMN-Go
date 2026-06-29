@@ -152,7 +152,6 @@ func getOrInitRepo() (*git.Repository, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
-		repairAndroidGitDirs() // will fix any missing dirs and add .gitkeep if missing
 		log.Printf("[sync] Repo initialized")
 	} else {
 		log.Printf("[sync] Repo opened successfully")
@@ -177,7 +176,6 @@ func manualGitInit(dir string) error {
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
 		return err
 	}
-	repairAndroidGitDirs() // will fix any missing dirs and add .gitkeep if missing
 	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
 		return err
 	}
@@ -187,12 +185,16 @@ func manualGitInit(dir string) error {
 	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects/pack"), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects/info"), 0755); err != nil {
-		return err
-	}
+	protectGitDirs()
+
+	// Delete it after tests
+//        if err := os.MkdirAll(filepath.Join(gitDir, "objects/pack"), 0755); err != nil {
+//		return err
+//	}
+//	if err := os.MkdirAll(filepath.Join(gitDir, "objects/info"), 0755); err != nil {
+//		return err
+//	}
+
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
 		return err
@@ -362,9 +364,6 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		log.Printf("[sync] No real changes could be staged (FUSE false-dirty or ignored)")
 		return false, nil
 	}
-
-	// Ensure required directories exist
-	repairAndroidGitDirs()
 
 	log.Printf("[sync] Committing staged changes")
 	authorName := GetConfigAuthor()
@@ -544,35 +543,21 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 	return publicKeys, nil
 }
 
-func repairAndroidGitDirs() {
-    if runtime.GOOS == "android" {
-        gitRoot := filepath.Join(storageDir, ".git")
-
-	// Anchor the objects directory with a hidden file to prevent it from being deleted
-        objectsKeep := filepath.Join(gitRoot, "objects", ".keep")
-        os.MkdirAll(filepath.Join(gitRoot, "objects"), 0755)
-        os.WriteFile(objectsKeep, nil, 0644) // ignore error, best effort
-
-        dirs := []string{
-            "objects/pack",
-            "objects/info",
-            "refs/heads",
-            "refs/tags",
-            "refs/remotes/origin",
+// Prevent Android media scanner delete critical empty directoryes
+func protectGitDirs() {
+    if runtime.GOOS != "android" {
+        return
+    }
+    for _, dir := range []string{"objects", "refs"} {
+        p := filepath.Join(storageDir, ".git", dir)
+        if err := os.MkdirAll(p, 0755); err != nil {
+            log.Printf("[protectGitDirs] MkdirAll %s failed: %v", p, err)
+            continue
         }
-        for _, d := range dirs {
-            p := filepath.Join(gitRoot, d)
-            if err := os.MkdirAll(p, 0755); err != nil {
-                log.Printf("[repairDirs] Directory '%s' not created", p)
-                continue
-            }
-            // Create .gitkeep to prevent Android from deleting the directory
-            keepFile := filepath.Join(p, ".gitkeep")
-            if _, err := os.Stat(keepFile); os.IsNotExist(err) {
-                f, err := os.Create(keepFile)
-                if err == nil {
-                    f.Close()
-                }
+        keepFile := filepath.Join(p, ".gitkeep")
+        if _, err := os.Stat(keepFile); os.IsNotExist(err) {
+            if f, err := os.Create(keepFile); err == nil {
+                f.Close()
             }
         }
     }
