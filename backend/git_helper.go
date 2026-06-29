@@ -547,6 +547,12 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 func repairAndroidGitDirs() {
     if runtime.GOOS == "android" {
         gitRoot := filepath.Join(storageDir, ".git")
+
+	// Anchor the objects directory with a hidden file to prevent it from being deleted
+        objectsKeep := filepath.Join(gitRoot, "objects", ".keep")
+        os.MkdirAll(filepath.Join(gitRoot, "objects"), 0755)
+        os.WriteFile(objectsKeep, nil, 0644) // ignore error, best effort
+
         dirs := []string{
             "objects/pack",
             "objects/info",
