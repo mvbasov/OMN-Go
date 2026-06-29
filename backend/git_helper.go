@@ -25,7 +25,7 @@ import (
 
 func ensureGitignore() {
 	gitignorePath := filepath.Join(storageDir, ".gitignore")
-	gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n"
+	gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/local/\n"
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
 		log.Printf("[sync] Created .gitignore")
