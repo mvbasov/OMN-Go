@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -15,7 +16,9 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -26,10 +29,9 @@ import (
 )
 
 // ----------------------------------------------------------------------
-// 1. Android filesystem workarounds
+// Android filesystem workarounds
 // ----------------------------------------------------------------------
 
-// NoLockFS neutralises file locking calls that are unsupported on Android's FUSE.
 type NoLockFS struct {
 	billy.Filesystem
 }
@@ -82,7 +84,7 @@ func (f *NoLockFile) Lock() error   { return nil }
 func (f *NoLockFile) Unlock() error { return nil }
 
 // ---------------------------------------------------------------
-// 2. Stable mtime wrapper (forces content‑hash based status check)
+// Stable mtime wrapper (forces content‑hash based status check)
 // ---------------------------------------------------------------
 
 type stableMtimeFS struct {
@@ -110,11 +112,11 @@ type stableFileInfo struct {
 }
 
 func (fi *stableFileInfo) ModTime() time.Time {
-	return time.Unix(0, 0) // always the same → forces hashing
+	return time.Unix(0, 0)
 }
 
 // ---------------------------------------------------------------
-// 3. Repository initialisation & helpers
+// Repository initialisation
 // ---------------------------------------------------------------
 
 func ensureGitignore() {
@@ -190,60 +192,88 @@ func manualGitInit(dir string) error {
 	return nil
 }
 
-// loadGitignorePatterns reads .gitignore from the worktree and applies it.
-func loadGitignorePatterns(wt *git.Worktree) error {
+// loadGitignoreMatcher returns a matcher for the worktree's .gitignore patterns.
+func loadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, error) {
 	patterns, err := gitignore.ReadPatterns(wt.Filesystem, []string{})
+	if err != nil {
+		return nil, err
+	}
+	return gitignore.NewMatcher(patterns), nil
+}
+
+// ---------------------------------------------------------------
+// Manual staging (bypasses go‑git’s Add entirely)
+// ---------------------------------------------------------------
+
+// manualStageFile streams the file content into a new blob and updates the index.
+func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error {
+	fullPath := filepath.Join(storageDir, name)
+	stat, err := os.Lstat(fullPath)
 	if err != nil {
 		return err
 	}
-	wt.Excludes = patterns
-	return nil
-}
-
-// ---------------------------------------------------------------
-// 4. SSH authentication
-// ---------------------------------------------------------------
-
-func getSSHAuth() (transport.AuthMethod, error) {
-	sshUser := "git"
-	if idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {
-		sshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]
-	}
-	log.Printf("[sync] SSH user: %s", sshUser)
-
-	keyData := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyData
-	if keyData == "" {
-		log.Printf("[sync] Error: No SSH key configured")
-		return nil, fmt.Errorf("no SSH key configured")
+	if stat.IsDir() {
+		return nil
 	}
 
-	var signer cryptossh.Signer
-	var err error
-	passphrase := appConfig.GitServers[appConfig.ActiveGitIndex].Password
-	if passphrase == "" {
-		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
-	} else {
-		signer, err = cryptossh.ParsePrivateKeyWithPassphrase([]byte(keyData), []byte(passphrase))
-	}
+	f, err := os.Open(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse SSH key: %v", err)
+		return err
+	}
+	defer f.Close()
+
+	// Stream file to object database (memory‑safe)
+	obj := repo.Storer.NewEncodedObject()
+	obj.SetType(plumbing.BlobObject)
+	w, err := obj.Writer()
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, f); err != nil {
+		w.Close()
+		return err
+	}
+	w.Close()
+
+	hash, err := repo.Storer.SetEncodedObject(obj)
+	if err != nil {
+		return err
 	}
 
-	publicKeys := &gitssh.PublicKeys{User: sshUser, Signer: signer}
-	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
-		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
+	// Update or add index entry
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		return err
 	}
-	log.Printf("[sync] SSH auth method created using inline key data")
-	return publicKeys, nil
+	var entry *index.Entry
+	for _, e := range idx.Entries {
+		if e.Name == name {
+			entry = e
+			break
+		}
+	}
+	if entry == nil {
+		entry = &index.Entry{Name: name}
+		idx.Entries = append(idx.Entries, entry)
+	}
+	entry.Hash = hash
+	entry.Size = uint32(stat.Size())
+	entry.ModifiedAt = stat.ModTime()
+	entry.Mode = filemode.Regular
+
+	return repo.Storer.SetIndex(idx)
 }
 
 // ---------------------------------------------------------------
-// 5. Staging & committing (simplified with All:true + .gitignore)
+// Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
-	if err := loadGitignorePatterns(wTree); err != nil {
+	// Load gitignore matcher
+	matcher, err := loadGitignoreMatcher(wTree)
+	if err != nil {
 		log.Printf("[sync] Warning: could not load .gitignore: %v", err)
+		matcher = gitignore.NewMatcher(nil) // no ignore
 	}
 
 	log.Printf("[sync] Checking worktree status")
@@ -256,21 +286,39 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		return false, nil
 	}
 
-	log.Printf("[sync] Staging all changes (tracked, untracked, deletions) – respecting .gitignore")
-	err = wTree.AddWithOptions(&git.AddOptions{All: true})
-	if err != nil {
-		return false, fmt.Errorf("add all failed: %v", err)
+	hasRealChanges := false
+	for name, fileStat := range status {
+		// Skip ignored files
+		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
+			log.Printf("[sync] Ignoring %s (matches .gitignore)", name)
+			continue
+		}
+
+		if fileStat.Worktree == git.Deleted {
+			log.Printf("[sync] Staging deletion: %s", name)
+			_, err := wTree.Remove(name)
+			if err != nil {
+				log.Printf("[sync] Warning: failed to remove %s: %v", name, err)
+			} else {
+				hasRealChanges = true
+			}
+		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			log.Printf("[sync] Staging file: %s", name)
+			if err := manualStageFile(repo, wTree, name); err != nil {
+				log.Printf("[sync] Warning: manual staging failed for %s: %v", name, err)
+			} else {
+				log.Printf("[sync] Staged %s successfully", name)
+				hasRealChanges = true
+			}
+		}
 	}
 
-	status, err = wTree.Status()
-	if err != nil {
-		return false, err
-	}
-	if status.IsClean() {
-		log.Printf("[sync] No real changes to commit (FUSE mtime mismatch)")
+	if !hasRealChanges {
+		log.Printf("[sync] No real changes could be staged (FUSE false-dirty or ignored)")
 		return false, nil
 	}
 
+	// Ensure required directories exist
 	repairAndroidGitDirs()
 
 	log.Printf("[sync] Committing staged changes")
@@ -298,7 +346,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 }
 
 // ---------------------------------------------------------------
-// 6. Sync operations (download / upload)
+// Sync operations (download / upload)
 // ---------------------------------------------------------------
 
 func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
@@ -364,7 +412,7 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 }
 
 // ---------------------------------------------------------------
-// 7. HTTP handler
+// HTTP handler
 // ---------------------------------------------------------------
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
@@ -397,7 +445,6 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wTree, _ := repo.Worktree()
-	_ = loadGitignorePatterns(wTree) // early load, harmless
 
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
@@ -431,7 +478,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------
-// 8. Utility functions (unchanged)
+// Utilities
 // ---------------------------------------------------------------
 
 func GetConfigAuthor() string {
@@ -451,10 +498,6 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 	}
 	return publicKeys, nil
 }
-
-// ---------------------------------------------------------------
-// 9. Android directory repair (unchanged)
-// ---------------------------------------------------------------
 
 func repairAndroidGitDirs() {
 	if runtime.GOOS == "android" {
