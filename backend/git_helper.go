@@ -49,12 +49,9 @@ func getOrInitRepo() (*git.Repository, error) {
 	
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
-		if initErr := manualGitInit(storageDir); initErr != nil {
-			return nil, fmt.Errorf("manual init failed: %v", initErr)
-		}
-		repo, err = git.Open(storer, wtFS)
+		repo, err = git.Init(storer, wtFS)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
+			return nil, fmt.Errorf("git init failed: %v", err)
 		}
 		log.Printf("[sync] Repo initialized")
 	} else {
@@ -142,7 +139,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		return false, nil
 	}
 	
-	log.Printf("[sync] Uncommitted changes detected, building commit manually")
+	log.Printf("[sync] Uncommitted changes detected, committing via go-git")
 	authorName := GetConfigAuthor()
 	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 	sig := &object.Signature{
@@ -151,46 +148,15 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		When:  time.Now(),
 	}
 
-	treeHash, err := writeTreeFromDir(storageDir, repo.Storer)
+	commitHash, err := wTree.Commit("Local changes before sync", &git.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
 	if err != nil {
-		return false, fmt.Errorf("writeTreeFromDir error: %v", err)
+		return false, fmt.Errorf("commit error: %v", err)
 	}
-	
-	headRef, errHead := repo.Head()
-	if errHead == nil {
-		headCommit, err := repo.CommitObject(headRef.Hash())
-		if err == nil && headCommit.TreeHash == treeHash {
-			log.Printf("[sync] Tree unchanged from HEAD, nothing to commit")
-			return false, nil
-		}
-	}
-	
-	var parents []plumbing.Hash
-	if errHead == nil {
-		parents = []plumbing.Hash{headRef.Hash()}
-	}
-	commit := &object.Commit{
-		Author:       *sig,
-		Committer:    *sig,
-		Message:      "Local changes before sync",
-		TreeHash:     treeHash,
-		ParentHashes: parents,
-	}
-	obj := repo.Storer.NewEncodedObject()
-	if err = commit.Encode(obj); err != nil {
-		return false, fmt.Errorf("commit encode error: %v", err)
-	}
-	commitHash, err := repo.Storer.SetEncodedObject(obj)
-	if err != nil {
-		return false, fmt.Errorf("store commit error: %v", err)
-	}
-	refPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")
-	if err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {
-		return false, fmt.Errorf("mkdirAll ref error: %v", err)
-	}
-	if err := os.WriteFile(refPath, []byte(commitHash.String()+"\n"), 0644); err != nil {
-		return false, fmt.Errorf("write ref error: %v", err)
-	}
+	log.Printf("[sync] Committed with hash: %s", commitHash.String())
+
 	return true, nil
 }
 
@@ -247,114 +213,6 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 	})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("push failed: %v", err)
-	}
-	return nil
-}
-
-func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
-	// Load .gitignore patterns
-	var ps []gitignore.Pattern
-	gitignorePath := filepath.Join(storageDir, ".gitignore")
-	if data, err := os.ReadFile(gitignorePath); err == nil {
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			pattern := gitignore.ParsePattern(line, nil)
-			if pattern != nil {
-				ps = append(ps, pattern)
-			}
-		}
-	}
-	matcher := gitignore.NewMatcher(ps)
-
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return plumbing.Hash{}, err
-	}
-	// Sort directory entries for deterministic order
-	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
-	entries := []object.TreeEntry{}
-	for _, f := range files {
-		if f.Name() == ".git" {
-			continue
-		}
-		fullPath := filepath.Join(dir, f.Name())
-		// Compute relative path from storageDir
-		relPath, err := filepath.Rel(storageDir, fullPath)
-		if err != nil {
-			continue
-		}
-		if matcher.Match(strings.Split(relPath, string(filepath.Separator)), f.IsDir()) {
-			continue
-		}
-		if f.IsDir() {
-			subTreeHash, err := writeTreeFromDir(fullPath, storer)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			entries = append(entries, object.TreeEntry{
-				Name: f.Name(),
-				Mode: 0040000,
-				Hash: subTreeHash,
-			})
-		} else {
-			data, err := os.ReadFile(fullPath)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			blobObj := storer.NewEncodedObject()
-			blobObj.SetType(plumbing.BlobObject)
-			blobObj.SetSize(int64(len(data)))
-			w, err := blobObj.Writer()
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			if _, err = w.Write(data); err != nil {
-				return plumbing.Hash{}, err
-			}
-			if err = w.Close(); err != nil {
-				return plumbing.Hash{}, fmt.Errorf("close blob writer: %%v", err)
-			}
-			blobHash, err := storer.SetEncodedObject(blobObj)
-			if err != nil {
-				return plumbing.Hash{}, err
-			}
-			entries = append(entries, object.TreeEntry{
-				Name: f.Name(),
-				Mode: 0100644,
-				Hash: blobHash,
-			})
-		}
-	}
-	// Build tree object
-	treeObj := object.Tree{Entries: entries}
-	encoded := storer.NewEncodedObject()
-	if err := treeObj.Encode(encoded); err != nil {
-		return plumbing.Hash{}, err
-	}
-	return storer.SetEncodedObject(encoded)
-}
-
-func manualGitInit(dir string) error {
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
-		return err
-	}
-	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
-	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
-		return err
 	}
 	return nil
 }
