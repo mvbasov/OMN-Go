@@ -225,7 +225,7 @@ func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) 
 	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
 	entries := []object.TreeEntry{}
 	for _, f := range files {
-		if f.Name() == ".git" || f.Name() == ".gitignore" {
+		if f.Name() == ".git" {
 			continue
 		}
 		fullPath := filepath.Join(dir, f.Name())

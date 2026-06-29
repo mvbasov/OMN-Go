@@ -17,15 +17,6 @@ def patch_file(path, old, new):
     content = content.replace(old, new, 1)
     write_file(path, content)
 
-def patch_file_if_needed(path, old, new):
-    """Apply patch if *old* exists, otherwise skip.  Returns True if applied."""
-    content = read_file(path)
-    if old in content:
-        content = content.replace(old, new, 1)
-        write_file(path, content)
-        return True
-    return False
-
 def increment_version(ver_str):
     parts = ver_str.strip().split(".")
     if len(parts) == 3 and parts[2].isdigit():
@@ -54,96 +45,24 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Fix the call site that still uses single return value
-    old_call = (
-        "\tif err := commitLocalChanges(repo, wTree); err != nil {\n"
-        "\t\thttp.Error(w, fmt.Sprintf(\"Commit failed: %v\", err), 500)\n"
-        "\t\treturn\n"
-        "\t}\n"
-        "\n"
-        "\tif action == \"download\" {"
+    # 2. Patch writeTreeFromDir to include .gitignore in commits
+    old_exclude = (
+        '\t\tif f.Name() == ".git" || f.Name() == ".gitignore" {\n'
+        '\t\t\tcontinue\n'
+        '\t\t}'
     )
-    new_call = (
-        "\tcommitted, err := commitLocalChanges(repo, wTree)\n"
-        "\tif err != nil {\n"
-        "\t\thttp.Error(w, fmt.Sprintf(\"Commit failed: %v\", err), 500)\n"
-        "\t\treturn\n"
-        "\t}\n"
-        "\tif !committed && action == \"upload\" {\n"
-        "\t\tw.Write([]byte(\"Nothing to push\"))\n"
-        "\t\treturn\n"
-        "\t}\n"
-        "\n"
-        "\tif action == \"download\" {"
+    new_exclude = (
+        '\t\tif f.Name() == ".git" {\n'
+        '\t\t\tcontinue\n'
+        '\t\t}'
     )
+    patch_file("backend/git_helper.go", old_exclude, new_exclude)
 
-    applied1 = patch_file_if_needed("backend/handlers.go", old_call, new_call)
-    applied2 = patch_file_if_needed("backend/git_helper.go", old_call, new_call)
-
-    if applied1 or applied2:
-        print("✓ Fixed call site(s) for commitLocalChanges")
-    else:
-        # Might already be fixed; just ensure no compile error
-        pass
-
-    # 3. Fix the safeCommit recursion bug (calling itself without termination)
-    old_safe_commit = (
-        "func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {\n"
-        "\tstatus, err := w.Status()\n"
-        "\tif err != nil {\n"
-        "\t\treturn plumbing.ZeroHash, err\n"
-        "\t}\n"
-        "\tif status.IsClean() {\n"
-        "\t\t// Strong check: explicitly bypass commit if tree is perfectly clean\n"
-        "\t\treturn plumbing.ZeroHash, nil\n"
-        "\t}\n"
-        "\treturn safeCommit(w, msg, opts)\n"
-        "}"
-    )
-    new_safe_commit = (
-        "func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {\n"
-        "\tstatus, err := w.Status()\n"
-        "\tif err != nil {\n"
-        "\t\treturn plumbing.ZeroHash, err\n"
-        "\t}\n"
-        "\tif status.IsClean() {\n"
-        "\t\t// Strong check: explicitly bypass commit if tree is perfectly clean\n"
-        "\t\treturn plumbing.ZeroHash, nil\n"
-        "\t}\n"
-        "\treturn w.Commit(msg, opts)\n"
-        "}"
-    )
-    # Apply only if the old version exists
-    if patch_file_if_needed("backend/git_helper.go", old_safe_commit, new_safe_commit):
-        print("✓ Fixed safeCommit recursion")
-
-    # 4. Frontend JS – show server response message (if not already done)
-    old_js = (
-        "            if (res.ok) {\n"
-        "                if (confirm(capAction + ' complete!\\n\\nWould you like to reload the page now to see updated content (console will be reset)?')) {\n"
-        "                    window.location.reload();\n"
-        "                }\n"
-        "            } else {"
-    )
-    new_js = (
-        "            if (res.ok) {\n"
-        "                let msg = await res.text();\n"
-        "                if (msg.includes('Nothing to push')) {\n"
-        "                    alert(msg);\n"
-        "                } else if (confirm(msg + '\\n\\nWould you like to reload the page now to see updated content (console will be reset)?')) {\n"
-        "                    window.location.reload();\n"
-        "                }\n"
-        "            } else {"
-    )
-    if patch_file_if_needed("backend/frontend/html/js/omn-go-sse.js", old_js, new_js):
-        print("✓ Updated frontend sync dialogue")
-
-    # 5. Print commit message
+    # 3. Print commit message
     commit_msg = (
-        "fix(sync): correct commitLocalChanges call and fix safeCommit recursion\n\n"
-        "- Update handleSync call to capture (bool, error) returned by commitLocalChanges\n"
-        "- Replace infinite recursion in safeCommit with actual w.Commit call\n"
-        "- Frontend shows 'Nothing to push' when upload has nothing to do\n"
+        "fix(sync): include .gitignore in commits and push/pull\n\n"
+        "- Remove .gitignore exclusion from writeTreeFromDir\n"
+        "- Enables syncing .gitignore rules with remote repository\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
