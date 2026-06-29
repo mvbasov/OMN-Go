@@ -187,6 +187,12 @@ func manualGitInit(dir string) error {
 	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects/pack"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects/info"), 0755); err != nil {
+		return err
+	}
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
 		return err
@@ -551,6 +557,7 @@ func repairAndroidGitDirs() {
         for _, d := range dirs {
             p := filepath.Join(gitRoot, d)
             if err := os.MkdirAll(p, 0755); err != nil {
+                log.Printf("[repairDirs] Directory '%s' not created", p)
                 continue
             }
             // Create .gitkeep to prevent Android from deleting the directory
