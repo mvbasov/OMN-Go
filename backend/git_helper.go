@@ -10,15 +10,12 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"time"
 	cryptossh "golang.org/x/crypto/ssh"
 	gitconfig "github.com/go-git/go-git/v5/config"
@@ -49,9 +46,12 @@ func getOrInitRepo() (*git.Repository, error) {
 	
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
-		repo, err = git.Init(storer, wtFS)
+		if initErr := manualGitInit(storageDir); initErr != nil {
+			return nil, fmt.Errorf("manual init failed: %v", initErr)
+		}
+		repo, err = git.Open(storer, wtFS)
 		if err != nil {
-			return nil, fmt.Errorf("git init failed: %v", err)
+			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
 		log.Printf("[sync] Repo initialized")
 	} else {
@@ -373,4 +373,25 @@ func repairAndroidGitDirs() {
 		os.MkdirAll(filepath.Join(gitRoot, "refs", "tags"), 0755)
 		os.MkdirAll(filepath.Join(gitRoot, "refs", "remotes", "origin"), 0755)
 	}
+}
+
+func manualGitInit(dir string) error {
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
+		return err
+	}
+	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
+		return err
+	}
+	return nil
 }
