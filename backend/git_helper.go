@@ -548,7 +548,8 @@ func protectGitDirs() {
     if runtime.GOOS != "android" {
         return
     }
-    for _, dir := range []string{"objects", "refs"} {
+    //for _, dir := range []string{"objects", "refs"} {
+    for _, dir := range []string{"objects"} {
         p := filepath.Join(storageDir, ".git", dir)
         if err := os.MkdirAll(p, 0755); err != nil {
             log.Printf("[protectGitDirs] MkdirAll %s failed: %v", p, err)
