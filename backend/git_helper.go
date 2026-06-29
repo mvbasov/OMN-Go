@@ -1,10 +1,7 @@
 package backend
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -18,7 +15,6 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
-	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -30,7 +26,7 @@ import (
 )
 
 // ----------------------------------------------------------------------
-// 1. Android filesystem workarounds (keep these, they are still needed)
+// 1. Android filesystem workarounds
 // ----------------------------------------------------------------------
 
 // NoLockFS neutralises file locking calls that are unsupported on Android's FUSE.
@@ -130,13 +126,9 @@ func ensureGitignore() {
 	}
 }
 
-// getOrInitRepo returns an open repository. The filesystem is wrapped
-// with NoLockFS and stableMtimeFS to work around Android FUSE quirks.
 func getOrInitRepo() (*git.Repository, error) {
 	log.Printf("[sync] Opening repo at %s", storageDir)
 
-	// Build the filesystem chain:
-	//   real OS FS  →  stable mtime  →  no‑lock  →  worktree / dotgit
 	baseFS := osfs.New(storageDir)
 	stableFS := &stableMtimeFS{baseFS}
 	wtFS := &NoLockFS{stableFS}
@@ -163,7 +155,6 @@ func getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Repo opened successfully")
 	}
 
-	// Make sure the remote exists
 	_, err = repo.Remote("origin")
 	if err != nil {
 		log.Printf("[sync] Remote origin missing, adding")
@@ -178,7 +169,6 @@ func getOrInitRepo() (*git.Repository, error) {
 	return repo, nil
 }
 
-// manualGitInit creates a minimal .git directory structure.
 func manualGitInit(dir string) error {
 	gitDir := filepath.Join(dir, ".git")
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
@@ -200,23 +190,13 @@ func manualGitInit(dir string) error {
 	return nil
 }
 
-// loadGitignorePatterns reads .gitignore and makes the worktree respect it.
+// loadGitignorePatterns reads .gitignore from the worktree and applies it.
 func loadGitignorePatterns(wt *git.Worktree) error {
-	fs := wt.Filesystem
-	f, err := fs.Open(".gitignore")
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	defer f.Close()
-
-	patterns, err := gitignore.ReadPatterns(f, []string{})
+	patterns, err := gitignore.ReadPatterns(wt.Filesystem, []string{})
 	if err != nil {
 		return err
 	}
-	wt.Excludes = gitignore.NewMatcher(patterns)
+	wt.Excludes = patterns
 	return nil
 }
 
@@ -262,7 +242,6 @@ func getSSHAuth() (transport.AuthMethod, error) {
 // ---------------------------------------------------------------
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
-	// Load .gitignore patterns so that All:true skips ignored files
 	if err := loadGitignorePatterns(wTree); err != nil {
 		log.Printf("[sync] Warning: could not load .gitignore: %v", err)
 	}
@@ -283,9 +262,6 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		return false, fmt.Errorf("add all failed: %v", err)
 	}
 
-	// Double‑check after staging: if mtime caused false dirty files,
-	// AddWithOptions will have hashed them and updated the index,
-	// making the tree clean again.
 	status, err = wTree.Status()
 	if err != nil {
 		return false, err
@@ -295,7 +271,6 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		return false, nil
 	}
 
-	// Ensure required directories exist (Android media scanner may delete them)
 	repairAndroidGitDirs()
 
 	log.Printf("[sync] Committing staged changes")
@@ -330,14 +305,11 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 	if force {
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
 
-		// Fix Android TMPDIR constraint for go-git packfiles
 		if runtime.GOOS == "android" {
 			tmpDir := filepath.Join(storageDir, ".git", "tmp")
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
-			ensureGitignore() // re‑create .gitignore if missing
-			// Lock out temporary git files from being synced
-			// (already handled by .gitignore, but extra safety)
+			ensureGitignore()
 		}
 
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
@@ -358,7 +330,6 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 			return fmt.Errorf("hard reset failed: %v", err)
 		}
 
-		// Fix detached HEAD
 		repo.Storer.SetReference(plumbing.NewHashReference(
 			plumbing.ReferenceName("refs/heads/main"), ref.Hash()))
 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
@@ -393,7 +364,7 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 }
 
 // ---------------------------------------------------------------
-// 7. HTTP handler & top‑level flow
+// 7. HTTP handler
 // ---------------------------------------------------------------
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
@@ -426,10 +397,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wTree, _ := repo.Worktree()
-
-	// Load .gitignore patterns early so that any later operation respects them.
-	// (commitLocalChanges will also load them, but it's harmless)
-	_ = loadGitignorePatterns(wTree)
+	_ = loadGitignorePatterns(wTree) // early load, harmless
 
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
@@ -485,7 +453,7 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 }
 
 // ---------------------------------------------------------------
-// 9. Android directory repair (kept as is)
+// 9. Android directory repair (unchanged)
 // ---------------------------------------------------------------
 
 func repairAndroidGitDirs() {
@@ -498,7 +466,3 @@ func repairAndroidGitDirs() {
 		os.MkdirAll(filepath.Join(gitRoot, "refs", "remotes", "origin"), 0755)
 	}
 }
-
-// The old manualStageFile function is no longer needed because
-// AddWithOptions(All:true) handles everything, including memory‑safe
-// blob creation. It is removed to keep the code clean.
