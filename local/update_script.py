@@ -45,28 +45,43 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Fix gitignore pattern parsing – add error check
-    old_parse = (
-        '\t\t\tif line == "" || strings.HasPrefix(line, "#") {\n'
-        '\t\t\t\tcontinue\n'
-        '\t\t\t}\n'
-        '\t\t\tps = append(ps, gitignore.ParsePattern(line, nil))'
-    )
-    new_parse = (
+    # 2. Fix gitignore pattern parsing – use single return value and nil check
+    old_block = (
+        '\tif data, err := os.ReadFile(gitignorePath); err == nil {\n'
+        '\t\tlines := strings.Split(string(data), "\\n")\n'
+        '\t\tfor _, line := range lines {\n'
+        '\t\t\tline = strings.TrimSpace(line)\n'
         '\t\t\tif line == "" || strings.HasPrefix(line, "#") {\n'
         '\t\t\t\tcontinue\n'
         '\t\t\t}\n'
         '\t\t\tif pattern, err := gitignore.ParsePattern(line, nil); err == nil {\n'
         '\t\t\t\tps = append(ps, pattern)\n'
-        '\t\t\t}'
+        '\t\t\t}\n'
+        '\t\t}\n'
+        '\t}'
     )
-    patch_file("backend/git_helper.go", old_parse, new_parse)
+    new_block = (
+        '\tif data, err := os.ReadFile(gitignorePath); err == nil {\n'
+        '\t\tlines := strings.Split(string(data), "\\n")\n'
+        '\t\tfor _, line := range lines {\n'
+        '\t\t\tline = strings.TrimSpace(line)\n'
+        '\t\t\tif line == "" || strings.HasPrefix(line, "#") {\n'
+        '\t\t\t\tcontinue\n'
+        '\t\t\t}\n'
+        '\t\t\tpattern := gitignore.ParsePattern(line, nil)\n'
+        '\t\t\tif pattern != nil {\n'
+        '\t\t\t\tps = append(ps, pattern)\n'
+        '\t\t\t}\n'
+        '\t\t}\n'
+        '\t}'
+    )
+    patch_file("backend/git_helper.go", old_block, new_block)
 
-    # 3. Print the standardised Git commit message
+    # 3. Print commit message
     commit_msg = (
-        "fix(sync): safely parse .gitignore patterns to avoid Android crash\n\n"
-        "- Check error return of gitignore.ParsePattern before appending\n"
-        "- Prevents nil patterns causing \"entry not found\" during tree building\n"
+        "fix(sync): correct gitignore pattern parsing for Android compatibility\n\n"
+        "- Use single return value of gitignore.ParsePattern (no error returned)\n"
+        "- Nil‑check pattern before appending to avoid crashes\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

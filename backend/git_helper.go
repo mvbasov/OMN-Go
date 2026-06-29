@@ -228,7 +228,8 @@ func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) 
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
-			if pattern, err := gitignore.ParsePattern(line, nil); err == nil {
+			pattern := gitignore.ParsePattern(line, nil)
+			if pattern != nil {
 				ps = append(ps, pattern)
 			}
 		}
