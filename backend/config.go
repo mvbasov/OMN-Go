@@ -85,16 +85,3 @@ func loadConfig(storageDir string) {
 
 }
 
-
-// repairAndroidGitDirs fixes the Android FUSE Media Scanner bug by forcing 
-// the recreation of empty git directories immediately before any commit.
-func repairAndroidGitDirs() {
-	if runtime.GOOS == "android" {
-		gitRoot := filepath.Join(storageDir, ".git")
-		os.MkdirAll(filepath.Join(gitRoot, "objects", "pack"), 0755)
-		os.MkdirAll(filepath.Join(gitRoot, "objects", "info"), 0755)
-		os.MkdirAll(filepath.Join(gitRoot, "refs", "heads"), 0755)
-		os.MkdirAll(filepath.Join(gitRoot, "refs", "tags"), 0755)
-		os.MkdirAll(filepath.Join(gitRoot, "refs", "remotes", "origin"), 0755)
-	}
-}

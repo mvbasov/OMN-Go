@@ -132,7 +132,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 			}
 		}
 	}
-	err := nil // Clear legacy AddWithOptions error state
+	var err error // Clear legacy AddWithOptions error state
 	if err != nil {
 		log.Printf("[LOG] [GO] [sync] Staging warning (Ignored, proceeding): %v", err)
 	}
