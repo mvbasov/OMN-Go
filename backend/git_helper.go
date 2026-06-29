@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"time"
 	cryptossh "golang.org/x/crypto/ssh"
 	gitconfig "github.com/go-git/go-git/v5/config"
@@ -217,6 +218,21 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 }
 
 func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) {
+	// Load .gitignore patterns
+	var ps []gitignore.Pattern
+	gitignorePath := filepath.Join(storageDir, ".gitignore")
+	if data, err := os.ReadFile(gitignorePath); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			ps = append(ps, gitignore.ParsePattern(line, nil))
+		}
+	}
+	matcher := gitignore.NewMatcher(ps)
+
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return plumbing.Hash{}, err
@@ -229,6 +245,14 @@ func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) 
 			continue
 		}
 		fullPath := filepath.Join(dir, f.Name())
+		// Compute relative path from storageDir
+		relPath, err := filepath.Rel(storageDir, fullPath)
+		if err != nil {
+			continue
+		}
+		if matcher.Match(strings.Split(relPath, string(filepath.Separator)), f.IsDir()) {
+			continue
+		}
 		if f.IsDir() {
 			subTreeHash, err := writeTreeFromDir(fullPath, storer)
 			if err != nil {
