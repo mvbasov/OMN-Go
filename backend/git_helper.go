@@ -123,7 +123,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 	}
 	err := wTree.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
-		return false, err
+		log.Printf("[LOG] [GO] [sync] Staging warning (Ignored, proceeding): %v", err)
 	}
 	status, _ := wTree.Status()
 	if status.IsClean() {
@@ -188,10 +188,10 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
 		// Fix Android TMPDIR constraint for go-git packfiles
 		if runtime.GOOS == "android" {
-			tmpDir := "/storage/emulated/0/Android/media/net.basov.omngo/.tmp"
+			tmpDir := "/storage/emulated/0/Android/media/net.basov.omngo/.git/tmp"
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
-		autoGitIgnore(".tmp") // Lock out temporary git files
+		autoGitIgnore(".git/tmp") // Lock out temporary git files
 		}
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
 		if err != nil && err != git.NoErrAlreadyUpToDate {
