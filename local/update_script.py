@@ -1,4 +1,5 @@
 import os
+import re
 
 def patch_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -7,61 +8,77 @@ def patch_file(filepath):
     # Normalize newlines
     content = content.replace('\r\n', '\n')
 
-    # 1. Restore the manual initialization logic in getOrInitRepo
-    bad_init = r"""	if err != nil {
-		log.Printf("[sync] Repo not found, initializing...")
-		repo, err = git.Init(storer, wtFS)
-		if err != nil {
-			return nil, fmt.Errorf("git init failed: %v", err)
-		}
-		log.Printf("[sync] Repo initialized")
-	} else {"""
+    # Use regex to completely encapsulate and replace the commit function
+    pattern = re.compile(r'func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
     
-    good_init = r"""	if err != nil {
-		log.Printf("[sync] Repo not found, initializing...")
-		if initErr := manualGitInit(storageDir); initErr != nil {
-			return nil, fmt.Errorf("manual init failed: %v", initErr)
-		}
-		repo, err = git.Open(storer, wtFS)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
-		}
-		log.Printf("[sync] Repo initialized")
-	} else {"""
-    
-    content = content.replace(bad_init, good_init)
+    new_func = """func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
+	log.Printf("[sync] Checking worktree status")
+	status, err := wTree.Status()
+	if err != nil {
+		return false, fmt.Errorf("status check error: %v", err)
+	}
 
-    # 2. Append the manualGitInit function back to the bottom of the file
-    if "func manualGitInit" not in content:
-        manual_init_code = """
-func manualGitInit(dir string) error {
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0755); err != nil {
-		return err
+	if status.IsClean() {
+		log.Printf("[sync] Nothing to commit")
+		return false, nil
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
-		return err
-	}
-	config := []byte("[core]\\n\\trepositoryformatversion = 0\\n\\tfilemode = true\\n\\tbare = false\\n")
-	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
-		return err
-	}
-	return nil
-}
-"""
-        # Append before the final closing brace if it exists in a weird way, otherwise just append.
-        content += manual_init_code
 
-    with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(content)
-        
-    print(f"[+] Successfully patched {filepath} (Restored manualGitInit)")
+	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
+	hasRealChanges := false
+	
+	// Explicitly add/remove files to bypass Android AddWithOptions bug
+	for name, fileStat := range status {
+		if fileStat.Worktree == git.Deleted {
+			log.Printf("[sync] Staging deletion: %s", name)
+			_, _ = wTree.Remove(name)
+			hasRealChanges = true
+		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			log.Printf("[sync] Staging file: %s", name)
+			_, err := wTree.Add(name)
+			if err != nil {
+				log.Printf("[sync] Warning: failed to add %s: %v", name, err)
+			} else {
+				hasRealChanges = true
+			}
+		}
+	}
+
+	if !hasRealChanges {
+		log.Printf("[sync] No real changes could be staged (FUSE false-dirty).")
+		return false, nil
+	}
+
+	log.Printf("[sync] Committing staged changes via go-git")
+	authorName := GetConfigAuthor()
+	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
+	sig := &object.Signature{
+		Name:  authorName,
+		Email: authorEmail,
+		When:  time.Now(),
+	}
+
+	commitHash, err := wTree.Commit("Local changes before sync", &git.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
+	if err == git.ErrEmptyCommit {
+		log.Printf("[sync] Commit aborted: git.ErrEmptyCommit")
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("commit error: %v", err)
+	}
+
+	log.Printf("[sync] Committed with hash: %s", commitHash.String())
+	return true, nil
+}"""
+
+    if pattern.search(content):
+        content = pattern.sub(new_func, content)
+        with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(content)
+        print(f"[+] Successfully patched {filepath} (Applied Explicit Staging)")
+    else:
+        print(f"[-] Could not find commitLocalChanges in {filepath}.")
 
 if __name__ == "__main__":
     target_files = ["backend/git_helper.go", "git_helper.go"]

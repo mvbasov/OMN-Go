@@ -108,38 +108,43 @@ func getSSHAuth() (transport.AuthMethod, error) {
 }
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
-	log.Printf("[sync] Staging all changes")
-	// FIX: Android FUSE filesystem bug causes AddWithOptions to miss deleted files.
-	wkStatus, _ := wTree.Status()
-	for path, fileStatus := range wkStatus {
-		if fileStatus.Worktree == git.Deleted {
-			wTree.Remove(path)
-		} else if fileStatus.Worktree != git.Unmodified && fileStatus.Worktree != git.Untracked {
-			wTree.Add(path)
-		}
-	}
-	// BULLETPROOF STAGING: Manually iterate to avoid FUSE entry bugs
-	{
-		wkStatus, _ := wTree.Status()
-		for path, fileStatus := range wkStatus {
-			if fileStatus.Worktree == git.Deleted {
-				wTree.Remove(path)
-			} else if fileStatus.Worktree != git.Unmodified {
-				wTree.Add(path)
-			}
-		}
-	}
-	var err error // Clear legacy AddWithOptions error state
+	log.Printf("[sync] Checking worktree status")
+	status, err := wTree.Status()
 	if err != nil {
-		log.Printf("[LOG] [GO] [sync] Staging warning (Ignored, proceeding): %v", err)
+		return false, fmt.Errorf("status check error: %v", err)
 	}
-	status, _ := wTree.Status()
+
 	if status.IsClean() {
 		log.Printf("[sync] Nothing to commit")
 		return false, nil
 	}
+
+	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
+	hasRealChanges := false
 	
-	log.Printf("[sync] Uncommitted changes detected, committing via go-git")
+	// Explicitly add/remove files to bypass Android AddWithOptions bug
+	for name, fileStat := range status {
+		if fileStat.Worktree == git.Deleted {
+			log.Printf("[sync] Staging deletion: %s", name)
+			_, _ = wTree.Remove(name)
+			hasRealChanges = true
+		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			log.Printf("[sync] Staging file: %s", name)
+			_, err := wTree.Add(name)
+			if err != nil {
+				log.Printf("[sync] Warning: failed to add %s: %v", name, err)
+			} else {
+				hasRealChanges = true
+			}
+		}
+	}
+
+	if !hasRealChanges {
+		log.Printf("[sync] No real changes could be staged (FUSE false-dirty).")
+		return false, nil
+	}
+
+	log.Printf("[sync] Committing staged changes via go-git")
 	authorName := GetConfigAuthor()
 	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 	sig := &object.Signature{
@@ -152,11 +157,14 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		Author:    sig,
 		Committer: sig,
 	})
-	if err != nil {
+	if err == git.ErrEmptyCommit {
+		log.Printf("[sync] Commit aborted: git.ErrEmptyCommit")
+		return false, nil
+	} else if err != nil {
 		return false, fmt.Errorf("commit error: %v", err)
 	}
-	log.Printf("[sync] Committed with hash: %s", commitHash.String())
 
+	log.Printf("[sync] Committed with hash: %s", commitHash.String())
 	return true, nil
 }
 
