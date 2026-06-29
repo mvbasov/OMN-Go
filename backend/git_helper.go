@@ -1,29 +1,125 @@
 package backend
 
 import (
-	"github.com/go-git/go-git/v5/plumbing/filemode"
-	"github.com/go-git/go-git/v5/plumbing/format/index"
-	"io"
-	"runtime"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/filesystem"
-	"log"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
+
 	cryptossh "golang.org/x/crypto/ssh"
 	gitconfig "github.com/go-git/go-git/v5/config"
-	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
+
+// ----------------------------------------------------------------------
+// 1. Android filesystem workarounds (keep these, they are still needed)
+// ----------------------------------------------------------------------
+
+// NoLockFS neutralises file locking calls that are unsupported on Android's FUSE.
+type NoLockFS struct {
+	billy.Filesystem
+}
+
+func (fs *NoLockFS) Create(filename string) (billy.File, error) {
+	f, err := fs.Filesystem.Create(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Open(filename string) (billy.File, error) {
+	f, err := fs.Filesystem.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) OpenFile(filename string, flag int, perm os.FileMode) (billy.File, error) {
+	f, err := fs.Filesystem.OpenFile(filename, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) TempFile(dir, prefix string) (billy.File, error) {
+	f, err := fs.Filesystem.TempFile(dir, prefix)
+	if err != nil {
+		return nil, err
+	}
+	return &NoLockFile{f}, nil
+}
+
+func (fs *NoLockFS) Chroot(path string) (billy.Filesystem, error) {
+	c, err := fs.Filesystem.Chroot(path)
+	if err != nil {
+		return nil, err
+	}
+	return &NoLockFS{c}, nil
+}
+
+type NoLockFile struct {
+	billy.File
+}
+
+func (f *NoLockFile) Lock() error   { return nil }
+func (f *NoLockFile) Unlock() error { return nil }
+
+// ---------------------------------------------------------------
+// 2. Stable mtime wrapper (forces content‑hash based status check)
+// ---------------------------------------------------------------
+
+type stableMtimeFS struct {
+	billy.Filesystem
+}
+
+func (fs *stableMtimeFS) Stat(path string) (os.FileInfo, error) {
+	fi, err := fs.Filesystem.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	return &stableFileInfo{fi}, nil
+}
+
+func (fs *stableMtimeFS) Lstat(path string) (os.FileInfo, error) {
+	fi, err := fs.Filesystem.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	return &stableFileInfo{fi}, nil
+}
+
+type stableFileInfo struct {
+	os.FileInfo
+}
+
+func (fi *stableFileInfo) ModTime() time.Time {
+	return time.Unix(0, 0) // always the same → forces hashing
+}
+
+// ---------------------------------------------------------------
+// 3. Repository initialisation & helpers
+// ---------------------------------------------------------------
 
 func ensureGitignore() {
 	gitignorePath := filepath.Join(storageDir, ".gitignore")
@@ -34,19 +130,25 @@ func ensureGitignore() {
 	}
 }
 
+// getOrInitRepo returns an open repository. The filesystem is wrapped
+// with NoLockFS and stableMtimeFS to work around Android FUSE quirks.
 func getOrInitRepo() (*git.Repository, error) {
 	log.Printf("[sync] Opening repo at %s", storageDir)
-	
+
+	// Build the filesystem chain:
+	//   real OS FS  →  stable mtime  →  no‑lock  →  worktree / dotgit
 	baseFS := osfs.New(storageDir)
-	wtFS := &NoLockFS{baseFS}
+	stableFS := &stableMtimeFS{baseFS}
+	wtFS := &NoLockFS{stableFS}
+
 	dotFS, err := wtFS.Chroot(".git")
 	if err != nil {
 		return nil, fmt.Errorf("chroot .git failed: %v", err)
 	}
-	
+
 	storer := filesystem.NewStorage(dotFS, cache.NewObjectLRUDefault())
 	repo, err := git.Open(storer, wtFS)
-	
+
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
 		if initErr := manualGitInit(storageDir); initErr != nil {
@@ -61,6 +163,7 @@ func getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Repo opened successfully")
 	}
 
+	// Make sure the remote exists
 	_, err = repo.Remote("origin")
 	if err != nil {
 		log.Printf("[sync] Remote origin missing, adding")
@@ -75,7 +178,51 @@ func getOrInitRepo() (*git.Repository, error) {
 	return repo, nil
 }
 
+// manualGitInit creates a minimal .git directory structure.
+func manualGitInit(dir string) error {
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
+		return err
+	}
+	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
+		return err
+	}
+	return nil
+}
 
+// loadGitignorePatterns reads .gitignore and makes the worktree respect it.
+func loadGitignorePatterns(wt *git.Worktree) error {
+	fs := wt.Filesystem
+	f, err := fs.Open(".gitignore")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	patterns, err := gitignore.ReadPatterns(f, []string{})
+	if err != nil {
+		return err
+	}
+	wt.Excludes = gitignore.NewMatcher(patterns)
+	return nil
+}
+
+// ---------------------------------------------------------------
+// 4. SSH authentication
+// ---------------------------------------------------------------
 
 func getSSHAuth() (transport.AuthMethod, error) {
 	sshUser := "git"
@@ -110,108 +257,48 @@ func getSSHAuth() (transport.AuthMethod, error) {
 	return publicKeys, nil
 }
 
-func manualStageFile(repo *git.Repository, name string) error {
-	fullPath := filepath.Join(storageDir, name)
-	stat, err := os.Lstat(fullPath)
-	if err != nil {
-		return err
-	}
-	if stat.IsDir() {
-		return nil
-	}
-
-	f, err := os.Open(fullPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Stream file to object database directly (Bypasses OOM risk)
-	obj := repo.Storer.NewEncodedObject()
-	obj.SetType(plumbing.BlobObject)
-	w, err := obj.Writer()
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(w, f); err != nil {
-		w.Close()
-		return err
-	}
-	w.Close()
-
-	hash, err := repo.Storer.SetEncodedObject(obj)
-	if err != nil {
-		return err
-	}
-
-	// Forcibly inject the new BLOB hash into the Git Index
-	idx, err := repo.Storer.Index()
-	if err != nil {
-		return err
-	}
-	var target *index.Entry
-	for _, e := range idx.Entries {
-		if e.Name == name {
-			target = e
-			break
-		}
-	}
-	if target == nil {
-		target = &index.Entry{Name: name}
-		idx.Entries = append(idx.Entries, target)
-	}
-	target.Hash = hash
-	target.Size = uint32(stat.Size())
-	target.ModifiedAt = stat.ModTime()
-	target.Mode = filemode.Regular
-
-	return repo.Storer.SetIndex(idx)
-}
+// ---------------------------------------------------------------
+// 5. Staging & committing (simplified with All:true + .gitignore)
+// ---------------------------------------------------------------
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
+	// Load .gitignore patterns so that All:true skips ignored files
+	if err := loadGitignorePatterns(wTree); err != nil {
+		log.Printf("[sync] Warning: could not load .gitignore: %v", err)
+	}
+
 	log.Printf("[sync] Checking worktree status")
 	status, err := wTree.Status()
 	if err != nil {
 		return false, fmt.Errorf("status check error: %v", err)
 	}
-
 	if status.IsClean() {
 		log.Printf("[sync] Nothing to commit")
 		return false, nil
 	}
 
-	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
-	hasRealChanges := false
-	
-	for name, fileStat := range status {
-		if fileStat.Worktree == git.Deleted {
-			log.Printf("[sync] Staging deletion: %s", name)
-			_, _ = wTree.Remove(name)
-			hasRealChanges = true
-		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
-			log.Printf("[sync] Staging file: %s", name)
-			_, err := wTree.Add(name)
-			if err != nil {
-				log.Printf("[sync] Warning: go-git Add failed: %v. Using BLOB injection...", err)
-				manErr := manualStageFile(repo, name)
-				if manErr != nil {
-					log.Printf("[sync] Error: BLOB injection failed for %s: %v", name, manErr)
-				} else {
-					log.Printf("[sync] BLOB injection successful for %s", name)
-					hasRealChanges = true
-				}
-			} else {
-				hasRealChanges = true
-			}
-		}
+	log.Printf("[sync] Staging all changes (tracked, untracked, deletions) – respecting .gitignore")
+	err = wTree.AddWithOptions(&git.AddOptions{All: true})
+	if err != nil {
+		return false, fmt.Errorf("add all failed: %v", err)
 	}
 
-	if !hasRealChanges {
-		log.Printf("[sync] No real changes could be staged.")
+	// Double‑check after staging: if mtime caused false dirty files,
+	// AddWithOptions will have hashed them and updated the index,
+	// making the tree clean again.
+	status, err = wTree.Status()
+	if err != nil {
+		return false, err
+	}
+	if status.IsClean() {
+		log.Printf("[sync] No real changes to commit (FUSE mtime mismatch)")
 		return false, nil
 	}
 
-	log.Printf("[sync] Committing staged changes via go-git")
+	// Ensure required directories exist (Android media scanner may delete them)
+	repairAndroidGitDirs()
+
+	log.Printf("[sync] Committing staged changes")
 	authorName := GetConfigAuthor()
 	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 	sig := &object.Signature{
@@ -235,34 +322,47 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 	return true, nil
 }
 
+// ---------------------------------------------------------------
+// 6. Sync operations (download / upload)
+// ---------------------------------------------------------------
+
 func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
 	if force {
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+
 		// Fix Android TMPDIR constraint for go-git packfiles
 		if runtime.GOOS == "android" {
-			tmpDir := "/storage/emulated/0/Android/media/net.basov.omngo/.git/tmp"
+			tmpDir := filepath.Join(storageDir, ".git", "tmp")
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
-		autoGitIgnore(".git/tmp") // Lock out temporary git files
+			ensureGitignore() // re‑create .gitignore if missing
+			// Lock out temporary git files from being synced
+			// (already handled by .gitignore, but extra safety)
 		}
+
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
 		if err != nil && err != git.NoErrAlreadyUpToDate {
 			return fmt.Errorf("fetch failed: %v", err)
 		}
+
 		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
 		if err != nil {
 			return fmt.Errorf("failed to find origin/master: %v", err)
 		}
+
 		err = wTree.Checkout(&git.CheckoutOptions{
 			Hash:  ref.Hash(),
 			Force: true,
 		})
-		// Fix detached HEAD and update branch ref safely
-		repo.Storer.SetReference(plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/main"), ref.Hash()))
-		repo.Storer.SetReference(plumbing.NewSymbolicReference(plumbing.HEAD, plumbing.ReferenceName("refs/heads/main")))
 		if err != nil {
 			return fmt.Errorf("hard reset failed: %v", err)
 		}
+
+		// Fix detached HEAD
+		repo.Storer.SetReference(plumbing.NewHashReference(
+			plumbing.ReferenceName("refs/heads/main"), ref.Hash()))
+		repo.Storer.SetReference(plumbing.NewSymbolicReference(
+			plumbing.HEAD, plumbing.ReferenceName("refs/heads/main")))
 	} else {
 		log.Printf("[sync] Pulling from origin master")
 		err := wTree.Pull(&git.PullOptions{
@@ -291,6 +391,10 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 	}
 	return nil
 }
+
+// ---------------------------------------------------------------
+// 7. HTTP handler & top‑level flow
+// ---------------------------------------------------------------
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[sync] Request received")
@@ -322,6 +426,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wTree, _ := repo.Worktree()
+
+	// Load .gitignore patterns early so that any later operation respects them.
+	// (commitLocalChanges will also load them, but it's harmless)
+	_ = loadGitignorePatterns(wTree)
+
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
@@ -352,6 +461,11 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Sync action completed successfully."))
 }
+
+// ---------------------------------------------------------------
+// 8. Utility functions (unchanged)
+// ---------------------------------------------------------------
+
 func GetConfigAuthor() string {
 	if appConfig.Author != "" {
 		return appConfig.Author
@@ -369,76 +483,11 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 	}
 	return publicKeys, nil
 }
-// --- Android Flock() Bypass ---
-// Android's sdcardfs does not implement file locking (ENOSYS / function not implemented).
-// This wrapper neutralizes Lock() calls gracefully across go-git operations.
 
-type NoLockFS struct {
-	billy.Filesystem
-}
+// ---------------------------------------------------------------
+// 9. Android directory repair (kept as is)
+// ---------------------------------------------------------------
 
-func (fs *NoLockFS) Create(filename string) (billy.File, error) {
-	f, err := fs.Filesystem.Create(filename)
-	if err != nil { return nil, err }
-	return &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) Open(filename string) (billy.File, error) {
-	f, err := fs.Filesystem.Open(filename)
-	if err != nil { return nil, err }
-	return &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) OpenFile(filename string, flag int, perm os.FileMode) (billy.File, error) {
-	f, err := fs.Filesystem.OpenFile(filename, flag, perm)
-	if err != nil { return nil, err }
-	return &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) TempFile(dir, prefix string) (billy.File, error) {
-	f, err := fs.Filesystem.TempFile(dir, prefix)
-	if err != nil { return nil, err }
-	return &NoLockFile{f}, nil
-}
-
-func (fs *NoLockFS) Chroot(path string) (billy.Filesystem, error) {
-	c, err := fs.Filesystem.Chroot(path)
-	if err != nil { return nil, err }
-	return &NoLockFS{c}, nil
-}
-
-type NoLockFile struct {
-	billy.File
-}
-
-func (f *NoLockFile) Lock() error {
-	return nil // Safely bypass Android flock ENOSYS
-}
-
-func (f *NoLockFile) Unlock() error {
-	return nil // Safely bypass Android flock ENOSYS
-}
-
-
-// [OMN-Go 1.5.8] Strong Empty Commit Check & Gitignore Enforcer
-func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.Hash, error) {
-	status, err := w.Status()
-	if err != nil {
-		return plumbing.ZeroHash, err
-	}
-	if status.IsClean() {
-		// Strong check: explicitly bypass commit if tree is perfectly clean
-		return plumbing.ZeroHash, nil
-	}
-	// Fix Android FUSE missing directory bug causing writeTreeFromDir crashes
-	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "pack"), 0755)
-	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "info"), 0755)
-	return w.Commit(msg, opts)
-}
-
-
-// repairAndroidGitDirs fixes the Android FUSE Media Scanner bug by forcing 
-// the recreation of empty git directories immediately before any commit.
 func repairAndroidGitDirs() {
 	if runtime.GOOS == "android" {
 		gitRoot := filepath.Join(storageDir, ".git")
@@ -450,23 +499,6 @@ func repairAndroidGitDirs() {
 	}
 }
 
-func manualGitInit(dir string) error {
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
-		return err
-	}
-	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
-	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
-		return err
-	}
-	return nil
-}
+// The old manualStageFile function is no longer needed because
+// AddWithOptions(All:true) handles everything, including memory‑safe
+// blob creation. It is removed to keep the code clean.
