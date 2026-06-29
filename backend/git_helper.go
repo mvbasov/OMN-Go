@@ -191,6 +191,7 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 			tmpDir := "/storage/emulated/0/Android/media/net.basov.omngo/.tmp"
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
+		autoGitIgnore(".tmp") // Lock out temporary git files
 		}
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
 		if err != nil && err != git.NoErrAlreadyUpToDate {

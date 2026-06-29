@@ -3,103 +3,77 @@ import re
 import glob
 
 def update_version():
-    """Bumps the application version globally to 1.5.40"""
+    """Bumps the application version globally to 1.5.41"""
     for go_file in glob.glob("backend/*.go"):
         if not os.path.isfile(go_file): continue
         with open(go_file, 'r') as f: content = f.read()
-        if "1.5.39" in content and ("APP_VERSION" in content or "Version" in content):
+        if "1.5.40" in content and ("APP_VERSION" in content or "Version" in content):
             with open(go_file, 'w') as f:
-                f.write(content.replace("1.5.39", "1.5.40"))
+                f.write(content.replace("1.5.40", "1.5.41"))
             print(f"[+] Bumped version in {go_file}")
 
     gradle_path = "android/app/build.gradle"
     if os.path.exists(gradle_path):
         with open(gradle_path, 'r') as f: content = f.read()
-        content = re.sub(r'versionCode 10539', 'versionCode 10540', content)
-        content = re.sub(r'versionName "1.5.39"', 'versionName "1.5.40"', content)
+        content = re.sub(r'versionCode 10540', 'versionCode 10541', content)
+        content = re.sub(r'versionName "1.5.40"', 'versionName "1.5.41"', content)
         with open(gradle_path, 'w') as f:
             f.write(content)
         print("[+] Bumped version in android/app/build.gradle")
 
-def patch_auto_gitignore():
-    """Injects dynamic .gitignore logic exclusively for embedFS caching"""
+def patch_sync_resilience():
+    """Fixes FUSE ghost files, bypasses local commit crashes, and ignores .tmp"""
     for filename in glob.glob("backend/*.go"):
         if not os.path.isfile(filename): continue
         
         with open(filename, 'r') as f: content = f.read()
         original_content = content
         
-        # 1. Inject the autoGitIgnore helper function
-        if ("serveLazy" in content or "Lazy" in content) and "func autoGitIgnore" not in content:
-            content += '''\n
-// autoGitIgnore safely appends extracted cache files to .gitignore
-func autoGitIgnore(cachePath string) {
-\tignoreFile := ".gitignore"
-\tcontent, err := os.ReadFile(ignoreFile)
-\tif err != nil && !os.IsNotExist(err) {
-\t\treturn // Skip if we can't read an existing file due to permissions
-\t}
-\t
-\t// Git requires forward slashes
-\tignoreStr := filepath.ToSlash(cachePath)
-\t
-\t// Only append if the file path is not already in .gitignore
-\tif !strings.Contains(string(content), ignoreStr) {
-\t\tf, err := os.OpenFile(ignoreFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-\t\tif err == nil {
-\t\t\tf.WriteString("\\n" + ignoreStr)
-\t\t\tf.Close()
-\t\t}
-\t}
-}'''
-            
-        # 2. Tightly scope the hook so it ONLY runs inside the lazy extraction logic
-        # This guarantees standard user notes are never accidentally ignored!
-        if "func autoGitIgnore" in content and "autoGitIgnore(" not in original_content:
-            in_lazy_embed = False
-            lines = content.split('\n')
-            
-            for i in range(len(lines)):
-                # Detect entry into the extraction function
-                if "func serveLazy" in lines[i] or ("func " in lines[i] and "Lazy" in lines[i]):
-                    in_lazy_embed = True
-                # Detect exit to another function
-                elif in_lazy_embed and lines[i].startswith("func "): 
-                    in_lazy_embed = False
-                    
-                # Hook into standard os.WriteFile caching
-                if in_lazy_embed and "os.WriteFile(" in lines[i]:
-                    match = re.search(r'os\.WriteFile\(\s*([^,]+)\s*,', lines[i])
-                    if match:
-                        path_var = match.group(1).strip()
-                        indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
-                        lines.insert(i+1, f"{indent}autoGitIgnore({path_var}) // Dynamically ignore extracted asset")
-                        break
-                # Hook into standard os.Create caching (io.Copy method)
-                elif in_lazy_embed and "os.Create(" in lines[i]:
-                    match = re.search(r'os\.Create\(\s*([^)]+)\s*\)', lines[i])
-                    if match:
-                        path_var = match.group(1).strip()
-                        indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
-                        lines.insert(i+1, f"{indent}autoGitIgnore({path_var}) // Dynamically ignore extracted asset")
-                        break
+        # 1. Manual Index pruning to fix FUSE "entry not found"
+        pattern_add = r'([ \t]*)([a-zA-Z0-9_]+)\.AddWithOptions\(&git\.AddOptions\{All:\s*true\}\)'
+        def replace_add(match):
+            indent = match.group(1)
+            wtree_var = match.group(2)
+            # Avoid double patching if already applied
+            if f"wkStatus, _ := {wtree_var}.Status()" in content:
+                return match.group(0)
+                
+            return f'''{indent}// FIX: Android FUSE filesystem bug causes AddWithOptions to miss deleted files.
+{indent}wkStatus, _ := {wtree_var}.Status()
+{indent}for path, fileStatus := range wkStatus {{
+{indent}\tif fileStatus.Worktree == git.Deleted {{
+{indent}\t\t{wtree_var}.Remove(path)
+{indent}\t}}
+{indent}}}
+{indent}{wtree_var}.AddWithOptions(&git.AddOptions{{All: true}})'''
 
-            content = '\n'.join(lines)
+        content = re.sub(pattern_add, replace_add, content)
 
-        # 3. Ensure required packages are imported
-        if "autoGitIgnore" in content:
-            for pkg in ["os", "strings", "path/filepath"]:
-                if f'"{pkg}"' not in content:
-                    import_idx = content.find('import (')
-                    if import_idx != -1:
-                        content = content[:import_idx+8] + f'\n\t"{pkg}"' + content[import_idx+8:]
+        # 2. Make local Commit non-fatal so it proceeds to Force Pull on error
+        content = re.sub(
+            r'return\s+fmt\.Errorf\([^)]*Commit failed[^)]*\)',
+            r'log.Printf("[LOG] [GO] [sync] Local commit skipped (Ignored, proceeding to pull): %v", err)',
+            content
+        )
+
+        # 3. Ensure .tmp is ignored so it doesn't trigger "entry not found"
+        if 'os.Setenv("TMPDIR", tmpDir)' in content and 'autoGitIgnore(".tmp")' not in content:
+            content = content.replace(
+                'os.Setenv("TMPDIR", tmpDir)', 
+                'os.Setenv("TMPDIR", tmpDir)\n\t\tautoGitIgnore(".tmp") // Lock out temporary git files'
+            )
 
         if content != original_content:
+            # Ensure log import exists if we injected a warning
+            if "log.Printf" in content and '"log"' not in content:
+                import_idx = content.find('import (')
+                if import_idx != -1:
+                    content = content[:import_idx+8] + '\n\t"log"' + content[import_idx+8:]
             with open(filename, 'w') as f: 
                 f.write(content)
-            print(f"[+] Patched dynamic gitignore logic in {filename}")
+            print(f"[+] Patched FUSE staging, non-fatal commits, and .tmp ignore in {filename}")
 
 if __name__ == '__main__':
     update_version()
-    patch_auto_gitignore()
-    print("[+] Application upgraded to Version 1.5.40 successfully!")
+    patch_sync_resilience()
+    print("[+] Application upgraded to Version 1.5.41 successfully!")
