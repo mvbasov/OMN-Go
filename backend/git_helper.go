@@ -152,6 +152,7 @@ func getOrInitRepo() (*git.Repository, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
+		repairAndroidGitDirs() // will fix any missing dirs and add .gitkeep if missing
 		log.Printf("[sync] Repo initialized")
 	} else {
 		log.Printf("[sync] Repo opened successfully")
@@ -176,6 +177,7 @@ func manualGitInit(dir string) error {
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
 		return err
 	}
+	repairAndroidGitDirs() // will fix any missing dirs and add .gitkeep if missing
 	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/master\n"), 0644); err != nil {
 		return err
 	}
