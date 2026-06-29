@@ -265,6 +265,43 @@ func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error 
 }
 
 // ---------------------------------------------------------------
+// SSH authentication
+// ---------------------------------------------------------------
+
+func getSSHAuth() (transport.AuthMethod, error) {
+	sshUser := "git"
+	if idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {
+		sshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]
+	}
+	log.Printf("[sync] SSH user: %s", sshUser)
+
+	keyData := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyData
+	if keyData == "" {
+		log.Printf("[sync] Error: No SSH key configured")
+		return nil, fmt.Errorf("no SSH key configured")
+	}
+
+	var signer cryptossh.Signer
+	var err error
+	passphrase := appConfig.GitServers[appConfig.ActiveGitIndex].Password
+	if passphrase == "" {
+		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
+	} else {
+		signer, err = cryptossh.ParsePrivateKeyWithPassphrase([]byte(keyData), []byte(passphrase))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SSH key: %v", err)
+	}
+
+	publicKeys := &gitssh.PublicKeys{User: sshUser, Signer: signer}
+	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
+	}
+	log.Printf("[sync] SSH auth method created using inline key data")
+	return publicKeys, nil
+}
+
+// ---------------------------------------------------------------
 // Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
