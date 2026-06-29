@@ -135,6 +135,14 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 	}
 	
 	headRef, errHead := repo.Head()
+	if errHead == nil {
+		headCommit, err := repo.CommitObject(headRef.Hash())
+		if err == nil && headCommit.TreeHash == treeHash {
+			log.Printf("[sync] Tree unchanged from HEAD, nothing to commit")
+			return nil
+		}
+	}
+	
 	var parents []plumbing.Hash
 	if errHead == nil {
 		parents = []plumbing.Hash{headRef.Hash()}

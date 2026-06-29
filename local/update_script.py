@@ -45,208 +45,137 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Apply patches – migrate SSH keys from file paths to inline config.json storage
-
-    # 2a. config.go – change GitServerConfig struct field
-    old_struct = (
-        "type GitServerConfig struct {\n"
-        "\tName       string `json:\"name\"`\n"
-        "\tURL        string `json:\"url\"`\n"
-        "\tSSHKeyPath string `json:\"ssh_key_path\"`\n"
-        "\tPassword   string `json:\"password\"`\n"
-        "}"
-    )
-    new_struct = (
-        "type GitServerConfig struct {\n"
-        "\tName       string `json:\"name\"`\n"
-        "\tURL        string `json:\"url\"`\n"
-        "\tSSHKeyData string `json:\"ssh_key_data\"`\n"
-        "\tPassword   string `json:\"password\"`\n"
-        "}"
-    )
-    patch_file("backend/config.go", old_struct, new_struct)
-
-    # 2b. handlers.go – update the git server card UI to use a textarea for the key
-    old_git_card = (
-        '\t\tgitHTML += fmt.Sprintf(`\n'
-        '\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">\n'
-        '\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">\n'
-        '\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)\n'
-        '\t\t\t\t</label>\n'
-        '\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">\n'
-        '\t\t\t\t\t<input type="text" id="git_name_%d" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t\t<input type="text" id="git_url_%d" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t\t<input type="text" id="git_ssh_%d" name="git_ssh_%d" value="%s" placeholder="SSH Key Path" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t\t<input type="password" id="git_pass_%d" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t</div>\n'
-        '\t\t\t</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyPath, i, i, gs.Password)'
-    )
-    new_git_card = (
-        '\t\tgitHTML += fmt.Sprintf(`\n'
-        '\t\t\t<div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 6px; background: #ffffff; color: black; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">\n'
-        '\t\t\t\t<label style="font-weight: bold; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 16px; color: #2c3e50;">\n'
-        '\t\t\t\t\t<input type="radio" name="active_git_index" value="%d" %s style="transform: scale(1.2);"> Use as Active Server (Slot %d)\n'
-        '\t\t\t\t</label>\n'
-        '\t\t\t\t<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">\n'
-        '\t\t\t\t\t<input type="text" id="git_name_%d" name="git_name_%d" value="%s" placeholder="Server Name" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t\t<input type="text" id="git_url_%d" name="git_url_%d" value="%s" placeholder="Git URL (git@...)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t\t<textarea id="git_key_%d" name="git_key_%d" placeholder="SSH Private Key" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: monospace; min-height: 60px;">%s</textarea>\n'
-        '\t\t\t\t\t<input type="password" id="git_pass_%d" name="git_pass_%d" value="%s" placeholder="Key Password (Optional)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">\n'
-        '\t\t\t\t</div>\n'
-        '\t\t\t</div>`, i, checked, i+1, i, i, gs.Name, i, i, gs.URL, i, i, gs.SSHKeyData, i, i, gs.Password)'
-    )
-    patch_file("backend/handlers.go", old_git_card, new_git_card)
-
-    # 2c. handlers.go – update the handleConfig POST loop to read key data correctly
-    old_loop = (
-        '\t\t// Update all 5 git server slots\n'
-        '\t\tfor i := 0; i < 5; i++ {\n'
-        '\t\t\tname := r.FormValue(fmt.Sprintf("git_name_%d", i))\n'
-        '\t\t\turl := r.FormValue(fmt.Sprintf("git_url_%d", i))\n'
-        '\t\t\tssh := r.FormValue(fmt.Sprintf("git_ssh_%d", i))\n'
-        '\t\t\tpass := r.FormValue(fmt.Sprintf("git_pass_%d", i))\n'
-        '\t\t\t// update fields if any non‑empty value is supplied (allows clearing)\n'
-        '\t\t\tif name != "" || url != "" || ssh != "" || pass != "" {\n'
-        '\t\t\t\tappConfig.GitServers[i].Name = name\n'
-        '\t\t\t\tappConfig.GitServers[i].URL = url\n'
-        '\t\t\t\tappConfig.GitServers[i].SSHKeyPath = ssh\n'
-        '\t\t\t\tappConfig.GitServers[i].Password = pass\n'
-        '\t\t\t}\n'
-        '\t\t}'
-    )
-    new_loop = (
-        '\t\t// Update all 5 git server slots\n'
-        '\t\tfor i := 0; i < 5; i++ {\n'
-        '\t\t\tname := r.FormValue(fmt.Sprintf("git_name_%d", i))\n'
-        '\t\t\turl := r.FormValue(fmt.Sprintf("git_url_%d", i))\n'
-        '\t\t\tkeyData := r.FormValue(fmt.Sprintf("git_key_%d", i))\n'
-        '\t\t\tpass := r.FormValue(fmt.Sprintf("git_pass_%d", i))\n'
-        '\t\t\t// update fields if any non‑empty value is supplied (allows clearing)\n'
-        '\t\t\tif name != "" || url != "" || keyData != "" || pass != "" {\n'
-        '\t\t\t\tappConfig.GitServers[i].Name = name\n'
-        '\t\t\t\tappConfig.GitServers[i].URL = url\n'
-        '\t\t\t\tappConfig.GitServers[i].SSHKeyData = keyData\n'
-        '\t\t\t\tappConfig.GitServers[i].Password = pass\n'
-        '\t\t\t}\n'
-        '\t\t}'
-    )
-    patch_file("backend/handlers.go", old_loop, new_loop)
-
-    # 2d. git_helper.go – replace getSSHAuth to use inline key data
-    old_getsshauth = (
-        'func getSSHAuth() (transport.AuthMethod, error) {\n'
-        '\tsshUser := "git"\n'
-        '\tif idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {\n'
-        '\t\tsshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]\n'
-        '\t}\n'
-        '\tlog.Printf("[sync] SSH user: %s", sshUser)\n'
-        '\n'
-        '\tif appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath == "" {\n'
-        '\t\tlog.Printf("[sync] Error: No SSH key configured")\n'
-        '\t\treturn nil, fmt.Errorf("no SSH key configured")\n'
-        '\t}\n'
-        '\n'
-        '\tkeyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath\n'
-        '\tif !filepath.IsAbs(keyPath) {\n'
-        '\t\tkeyPath = filepath.Join(storageDir, keyPath)\n'
-        '\t}\n'
-        '\tlog.Printf("[sync] Using SSH key: %s", keyPath)\n'
-        '\n'
-        '\tinfo, err := os.Stat(keyPath)\n'
+    # 2. Patch git_helper.go – prevent empty commits when tree unchanged
+    old_func = (
+        'func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {\n'
+        '\tlog.Printf("[sync] Staging all changes")\n'
+        '\terr := wTree.AddWithOptions(&git.AddOptions{All: true})\n'
         '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("failed to read SSH key: %v", err)\n'
+        '\t\treturn err\n'
         '\t}\n'
-        '\tlog.Printf("[sync] Key file size: %d, mode: %s", info.Size(), info.Mode())\n'
+        '\tstatus, _ := wTree.Status()\n'
+        '\tif status.IsClean() {\n'
+        '\t\tlog.Printf("[sync] Nothing to commit")\n'
+        '\t\treturn nil\n'
+        '\t}\n'
+        '\t\n'
+        '\tlog.Printf("[sync] Uncommitted changes detected, building commit manually")\n'
+        '\tauthorName := GetConfigAuthor()\n'
+        '\tauthorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"\n'
+        '\tsig := &object.Signature{\n'
+        '\t\tName:  authorName,\n'
+        '\t\tEmail: authorEmail,\n'
+        '\t\tWhen:  time.Now(),\n'
+        '\t}\n'
         '\n'
-        '\tauth, err := GetInsecureSSHAuth(sshUser, keyPath, appConfig.GitServers[appConfig.ActiveGitIndex].Password)\n'
+        '\ttreeHash, err := writeTreeFromDir(storageDir, repo.Storer)\n'
         '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("GetInsecureSSHAuth error: %v", err)\n'
+        '\t\treturn fmt.Errorf("writeTreeFromDir error: %v", err)\n'
         '\t}\n'
-        '\tlog.Printf("[sync] SSH auth method created using crypto/ssh signer")\n'
-        '\treturn auth, nil\n'
+        '\t\n'
+        '\theadRef, errHead := repo.Head()\n'
+        '\tvar parents []plumbing.Hash\n'
+        '\tif errHead == nil {\n'
+        '\t\tparents = []plumbing.Hash{headRef.Hash()}\n'
+        '\t}\n'
+        '\tcommit := &object.Commit{\n'
+        '\t\tAuthor:       *sig,\n'
+        '\t\tCommitter:    *sig,\n'
+        '\t\tMessage:      "Local changes before sync",\n'
+        '\t\tTreeHash:     treeHash,\n'
+        '\t\tParentHashes: parents,\n'
+        '\t}\n'
+        '\tobj := repo.Storer.NewEncodedObject()\n'
+        '\tif err = commit.Encode(obj); err != nil {\n'
+        '\t\treturn fmt.Errorf("commit encode error: %v", err)\n'
+        '\t}\n'
+        '\tcommitHash, err := repo.Storer.SetEncodedObject(obj)\n'
+        '\tif err != nil {\n'
+        '\t\treturn fmt.Errorf("store commit error: %v", err)\n'
+        '\t}\n'
+        '\trefPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")\n'
+        '\tif err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {\n'
+        '\t\treturn fmt.Errorf("mkdirAll ref error: %v", err)\n'
+        '\t}\n'
+        '\tif err := os.WriteFile(refPath, []byte(commitHash.String()+"\\n"), 0644); err != nil {\n'
+        '\t\treturn fmt.Errorf("write ref error: %v", err)\n'
+        '\t}\n'
+        '\treturn nil\n'
         '}'
     )
-    new_getsshauth = (
-        'func getSSHAuth() (transport.AuthMethod, error) {\n'
-        '\tsshUser := "git"\n'
-        '\tif idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {\n'
-        '\t\tsshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]\n'
-        '\t}\n'
-        '\tlog.Printf("[sync] SSH user: %s", sshUser)\n'
-        '\n'
-        '\tkeyData := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyData\n'
-        '\tif keyData == "" {\n'
-        '\t\tlog.Printf("[sync] Error: No SSH key configured")\n'
-        '\t\treturn nil, fmt.Errorf("no SSH key configured")\n'
-        '\t}\n'
-        '\n'
-        '\tvar signer cryptossh.Signer\n'
-        '\tvar err error\n'
-        '\tpassphrase := appConfig.GitServers[appConfig.ActiveGitIndex].Password\n'
-        '\tif passphrase == "" {\n'
-        '\t\tsigner, err = cryptossh.ParsePrivateKey([]byte(keyData))\n'
-        '\t} else {\n'
-        '\t\tsigner, err = cryptossh.ParsePrivateKeyWithPassphrase([]byte(keyData), []byte(passphrase))\n'
-        '\t}\n'
+    new_func = (
+        'func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {\n'
+        '\tlog.Printf("[sync] Staging all changes")\n'
+        '\terr := wTree.AddWithOptions(&git.AddOptions{All: true})\n'
         '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("failed to parse SSH key: %v", err)\n'
+        '\t\treturn err\n'
+        '\t}\n'
+        '\tstatus, _ := wTree.Status()\n'
+        '\tif status.IsClean() {\n'
+        '\t\tlog.Printf("[sync] Nothing to commit")\n'
+        '\t\treturn nil\n'
+        '\t}\n'
+        '\t\n'
+        '\tlog.Printf("[sync] Uncommitted changes detected, building commit manually")\n'
+        '\tauthorName := GetConfigAuthor()\n'
+        '\tauthorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"\n'
+        '\tsig := &object.Signature{\n'
+        '\t\tName:  authorName,\n'
+        '\t\tEmail: authorEmail,\n'
+        '\t\tWhen:  time.Now(),\n'
         '\t}\n'
         '\n'
-        '\tpublicKeys := &gitssh.PublicKeys{User: sshUser, Signer: signer}\n'
-        '\tpublicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{\n'
-        '\t\tHostKeyCallback: cryptossh.InsecureIgnoreHostKey(),\n'
+        '\ttreeHash, err := writeTreeFromDir(storageDir, repo.Storer)\n'
+        '\tif err != nil {\n'
+        '\t\treturn fmt.Errorf("writeTreeFromDir error: %v", err)\n'
         '\t}\n'
-        '\tlog.Printf("[sync] SSH auth method created using inline key data")\n'
-        '\treturn publicKeys, nil\n'
-        '}'
-    )
-    patch_file("backend/git_helper.go", old_getsshauth, new_getsshauth)
-
-    # 2e. git_helper.go – simplify ensureGitignore (remove SSH key path handling)
-    old_gitignore = (
-        'func ensureGitignore() {\n'
-        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
-        '\tgitignoreBase := "# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"\n'
-        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
-        '\t\tos.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)\n'
-        '\t\tlog.Printf("[sync] Created .gitignore")\n'
-        '\t}\n'
-        '\tif appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath != "" {\n'
-        '\t\tkeyPath := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyPath\n'
-        '\t\tif !filepath.IsAbs(keyPath) {\n'
-        '\t\t\tkeyPath = filepath.Join(storageDir, keyPath)\n'
-        '\t\t}\n'
-        '\t\trelKey, err := filepath.Rel(storageDir, keyPath)\n'
-        '\t\tif err == nil && !strings.HasPrefix(relKey, "..") {\n'
-        '\t\t\tcurrent, _ := os.ReadFile(gitignorePath)\n'
-        '\t\t\tif !strings.Contains(string(current), relKey) {\n'
-        '\t\t\t\tnewContent := string(current) + "\\n" + relKey + "\\n"\n'
-        '\t\t\t\tos.WriteFile(gitignorePath, []byte(newContent), 0644)\n'
-        '\t\t\t\tlog.Printf("[sync] Added %s to .gitignore", relKey)\n'
-        '\t\t\t}\n'
+        '\t\n'
+        '\theadRef, errHead := repo.Head()\n'
+        '\tif errHead == nil {\n'
+        '\t\theadCommit, err := repo.CommitObject(headRef.Hash())\n'
+        '\t\tif err == nil && headCommit.TreeHash == treeHash {\n'
+        '\t\t\tlog.Printf("[sync] Tree unchanged from HEAD, nothing to commit")\n'
+        '\t\t\treturn nil\n'
         '\t\t}\n'
         '\t}\n'
-        '}'
-    )
-    new_gitignore = (
-        'func ensureGitignore() {\n'
-        '\tgitignorePath := filepath.Join(storageDir, ".gitignore")\n'
-        '\tgitignoreBase := "# OMN-Go sync ignore\\nconfig.json\\n*.html\\n"\n'
-        '\tif _, err := os.Stat(gitignorePath); os.IsNotExist(err) {\n'
-        '\t\tos.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)\n'
-        '\t\tlog.Printf("[sync] Created .gitignore")\n'
+        '\t\n'
+        '\tvar parents []plumbing.Hash\n'
+        '\tif errHead == nil {\n'
+        '\t\tparents = []plumbing.Hash{headRef.Hash()}\n'
         '\t}\n'
+        '\tcommit := &object.Commit{\n'
+        '\t\tAuthor:       *sig,\n'
+        '\t\tCommitter:    *sig,\n'
+        '\t\tMessage:      "Local changes before sync",\n'
+        '\t\tTreeHash:     treeHash,\n'
+        '\t\tParentHashes: parents,\n'
+        '\t}\n'
+        '\tobj := repo.Storer.NewEncodedObject()\n'
+        '\tif err = commit.Encode(obj); err != nil {\n'
+        '\t\treturn fmt.Errorf("commit encode error: %v", err)\n'
+        '\t}\n'
+        '\tcommitHash, err := repo.Storer.SetEncodedObject(obj)\n'
+        '\tif err != nil {\n'
+        '\t\treturn fmt.Errorf("store commit error: %v", err)\n'
+        '\t}\n'
+        '\trefPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")\n'
+        '\tif err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {\n'
+        '\t\treturn fmt.Errorf("mkdirAll ref error: %v", err)\n'
+        '\t}\n'
+        '\tif err := os.WriteFile(refPath, []byte(commitHash.String()+"\\n"), 0644); err != nil {\n'
+        '\t\treturn fmt.Errorf("write ref error: %v", err)\n'
+        '\t}\n'
+        '\treturn nil\n'
         '}'
     )
-    patch_file("backend/git_helper.go", old_gitignore, new_gitignore)
+    patch_file("backend/git_helper.go", old_func, new_func)
 
-    # 3. Print the standardised Git commit message
+    # 3. Print Git commit message
     commit_msg = (
-        "feat(config): store SSH keys inline in config.json instead of file paths\n\n"
-        "- GitServerConfig.SSHKeyPath → SSHKeyData (text of private key)\n"
-        "- UI card: textarea for pasting key content instead of path input\n"
-        "- POST handler saves key data directly; getSSHAuth parses key from memory\n"
-        "- Removed file‑path handling from ensureGitignore (keys no longer on disk)\n"
+        "fix(git): prevent empty commits when tree is unchanged\n\n"
+        "- Add tree‑hash comparison with HEAD before creating a new commit\n"
+        "- If the new tree matches the parent's tree, skip the commit entirely\n"
+        "- Avoids pushing empty commits during sync when no real disk changes occurred\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
