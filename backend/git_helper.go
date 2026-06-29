@@ -112,6 +112,15 @@ func getSSHAuth() (transport.AuthMethod, error) {
 
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
 	log.Printf("[sync] Staging all changes")
+	// FIX: Android FUSE filesystem bug causes AddWithOptions to miss deleted files.
+	wkStatus, _ := wTree.Status()
+	for path, fileStatus := range wkStatus {
+		if fileStatus.Worktree == git.Deleted {
+			wTree.Remove(path)
+		} else if fileStatus.Worktree != git.Unmodified && fileStatus.Worktree != git.Untracked {
+			wTree.Add(path)
+		}
+	}
 	err := wTree.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
 		return false, err
