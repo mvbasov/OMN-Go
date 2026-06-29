@@ -8,10 +8,76 @@ def patch_file(filepath):
     # Normalize newlines
     content = content.replace('\r\n', '\n')
 
-    # Use regex to completely encapsulate and replace the commit function
-    pattern = re.compile(r'func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
-    
-    new_func = """func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
+    # 1. Inject Imports needed for BLOB manipulation
+    imports = [
+        '"io"',
+        '"github.com/go-git/go-git/v5/plumbing/format/index"',
+        '"github.com/go-git/go-git/v5/plumbing/filemode"'
+    ]
+    for imp in imports:
+        if imp not in content:
+            content = re.sub(r'import \(', f'import (\\n\\t{imp}', content, count=1)
+
+    # 2. Define the BLOB Injection function and the updated commit handler
+    new_code = """func manualStageFile(repo *git.Repository, name string) error {
+	fullPath := filepath.Join(storageDir, name)
+	stat, err := os.Lstat(fullPath)
+	if err != nil {
+		return err
+	}
+	if stat.IsDir() {
+		return nil
+	}
+
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Stream file to object database directly (Bypasses OOM risk)
+	obj := repo.Storer.NewEncodedObject()
+	obj.SetType(plumbing.BlobObject)
+	w, err := obj.Writer()
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, f); err != nil {
+		w.Close()
+		return err
+	}
+	w.Close()
+
+	hash, err := repo.Storer.SetEncodedObject(obj)
+	if err != nil {
+		return err
+	}
+
+	// Forcibly inject the new BLOB hash into the Git Index
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		return err
+	}
+	var target *index.Entry
+	for _, e := range idx.Entries {
+		if e.Name == name {
+			target = e
+			break
+		}
+	}
+	if target == nil {
+		target = &index.Entry{Name: name}
+		idx.Entries = append(idx.Entries, target)
+	}
+	target.Hash = hash
+	target.Size = uint32(stat.Size())
+	target.ModifiedAt = stat.ModTime()
+	target.Mode = filemode.Regular
+
+	return repo.Storer.SetIndex(idx)
+}
+
+func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
 	log.Printf("[sync] Checking worktree status")
 	status, err := wTree.Status()
 	if err != nil {
@@ -26,7 +92,6 @@ def patch_file(filepath):
 	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
 	hasRealChanges := false
 	
-	// Explicitly add/remove files to bypass Android AddWithOptions bug
 	for name, fileStat := range status {
 		if fileStat.Worktree == git.Deleted {
 			log.Printf("[sync] Staging deletion: %s", name)
@@ -36,7 +101,14 @@ def patch_file(filepath):
 			log.Printf("[sync] Staging file: %s", name)
 			_, err := wTree.Add(name)
 			if err != nil {
-				log.Printf("[sync] Warning: failed to add %s: %v", name, err)
+				log.Printf("[sync] Warning: go-git Add failed: %v. Using BLOB injection...", err)
+				manErr := manualStageFile(repo, name)
+				if manErr != nil {
+					log.Printf("[sync] Error: BLOB injection failed for %s: %v", name, manErr)
+				} else {
+					log.Printf("[sync] BLOB injection successful for %s", name)
+					hasRealChanges = true
+				}
 			} else {
 				hasRealChanges = true
 			}
@@ -44,7 +116,7 @@ def patch_file(filepath):
 	}
 
 	if !hasRealChanges {
-		log.Printf("[sync] No real changes could be staged (FUSE false-dirty).")
+		log.Printf("[sync] No real changes could be staged.")
 		return false, nil
 	}
 
@@ -72,11 +144,17 @@ def patch_file(filepath):
 	return true, nil
 }"""
 
+    # 3. Clean out old commitLocalChanges (and manualStageFile if re-running)
+    if 'func manualStageFile' in content:
+        pattern = re.compile(r'func manualStageFile\(.*?func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
+    else:
+        pattern = re.compile(r'func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
+
     if pattern.search(content):
-        content = pattern.sub(new_func, content)
+        content = pattern.sub(new_code, content)
         with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
-        print(f"[+] Successfully patched {filepath} (Applied Explicit Staging)")
+        print(f"[+] Successfully patched {filepath} (Applied BLOB Injection Fallback)")
     else:
         print(f"[-] Could not find commitLocalChanges in {filepath}.")
 

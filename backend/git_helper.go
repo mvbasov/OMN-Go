@@ -1,6 +1,9 @@
 package backend
 
 import (
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/format/index"
+	"io"
 	"runtime"
 	"fmt"
 	"github.com/go-git/go-billy/v5"
@@ -107,6 +110,64 @@ func getSSHAuth() (transport.AuthMethod, error) {
 	return publicKeys, nil
 }
 
+func manualStageFile(repo *git.Repository, name string) error {
+	fullPath := filepath.Join(storageDir, name)
+	stat, err := os.Lstat(fullPath)
+	if err != nil {
+		return err
+	}
+	if stat.IsDir() {
+		return nil
+	}
+
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Stream file to object database directly (Bypasses OOM risk)
+	obj := repo.Storer.NewEncodedObject()
+	obj.SetType(plumbing.BlobObject)
+	w, err := obj.Writer()
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, f); err != nil {
+		w.Close()
+		return err
+	}
+	w.Close()
+
+	hash, err := repo.Storer.SetEncodedObject(obj)
+	if err != nil {
+		return err
+	}
+
+	// Forcibly inject the new BLOB hash into the Git Index
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		return err
+	}
+	var target *index.Entry
+	for _, e := range idx.Entries {
+		if e.Name == name {
+			target = e
+			break
+		}
+	}
+	if target == nil {
+		target = &index.Entry{Name: name}
+		idx.Entries = append(idx.Entries, target)
+	}
+	target.Hash = hash
+	target.Size = uint32(stat.Size())
+	target.ModifiedAt = stat.ModTime()
+	target.Mode = filemode.Regular
+
+	return repo.Storer.SetIndex(idx)
+}
+
 func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
 	log.Printf("[sync] Checking worktree status")
 	status, err := wTree.Status()
@@ -122,7 +183,6 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
 	hasRealChanges := false
 	
-	// Explicitly add/remove files to bypass Android AddWithOptions bug
 	for name, fileStat := range status {
 		if fileStat.Worktree == git.Deleted {
 			log.Printf("[sync] Staging deletion: %s", name)
@@ -132,7 +192,14 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 			log.Printf("[sync] Staging file: %s", name)
 			_, err := wTree.Add(name)
 			if err != nil {
-				log.Printf("[sync] Warning: failed to add %s: %v", name, err)
+				log.Printf("[sync] Warning: go-git Add failed: %v. Using BLOB injection...", err)
+				manErr := manualStageFile(repo, name)
+				if manErr != nil {
+					log.Printf("[sync] Error: BLOB injection failed for %s: %v", name, manErr)
+				} else {
+					log.Printf("[sync] BLOB injection successful for %s", name)
+					hasRealChanges = true
+				}
 			} else {
 				hasRealChanges = true
 			}
@@ -140,7 +207,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 	}
 
 	if !hasRealChanges {
-		log.Printf("[sync] No real changes could be staged (FUSE false-dirty).")
+		log.Printf("[sync] No real changes could be staged.")
 		return false, nil
 	}
 
