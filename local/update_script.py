@@ -45,43 +45,30 @@ def update_application():
     gradle = gradle.replace(f'versionName "{cur_ver}"', f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Fix gitignore pattern parsing – use single return value and nil check
-    old_block = (
-        '\tif data, err := os.ReadFile(gitignorePath); err == nil {\n'
-        '\t\tlines := strings.Split(string(data), "\\n")\n'
-        '\t\tfor _, line := range lines {\n'
-        '\t\t\tline = strings.TrimSpace(line)\n'
-        '\t\t\tif line == "" || strings.HasPrefix(line, "#") {\n'
-        '\t\t\t\tcontinue\n'
-        '\t\t\t}\n'
-        '\t\t\tif pattern, err := gitignore.ParsePattern(line, nil); err == nil {\n'
-        '\t\t\t\tps = append(ps, pattern)\n'
-        '\t\t\t}\n'
-        '\t\t}\n'
-        '\t}'
+    # 2. Fix: check error on blob writer Close to prevent silent failures on Android
+    old_close = (
+        "\t\t\tif _, err = w.Write(data); err != nil {\n"
+        "\t\t\t\treturn plumbing.Hash{}, err\n"
+        "\t\t\t}\n"
+        "\t\t\tw.Close()\n"
+        "\t\t\tblobHash, err := storer.SetEncodedObject(blobObj)"
     )
-    new_block = (
-        '\tif data, err := os.ReadFile(gitignorePath); err == nil {\n'
-        '\t\tlines := strings.Split(string(data), "\\n")\n'
-        '\t\tfor _, line := range lines {\n'
-        '\t\t\tline = strings.TrimSpace(line)\n'
-        '\t\t\tif line == "" || strings.HasPrefix(line, "#") {\n'
-        '\t\t\t\tcontinue\n'
-        '\t\t\t}\n'
-        '\t\t\tpattern := gitignore.ParsePattern(line, nil)\n'
-        '\t\t\tif pattern != nil {\n'
-        '\t\t\t\tps = append(ps, pattern)\n'
-        '\t\t\t}\n'
-        '\t\t}\n'
-        '\t}'
+    new_close = (
+        "\t\t\tif _, err = w.Write(data); err != nil {\n"
+        "\t\t\t\treturn plumbing.Hash{}, err\n"
+        "\t\t\t}\n"
+        "\t\t\tif err = w.Close(); err != nil {\n"
+        "\t\t\t\treturn plumbing.Hash{}, fmt.Errorf(\"close blob writer: %%v\", err)\n"
+        "\t\t\t}\n"
+        "\t\t\tblobHash, err := storer.SetEncodedObject(blobObj)"
     )
-    patch_file("backend/git_helper.go", old_block, new_block)
+    patch_file("backend/git_helper.go", old_close, new_close)
 
     # 3. Print commit message
     commit_msg = (
-        "fix(sync): correct gitignore pattern parsing for Android compatibility\n\n"
-        "- Use single return value of gitignore.ParsePattern (no error returned)\n"
-        "- Nil‑check pattern before appending to avoid crashes\n"
+        "fix(sync): check Close error on blob writer to avoid 'entry not found' on Android\n\n"
+        "- Ignored error from blobObj.Writer().Close() could leave objects incomplete\n"
+        "- Now returns the Close error, which may reveal Android filesystem quirks\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

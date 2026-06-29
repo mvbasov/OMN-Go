@@ -281,7 +281,9 @@ func writeTreeFromDir(dir string, storer storage.Storer) (plumbing.Hash, error) 
 			if _, err = w.Write(data); err != nil {
 				return plumbing.Hash{}, err
 			}
-			w.Close()
+			if err = w.Close(); err != nil {
+				return plumbing.Hash{}, fmt.Errorf("close blob writer: %%v", err)
+			}
 			blobHash, err := storer.SetEncodedObject(blobObj)
 			if err != nil {
 				return plumbing.Hash{}, err
