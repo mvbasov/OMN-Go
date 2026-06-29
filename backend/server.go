@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"runtime"
 	"embed"
 	"fmt"
 	"log"
