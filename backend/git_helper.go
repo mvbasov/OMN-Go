@@ -486,5 +486,8 @@ func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.
 		// Strong check: explicitly bypass commit if tree is perfectly clean
 		return plumbing.ZeroHash, nil
 	}
+	// Fix Android FUSE missing directory bug causing writeTreeFromDir crashes
+	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "pack"), 0755)
+	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "info"), 0755)
 	return w.Commit(msg, opts)
 }
