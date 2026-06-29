@@ -108,16 +108,16 @@ func getSSHAuth() (transport.AuthMethod, error) {
 	return publicKeys, nil
 }
 
-func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
+func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
 	log.Printf("[sync] Staging all changes")
 	err := wTree.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
-		return err
+		return false, err
 	}
 	status, _ := wTree.Status()
 	if status.IsClean() {
 		log.Printf("[sync] Nothing to commit")
-		return nil
+		return false, nil
 	}
 	
 	log.Printf("[sync] Uncommitted changes detected, building commit manually")
@@ -131,7 +131,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 
 	treeHash, err := writeTreeFromDir(storageDir, repo.Storer)
 	if err != nil {
-		return fmt.Errorf("writeTreeFromDir error: %v", err)
+		return false, fmt.Errorf("writeTreeFromDir error: %v", err)
 	}
 	
 	headRef, errHead := repo.Head()
@@ -139,7 +139,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 		headCommit, err := repo.CommitObject(headRef.Hash())
 		if err == nil && headCommit.TreeHash == treeHash {
 			log.Printf("[sync] Tree unchanged from HEAD, nothing to commit")
-			return nil
+			return false, nil
 		}
 	}
 	
@@ -156,20 +156,20 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) error {
 	}
 	obj := repo.Storer.NewEncodedObject()
 	if err = commit.Encode(obj); err != nil {
-		return fmt.Errorf("commit encode error: %v", err)
+		return false, fmt.Errorf("commit encode error: %v", err)
 	}
 	commitHash, err := repo.Storer.SetEncodedObject(obj)
 	if err != nil {
-		return fmt.Errorf("store commit error: %v", err)
+		return false, fmt.Errorf("store commit error: %v", err)
 	}
 	refPath := filepath.Join(storageDir, ".git", "refs", "heads", "master")
 	if err := os.MkdirAll(filepath.Dir(refPath), 0755); err != nil {
-		return fmt.Errorf("mkdirAll ref error: %v", err)
+		return false, fmt.Errorf("mkdirAll ref error: %v", err)
 	}
 	if err := os.WriteFile(refPath, []byte(commitHash.String()+"\n"), 0644); err != nil {
-		return fmt.Errorf("write ref error: %v", err)
+		return false, fmt.Errorf("write ref error: %v", err)
 	}
-	return nil
+	return true, nil
 }
 
 func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {

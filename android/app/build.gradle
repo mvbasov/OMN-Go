@@ -11,7 +11,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 10525
-        versionName "1.5.25"
+        versionName "1.5.28"
     }
 
     signingConfigs {

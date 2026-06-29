@@ -24,7 +24,10 @@ if (window.location.protocol !== 'file:') {
             const capAction = action.charAt(0).toUpperCase() + action.slice(1);
             
             if (res.ok) {
-                if (confirm(capAction + ' complete!\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
+                let msg = await res.text();
+                if (msg.includes('Nothing to push')) {
+                    alert(msg);
+                } else if (confirm(msg + '\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
                     window.location.reload();
                 }
             } else {
