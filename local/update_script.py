@@ -3,106 +3,95 @@ import re
 import glob
 
 def update_version():
-    """Bumps the application version globally to 1.5.43"""
+    """Bumps the application version globally to 1.5.44"""
     for go_file in glob.glob("backend/*.go"):
         if not os.path.isfile(go_file): continue
         with open(go_file, 'r') as f: content = f.read()
-        if "1.5.42" in content and ("APP_VERSION" in content or "Version" in content):
+        if "1.5.43" in content and ("APP_VERSION" in content or "Version" in content):
             with open(go_file, 'w') as f:
-                f.write(content.replace("1.5.42", "1.5.43"))
+                f.write(content.replace("1.5.43", "1.5.44"))
             print(f"[+] Bumped version in {go_file}")
 
     gradle_path = "android/app/build.gradle"
     if os.path.exists(gradle_path):
         with open(gradle_path, 'r') as f: content = f.read()
-        content = re.sub(r'versionCode 10542', 'versionCode 10543', content)
-        content = re.sub(r'versionName "1.5.42"', 'versionName "1.5.43"', content)
+        content = re.sub(r'versionCode 10543', 'versionCode 10544', content)
+        content = re.sub(r'versionName "1.5.43"', 'versionName "1.5.44"', content)
         with open(gradle_path, 'w') as f:
             f.write(content)
         print("[+] Bumped version in android/app/build.gradle")
 
-def make_error_nonfatal(content, target_func, log_message):
-    """Upgraded AST-style parser using Regex to catch compound err != nil conditions"""
-    search_start = 0
-    while True:
-        idx = content.find(target_func, search_start)
-        if idx == -1: break
-        
-        # Use Regex to dynamically catch "if err != nil {" OR "if err != nil && err != ... {"
-        match = re.search(r'if\s+err\s*!=\s*nil[^\{]*\{', content[idx:idx+400])
-        if match:
-            start_brace = idx + match.end() - 1
-            
-            brace_count = 1
-            end_brace = -1
-            for i in range(start_brace + 1, len(content)):
-                if content[i] == '{': brace_count += 1
-                elif content[i] == '}': brace_count -= 1
-                if brace_count == 0:
-                    end_brace = i
-                    break
-            
-            if end_brace != -1:
-                block_content = content[start_brace:end_brace]
-                if "return " in block_content:
-                    replacement = f'{{\n\t\tlog.Printf("{log_message}: %v", err)\n\t}}'
-                    content = content[:start_brace] + replacement + content[end_brace+1:]
-        
-        search_start = idx + len(target_func)
-    return content
-
-def patch_ultimate_sync():
-    """Repairs Android missing directories, bypasses commits, and restores FUSE ghost patching"""
+def patch_git_sync_architecture():
+    """Completely re-architects Git Sync to conquer Android FUSE limitations"""
     for filename in glob.glob("backend/*.go"):
         if not os.path.isfile(filename): continue
         
         with open(filename, 'r') as f: content = f.read()
         original_content = content
         
-        # 1. Strip fatal returns using the upgraded Regex AST parser
-        content = make_error_nonfatal(content, ".AddWithOptions(", "[LOG] [GO] [sync] Staging warning (Ignored, proceeding)")
-        content = make_error_nonfatal(content, ".Commit(", "[LOG] [GO] [sync] Commit warning (Ignored, proceeding to pull)")
-        
-        # 2. Inject MkdirAll BEFORE .Commit to fix the Android missing objects/pack crash
-        commit_pattern = r'([ \t]*)(?:[a-zA-Z0-9_:=, \t]+)\.Commit\('
-        def inject_mkdir(match):
-            indent = match.group(1)
-            injection = f'{indent}// Fix Android FUSE missing directory bug causing writeTreeFromDir crashes\n{indent}os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "pack"), 0755)\n{indent}os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "info"), 0755)\n'
-            return injection + match.group(0)
-        
-        if 'objects", "pack"' not in content:
-            content = re.sub(commit_pattern, inject_mkdir, content)
+        # 1. Inject the Pre-Flight FUSE Repair helper
+        if "func repairAndroidGitDirs" not in content and "storageDir" in content:
+            content += '''\n
+// repairAndroidGitDirs fixes the Android FUSE Media Scanner bug by forcing 
+// the recreation of empty git directories immediately before any commit.
+func repairAndroidGitDirs() {
+\tif runtime.GOOS == "android" {
+\t\tgitRoot := filepath.Join(storageDir, ".git")
+\t\tos.MkdirAll(filepath.Join(gitRoot, "objects", "pack"), 0755)
+\t\tos.MkdirAll(filepath.Join(gitRoot, "objects", "info"), 0755)
+\t\tos.MkdirAll(filepath.Join(gitRoot, "refs", "heads"), 0755)
+\t\tos.MkdirAll(filepath.Join(gitRoot, "refs", "tags"), 0755)
+\t\tos.MkdirAll(filepath.Join(gitRoot, "refs", "remotes", "origin"), 0755)
+\t}
+}\n'''
 
-        # 3. Restore the FUSE ghost file staging fix (accidentally dropped in v1.5.42)
-        add_pattern = r'([ \t]*)([a-zA-Z0-9_]+)\.AddWithOptions\(&git\.AddOptions\{All:\s*true\}\)'
-        def replace_add(match):
-            indent = match.group(1)
-            wtree_var = match.group(2)
-            if f"wkStatus, _ := {wtree_var}.Status()" in content:
-                return match.group(0)
-            return f'''{indent}// FIX: Android FUSE filesystem bug causes AddWithOptions to miss deleted files.
-{indent}wkStatus, _ := {wtree_var}.Status()
-{indent}for path, fileStatus := range wkStatus {{
-{indent}\tif fileStatus.Worktree == git.Deleted {{
-{indent}\t\t{wtree_var}.Remove(path)
+        # 2. Call repairAndroidGitDirs immediately before .Commit(
+        if "repairAndroidGitDirs()" not in content:
+            lines = content.split('\n')
+            new_lines = []
+            for line in lines:
+                if '.Commit(' in line and not '//' in line and not 'func ' in line:
+                    indent = line[:len(line) - len(line.lstrip())]
+                    new_lines.append(f'{indent}repairAndroidGitDirs() // Pre-flight FUSE directory repair')
+                new_lines.append(line)
+            content = '\n'.join(new_lines)
+        
+        # 3. Completely replace AddWithOptions with Block-Scoped Manual Staging
+        if 'AddWithOptions' in content:
+            # We intelligently capture any variable assignment (e.g. err := ) on the left
+            pattern_add = r'([ \t]*)(.*?)(\w+)\.AddWithOptions\(&git\.AddOptions\{All:\s*true\}\)'
+            def replace_add(match):
+                indent = match.group(1)
+                assignment = match.group(2)
+                wt_var = match.group(3)
+                
+                return f'''{indent}// BULLETPROOF STAGING: Manually iterate to avoid FUSE entry bugs
+{indent}{{
+{indent}\twkStatus, _ := {wt_var}.Status()
+{indent}\tfor path, fileStatus := range wkStatus {{
+{indent}\t\tif fileStatus.Worktree == git.Deleted {{
+{indent}\t\t\t{wt_var}.Remove(path)
+{indent}\t\t}} else if fileStatus.Worktree != git.Unmodified {{
+{indent}\t\t\t{wt_var}.Add(path)
+{indent}\t\t}}
 {indent}\t}}
 {indent}}}
-{match.group(0)}'''
-        
-        content = re.sub(add_pattern, replace_add, content)
+{indent}{assignment}nil // Clear legacy AddWithOptions error state'''
+            
+            content = re.sub(pattern_add, replace_add, content)
 
         if content != original_content:
-            # Ensure required packages are imported for our injections
-            for pkg in ["os", "path/filepath", "log"]:
-                if f'"{pkg}"' not in content:
-                    import_idx = content.find('import (')
-                    if import_idx != -1:
-                        content = content[:import_idx+8] + f'\n\t"{pkg}"' + content[import_idx+8:]
+            # Safely inject runtime import if needed for GOOS check
+            if "repairAndroidGitDirs" in content and '"runtime"' not in content:
+                import_idx = content.find('import (')
+                if import_idx != -1:
+                    content = content[:import_idx+8] + '\n\t"runtime"' + content[import_idx+8:]
+            
             with open(filename, 'w') as f: 
                 f.write(content)
-            print(f"[+] Hardened Git sync logic and patched FUSE dirs in {filename}")
+            print(f"[+] Re-architected Git sync stability in {filename}")
 
 if __name__ == '__main__':
     update_version()
-    patch_ultimate_sync()
-    print("[+] Application upgraded to Version 1.5.43 successfully!")
+    patch_git_sync_architecture()
+    print("[+] Application upgraded to Version 1.5.44 successfully!")

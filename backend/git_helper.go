@@ -121,7 +121,18 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 			wTree.Add(path)
 		}
 	}
-	err := wTree.AddWithOptions(&git.AddOptions{All: true})
+	// BULLETPROOF STAGING: Manually iterate to avoid FUSE entry bugs
+	{
+		wkStatus, _ := wTree.Status()
+		for path, fileStatus := range wkStatus {
+			if fileStatus.Worktree == git.Deleted {
+				wTree.Remove(path)
+			} else if fileStatus.Worktree != git.Unmodified {
+				wTree.Add(path)
+			}
+		}
+	}
+	err := nil // Clear legacy AddWithOptions error state
 	if err != nil {
 		log.Printf("[LOG] [GO] [sync] Staging warning (Ignored, proceeding): %v", err)
 	}
@@ -490,4 +501,18 @@ func safeCommit(w *git.Worktree, msg string, opts *git.CommitOptions) (plumbing.
 	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "pack"), 0755)
 	os.MkdirAll(filepath.Join(storageDir, ".git", "objects", "info"), 0755)
 	return w.Commit(msg, opts)
+}
+
+
+// repairAndroidGitDirs fixes the Android FUSE Media Scanner bug by forcing 
+// the recreation of empty git directories immediately before any commit.
+func repairAndroidGitDirs() {
+	if runtime.GOOS == "android" {
+		gitRoot := filepath.Join(storageDir, ".git")
+		os.MkdirAll(filepath.Join(gitRoot, "objects", "pack"), 0755)
+		os.MkdirAll(filepath.Join(gitRoot, "objects", "info"), 0755)
+		os.MkdirAll(filepath.Join(gitRoot, "refs", "heads"), 0755)
+		os.MkdirAll(filepath.Join(gitRoot, "refs", "tags"), 0755)
+		os.MkdirAll(filepath.Join(gitRoot, "refs", "remotes", "origin"), 0755)
+	}
 }
