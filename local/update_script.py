@@ -14,8 +14,11 @@ def safe_patch_file(path, old, new):
     if old in content:
         content = content.replace(old, new, 1)
         write_file(path, content)
-    elif new not in content:
-        raise ValueError(f"❌ Patch target not found in {path} (and replacement also missing):\n{old[:120]}")
+        print(f"Patched {path}")
+    elif new in content:
+        print(f"Already patched: {path}")
+    else:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
 
 def increment_version(ver_str):
     parts = ver_str.strip().split(".")
@@ -25,7 +28,7 @@ def increment_version(ver_str):
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
 def update_application():
-    # 1. Bump version
+    # 1. Version bump
     ver_path = "backend/version.go"
     content = read_file(ver_path)
     match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
@@ -42,50 +45,37 @@ def update_application():
                             f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 2. Add missing import for encoding/json in git_helper.go
-    git_helper_path = "backend/git_helper.go"
-    git_content = read_file(git_helper_path)
-    # The import block currently starts with:
-    # import (
-    #     "fmt"
-    #     "io"
-    #     ...
-    # We'll insert "encoding/json" after "fmt" if not already present.
-    if '"encoding/json"' not in git_content:
-        old_imports = '''import (
-\t"fmt"
-\t"io"'''
-        new_imports = '''import (
-\t"encoding/json"
-\t"fmt"
-\t"io"'''
-        if old_imports in git_content:
-            git_content = git_content.replace(old_imports, new_imports, 1)
-            write_file(git_helper_path, git_content)
-            print("Added encoding/json import to git_helper.go")
-        else:
-            # maybe already partially patched differently; try to insert after "fmt"
-            # This is a fallback in case the file was already modified.
-            # We'll search for line with "fmt" and insert before it.
-            lines = git_content.splitlines()
-            for i, line in enumerate(lines):
-                if line.strip() == '"fmt"':
-                    lines.insert(i, '\t"encoding/json"')
-                    write_file(git_helper_path, "\n".join(lines))
-                    print("Inserted encoding/json import after fmt")
-                    break
-            else:
-                raise ValueError("Could not find 'fmt' import line to insert encoding/json")
-    else:
-        print("encoding/json already imported in git_helper.go")
+    # 2. Fix potential null reference in previewAndCommit
+    sse_path = "backend/frontend/html/js/omn-go-sse.js"
+    sse_content = read_file(sse_path)
 
-    # 3. (The rest of previous patches are already applied, so we just add this missing import)
+    old_block = "            if (files.length === 0) {"
+    new_block = "            if (!files || files.length === 0) {"
+    if old_block in sse_content:
+        sse_content = sse_content.replace(old_block, new_block, 1)
+        write_file(sse_path, sse_content)
+        print("Added null check for files array")
+    else:
+        print("Null check already present or block not found (already safe)")
+
+    # Also add null check for commitFileList in commitAndUpload
+    old_modal_show = "            document.getElementById('commitFileList').textContent = files.join('\\n');"
+    new_modal_show = "            var listEl = document.getElementById('commitFileList');\n            if (listEl) listEl.textContent = files.join('\\n');"
+    if old_modal_show in sse_content:
+        sse_content = sse_content.replace(old_modal_show, new_modal_show)
+        write_file(sse_path, sse_content)
+        print("Added null check for commitFileList")
+    else:
+        print("commitFileList null check already present or code changed")
+
     commit_msg = (
-        "fix(sync): add missing encoding/json import for handleSyncPreview\n\n"
-        "- Resolved build error in git_helper.go\n"
+        "fix(ui): add null checks for sync preview on Android\n\n"
+        "- Prevent TypeError when file list is empty or modal element missing\n"
+        "Recompile the binary to apply frontend changes.\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
+    print("\n⚠️  IMPORTANT: Rebuild the Go binary to embed the updated frontend files.")
 
 if __name__ == "__main__":
     update_application()

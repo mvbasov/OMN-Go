@@ -109,11 +109,12 @@ if (window.location.protocol !== 'file:') {
                 return;
             }
             const files = await res.json();
-            if (files.length === 0) {
+            if (!files || files.length === 0) {
                 alert('Nothing to commit');
                 return;
             }
-            document.getElementById('commitFileList').textContent = files.join('\n');
+            var listEl = document.getElementById('commitFileList');
+            if (listEl) listEl.textContent = files.join('\n');
             document.getElementById('commitModal').style.display = 'flex';
             window._commitForce = force;
         } catch(e) {
