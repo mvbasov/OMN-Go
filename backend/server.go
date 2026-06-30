@@ -129,7 +129,6 @@ func StartServer() {
 		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
 		mux.HandleFunc("/api/sync", authMiddleware(handleSync, true))
 		mux.HandleFunc("/api/sync/preview", authMiddleware(handleSyncPreview, true))
-		mux.HandleFunc("/api/sync/preview", authMiddleware(handleSyncPreview, true))
 		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
 
 		if appConfig.ServerPort <= 0 {
