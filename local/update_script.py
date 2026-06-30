@@ -24,45 +24,82 @@ def increment_version(ver_str):
     raise ValueError(f"Unrecognised version format: {ver_str}")
 
 def update_application():
-    # 1. Try to apply the patch first (idempotency: fail if already applied)
-    old_block = (
-        "\t\t// Skip ignored files\n"
-        "\t\tif matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {\n"
-        "\t\t\tlog.Printf(\"[sync] Ignoring %s (matches .gitignore)\", name)\n"
-        "\t\t\tcontinue\n"
-        "\t\t}"
+    # 1. Apply the fix for force checkout (add Keep:true to preserve untracked files)
+    old_force_checkout = (
+        "\t\terr = wTree.Checkout(&git.CheckoutOptions{\n"
+        "\t\t\tHash:  ref.Hash(),\n"
+        "\t\t\tForce: true,\n"
+        "\t\t})"
     )
-    new_block = (
-        "\t\t// Exclude root config.json explicitly\n"
-        "\t\tif name == \"config.json\" {\n"
-        "\t\t\tlog.Printf(\"[sync] Ignoring root config.json (preserve locally)\")\n"
-        "\t\t\tcontinue\n"
-        "\t\t}\n"
-        "\t\t// Skip ignored files\n"
-        "\t\tif matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {\n"
-        "\t\t\tlog.Printf(\"[sync] Ignoring %s (matches .gitignore)\", name)\n"
-        "\t\t\tcontinue\n"
-        "\t\t}"
+    new_force_checkout = (
+        "\t\terr = wTree.Checkout(&git.CheckoutOptions{\n"
+        "\t\t\tHash:  ref.Hash(),\n"
+        "\t\t\tForce: true,\n"
+        "\t\t\tKeep:  true,\n"
+        "\t\t})"
+    )
+
+    # 2. Replace the non‑force pull path with fetch + checkout with Keep:true
+    old_pull_path = (
+        '\t} else {\n'
+        '\t\tlog.Printf("[sync] Pulling from origin master")\n'
+        '\t\terr := wTree.Pull(&git.PullOptions{\n'
+        '\t\t\tRemoteName:    "origin",\n'
+        '\t\t\tAuth:          auth,\n'
+        '\t\t\tReferenceName: plumbing.NewBranchReferenceName("master"),\n'
+        '\t\t\tSingleBranch:  true,\n'
+        '\t\t})\n'
+        '\t\tif err != nil && err != git.NoErrAlreadyUpToDate && !strings.Contains(err.Error(), "couldn\'t find remote ref") {\n'
+        '\t\t\treturn fmt.Errorf("pull failed: %v", err)\n'
+        '\t\t}\n'
+        '\t}'
+    )
+    new_pull_path = (
+        '\t} else {\n'
+        '\t\tlog.Printf("[sync] Fetching from origin master for merge")\n'
+        '\t\terr := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})\n'
+        '\t\tif err != nil && err != git.NoErrAlreadyUpToDate {\n'
+        '\t\t\treturn fmt.Errorf("fetch failed: %v", err)\n'
+        '\t\t}\n'
+        '\n'
+        '\t\tref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)\n'
+        '\t\tif err != nil {\n'
+        '\t\t\treturn fmt.Errorf("failed to find origin/master: %v", err)\n'
+        '\t\t}\n'
+        '\n'
+        '\t\terr = wTree.Checkout(&git.CheckoutOptions{\n'
+        '\t\t\tHash:  ref.Hash(),\n'
+        '\t\t\tForce: false,\n'
+        '\t\t\tKeep:  true,\n'
+        '\t\t})\n'
+        '\t\tif err != nil {\n'
+        '\t\t\treturn fmt.Errorf("checkout failed: %v", err)\n'
+        '\t\t}\n'
+        '\n'
+        '\t\trepo.Storer.SetReference(plumbing.NewHashReference(\n'
+        '\t\t\tplumbing.ReferenceName("refs/heads/master"), ref.Hash()))\n'
+        '\t\trepo.Storer.SetReference(plumbing.NewSymbolicReference(\n'
+        '\t\t\tplumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))\n'
+        '\t}'
     )
 
     try:
-        patch_file("backend/git_helper.go", old_block, new_block)
+        patch_file("backend/git_helper.go", old_force_checkout, new_force_checkout)
+        patch_file("backend/git_helper.go", old_pull_path, new_pull_path)
     except ValueError as e:
-        print("Patch already applied, nothing to do.")
+        print("One or more patches already applied – nothing to do.")
         sys.exit(0)
 
-    # 2. Auto‑detect current version from backend/version.go and bump it
+    # 3. Auto‑detect current version and bump it
     ver_path = "backend/version.go"
     content = read_file(ver_path)
     match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
     cur_ver = match.group(1)
     new_ver = increment_version(cur_ver)
 
-    # Update version.go
     content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
     write_file(ver_path, content)
 
-    # Update android/app/build.gradle (versionCode and versionName)
     gradle_path = "android/app/build.gradle"
     gradle = read_file(gradle_path)
     gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}',
@@ -71,11 +108,11 @@ def update_application():
                             f'versionName "{new_ver}"')
     write_file(gradle_path, gradle)
 
-    # 3. Print commit message
+    # 4. Output commit message
     commit_msg = (
-        "fix(sync): prevent root config.json from being staged\n\n"
-        "- Added hard exclusion in commitLocalChanges for config.json in worktree root\n"
-        "- Prevents accidental tracking and subsequent overwriting during pull\n"
+        "fix(sync): preserve all untracked files during pull and force download\n\n"
+        "- Replaced git.Pull (which discards untracked files) with fetch + checkout Keep:true\n"
+        "- Added Keep:true to the force reset checkout to stop deleting dynamic local files\n"
         f"Version bumped to {new_ver}"
     )
     print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")

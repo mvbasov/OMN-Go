@@ -425,6 +425,7 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		err = wTree.Checkout(&git.CheckoutOptions{
 			Hash:  ref.Hash(),
 			Force: true,
+			Keep:  true,
 		})
 		if err != nil {
 			return fmt.Errorf("hard reset failed: %v", err)
@@ -435,16 +436,30 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
 			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
 	} else {
-		log.Printf("[sync] Pulling from origin master")
-		err := wTree.Pull(&git.PullOptions{
-			RemoteName:    "origin",
-			Auth:          auth,
-			ReferenceName: plumbing.NewBranchReferenceName("master"),
-			SingleBranch:  true,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate && !strings.Contains(err.Error(), "couldn't find remote ref") {
-			return fmt.Errorf("pull failed: %v", err)
+		log.Printf("[sync] Fetching from origin master for merge")
+		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
+			return fmt.Errorf("fetch failed: %v", err)
 		}
+
+		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
+		if err != nil {
+			return fmt.Errorf("failed to find origin/master: %v", err)
+		}
+
+		err = wTree.Checkout(&git.CheckoutOptions{
+			Hash:  ref.Hash(),
+			Force: false,
+			Keep:  true,
+		})
+		if err != nil {
+			return fmt.Errorf("checkout failed: %v", err)
+		}
+
+		repo.Storer.SetReference(plumbing.NewHashReference(
+			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
+		repo.Storer.SetReference(plumbing.NewSymbolicReference(
+			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
 	}
 	return nil
 }

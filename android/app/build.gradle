@@ -11,7 +11,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 10562
-        versionName "1.5.62"
+        versionName "1.5.63"
     }
 
     signingConfigs {
