@@ -1,172 +1,84 @@
-import os
-import re
+#!/usr/bin/env python3
+import re, os, sys
 
-def patch_file(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
-        content = f.read()
+def read_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
-    # Normalize newlines
-    content = content.replace('\r\n', '\n')
+def write_file(path, content):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
-    # 1. Inject Imports needed for BLOB manipulation
-    imports = [
-        '"io"',
-        '"github.com/go-git/go-git/v5/plumbing/format/index"',
-        '"github.com/go-git/go-git/v5/plumbing/filemode"'
-    ]
-    for imp in imports:
-        if imp not in content:
-            content = re.sub(r'import \(', f'import (\\n\\t{imp}', content, count=1)
+def patch_file(path, old, new):
+    content = read_file(path)
+    if old not in content:
+        raise ValueError(f"❌ Patch target not found in {path}:\n{old[:120]}")
+    content = content.replace(old, new, 1)
+    write_file(path, content)
 
-    # 2. Define the BLOB Injection function and the updated commit handler
-    new_code = """func manualStageFile(repo *git.Repository, name string) error {
-	fullPath := filepath.Join(storageDir, name)
-	stat, err := os.Lstat(fullPath)
-	if err != nil {
-		return err
-	}
-	if stat.IsDir() {
-		return nil
-	}
+def increment_version(ver_str):
+    parts = ver_str.strip().split(".")
+    if len(parts) == 3 and parts[2].isdigit():
+        parts[2] = str(int(parts[2]) + 1)
+        return ".".join(parts)
+    raise ValueError(f"Unrecognised version format: {ver_str}")
 
-	f, err := os.Open(fullPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+def update_application():
+    # 1. Try to apply the patch first (idempotency: fail if already applied)
+    old_block = (
+        "\t\t// Skip ignored files\n"
+        "\t\tif matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {\n"
+        "\t\t\tlog.Printf(\"[sync] Ignoring %s (matches .gitignore)\", name)\n"
+        "\t\t\tcontinue\n"
+        "\t\t}"
+    )
+    new_block = (
+        "\t\t// Exclude root config.json explicitly\n"
+        "\t\tif name == \"config.json\" {\n"
+        "\t\t\tlog.Printf(\"[sync] Ignoring root config.json (preserve locally)\")\n"
+        "\t\t\tcontinue\n"
+        "\t\t}\n"
+        "\t\t// Skip ignored files\n"
+        "\t\tif matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {\n"
+        "\t\t\tlog.Printf(\"[sync] Ignoring %s (matches .gitignore)\", name)\n"
+        "\t\t\tcontinue\n"
+        "\t\t}"
+    )
 
-	// Stream file to object database directly (Bypasses OOM risk)
-	obj := repo.Storer.NewEncodedObject()
-	obj.SetType(plumbing.BlobObject)
-	w, err := obj.Writer()
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(w, f); err != nil {
-		w.Close()
-		return err
-	}
-	w.Close()
+    try:
+        patch_file("backend/git_helper.go", old_block, new_block)
+    except ValueError as e:
+        print("Patch already applied, nothing to do.")
+        sys.exit(0)
 
-	hash, err := repo.Storer.SetEncodedObject(obj)
-	if err != nil {
-		return err
-	}
+    # 2. Auto‑detect current version from backend/version.go and bump it
+    ver_path = "backend/version.go"
+    content = read_file(ver_path)
+    match = re.search(r'APP_VERSION\s*=\s*"(\d+\.\d+\.\d+)"', content)
+    cur_ver = match.group(1)
+    new_ver = increment_version(cur_ver)
 
-	// Forcibly inject the new BLOB hash into the Git Index
-	idx, err := repo.Storer.Index()
-	if err != nil {
-		return err
-	}
-	var target *index.Entry
-	for _, e := range idx.Entries {
-		if e.Name == name {
-			target = e
-			break
-		}
-	}
-	if target == nil {
-		target = &index.Entry{Name: name}
-		idx.Entries = append(idx.Entries, target)
-	}
-	target.Hash = hash
-	target.Size = uint32(stat.Size())
-	target.ModifiedAt = stat.ModTime()
-	target.Mode = filemode.Regular
+    # Update version.go
+    content = content.replace(f'APP_VERSION = "{cur_ver}"', f'APP_VERSION = "{new_ver}"')
+    write_file(ver_path, content)
 
-	return repo.Storer.SetIndex(idx)
-}
+    # Update android/app/build.gradle (versionCode and versionName)
+    gradle_path = "android/app/build.gradle"
+    gradle = read_file(gradle_path)
+    gradle = gradle.replace(f'versionCode {int(cur_ver.replace(".", ""))}',
+                            f'versionCode {int(new_ver.replace(".", ""))}')
+    gradle = gradle.replace(f'versionName "{cur_ver}"',
+                            f'versionName "{new_ver}"')
+    write_file(gradle_path, gradle)
 
-func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
-	log.Printf("[sync] Checking worktree status")
-	status, err := wTree.Status()
-	if err != nil {
-		return false, fmt.Errorf("status check error: %v", err)
-	}
-
-	if status.IsClean() {
-		log.Printf("[sync] Nothing to commit")
-		return false, nil
-	}
-
-	log.Printf("[sync] Uncommitted changes detected. Manually staging files...")
-	hasRealChanges := false
-	
-	for name, fileStat := range status {
-		if fileStat.Worktree == git.Deleted {
-			log.Printf("[sync] Staging deletion: %s", name)
-			_, _ = wTree.Remove(name)
-			hasRealChanges = true
-		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
-			log.Printf("[sync] Staging file: %s", name)
-			_, err := wTree.Add(name)
-			if err != nil {
-				log.Printf("[sync] Warning: go-git Add failed: %v. Using BLOB injection...", err)
-				manErr := manualStageFile(repo, name)
-				if manErr != nil {
-					log.Printf("[sync] Error: BLOB injection failed for %s: %v", name, manErr)
-				} else {
-					log.Printf("[sync] BLOB injection successful for %s", name)
-					hasRealChanges = true
-				}
-			} else {
-				hasRealChanges = true
-			}
-		}
-	}
-
-	if !hasRealChanges {
-		log.Printf("[sync] No real changes could be staged.")
-		return false, nil
-	}
-
-	log.Printf("[sync] Committing staged changes via go-git")
-	authorName := GetConfigAuthor()
-	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
-	sig := &object.Signature{
-		Name:  authorName,
-		Email: authorEmail,
-		When:  time.Now(),
-	}
-
-	commitHash, err := wTree.Commit("Local changes before sync", &git.CommitOptions{
-		Author:    sig,
-		Committer: sig,
-	})
-	if err == git.ErrEmptyCommit {
-		log.Printf("[sync] Commit aborted: git.ErrEmptyCommit")
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("commit error: %v", err)
-	}
-
-	log.Printf("[sync] Committed with hash: %s", commitHash.String())
-	return true, nil
-}"""
-
-    # 3. Clean out old commitLocalChanges (and manualStageFile if re-running)
-    if 'func manualStageFile' in content:
-        pattern = re.compile(r'func manualStageFile\(.*?func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
-    else:
-        pattern = re.compile(r'func commitLocalChanges\(repo \*git\.Repository, wTree \*git\.Worktree\) \(bool, error\) \{.*?\n\}', re.DOTALL)
-
-    if pattern.search(content):
-        content = pattern.sub(new_code, content)
-        with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
-            f.write(content)
-        print(f"[+] Successfully patched {filepath} (Applied BLOB Injection Fallback)")
-    else:
-        print(f"[-] Could not find commitLocalChanges in {filepath}.")
+    # 3. Print commit message
+    commit_msg = (
+        "fix(sync): prevent root config.json from being staged\n\n"
+        "- Added hard exclusion in commitLocalChanges for config.json in worktree root\n"
+        "- Prevents accidental tracking and subsequent overwriting during pull\n"
+        f"Version bumped to {new_ver}"
+    )
+    print(f"\n[GIT_COMMIT_MESSAGE]\n{commit_msg.strip()}\n[/GIT_COMMIT_MESSAGE]")
 
 if __name__ == "__main__":
-    target_files = ["backend/git_helper.go", "git_helper.go"]
-    patched = False
-    
-    for f in target_files:
-        if os.path.exists(f):
-            patch_file(f)
-            patched = True
-            break
-            
-    if not patched:
-        print("[-] Could not find git_helper.go in the current or backend/ directory.")
+    update_application()

@@ -196,14 +196,6 @@ func manualGitInit(dir string) error {
 	}
 	protectGitDirs()
 
-	// Delete it after tests
-//        if err := os.MkdirAll(filepath.Join(gitDir, "objects/pack"), 0755); err != nil {
-//		return err
-//	}
-//	if err := os.MkdirAll(filepath.Join(gitDir, "objects/info"), 0755); err != nil {
-//		return err
-//	}
-
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
 		return err
@@ -344,9 +336,16 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 
 	hasRealChanges := false
 	for name, fileStat := range status {
+
 		// Skip ignored files
 		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
 			log.Printf("[sync] Ignoring %s (matches .gitignore)", name)
+			continue
+		}
+
+		// Exclude root config.json explicitly
+		if name == "config.json" {
+			log.Printf("[sync] Ignoring root config.json (preserve locally)")
 			continue
 		}
 
