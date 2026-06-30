@@ -432,9 +432,9 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		}
 
 		repo.Storer.SetReference(plumbing.NewHashReference(
-			plumbing.ReferenceName("refs/heads/main"), ref.Hash()))
+			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
-			plumbing.HEAD, plumbing.ReferenceName("refs/heads/main")))
+			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
 	} else {
 		log.Printf("[sync] Pulling from origin master")
 		err := wTree.Pull(&git.PullOptions{
