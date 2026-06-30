@@ -316,7 +316,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 // Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
-func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error) {
+func commitLocalChanges(repo *git.Repository, wTree *git.Worktree, message string) (bool, error) {
 	// Load gitignore matcher
 	matcher, err := loadGitignoreMatcher(wTree)
 	if err != nil {
@@ -382,7 +382,7 @@ func commitLocalChanges(repo *git.Repository, wTree *git.Worktree) (bool, error)
 		When:  time.Now(),
 	}
 
-	commitHash, err := wTree.Commit("Local changes before sync", &git.CommitOptions{
+	commitHash, err := wTree.Commit(message, &git.CommitOptions{
 		Author:    sig,
 		Committer: sig,
 	})
@@ -516,7 +516,15 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	force := r.FormValue("force") == "true"
 
-	committed, err := commitLocalChanges(repo, wTree)
+	commitMsg := "Local changes before sync"
+	if action == "upload" {
+		commitMsg = r.FormValue("message")
+		if commitMsg == "" {
+			http.Error(w, "Commit message required for upload", 400)
+			return
+		}
+	}
+	committed, err := commitLocalChanges(repo, wTree, commitMsg)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
 		return
@@ -542,6 +550,57 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte("Sync action completed successfully."))
+}
+
+func handleSyncPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method Not Allowed", 405)
+		return
+	}
+	action := r.URL.Query().Get("action")
+	if action != "upload" {
+		http.Error(w, "Only upload preview supported", 400)
+		return
+	}
+
+	repo, err := getOrInitRepo()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+		return
+	}
+	wTree, err := repo.Worktree()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Worktree error: %v", err), 500)
+		return
+	}
+
+	matcher, err := loadGitignoreMatcher(wTree)
+	if err != nil {
+		matcher = gitignore.NewMatcher(nil)
+	}
+
+	status, err := wTree.Status()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Status error: %v", err), 500)
+		return
+	}
+
+	var files []string
+	for name, fileStat := range status {
+		// Skip ignored and root config.json
+		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
+			continue
+		}
+		if name == "config.json" {
+			continue
+		}
+		if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			files = append(files, name)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(files)
 }
 
 // ---------------------------------------------------------------

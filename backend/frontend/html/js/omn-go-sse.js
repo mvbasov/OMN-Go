@@ -5,36 +5,77 @@
 if (window.location.protocol !== 'file:') {
     const Logger = (function() {
         async function syncAction(action) {
+
             let force = document.getElementById('forceSyncCb') && document.getElementById('forceSyncCb').checked;
+
             if (force) {
+
                 if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
+
                     return;
+
                 }
-            }
-            const fd = new URLSearchParams();
-            fd.append('action', action);
-            if (force) fd.append('force', 'true');
-            
-            const res = await fetch('/api/sync', { method: 'POST', body: fd });
-            
-            if (force && document.getElementById('forceSyncCb')) {
-                document.getElementById('forceSyncCb').checked = false;
+
             }
 
-            const capAction = action.charAt(0).toUpperCase() + action.slice(1);
-            
-            if (res.ok) {
-                let msg = await res.text();
-                if (msg.includes('Nothing to push')) {
-                    alert(msg);
-                } else if (confirm(msg + '\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
-                    window.location.reload();
-                }
-            } else {
-                let msg = await res.text();
-                console.error('OMN-Go sync failed:', msg);
-                alert(capAction + ' failed: ' + msg + '\n\nOpen console to copy error details.');
+            if (action === 'upload') {
+
+                // Use new commit message flow
+
+                previewAndCommit(force);
+
+                return;
+
             }
+
+            const fd = new URLSearchParams();
+
+            fd.append('action', action);
+
+            if (force) fd.append('force', 'true');
+
+            
+
+            const res = await fetch('/api/sync', { method: 'POST', body: fd });
+
+            
+
+            if (force && document.getElementById('forceSyncCb')) {
+
+                document.getElementById('forceSyncCb').checked = false;
+
+            }
+
+        
+
+            const capAction = action.charAt(0).toUpperCase() + action.slice(1);
+
+            
+
+            if (res.ok) {
+
+                let msg = await res.text();
+
+                if (msg.includes('Nothing to push')) {
+
+                    alert(msg);
+
+                } else if (confirm(msg + '\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
+
+                    window.location.reload();
+
+                }
+
+            } else {
+
+                let msg = await res.text();
+
+                console.error('OMN-Go sync failed:', msg);
+
+                alert(capAction + ' failed: ' + msg + '\n\nOpen console to copy error details.');
+
+            }
+
         }
     
         // Export to global scope to preserve HTML onclick attributes
@@ -59,6 +100,62 @@ if (window.location.protocol !== 'file:') {
     };
         return { syncAction };
     })();
+
+    window.previewAndCommit = async function(force) {
+        try {
+            const res = await fetch('/api/sync/preview?action=upload');
+            if (!res.ok) {
+                alert('Failed to get pending changes');
+                return;
+            }
+            const files = await res.json();
+            if (files.length === 0) {
+                alert('Nothing to commit');
+                return;
+            }
+            document.getElementById('commitFileList').textContent = files.join('\n');
+            document.getElementById('commitModal').style.display = 'flex';
+            window._commitForce = force;
+        } catch(e) {
+            alert('Error: ' + e);
+        }
+    };
+
+    window.commitAndUpload = async function() {
+        const message = document.getElementById('commitMessage').value.trim();
+        if (!message) {
+            alert('Please enter a commit message.');
+            return;
+        }
+        const force = window._commitForce || false;
+        const fd = new URLSearchParams();
+        fd.append('action', 'upload');
+        fd.append('message', message);
+        if (force) fd.append('force', 'true');
+        try {
+            const res = await fetch('/api/sync', { method: 'POST', body: fd });
+            if (force && document.getElementById('forceSyncCb')) {
+                document.getElementById('forceSyncCb').checked = false;
+            }
+            if (res.ok) {
+                let msg = await res.text();
+                if (confirm(msg + '\n\nWould you like to reload the page now to see updated content?')) {
+                    window.location.reload();
+                }
+            } else {
+                let msg = await res.text();
+                alert('Upload failed: ' + msg);
+            }
+        } catch(e) {
+            alert('Error: ' + e);
+        }
+        hideCommitModal();
+    };
+
+    window.hideCommitModal = function() {
+        document.getElementById('commitModal').style.display = 'none';
+        document.getElementById('commitMessage').value = '';
+    };
 
     window.loadNoteIntoEditor = async function() {
         const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
