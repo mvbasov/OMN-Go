@@ -121,7 +121,16 @@ func (fi *stableFileInfo) ModTime() time.Time {
 
 func ensureGitignore() {
 	gitignorePath := filepath.Join(storageDir, ".gitignore")
-	gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
+	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
+	gitignoreBase := `
+# OMN-Go sync ignore
+config.json
+*.html
+/html/css/omn-go-core.css
+/html/js/omn-go-core.js
+/html/js/omn-go-sse.js
+/md/local/
+`
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
 		log.Printf("[sync] Created .gitignore")

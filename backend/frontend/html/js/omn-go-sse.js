@@ -238,7 +238,7 @@ if (window.location.protocol !== 'file:') {
 
 } else {
     console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
-    window.printDebug = function() { console.debug('\'' + funcName + '\' Not usable on standalone page'); }
+    window.printDebug = function(funcName) { console.debug('\'' + funcName + '\' Not usable on standalone page'); }
     
     window.loadNoteIntoEditor = function() { printDebug('loadNoteIntoEditor'); };
     window.toggleMode = function() { printDebug('toggleMode'); };
