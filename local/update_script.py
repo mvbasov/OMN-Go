@@ -17,13 +17,13 @@ def patch_file(filepath, processor):
 def bump_versions():
     # Bump backend version
     def process_version(content):
-        return re.sub(r'APP_VERSION\s*=\s*".*?"', 'APP_VERSION = "1.6.1"', content)
+        return re.sub(r'APP_VERSION\s*=\s*".*?"', 'APP_VERSION = "1.6.2"', content)
     patch_file("backend/version.go", process_version)
 
     # Bump Android gradle version
     def process_gradle(content):
-        content = re.sub(r'versionCode\s+\d+', 'versionCode 10601', content)
-        content = re.sub(r'versionName\s+".*?"', 'versionName "1.6.1"', content)
+        content = re.sub(r'versionCode\s+\d+', 'versionCode 10602', content)
+        content = re.sub(r'versionName\s+".*?"', 'versionName "1.6.2"', content)
         return content
     patch_file("android/app/build.gradle", process_gradle)
 
@@ -65,7 +65,7 @@ def refactor_backend():
         content = re.sub(r'(?m)^\s*gitMutex\s+sync\.Mutex.*$', '', content)
         content = re.sub(r'var\s*\(\s*\)', '', content)
 
-        # 4. Inject App Struct into server.go (With Value-Type Config Fix)
+        # 4. Inject App Struct into server.go
         if filename == "server.go":
             if "type App struct" not in content:
                 app_struct = "\n\n// App encapsulates the global state for the backend\ntype App struct {\n\tConfig      Config\n\tStorageDir  string\n\tActiveConns int64\n\tConnMutex   sync.Mutex\n\tGitMutex    sync.Mutex\n\tRouter      *http.ServeMux\n}\n"
@@ -75,15 +75,18 @@ def refactor_backend():
                 if '"net/http"' not in content:
                     content = re.sub(r'import \(\n', 'import (\n\t"net/http"\n', content, count=1)
             else:
-                # Fix Config type from previous run: *Config -> Config (Resolves the assignment panic)
+                # Fix Config type from previous run: *Config -> Config
                 content = re.sub(r'Config\s+\*Config', 'Config Config', content)
 
             content = re.sub(r'func StartServer\((.*?)\bstorageDir\b(.*?)\)', r'func StartServer(\1initStorageDir\2)', content)
             
-            # Ensure safe localized initialization
-            if "a := &App{" not in content:
-                content = re.sub(r'func StartServer\((.*?)\)\s*\{',
-                                 r'func StartServer(\1) {\n\ta := &App{\n\t\tRouter: http.NewServeMux(),\n\t}\n', content)
+            # --- CRITICAL FIX: The Scrubber ---
+            # Remove ALL previously injected App initializations to destroy the duplicates
+            content = re.sub(r'\n\s*a := &App\{\n\s*Router: http\.NewServeMux\(\),\n\s*\}', '', content)
+            
+            # Re-inject exactly ONE pristine initialization block
+            content = re.sub(r'func StartServer\((.*?)\)\s*\{',
+                             r'func StartServer(\1) {\n\ta := &App{\n\t\tRouter: http.NewServeMux(),\n\t}\n', content)
 
         # 5. Transform global usages into App struct fields
         content = re.sub(r'\bappConfig\b', 'a.Config', content)
@@ -119,7 +122,7 @@ def refactor_backend():
             f.write(content)
 
 if __name__ == "__main__":
-    print("[ ] Starting Dependency Injection Refactor (Version 1.6.1)...")
+    print("[ ] Starting Dependency Injection Refactor (Version 1.6.2)...")
     bump_versions()
     refactor_backend()
     print("[+] Architecture successfully upgraded! Global variables eradicated.")

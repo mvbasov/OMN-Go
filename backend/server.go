@@ -37,9 +37,6 @@ func StartServer() {
 		Router: http.NewServeMux(),
 	}
 
-	a := &App{
-		Router: http.NewServeMux(),
-	}
 
 	a.initStorage() // Execute synchronously to ensure config is loaded instantly
 
