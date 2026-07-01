@@ -30,9 +30,13 @@ var frontendHTML []byte
 //go:embed frontend/html frontend/md
 var staticFS embed.FS
 
-var a.ActiveConns int
+var activeConns int64
 
 func StartServer() {
+	a := &App{
+		Router: http.NewServeMux(),
+	}
+
 	a := &App{
 		Router: http.NewServeMux(),
 	}

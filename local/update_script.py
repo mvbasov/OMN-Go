@@ -64,15 +64,20 @@ def refactor_backend():
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # 3. Eliminate Global Variables natively
-        content = re.sub(r'(?m)^\s*appConfig\s+\*?Config\s*\n?', '', content)
-        content = re.sub(r'(?m)^\s*storageDir\s+string\s*\n?', '', content)
-        content = re.sub(r'(?m)^\s*activeConns\s+(?:int64|int32|int)\s*\n?', '', content)
-        content = re.sub(r'(?m)^\s*connMutex\s+sync\.Mutex\s*\n?', '', content)
-        content = re.sub(r'(?m)^\s*gitMutex\s+sync\.Mutex\s*\n?', '', content)
-        content = re.sub(r'(?m)^var\s+appConfig\s+\*?Config\s*\n?', '', content)
-        content = re.sub(r'(?m)^var\s+storageDir\s+string\s*\n?', '', content)
-        content = re.sub(r'(?m)^var\s*\(\s*\)\s*\n?', '', content) # Clean up empty var blocks
+        # 3. Eliminate Global Variables natively (Robust line removal)
+        # Handle single-line var declarations
+        for var_name in ["appConfig", "storageDir", "activeConns", "connMutex", "gitMutex"]:
+            content = re.sub(r'(?m)^var\s+' + var_name + r'\b.*$', '', content)
+        
+        # Handle block declarations safely (checks for type to avoid mutating inner function logic)
+        content = re.sub(r'(?m)^\s*appConfig\s+\*?Config.*$', '', content)
+        content = re.sub(r'(?m)^\s*storageDir\s+string.*$', '', content)
+        content = re.sub(r'(?m)^\s*activeConns\s+(?:int64|int32|int).*$', '', content)
+        content = re.sub(r'(?m)^\s*connMutex\s+sync\.Mutex.*$', '', content)
+        content = re.sub(r'(?m)^\s*gitMutex\s+sync\.Mutex.*$', '', content)
+
+        # Clean up orphaned empty var blocks (including multi-line whitespace)
+        content = re.sub(r'var\s*\(\s*\)', '', content)
 
         # 4. Inject App Struct into server.go
         if filename == "server.go":
@@ -100,9 +105,13 @@ def refactor_backend():
         content = re.sub(r'\bconnMutex\b', 'a.ConnMutex', content)
         content = re.sub(r'\bgitMutex\b', 'a.GitMutex', content)
 
-        # Revert parameter names if a struct field blindly modified a method signature
-        content = re.sub(r'\(a\.StorageDir string\)', '(storageDir string)', content)
+        # Revert parameter names if a struct field blindly modified a method signature or local var
+        content = re.sub(r'\(a\.StorageDir\s+string\)', '(storageDir string)', content)
         content = re.sub(r'a\.StorageDir\s+string', 'storageDir string', content)
+        content = re.sub(r'a\.Config\s+\*?Config', 'appConfig *Config', content)
+        content = re.sub(r'a\.ActiveConns\s+(?:int64|int32|int)', 'activeConns int64', content)
+        content = re.sub(r'a\.ConnMutex\s+sync\.Mutex', 'connMutex sync.Mutex', content)
+        content = re.sub(r'a\.GitMutex\s+sync\.Mutex', 'gitMutex sync.Mutex', content)
 
         # 6. Apply `(a *App)` receivers to all target handlers & utilities
         for func_name in target_funcs:
