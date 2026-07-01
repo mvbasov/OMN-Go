@@ -60,11 +60,10 @@ func StartServer() *App {
 			}
 		}()
 
-		mux := http.NewServeMux()
 		// Initialize logger to stream Go logs to the frontend via SSE
 		log.SetOutput(&JSLogger{})
-		mux.HandleFunc("/api/logs", a.HandleLogsSSE)
-		mux.HandleFunc("/", a.serveFrontend)
+		a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
+		a.Router.HandleFunc("/", a.serveFrontend)
 
 		serveLazyEmbed := func() http.Handler {
 			physicalDir := filepath.Join(a.StorageDir, "html")
@@ -116,9 +115,9 @@ func StartServer() *App {
 			})
 		}
 
-		mux.Handle("/js/", serveLazyEmbed())
-		mux.Handle("/css/", serveLazyEmbed())
-		mux.Handle("/json/", serveLazyEmbed())
+		a.Router.Handle("/js/", serveLazyEmbed())
+		a.Router.Handle("/css/", serveLazyEmbed())
+		a.Router.Handle("/json/", serveLazyEmbed())
 
 		// Config for files handling Content-type by served directories
 		serveStorageDir := func(subDir, cType string) http.Handler {
@@ -133,21 +132,21 @@ func StartServer() *App {
 			})
 		}
 
-		mux.Handle("/images/", serveStorageDir("images", ""))
-		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
+		a.Router.Handle("/images/", serveStorageDir("images", ""))
+		a.Router.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
-		mux.HandleFunc("/login", a.handleLogin)
-		mux.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
-		mux.HandleFunc("/api/bookmark", a.authMiddleware(a.handleBookmark, true))
-		mux.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
-		mux.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
-		mux.HandleFunc("/api/note", a.handleGetNote)
-		mux.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
-		mux.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
-		mux.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
-		mux.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
-		mux.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
-		mux.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
+		a.Router.HandleFunc("/login", a.handleLogin)
+		a.Router.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
+		a.Router.HandleFunc("/api/bookmark", a.authMiddleware(a.handleBookmark, true))
+		a.Router.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
+		a.Router.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
+		a.Router.HandleFunc("/api/note", a.handleGetNote)
+		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
+		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
+		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
+		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
+		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
+		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
 
 		if a.Config.ServerPort <= 0 {
 			a.Config.ServerPort = 8080
@@ -156,7 +155,7 @@ func StartServer() *App {
 		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
 
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
-		err := http.ListenAndServe(bindAddr, a.connectionMiddleware(mux))
+		err := http.ListenAndServe(bindAddr, a.connectionMiddleware(a.Router))
 		if err != nil {
 			log.Printf("FATAL: Server crashed: %v", err)
 		}

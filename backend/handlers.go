@@ -79,7 +79,7 @@ func (a *App) getConfigPageBody() string {
         %s
 
         <div class="config-field" style="margin-top: 20px;">
-            <button type="button" class="btn-primary" onclick="a.saveConfig()">Save Configuration</button>
+            <button type="button" class="btn-primary" onclick="saveConfig()">Save Configuration</button>
         </div>
     </form>
 </div>
