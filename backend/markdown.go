@@ -25,7 +25,7 @@ var mdParser = goldmark.New(
 	),
 )
 
-func renderMarkdownToHTML(mdContent []byte) string {
+func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	contentStr := string(mdContent)
 	mathBlocks := make(map[string]string)
 	counter := 0
@@ -61,7 +61,7 @@ func renderMarkdownToHTML(mdContent []byte) string {
 	return htmlStr
 }
 
-func htmlEscape(s string) string {
+func (a *App) htmlEscape(s string) string {
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
@@ -69,11 +69,11 @@ func htmlEscape(s string) string {
 	return s
 }
 
-func compilePage(name string, mdContent []byte) []byte {
-	return compilePageWithBody(name, mdContent, "")
+func (a *App) compilePage(name string, mdContent []byte) []byte {
+	return a.compilePageWithBody(name, mdContent, "")
 }
 
-func compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
+func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
 	var headers []string
 	var bodyLines []string
 	inHeader := true
@@ -99,7 +99,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 
 	renderedBody := customBody
 	if renderedBody == "" {
-		renderedBody = renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
+		renderedBody = a.renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
 
 	layout := string(frontendHTML)
@@ -110,7 +110,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) == 2 {
 			k := strings.ToLower(strings.TrimSpace(parts[0]))
-			v := htmlEscape(strings.TrimSpace(parts[1]))
+			v := a.htmlEscape(strings.TrimSpace(parts[1]))
 			metaTags = append(metaTags, fmt.Sprintf(`    <meta name="%s" content="%s" />`, k, v))
 			if k == "title" {
 				title = strings.TrimSpace(parts[1])
@@ -142,7 +142,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 			for _, tag := range strings.Split(parts[1], ",") {
 				tag = strings.TrimSpace(tag)
 				if tag != "" {
-					tagLinks = append(tagLinks, fmt.Sprintf(`<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, htmlEscape(tag), htmlEscape(tag)))
+					tagLinks = append(tagLinks, fmt.Sprintf(`<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, a.htmlEscape(tag), a.htmlEscape(tag)))
 				}
 			}
 		}
@@ -158,7 +158,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", htmlEscape(string(mdContent)))
+	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", a.htmlEscape(string(mdContent)))
 	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
 	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")

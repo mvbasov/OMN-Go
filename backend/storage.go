@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func initStorage() {
+func (a *App) initStorage() {
 	if runtime.GOOS == "android" {
 		a.StorageDir = "/storage/emulated/0/Android/media/net.basov.omngo"
 	} else {
@@ -102,10 +102,10 @@ Tags: Bookmarks
 ];
 </script>`)
 	// Precompile all notes to data/html/ at startup in the background
-	go precompileAllPages()
+	go a.precompileAllPages()
 }
 
-func precompileAllPages() {
+func (a *App) precompileAllPages() {
 	mdDir := filepath.Join(a.StorageDir, "md")
 	htmlDir := filepath.Join(a.StorageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
@@ -116,7 +116,7 @@ func precompileAllPages() {
 			if err == nil {
 				relPath, _ := filepath.Rel(mdDir, f)
 				name := strings.TrimSuffix(filepath.ToSlash(relPath), ".md")
-				compiled := compilePage(name, content)
+				compiled := a.compilePage(name, content)
 				htmlPath := filepath.Join(htmlDir, filepath.Clean(name+".html"))
 				os.MkdirAll(filepath.Dir(htmlPath), 0755)
 				os.WriteFile(htmlPath, compiled, 0644)

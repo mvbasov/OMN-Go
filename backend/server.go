@@ -16,7 +16,7 @@ import (
 
 // App encapsulates the global state for the backend
 type App struct {
-	Config      *Config
+	Config Config
 	StorageDir  string
 	ActiveConns int64
 	ConnMutex   sync.Mutex
@@ -30,7 +30,7 @@ var frontendHTML []byte
 //go:embed frontend/html frontend/md
 var staticFS embed.FS
 
-var activeConns int64
+
 
 func StartServer() {
 	a := &App{
@@ -41,7 +41,7 @@ func StartServer() {
 		Router: http.NewServeMux(),
 	}
 
-	initStorage() // Execute synchronously to ensure config is loaded instantly
+	a.initStorage() // Execute synchronously to ensure config is loaded instantly
 
 	// Fallback MIME types for minimal Docker containers
 	mime.AddExtensionType(".svg", "image/svg+xml")
@@ -102,10 +102,10 @@ func StartServer() {
 						os.WriteFile(physPath, []byte{}, 0644)
 						rawContent = []byte{}
 					}
-					escapedContent := htmlEscape(string(rawContent))
+					escapedContent := a.htmlEscape(string(rawContent))
 					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
 					// Pass raw content as mdContent so the textarea is populated
-					compiled := compilePageWithBody(relPath, rawContent, customBody)
+					compiled := a.compilePageWithBody(relPath, rawContent, customBody)
 					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
 					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
 					w.Header().Set("Content-Type", "text/html")
@@ -139,17 +139,17 @@ func StartServer() {
 		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
 		mux.HandleFunc("/login", a.handleLogin)
-		mux.HandleFunc("/api/quick", authMiddleware(a.handleQuickNote, true))
-		mux.HandleFunc("/api/bookmark", authMiddleware(a.handleBookmark, true))
-		mux.HandleFunc("/api/upload", authMiddleware(a.handleUpload, true))
-		mux.HandleFunc("/api/upload_json", authMiddleware(a.handleUploadJSON, true))
+		mux.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
+		mux.HandleFunc("/api/bookmark", a.authMiddleware(a.handleBookmark, true))
+		mux.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
+		mux.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
 		mux.HandleFunc("/api/note", a.handleGetNote)
-		mux.HandleFunc("/api/save", authMiddleware(a.handleSaveNote, true))
-		mux.HandleFunc("/api/newpage", authMiddleware(a.handleNewPage, true))
-		mux.HandleFunc("/api/config", authMiddleware(a.handleConfig, true))
-		mux.HandleFunc("/api/sync", authMiddleware(a.handleSync, true))
-		mux.HandleFunc("/api/sync/preview", authMiddleware(a.handleSyncPreview, true))
-		mux.HandleFunc("/api/edit-external", authMiddleware(a.handleEditExternal, true))
+		mux.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
+		mux.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
+		mux.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
+		mux.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
+		mux.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
+		mux.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
 
 		if a.Config.ServerPort <= 0 {
 			a.Config.ServerPort = 8080
@@ -158,20 +158,20 @@ func StartServer() {
 		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
 
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
-		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
+		err := http.ListenAndServe(bindAddr, a.connectionMiddleware(mux))
 		if err != nil {
 			log.Printf("FATAL: Server crashed: %v", err)
 		}
 	}()
 }
 
-// GetServerPort safely exposes the configured port for frontend wrappers
-func GetServerPort() int {
+// a.GetServerPort safely exposes the configured port for frontend wrappers
+func (a *App) GetServerPort() int {
 	return a.Config.ServerPort
 }
 
-// autoGitIgnore safely appends extracted cache files to .gitignore
-func autoGitIgnore(cachePath string) {
+// a.autoGitIgnore safely appends extracted cache files to .gitignore
+func (a *App) autoGitIgnore(cachePath string) {
 	ignoreFile := ".gitignore"
 	content, err := os.ReadFile(ignoreFile)
 	if err != nil && !os.IsNotExist(err) {

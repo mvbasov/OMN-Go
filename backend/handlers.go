@@ -86,7 +86,7 @@ func (a *App) getConfigPageBody() string {
 `, a.Config.ServerPort, a.Config.AdminPassword, a.Config.GuestPassword, a.Config.Author, checkedStr, a.Config.DesktopExtCmd, gitHTML)
 }
 
-func getExternalEditPageBody(fileName string, viewURL string) string {
+func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
 	return fmt.Sprintf(`
 <div class="ext-edit-panel">
     <div class="ext-edit-icon">📝</div>
@@ -206,8 +206,8 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(name, ".md") {
 		viewURL = strings.TrimSuffix(name, ".md") + ".html"
 	}
-	waitBody := getExternalEditPageBody(name, viewURL)
-	compiledWait := compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
+	waitBody := a.getExternalEditPageBody(name, viewURL)
+	compiledWait := a.compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(compiledWait)
 }
 
@@ -254,7 +254,7 @@ func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
 
 	// Update Dynamic Precompile instantly
-	compiled := compilePage("QuickNotes", []byte(fullMarkdown))
+	compiled := a.compilePage("QuickNotes", []byte(fullMarkdown))
 	os.WriteFile(filepath.Join(a.StorageDir, "html", "QuickNotes.html"), compiled, 0644)
 
 	w.Write([]byte("Saved"))
@@ -300,7 +300,7 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 			newContent = a.ensureHeaderModified(newContent, "Incoming bookmarks")
 			os.WriteFile(path, []byte(newContent), 0644)
 			// Update Dynamic Precompile instantly
-			compiled := compilePage("Bookmarks", []byte(newContent))
+			compiled := a.compilePage("Bookmarks", []byte(newContent))
 			os.WriteFile(filepath.Join(a.StorageDir, "html", "Bookmarks.html"), compiled, 0644)
 		}
 	}
@@ -451,7 +451,7 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 
 			// Recompile Source HTML immediately to prevent caching delays
 			htmlPath := filepath.Join(a.StorageDir, "html", source+".html")
-			compiled := compilePage(source, []byte(content))
+			compiled := a.compilePage(source, []byte(content))
 			os.MkdirAll(filepath.Dir(htmlPath), 0755)
 			os.WriteFile(htmlPath, compiled, 0644)
 		}
@@ -484,7 +484,7 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 
 		htmlPath := filepath.Join(a.StorageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
 		os.MkdirAll(filepath.Dir(htmlPath), 0755)
-		compiled := compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))
+		compiled := a.compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))
 		os.WriteFile(htmlPath, compiled, 0644)
 
 	} else {
@@ -532,7 +532,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 
 	forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
 	if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
-		recompileMarkdownPage(name, mdPath, htmlPath, errMd)
+		a.recompileMarkdownPage(name, mdPath, htmlPath, errMd)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -545,7 +545,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 	}
 }
 
-func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
+func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 	if os.IsNotExist(errMd) {
 		embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 		if err == nil {
@@ -574,7 +574,7 @@ func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 				mdContent = []byte(updatedContent)
 			}
 		}
-		compiled := compilePage(name, mdContent)
+		compiled := a.compilePage(name, mdContent)
 		os.MkdirAll(filepath.Dir(htmlPath), 0755)
 		os.WriteFile(htmlPath, compiled, 0644)
 	}
@@ -583,7 +583,7 @@ func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 func (a *App) serveConfigPage(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html")
 	body := a.getConfigPageBody()
-	compiled := compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
+	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
 	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
 	w.Write([]byte(injected))
 }
@@ -612,9 +612,9 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 		rawContent = []byte{}
 	}
 	
-	escapedContent := htmlEscape(string(rawContent))
+	escapedContent := a.htmlEscape(string(rawContent))
 	customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
-	compiled := compilePageWithBody(relPath, rawContent, customBody)
+	compiled := a.compilePageWithBody(relPath, rawContent, customBody)
 	
 	scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
 	compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))

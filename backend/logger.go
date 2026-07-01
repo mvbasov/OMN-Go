@@ -28,7 +28,7 @@ func (l *JSLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func InitLoggerAndRoute() {
+func (a *App) InitLoggerAndRoute() {
 	log.SetOutput(&JSLogger{})
 	a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
 }

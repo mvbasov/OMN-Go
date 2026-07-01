@@ -120,7 +120,7 @@ func (fi *stableFileInfo) ModTime() time.Time {
 // Repository initialisation
 // ---------------------------------------------------------------
 
-func ensureGitignore() {
+func (a *App) ensureGitignore() {
 	gitignorePath := filepath.Join(a.StorageDir, ".gitignore")
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
 	gitignoreBase := `
@@ -155,7 +155,7 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
-		if initErr := manualGitInit(a.StorageDir); initErr != nil {
+		if initErr := a.manualGitInit(a.StorageDir); initErr != nil {
 			return nil, fmt.Errorf("manual init failed: %v", initErr)
 		}
 		repo, err = git.Open(storer, wtFS)
@@ -181,7 +181,7 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 	return repo, nil
 }
 
-func manualGitInit(dir string) error {
+func (a *App) manualGitInit(dir string) error {
 	gitDir := filepath.Join(dir, ".git")
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
 		return err
@@ -195,7 +195,7 @@ func manualGitInit(dir string) error {
 	if err := os.MkdirAll(filepath.Join(gitDir, "objects"), 0755); err != nil {
 		return err
 	}
-	protectGitDirs()
+	a.protectGitDirs()
 
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
@@ -204,8 +204,8 @@ func manualGitInit(dir string) error {
 	return nil
 }
 
-// loadGitignoreMatcher returns a matcher for the worktree's .gitignore patterns.
-func loadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, error) {
+// a.loadGitignoreMatcher returns a matcher for the worktree's .gitignore patterns.
+func (a *App) loadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, error) {
 	patterns, err := gitignore.ReadPatterns(wt.Filesystem, []string{})
 	if err != nil {
 		return nil, err
@@ -217,8 +217,8 @@ func loadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, error) {
 // Manual staging (bypasses go‑git’s Add entirely)
 // ---------------------------------------------------------------
 
-// manualStageFile streams the file content into a new blob and updates the index.
-func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error {
+// a.manualStageFile streams the file content into a new blob and updates the index.
+func (a *App) manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error {
 	fullPath := filepath.Join(a.StorageDir, name)
 	stat, err := os.Lstat(fullPath)
 	if err != nil {
@@ -280,7 +280,7 @@ func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error 
 // SSH authentication
 // ---------------------------------------------------------------
 
-func getSSHAuth() (transport.AuthMethod, error) {
+func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 	sshUser := "git"
 	if idx := strings.Index(a.Config.GitServers[a.Config.ActiveGitIndex].URL, "@"); idx != -1 {
 		sshUser = a.Config.GitServers[a.Config.ActiveGitIndex].URL[:idx]
@@ -319,7 +319,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 
 func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, message string) (bool, error) {
 	// Load gitignore matcher
-	matcher, err := loadGitignoreMatcher(wTree)
+	matcher, err := a.loadGitignoreMatcher(wTree)
 	if err != nil {
 		log.Printf("[sync] Warning: could not load .gitignore: %v", err)
 		matcher = gitignore.NewMatcher(nil) // no ignore
@@ -360,7 +360,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 			}
 		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
 			log.Printf("[sync] Staging file: %s", name)
-			if err := manualStageFile(repo, wTree, name); err != nil {
+			if err := a.manualStageFile(repo, wTree, name); err != nil {
 				log.Printf("[sync] Warning: manual staging failed for %s: %v", name, err)
 			} else {
 				log.Printf("[sync] Staged %s successfully", name)
@@ -375,7 +375,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 	}
 
 	log.Printf("[sync] Committing staged changes")
-	authorName := GetConfigAuthor()
+	authorName := a.GetConfigAuthor()
 	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 	sig := &object.Signature{
 		Name:  authorName,
@@ -402,7 +402,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 // Sync operations (download / upload)
 // ---------------------------------------------------------------
 
-func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
+func (a *App) executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
 	if force {
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
 
@@ -410,7 +410,7 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 			tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
-			ensureGitignore()
+			a.ensureGitignore()
 		}
 
 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
@@ -465,7 +465,7 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 	return nil
 }
 
-func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bool) error {
+func (a *App) executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bool) error {
 	log.Printf("[sync] Pushing to origin master (Force: %v)", force)
 	err := repo.Push(&git.PushOptions{
 		RemoteName: "origin",
@@ -488,7 +488,7 @@ func (a *App) SyncRepo(action string) error {
 	if err != nil {
 		return err
 	}
-	auth, err := getSSHAuth()
+	auth, err := a.getSSHAuth()
         if err != nil {
                 return err
         }
@@ -653,7 +653,7 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matcher, err := loadGitignoreMatcher(wTree)
+	matcher, err := a.loadGitignoreMatcher(wTree)
 	if err != nil {
 		matcher = gitignore.NewMatcher(nil)
 	}
@@ -686,14 +686,14 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 // Utilities
 // ---------------------------------------------------------------
 
-func GetConfigAuthor() string {
+func (a *App) GetConfigAuthor() string {
 	if a.Config.Author != "" {
 		return a.Config.Author
 	}
 	return "OMN-Go User"
 }
 
-func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
+func (a *App) GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
 	publicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
 	if err != nil {
 		return nil, err
@@ -705,7 +705,7 @@ func GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod,
 }
 
 // Prevent Android media scanner delete critical empty directoryes
-func protectGitDirs() {
+func (a *App) protectGitDirs() {
     if runtime.GOOS != "android" {
         return
     }
@@ -713,7 +713,7 @@ func protectGitDirs() {
     for _, dir := range []string{"objects"} {
         p := filepath.Join(a.StorageDir, ".git", dir)
         if err := os.MkdirAll(p, 0755); err != nil {
-            log.Printf("[protectGitDirs] MkdirAll %s failed: %v", p, err)
+            log.Printf("[a.protectGitDirs] MkdirAll %s failed: %v", p, err)
             continue
         }
         keepFile := filepath.Join(p, ".gitkeep")
