@@ -488,7 +488,10 @@ func SyncRepo(action string) error {
 	if err != nil {
 		return err
 	}
-	auth := getSSHAuth()
+	auth, err := getSSHAuth()
+        if err != nil {
+                return err
+        }
 
 	if action == "push" {
 		err = r.Push(&git.PushOptions{
