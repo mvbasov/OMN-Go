@@ -479,6 +479,111 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 	return nil
 }
 
+func SyncRepo(action string) error {
+	r, err := getOrInitRepo()
+	if err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	auth := getSSHAuth()
+
+	if action == "push" {
+		err = r.Push(&git.PushOptions{
+			RemoteName: "origin",
+			Auth:       auth,
+		})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
+			return err
+		}
+		return nil
+	}
+
+	if strings.HasPrefix(action, "pull") {
+		// Force fetch to guarantee we have the remote tree locally
+		err = r.Fetch(&git.FetchOptions{
+			RemoteName: "origin",
+			Auth:       auth,
+			Force:      true,
+		})
+		if err != nil && err != git.NoErrAlreadyUpToDate {
+			log.Printf("[sync] Fetch info: %v", err)
+		}
+
+		remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+		if err != nil {
+			return fmt.Errorf("remote master not found: %v", err)
+		}
+
+		if action == "pull" || action == "pull_ff" {
+			err = w.Pull(&git.PullOptions{
+				RemoteName: "origin",
+				Auth:       auth,
+				Force:      false,
+			})
+			if err == git.ErrNonFastForwardUpdate || err == git.ErrUnstagedChanges {
+				return fmt.Errorf("CONFLICT_DETECTED")
+			}
+			if err != nil && err != git.NoErrAlreadyUpToDate {
+				return err
+			}
+			return nil
+		}
+
+		if action == "pull_force" {
+			// Force Merge to Remote State (Safely overwrites tracked, ignores/keeps untracked)
+			ref := plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())
+			err = r.Storer.SetReference(ref)
+			if err != nil {
+				return err
+			}
+
+			err = w.Checkout(&git.CheckoutOptions{
+				Branch: plumbing.ReferenceName("refs/heads/master"),
+				Force:  true,
+			})
+			return err
+		}
+
+		if action == "pull_mark" {
+			// Inject Merge Conflict Markers
+			remoteCommit, _ := r.CommitObject(remoteRef.Hash())
+			remoteTree, _ := remoteCommit.Tree()
+			status, _ := w.Status()
+
+			for path, fileStatus := range status {
+				if fileStatus.Worktree == git.Modified || fileStatus.Staging == git.Modified {
+					file, err := w.Filesystem.Open(path)
+					if err != nil {
+						continue
+					}
+					localContent, _ := io.ReadAll(file)
+					file.Close()
+
+					remoteFile, err := remoteTree.File(path)
+					if err == nil {
+						remoteContentStr, _ := remoteFile.Contents()
+						if string(localContent) != remoteContentStr {
+							conflictText := fmt.Sprintf("<<<<<<< LOCAL (Your changes)\\n%s=======\\n%s>>>>>>> REMOTE (Incoming from origin)\\n", string(localContent), remoteContentStr)
+							outFile, err := w.Filesystem.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
+							if err == nil {
+								outFile.Write([]byte(conflictText))
+								outFile.Close()
+							}
+						}
+					}
+				}
+			}
+			// Reset index to remote hash to allow user to resolve and commit
+			w.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.MixedReset})
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown sync action: %s", action)
+}
+
 // ---------------------------------------------------------------
 // HTTP handler
 // ---------------------------------------------------------------
