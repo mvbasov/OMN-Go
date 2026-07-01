@@ -111,5 +111,59 @@
     <!-- Small Version Footer -->
     <!-- version footer now inline in #status -->
 
+
+<!-- OMN-Go Sync Conflict Modal -->
+<div id="conflict-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" style="background-color: rgba(0,0,0,0.7);">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl text-black dark:text-white max-w-sm w-full mx-4 border border-gray-600">
+        <h3 class="text-xl font-bold mb-4 border-b border-gray-300 dark:border-gray-600 pb-2">⚠️ Merge Conflict</h3>
+        <p class="mb-4 text-sm text-gray-700 dark:text-gray-300">Local changes conflict with the remote repository. Please choose how to resolve this:</p>
+        <button onclick="window.performSync('pull_force')" class="w-full mb-3 bg-red-500 hover:bg-red-600 text-white font-bold p-3 rounded transition-colors shadow">
+            Force Merge to Remote<br><span class="text-xs font-normal opacity-80">(Overwrites tracked files, keeps untracked safe)</span>
+        </button>
+        <button onclick="window.performSync('pull_mark')" class="w-full mb-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold p-3 rounded transition-colors shadow">
+            Mark Conflicts in Files<br><span class="text-xs font-normal opacity-80">(Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; for manual fixing)</span>
+        </button>
+        <button onclick="window.performSync('abort')" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold p-3 rounded transition-colors shadow">
+            Abort Operation
+        </button>
+    </div>
+</div>
+<script>
+window.performSync = async function(action = 'pull') {
+    const modal = document.getElementById('conflict-modal');
+    if (action === 'abort') {
+        if (modal) modal.classList.add('hidden');
+        return;
+    }
+    if (modal) modal.classList.add('hidden');
+    
+    console.log('[sync] Executing:', action);
+    try {
+        const res = await fetch(`/api/sync?action=${action}`);
+        const data = await res.json();
+        
+        if (data.status === 'conflict') {
+            if (modal) {
+                modal.classList.remove('hidden');
+            } else {
+                const choice = confirm("Conflict! OK to Force Pull (Keep Untracked), Cancel to Mark Files.");
+                if (choice) window.performSync('pull_force');
+                else window.performSync('pull_mark');
+            }
+        } else if (data.status === 'success') {
+            console.log('[sync] Success');
+            if (action === 'pull_force' || action === 'pull_mark') {
+                location.reload();
+            } else if (action === 'pull' || action === 'pull_ff') {
+                console.log('Sync Complete!');
+            }
+        } else {
+            alert('Sync failed: ' + data.message);
+        }
+    } catch (e) {
+        alert('Sync Error: ' + e);
+    }
+};
+</script>
 </body>
 </html>

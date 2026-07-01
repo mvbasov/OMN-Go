@@ -484,73 +484,37 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 // ---------------------------------------------------------------
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[sync] Request received")
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
+	action := r.URL.Query().Get("action")
+	if action == "" {
+		action = "pull"
 	}
 
-	if appConfig.GitServers[appConfig.ActiveGitIndex].URL == "" {
-		log.Printf("[sync] Error: sync_remote not configured")
-		http.Error(w, "Sync not configured: missing sync_remote in config.json", 500)
-		return
-	}
+	// Ensure local changes are committed before attempting to sync to prevent floating state
+	commitLocalChanges()
 
-	log.Printf("[sync] Remote: %s", appConfig.GitServers[appConfig.ActiveGitIndex].URL)
-
-	ensureGitignore()
-
-	repo, err := getOrInitRepo()
+	err := SyncRepo(action)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+		if err.Error() == "CONFLICT_DETECTED" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status":"conflict","message":"Merge conflict detected."}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%v"}`, err)))
 		return
 	}
 
-	auth, err := getSSHAuth()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("SSH auth failed: %v", err), 500)
-		return
-	}
-
-	wTree, _ := repo.Worktree()
-
-	action := r.FormValue("action")
-	force := r.FormValue("force") == "true"
-
-	commitMsg := "Local changes before sync"
-	if action == "upload" {
-		commitMsg = r.FormValue("message")
-		if commitMsg == "" {
-			http.Error(w, "Commit message required for upload", 400)
+	if action == "pull" || action == "pull_force" || action == "pull_mark" {
+		err = SyncRepo("push")
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"Pull succeeded, but Push failed: %v"}`, err)))
 			return
 		}
 	}
-	committed, err := commitLocalChanges(repo, wTree, commitMsg)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Commit failed: %v", err), 500)
-		return
-	}
-	if !committed && action == "upload" {
-		w.Write([]byte("Nothing to push"))
-		return
-	}
 
-	if action == "download" {
-		if err := executeSyncDownload(repo, wTree, auth, force); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-	} else if action == "upload" {
-		if err := executeSyncUpload(repo, auth, force); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-	} else {
-		http.Error(w, "Invalid action. Use 'upload' or 'download'.", 400)
-		return
-	}
-
-	w.Write([]byte("Sync action completed successfully."))
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"success"}`))
 }
 
 func handleSyncPreview(w http.ResponseWriter, r *http.Request) {
