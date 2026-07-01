@@ -15,9 +15,9 @@ func isLocalConnection(r *http.Request) bool {
 
 func connectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		activeConns++
+		a.ActiveConns++
 		next.ServeHTTP(w, r)
-		activeConns--
+		a.ActiveConns--
 	})
 }
 

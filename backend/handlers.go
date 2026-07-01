@@ -16,21 +16,21 @@ import (
 	"time"
 )
 
-func getConfigPageBody() string {
+func (a *App) getConfigPageBody() string {
 	// Redundant safety lock to ensure UI generation never crashes
-	for len(appConfig.GitServers) < 5 {
-		appConfig.GitServers = append(appConfig.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(appConfig.GitServers)+1)})
+	for len(a.Config.GitServers) < 5 {
+		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
 	}
 
 	checkedStr := ""
-	if appConfig.UseInternalEd {
+	if a.Config.UseInternalEd {
 		checkedStr = "checked"
 	}
 
 	gitHTML := "<h3>Git Servers</h3>"
-	for i, gs := range appConfig.GitServers {
+	for i, gs := range a.Config.GitServers {
 		checked := ""
-		if appConfig.ActiveGitIndex == i {
+		if a.Config.ActiveGitIndex == i {
 			checked = "checked"
 	}
 		gitHTML += fmt.Sprintf(`
@@ -79,11 +79,11 @@ func getConfigPageBody() string {
         %s
 
         <div class="config-field" style="margin-top: 20px;">
-            <button type="button" class="btn-primary" onclick="saveConfig()">Save Configuration</button>
+            <button type="button" class="btn-primary" onclick="a.saveConfig()">Save Configuration</button>
         </div>
     </form>
 </div>
-`, appConfig.ServerPort, appConfig.AdminPassword, appConfig.GuestPassword, appConfig.Author, checkedStr, appConfig.DesktopExtCmd, gitHTML)
+`, a.Config.ServerPort, a.Config.AdminPassword, a.Config.GuestPassword, a.Config.Author, checkedStr, a.Config.DesktopExtCmd, gitHTML)
 }
 
 func getExternalEditPageBody(fileName string, viewURL string) string {
@@ -98,13 +98,13 @@ func getExternalEditPageBody(fileName string, viewURL string) string {
         Press after edit to refresh view
     </button>
 </div>
-`, appConfig.DesktopExtCmd, fileName, viewURL)
+`, a.Config.DesktopExtCmd, fileName, viewURL)
 }
 
-func handleConfig(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(appConfig)
+		json.NewEncoder(w).Encode(a.Config)
 		return
 	}
 	if r.Method == "POST" {
@@ -112,19 +112,19 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 		var port int
 		fmt.Sscanf(portStr, "%d", &port)
 		if port > 0 {
-			appConfig.ServerPort = port
+			a.Config.ServerPort = port
 		}
-		appConfig.AdminPassword = r.FormValue("admin_password")
-		appConfig.GuestPassword = r.FormValue("guest_password")
-		appConfig.Author = r.FormValue("author")
-		appConfig.UseInternalEd = r.FormValue("use_internal_editor") == "true"
-		appConfig.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+		a.Config.AdminPassword = r.FormValue("admin_password")
+		a.Config.GuestPassword = r.FormValue("guest_password")
+		a.Config.Author = r.FormValue("author")
+		a.Config.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+		a.Config.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
 		// Apply active git index from radio selection
 		if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 			var idx int
 			fmt.Sscanf(idxStr, "%d", &idx)
-			if idx >= 0 && idx < len(appConfig.GitServers) {
-				appConfig.ActiveGitIndex = idx
+			if idx >= 0 && idx < len(a.Config.GitServers) {
+				a.Config.ActiveGitIndex = idx
 			}
 		}
 		// Update all 5 git server slots
@@ -135,15 +135,15 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
 			// update fields if any non‑empty value is supplied (allows clearing)
 			if name != "" || url != "" || keyData != "" || pass != "" {
-				appConfig.GitServers[i].Name = name
-				appConfig.GitServers[i].URL = url
-				appConfig.GitServers[i].SSHKeyData = keyData
-				appConfig.GitServers[i].Password = pass
+				a.Config.GitServers[i].Name = name
+				a.Config.GitServers[i].URL = url
+				a.Config.GitServers[i].SSHKeyData = keyData
+				a.Config.GitServers[i].Password = pass
 			}
 		}
 
-		data, _ := json.MarshalIndent(appConfig, "", "  ")
-		configPath := filepath.Join(storageDir, "config.json")
+		data, _ := json.MarshalIndent(a.Config, "", "  ")
+		configPath := filepath.Join(a.StorageDir, "config.json")
 		os.WriteFile(configPath, data, 0644)
 		w.Write([]byte("Saved"))
 		return
@@ -151,7 +151,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }
 
-func handleEditExternal(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
 		http.Error(w, "Missing name", http.StatusBadRequest)
@@ -166,13 +166,13 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 
 	var filePath string
 	if strings.HasSuffix(name, ".md") {
-		filePath = filepath.Join(storageDir, "md", filepath.Clean(name))
+		filePath = filepath.Join(a.StorageDir, "md", filepath.Clean(name))
 	} else {
-		filePath = filepath.Join(storageDir, "html", filepath.Clean(name))
+		filePath = filepath.Join(a.StorageDir, "html", filepath.Clean(name))
 	}
 
 	var cmd *exec.Cmd
-	cmdStr := strings.TrimSpace(appConfig.DesktopExtCmd)
+	cmdStr := strings.TrimSpace(a.Config.DesktopExtCmd)
 
 	if cmdStr == "" {
 		switch runtime.GOOS {
@@ -211,12 +211,12 @@ func handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	w.Write(compiledWait)
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 	pwd := r.FormValue("password")
 	role := ""
-	if pwd == appConfig.AdminPassword {
+	if pwd == a.Config.AdminPassword {
 		role = "admin"
-	} else if pwd == appConfig.GuestPassword {
+	} else if pwd == a.Config.GuestPassword {
 		role = "guest"
 	}
 
@@ -228,12 +228,12 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleQuickNote(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	note := r.FormValue("note")
 	if note == "" {
 		return
 	}
-	path := filepath.Join(storageDir, "md", "QuickNotes.md")
+	path := filepath.Join(a.StorageDir, "md", "QuickNotes.md")
 	data, _ := os.ReadFile(path)
 	lines := strings.Split(string(data), "\n")
 
@@ -250,23 +250,23 @@ func handleQuickNote(w http.ResponseWriter, r *http.Request) {
 
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
-	fullMarkdown = ensureHeaderModified(fullMarkdown, "Quick Notes")
+	fullMarkdown = a.ensureHeaderModified(fullMarkdown, "Quick Notes")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
 
 	// Update Dynamic Precompile instantly
 	compiled := compilePage("QuickNotes", []byte(fullMarkdown))
-	os.WriteFile(filepath.Join(storageDir, "html", "QuickNotes.html"), compiled, 0644)
+	os.WriteFile(filepath.Join(a.StorageDir, "html", "QuickNotes.html"), compiled, 0644)
 
 	w.Write([]byte("Saved"))
 }
 
-func handleBookmark(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
 	title := r.FormValue("title")
 	tags := r.FormValue("tags")
 	notes := r.FormValue("notes")
 
-	path := filepath.Join(storageDir, "md", "Bookmarks.md")
+	path := filepath.Join(a.StorageDir, "md", "Bookmarks.md")
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
 	tagsList := []string{}
@@ -297,11 +297,11 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 		marker := "<!-- Don't edit body below this line -->"
 		if strings.Contains(content, marker) {
 			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
-			newContent = ensureHeaderModified(newContent, "Incoming bookmarks")
+			newContent = a.ensureHeaderModified(newContent, "Incoming bookmarks")
 			os.WriteFile(path, []byte(newContent), 0644)
 			// Update Dynamic Precompile instantly
 			compiled := compilePage("Bookmarks", []byte(newContent))
-			os.WriteFile(filepath.Join(storageDir, "html", "Bookmarks.html"), compiled, 0644)
+			os.WriteFile(filepath.Join(a.StorageDir, "html", "Bookmarks.html"), compiled, 0644)
 		}
 	}
 	w.Write([]byte("Saved"))
@@ -310,7 +310,7 @@ func handleBookmark(w http.ResponseWriter, r *http.Request) {
 // writeTreeFromDir recursively creates a sorted git tree object from the given directory.
 // It skips .git and .gitignore, and ensures entries are sorted by name.
 
-func handleUpload(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10MB
 	file, header, err := r.FormFile("image")
 	if err != nil {
@@ -319,7 +319,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	imgDir := filepath.Join(storageDir, "html", "images")
+	imgDir := filepath.Join(a.StorageDir, "html", "images")
 	os.MkdirAll(imgDir, 0755)
 
 	destPath := filepath.Join(imgDir, header.Filename)
@@ -330,7 +330,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write(fmt.Appendf(nil, "![%s]({filename}/images/%s)", header.Filename, header.Filename))
 }
 
-func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 << 20) // 10MB
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -339,7 +339,7 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	jsonDir := filepath.Join(storageDir, "html", "user_json")
+	jsonDir := filepath.Join(a.StorageDir, "html", "user_json")
 	os.MkdirAll(jsonDir, 0755)
 
 	destPath := filepath.Join(jsonDir, header.Filename)
@@ -350,7 +350,7 @@ func handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	w.Write(fmt.Appendf(nil, "[%s]({filename}/user_json/%s)", header.Filename, header.Filename))
 }
 
-func handleGetNote(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
 		name = "Welcome"
@@ -365,7 +365,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(cleanName, ".md") {
 			cleanName += ".md"
 		}
-		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
+		path = filepath.Join(a.StorageDir, "md", filepath.Clean(cleanName))
 		data, err = os.ReadFile(path)
 		if err != nil {
 			embedPath := "frontend/md/" + cleanName
@@ -374,8 +374,8 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
 				authorLine := ""
-				if appConfig.Author != "" {
-					authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+				if a.Config.Author != "" {
+					authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
 				}
 				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", title, timestamp, authorLine)
 				os.MkdirAll(filepath.Dir(path), 0755)
@@ -387,7 +387,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		path = filepath.Join(storageDir, "html", filepath.Clean(name))
+		path = filepath.Join(a.StorageDir, "html", filepath.Clean(name))
 		data, err = os.ReadFile(path)
 		if err != nil {
 			http.Error(w, "File not found", http.StatusNotFound)
@@ -397,7 +397,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func handleNewPage(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	source := r.FormValue("source")
 	target := r.FormValue("target")
 	title := r.FormValue("title")
@@ -409,11 +409,11 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().Format("2006-01-02 15:04:05")
 
-	targetMdPath := filepath.Join(storageDir, "md", target+".md")
+	targetMdPath := filepath.Join(a.StorageDir, "md", target+".md")
 	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
 		authorLine := ""
-		if appConfig.Author != "" {
-			authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+		if a.Config.Author != "" {
+			authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
 		}
 		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
 		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
@@ -421,7 +421,7 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if source != "" {
-		sourceMdPath := filepath.Join(storageDir, "md", source+".md")
+		sourceMdPath := filepath.Join(a.StorageDir, "md", source+".md")
 		sourceData, err := os.ReadFile(sourceMdPath)
 		if err == nil {
 			content := string(sourceData)
@@ -446,11 +446,11 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 				content = linkStr + "\n\n" + content
 			}
 
-			content = ensureHeaderModified(content, source)
+			content = a.ensureHeaderModified(content, source)
 			os.WriteFile(sourceMdPath, []byte(content), 0644)
 
 			// Recompile Source HTML immediately to prevent caching delays
-			htmlPath := filepath.Join(storageDir, "html", source+".html")
+			htmlPath := filepath.Join(a.StorageDir, "html", source+".html")
 			compiled := compilePage(source, []byte(content))
 			os.MkdirAll(filepath.Dir(htmlPath), 0755)
 			os.WriteFile(htmlPath, compiled, 0644)
@@ -460,7 +460,7 @@ func handleNewPage(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Created"))
 }
 
-func handleSaveNote(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	content := r.FormValue("content")
 	if name == "" {
@@ -475,20 +475,20 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(cleanName, ".md") {
 			cleanName += ".md"
 		}
-		path = filepath.Join(storageDir, "md", filepath.Clean(cleanName))
+		path = filepath.Join(a.StorageDir, "md", filepath.Clean(cleanName))
 
-		content = ensureHeaderModified(content, strings.TrimSuffix(cleanName, ".md"))
+		content = a.ensureHeaderModified(content, strings.TrimSuffix(cleanName, ".md"))
 
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
 
-		htmlPath := filepath.Join(storageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
+		htmlPath := filepath.Join(a.StorageDir, "html", strings.TrimSuffix(cleanName, ".md")+".html")
 		os.MkdirAll(filepath.Dir(htmlPath), 0755)
 		compiled := compilePage(strings.TrimSuffix(cleanName, ".md"), []byte(content))
 		os.WriteFile(htmlPath, compiled, 0644)
 
 	} else {
-		path = filepath.Join(storageDir, "html", filepath.Clean(name))
+		path = filepath.Join(a.StorageDir, "html", filepath.Clean(name))
 		os.MkdirAll(filepath.Dir(path), 0755)
 		os.WriteFile(path, []byte(content), 0644)
 	}
@@ -496,7 +496,7 @@ func handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Saved"))
 }
 
-func serveFrontend(w http.ResponseWriter, r *http.Request) {
+func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if path == "/" || path == "/index.html" {
 		http.Redirect(w, r, "/Welcome.html", http.StatusSeeOther)
@@ -504,28 +504,28 @@ func serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasSuffix(path, ".html") {
-		serveHTMLPage(w, r, path)
+		a.serveHTMLPage(w, r, path)
 		return
 	}
 
 	if r.URL.Query().Get("edit") == "true" {
-		serveEditor(w, r, path)
+		a.serveEditor(w, r, path)
 		return
 	}
 
-	serveStaticAsset(w, r, path)
+	a.serveStaticAsset(w, r, path)
 }
 
-func serveHTMLPage(w http.ResponseWriter, r *http.Request, path string) {
+func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string) {
 	name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
 
 	if name == "Config" {
-		serveConfigPage(w)
+		a.serveConfigPage(w)
 		return
 	}
 
-	htmlPath := filepath.Join(storageDir, "html", filepath.Clean(name+".html"))
-	mdPath := filepath.Join(storageDir, "md", filepath.Clean(name+".md"))
+	htmlPath := filepath.Join(a.StorageDir, "html", filepath.Clean(name+".html"))
+	mdPath := filepath.Join(a.StorageDir, "md", filepath.Clean(name+".md"))
 
 	htmlStat, errHtml := os.Stat(htmlPath)
 	mdStat, errMd := os.Stat(mdPath)
@@ -538,7 +538,7 @@ func serveHTMLPage(w http.ResponseWriter, r *http.Request, path string) {
 	w.Header().Set("Content-Type", "text/html")
 	data, err := os.ReadFile(htmlPath)
 	if err == nil {
-		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, appConfig.UseInternalEd), 1)
+		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
 		w.Write([]byte(injected))
 	} else {
 		http.ServeFile(w, r, htmlPath)
@@ -554,8 +554,8 @@ func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 		} else {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			authorLine := ""
-			if appConfig.Author != "" {
-				authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+			if a.Config.Author != "" {
+				authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
 			}
 			defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
 			os.MkdirAll(filepath.Dir(mdPath), 0755)
@@ -568,7 +568,7 @@ func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 		htmlStat, errHtml := os.Stat(htmlPath)
 		mdStat, errMd := os.Stat(mdPath)
 		if errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime()) {
-			updatedContent := ensureHeaderModified(string(mdContent), name)
+			updatedContent := a.ensureHeaderModified(string(mdContent), name)
 			if updatedContent != string(mdContent) {
 				os.WriteFile(mdPath, []byte(updatedContent), 0644)
 				mdContent = []byte(updatedContent)
@@ -580,18 +580,18 @@ func recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
 	}
 }
 
-func serveConfigPage(w http.ResponseWriter) {
+func (a *App) serveConfigPage(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html")
-	body := getConfigPageBody()
+	body := a.getConfigPageBody()
 	compiled := compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
-	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, appConfig.UseInternalEd), 1)
+	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
 	w.Write([]byte(injected))
 }
 
-func serveEditor(w http.ResponseWriter, r *http.Request, path string) {
+func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	relPath := strings.TrimPrefix(path, "/")
 
-	if !appConfig.UseInternalEd {
+	if !a.Config.UseInternalEd {
 		http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
 		return
 	}
@@ -599,9 +599,9 @@ func serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	var filePath string
 	var rawContent []byte
 	if strings.HasSuffix(relPath, ".md") {
-		filePath = filepath.Join(storageDir, "md", filepath.Clean(relPath))
+		filePath = filepath.Join(a.StorageDir, "md", filepath.Clean(relPath))
 	} else {
-		filePath = filepath.Join(storageDir, "html", filepath.Clean(relPath))
+		filePath = filepath.Join(a.StorageDir, "html", filepath.Clean(relPath))
 	}
 	
 	if data, err := os.ReadFile(filePath); err == nil {
@@ -622,9 +622,9 @@ func serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	w.Write(compiled)
 }
 
-func serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
+func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
 	ext := strings.ToLower(filepath.Ext(path))
-	mimeType, exists := appConfig.MimeTypes[ext]
+	mimeType, exists := a.Config.MimeTypes[ext]
 	if !exists {
 		mimeType = mime.TypeByExtension(ext)
 	}
@@ -632,7 +632,7 @@ func serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
 		w.Header().Set("Content-Type", mimeType)
 	}
 
-	filePath := filepath.Join(storageDir, "html", filepath.Clean(path))
+	filePath := filepath.Join(a.StorageDir, "html", filepath.Clean(path))
 	if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
 		http.ServeFile(w, r, filePath)
 		return

@@ -121,7 +121,7 @@ func (fi *stableFileInfo) ModTime() time.Time {
 // ---------------------------------------------------------------
 
 func ensureGitignore() {
-	gitignorePath := filepath.Join(storageDir, ".gitignore")
+	gitignorePath := filepath.Join(a.StorageDir, ".gitignore")
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
 	gitignoreBase := `
 # OMN-Go sync ignore
@@ -138,10 +138,10 @@ config.json
 	}
 }
 
-func getOrInitRepo() (*git.Repository, error) {
-	log.Printf("[sync] Opening repo at %s", storageDir)
+func (a *App) getOrInitRepo() (*git.Repository, error) {
+	log.Printf("[sync] Opening repo at %s", a.StorageDir)
 
-	baseFS := osfs.New(storageDir)
+	baseFS := osfs.New(a.StorageDir)
 	stableFS := &stableMtimeFS{baseFS}
 	wtFS := &NoLockFS{stableFS}
 
@@ -155,7 +155,7 @@ func getOrInitRepo() (*git.Repository, error) {
 
 	if err != nil {
 		log.Printf("[sync] Repo not found, initializing...")
-		if initErr := manualGitInit(storageDir); initErr != nil {
+		if initErr := manualGitInit(a.StorageDir); initErr != nil {
 			return nil, fmt.Errorf("manual init failed: %v", initErr)
 		}
 		repo, err = git.Open(storer, wtFS)
@@ -172,7 +172,7 @@ func getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Remote origin missing, adding")
 		_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
 			Name: "origin",
-			URLs: []string{appConfig.GitServers[appConfig.ActiveGitIndex].URL},
+			URLs: []string{a.Config.GitServers[a.Config.ActiveGitIndex].URL},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("remote add failed: %v", err)
@@ -219,7 +219,7 @@ func loadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, error) {
 
 // manualStageFile streams the file content into a new blob and updates the index.
 func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error {
-	fullPath := filepath.Join(storageDir, name)
+	fullPath := filepath.Join(a.StorageDir, name)
 	stat, err := os.Lstat(fullPath)
 	if err != nil {
 		return err
@@ -282,12 +282,12 @@ func manualStageFile(repo *git.Repository, wt *git.Worktree, name string) error 
 
 func getSSHAuth() (transport.AuthMethod, error) {
 	sshUser := "git"
-	if idx := strings.Index(appConfig.GitServers[appConfig.ActiveGitIndex].URL, "@"); idx != -1 {
-		sshUser = appConfig.GitServers[appConfig.ActiveGitIndex].URL[:idx]
+	if idx := strings.Index(a.Config.GitServers[a.Config.ActiveGitIndex].URL, "@"); idx != -1 {
+		sshUser = a.Config.GitServers[a.Config.ActiveGitIndex].URL[:idx]
 	}
 	log.Printf("[sync] SSH user: %s", sshUser)
 
-	keyData := appConfig.GitServers[appConfig.ActiveGitIndex].SSHKeyData
+	keyData := a.Config.GitServers[a.Config.ActiveGitIndex].SSHKeyData
 	if keyData == "" {
 		log.Printf("[sync] Error: No SSH key configured")
 		return nil, fmt.Errorf("no SSH key configured")
@@ -295,7 +295,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 
 	var signer cryptossh.Signer
 	var err error
-	passphrase := appConfig.GitServers[appConfig.ActiveGitIndex].Password
+	passphrase := a.Config.GitServers[a.Config.ActiveGitIndex].Password
 	if passphrase == "" {
 		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
 	} else {
@@ -317,7 +317,7 @@ func getSSHAuth() (transport.AuthMethod, error) {
 // Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
-func commitLocalChanges(repo *git.Repository, wTree *git.Worktree, message string) (bool, error) {
+func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, message string) (bool, error) {
 	// Load gitignore matcher
 	matcher, err := loadGitignoreMatcher(wTree)
 	if err != nil {
@@ -407,7 +407,7 @@ func executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transpo
 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
 
 		if runtime.GOOS == "android" {
-			tmpDir := filepath.Join(storageDir, ".git", "tmp")
+			tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
 			os.MkdirAll(tmpDir, 0755)
 			os.Setenv("TMPDIR", tmpDir)
 			ensureGitignore()
@@ -479,8 +479,8 @@ func executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bo
 	return nil
 }
 
-func SyncRepo(action string) error {
-	r, err := getOrInitRepo()
+func (a *App) SyncRepo(action string) error {
+	r, err := a.getOrInitRepo()
 	if err != nil {
 		return err
 	}
@@ -591,22 +591,22 @@ func SyncRepo(action string) error {
 // HTTP handler
 // ---------------------------------------------------------------
 
-func handleSync(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 	action := r.URL.Query().Get("action")
 	if action == "" {
 		action = "pull"
 	}
 
 	// Ensure local changes are committed before attempting to sync
-	repo, err := getOrInitRepo()
+	repo, err := a.getOrInitRepo()
 	if err == nil {
 		wt, err := repo.Worktree()
 		if err == nil {
-			commitLocalChanges(repo, wt, "Auto-commit before sync")
+			a.commitLocalChanges(repo, wt, "Auto-commit before sync")
 		}
 	}
 
-	err = SyncRepo(action)
+	err = a.SyncRepo(action)
 	if err != nil {
 		if err.Error() == "CONFLICT_DETECTED" {
 			w.Header().Set("Content-Type", "application/json")
@@ -619,7 +619,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if action == "pull" || action == "pull_force" || action == "pull_mark" {
-		err = SyncRepo("push")
+		err = a.SyncRepo("push")
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"Pull succeeded, but Push failed: %v"}`, err)))
@@ -631,7 +631,7 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"success"}`))
 }
 
-func handleSyncPreview(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method Not Allowed", 405)
 		return
@@ -642,7 +642,7 @@ func handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo, err := getOrInitRepo()
+	repo, err := a.getOrInitRepo()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
 		return
@@ -687,8 +687,8 @@ func handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------
 
 func GetConfigAuthor() string {
-	if appConfig.Author != "" {
-		return appConfig.Author
+	if a.Config.Author != "" {
+		return a.Config.Author
 	}
 	return "OMN-Go User"
 }
@@ -711,7 +711,7 @@ func protectGitDirs() {
     }
     //for _, dir := range []string{"objects", "refs"} {
     for _, dir := range []string{"objects"} {
-        p := filepath.Join(storageDir, ".git", dir)
+        p := filepath.Join(a.StorageDir, ".git", dir)
         if err := os.MkdirAll(p, 0755); err != nil {
             log.Printf("[protectGitDirs] MkdirAll %s failed: %v", p, err)
             continue

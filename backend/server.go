@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"sync"
 	"embed"
 	"fmt"
 	"log"
@@ -12,15 +13,30 @@ import (
 	"strings"
 )
 
+
+// App encapsulates the global state for the backend
+type App struct {
+	Config      *Config
+	StorageDir  string
+	ActiveConns int64
+	ConnMutex   sync.Mutex
+	GitMutex    sync.Mutex
+	Router      *http.ServeMux
+}
+
 //go:embed frontend/index.html
 var frontendHTML []byte
 
 //go:embed frontend/html frontend/md
 var staticFS embed.FS
 
-var activeConns int
+var a.ActiveConns int
 
 func StartServer() {
+	a := &App{
+		Router: http.NewServeMux(),
+	}
+
 	initStorage() // Execute synchronously to ensure config is loaded instantly
 
 	// Fallback MIME types for minimal Docker containers
@@ -45,11 +61,11 @@ func StartServer() {
 		mux := http.NewServeMux()
 		// Initialize logger to stream Go logs to the frontend via SSE
 		log.SetOutput(&JSLogger{})
-		mux.HandleFunc("/api/logs", HandleLogsSSE)
-		mux.HandleFunc("/", serveFrontend)
+		mux.HandleFunc("/api/logs", a.HandleLogsSSE)
+		mux.HandleFunc("/", a.serveFrontend)
 
 		serveLazyEmbed := func() http.Handler {
-			physicalDir := filepath.Join(storageDir, "html")
+			physicalDir := filepath.Join(a.StorageDir, "html")
 			fsHandler := http.FileServer(http.Dir(physicalDir))
 
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +86,7 @@ func StartServer() {
 					relPath := strings.TrimPrefix(r.URL.Path, "/")
 
 					// Honour external editor preference
-					if !appConfig.UseInternalEd {
+					if !a.Config.UseInternalEd {
 						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
 						return
 					}
@@ -104,7 +120,7 @@ func StartServer() {
 
 		// Config for files handling Content-type by served directories
 		serveStorageDir := func(subDir, cType string) http.Handler {
-			dirPath := filepath.Join(storageDir, "html", subDir)
+			dirPath := filepath.Join(a.StorageDir, "html", subDir)
 			os.MkdirAll(dirPath, 0755)
 			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,24 +134,24 @@ func StartServer() {
 		mux.Handle("/images/", serveStorageDir("images", ""))
 		mux.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
 
-		mux.HandleFunc("/login", handleLogin)
-		mux.HandleFunc("/api/quick", authMiddleware(handleQuickNote, true))
-		mux.HandleFunc("/api/bookmark", authMiddleware(handleBookmark, true))
-		mux.HandleFunc("/api/upload", authMiddleware(handleUpload, true))
-		mux.HandleFunc("/api/upload_json", authMiddleware(handleUploadJSON, true))
-		mux.HandleFunc("/api/note", handleGetNote)
-		mux.HandleFunc("/api/save", authMiddleware(handleSaveNote, true))
-		mux.HandleFunc("/api/newpage", authMiddleware(handleNewPage, true))
-		mux.HandleFunc("/api/config", authMiddleware(handleConfig, true))
-		mux.HandleFunc("/api/sync", authMiddleware(handleSync, true))
-		mux.HandleFunc("/api/sync/preview", authMiddleware(handleSyncPreview, true))
-		mux.HandleFunc("/api/edit-external", authMiddleware(handleEditExternal, true))
+		mux.HandleFunc("/login", a.handleLogin)
+		mux.HandleFunc("/api/quick", authMiddleware(a.handleQuickNote, true))
+		mux.HandleFunc("/api/bookmark", authMiddleware(a.handleBookmark, true))
+		mux.HandleFunc("/api/upload", authMiddleware(a.handleUpload, true))
+		mux.HandleFunc("/api/upload_json", authMiddleware(a.handleUploadJSON, true))
+		mux.HandleFunc("/api/note", a.handleGetNote)
+		mux.HandleFunc("/api/save", authMiddleware(a.handleSaveNote, true))
+		mux.HandleFunc("/api/newpage", authMiddleware(a.handleNewPage, true))
+		mux.HandleFunc("/api/config", authMiddleware(a.handleConfig, true))
+		mux.HandleFunc("/api/sync", authMiddleware(a.handleSync, true))
+		mux.HandleFunc("/api/sync/preview", authMiddleware(a.handleSyncPreview, true))
+		mux.HandleFunc("/api/edit-external", authMiddleware(a.handleEditExternal, true))
 
-		if appConfig.ServerPort <= 0 {
-			appConfig.ServerPort = 8080
+		if a.Config.ServerPort <= 0 {
+			a.Config.ServerPort = 8080
 		}
 
-		bindAddr := fmt.Sprintf("0.0.0.0:%d", appConfig.ServerPort)
+		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
 
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
 		err := http.ListenAndServe(bindAddr, connectionMiddleware(mux))
@@ -147,7 +163,7 @@ func StartServer() {
 
 // GetServerPort safely exposes the configured port for frontend wrappers
 func GetServerPort() int {
-	return appConfig.ServerPort
+	return a.Config.ServerPort
 }
 
 // autoGitIgnore safely appends extracted cache files to .gitignore

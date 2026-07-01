@@ -30,10 +30,10 @@ func (l *JSLogger) Write(p []byte) (n int, err error) {
 
 func InitLoggerAndRoute() {
 	log.SetOutput(&JSLogger{})
-	http.HandleFunc("/api/logs", HandleLogsSSE)
+	a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
 }
 
-func HandleLogsSSE(w http.ResponseWriter, r *http.Request) {
+func (a *App) HandleLogsSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

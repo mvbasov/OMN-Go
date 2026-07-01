@@ -8,28 +8,26 @@ import (
 	"strings"
 )
 
-var storageDir string
-
 func initStorage() {
 	if runtime.GOOS == "android" {
-		storageDir = "/storage/emulated/0/Android/media/net.basov.omngo"
+		a.StorageDir = "/storage/emulated/0/Android/media/net.basov.omngo"
 	} else {
-		storageDir = "./data"
+		a.StorageDir = "./data"
 	}
 
 	// 1. Create Isolated Storage
-	if err := os.MkdirAll(storageDir, 0755); err != nil {
+	if err := os.MkdirAll(a.StorageDir, 0755); err != nil {
 		log.Printf("Failed to create storage: %v", err)
 	}
 
-	mdDir := filepath.Join(storageDir, "md")
+	mdDir := filepath.Join(a.StorageDir, "md")
 	os.MkdirAll(mdDir, 0755)
 
-	htmlDir := filepath.Join(storageDir, "html")
+	htmlDir := filepath.Join(a.StorageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
 	// Migrate legacy root md files recursively
-	files, _ := filepath.Glob(filepath.Join(storageDir, "*.md"))
+	files, _ := filepath.Glob(filepath.Join(a.StorageDir, "*.md"))
 	for _, f := range files {
 		os.Rename(f, filepath.Join(mdDir, filepath.Base(f)))
 	}
@@ -37,7 +35,7 @@ func initStorage() {
 	// Migrate static directories inside html/
 	dirsToMove := []string{"images", "user_json", "css", "js", "json", "fonts"}
 	for _, d := range dirsToMove {
-		oldPath := filepath.Join(storageDir, d)
+		oldPath := filepath.Join(a.StorageDir, d)
 		newPath := filepath.Join(htmlDir, d)
 		if stat, err := os.Stat(oldPath); err == nil && stat.IsDir() {
 			os.Rename(oldPath, newPath)
@@ -45,7 +43,7 @@ func initStorage() {
 	}
 
 	// 2. Init Config
-	loadConfig(storageDir)
+	a.loadConfig(a.StorageDir)
 
 	// 3. Extract all embedded MD files first
 	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
@@ -108,8 +106,8 @@ Tags: Bookmarks
 }
 
 func precompileAllPages() {
-	mdDir := filepath.Join(storageDir, "md")
-	htmlDir := filepath.Join(storageDir, "html")
+	mdDir := filepath.Join(a.StorageDir, "md")
+	htmlDir := filepath.Join(a.StorageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
 	filepath.Walk(mdDir, func(f string, info os.FileInfo, err error) error {

@@ -1,309 +1,128 @@
 import os
 import re
 
-SYNC_REPO_GO = """func SyncRepo(action string) error {
-	r, err := getOrInitRepo()
-	if err != nil {
-		return err
-	}
-	w, err := r.Worktree()
-	if err != nil {
-		return err
-	}
-	auth := getSSHAuth()
+def patch_file(filepath, processor):
+    if not os.path.exists(filepath):
+        return False
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    new_content = processor(content)
+    if new_content != content:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f"[+] DI Patched: {filepath}")
+        return True
+    return False
 
-	if action == "push" {
-		err = r.Push(&git.PushOptions{
-			RemoteName: "origin",
-			Auth:       auth,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return err
-		}
-		return nil
-	}
+def bump_versions():
+    # Bump backend version
+    def process_version(content):
+        return re.sub(r'APP_VERSION\s*=\s*".*?"', 'APP_VERSION = "1.6.0"', content)
+    patch_file("backend/version.go", process_version)
 
-	if strings.HasPrefix(action, "pull") {
-		// Force fetch to guarantee we have the remote tree locally
-		err = r.Fetch(&git.FetchOptions{
-			RemoteName: "origin",
-			Auth:       auth,
-			Force:      true,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			log.Printf("[sync] Fetch info: %v", err)
-		}
+    # Bump Android gradle version
+    def process_gradle(content):
+        content = re.sub(r'versionCode\s+\d+', 'versionCode 10600', content)
+        content = re.sub(r'versionName\s+".*?"', 'versionName "1.6.0"', content)
+        return content
+    patch_file("android/app/build.gradle", process_gradle)
 
-		remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
-		if err != nil {
-			return fmt.Errorf("remote master not found: %v", err)
-		}
+def refactor_backend():
+    backend_dir = "backend"
+    if not os.path.exists(backend_dir):
+        print(f"[-] Directory {backend_dir} not found. Ensure you are in the project root.")
+        return
 
-		if action == "pull" || action == "pull_ff" {
-			err = w.Pull(&git.PullOptions{
-				RemoteName: "origin",
-				Auth:       auth,
-				Force:      false,
-			})
-			if err == git.ErrNonFastForwardUpdate || err == git.ErrUnstagedChanges {
-				return fmt.Errorf("CONFLICT_DETECTED")
-			}
-			if err != nil && err != git.NoErrAlreadyUpToDate {
-				return err
-			}
-			return nil
-		}
+    go_files = [f for f in os.listdir(backend_dir) if f.endswith(".go")]
 
-		if action == "pull_force" {
-			// Force Merge to Remote State (Safely overwrites tracked, ignores/keeps untracked)
-			ref := plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())
-			err = r.Storer.SetReference(ref)
-			if err != nil {
-				return err
-			}
-
-			err = w.Checkout(&git.CheckoutOptions{
-				Branch: plumbing.ReferenceName("refs/heads/master"),
-				Force:  true,
-			})
-			return err
-		}
-
-		if action == "pull_mark" {
-			// Inject Merge Conflict Markers
-			remoteCommit, _ := r.CommitObject(remoteRef.Hash())
-			remoteTree, _ := remoteCommit.Tree()
-			status, _ := w.Status()
-
-			for path, fileStatus := range status {
-				if fileStatus.Worktree == git.Modified || fileStatus.Staging == git.Modified {
-					file, err := w.Filesystem.Open(path)
-					if err != nil {
-						continue
-					}
-					localContent, _ := io.ReadAll(file)
-					file.Close()
-
-					remoteFile, err := remoteTree.File(path)
-					if err == nil {
-						remoteContentStr, _ := remoteFile.Contents()
-						if string(localContent) != remoteContentStr {
-							conflictText := fmt.Sprintf("<<<<<<< LOCAL (Your changes)\\n%s=======\\n%s>>>>>>> REMOTE (Incoming from origin)\\n", string(localContent), remoteContentStr)
-							outFile, err := w.Filesystem.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
-							if err == nil {
-								outFile.Write([]byte(conflictText))
-								outFile.Close()
-							}
-						}
-					}
-				}
-			}
-			// Reset index to remote hash to allow user to resolve and commit
-			w.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.MixedReset})
-			return nil
-		}
-	}
-	return fmt.Errorf("unknown sync action: %s", action)
-}"""
-
-HANDLE_SYNC_GO = """func handleSync(w http.ResponseWriter, r *http.Request) {
-	action := r.URL.Query().Get("action")
-	if action == "" {
-		action = "pull"
-	}
-
-	// Ensure local changes are committed before attempting to sync
-	repo, err := getOrInitRepo()
-	if err == nil {
-		wt, err := repo.Worktree()
-		if err == nil {
-			commitLocalChanges(repo, wt, "Auto-commit before sync")
-		}
-	}
-
-	err = SyncRepo(action)
-	if err != nil {
-		if err.Error() == "CONFLICT_DETECTED" {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"status":"conflict","message":"Merge conflict detected."}`))
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%v"}`, err)))
-		return
-	}
-
-	if action == "pull" || action == "pull_force" || action == "pull_mark" {
-		err = SyncRepo("push")
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"Pull succeeded, but Push failed: %v"}`, err)))
-			return
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"success"}`))
-}"""
-
-HTML_MODAL_INJECTION = """
-<!-- OMN-Go Sync Conflict Modal -->
-<div id="conflict-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50" style="background-color: rgba(0,0,0,0.7);">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl text-black dark:text-white max-w-sm w-full mx-4 border border-gray-600">
-        <h3 class="text-xl font-bold mb-4 border-b border-gray-300 dark:border-gray-600 pb-2">⚠️ Merge Conflict</h3>
-        <p class="mb-4 text-sm text-gray-700 dark:text-gray-300">Local changes conflict with the remote repository. Please choose how to resolve this:</p>
-        <button onclick="window.performSync('pull_force')" class="w-full mb-3 bg-red-500 hover:bg-red-600 text-white font-bold p-3 rounded transition-colors shadow">
-            Force Merge to Remote<br><span class="text-xs font-normal opacity-80">(Overwrites tracked files, keeps untracked safe)</span>
-        </button>
-        <button onclick="window.performSync('pull_mark')" class="w-full mb-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold p-3 rounded transition-colors shadow">
-            Mark Conflicts in Files<br><span class="text-xs font-normal opacity-80">(Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; for manual fixing)</span>
-        </button>
-        <button onclick="window.performSync('abort')" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold p-3 rounded transition-colors shadow">
-            Abort Operation
-        </button>
-    </div>
-</div>
-<script>
-window.performSync = async function(action = 'pull') {
-    const modal = document.getElementById('conflict-modal');
-    if (action === 'abort') {
-        if (modal) modal.classList.add('hidden');
-        return;
+    # 1. Seed known backend methods & utilities
+    target_funcs = {
+        "getConfigPageBody", "ensureHeaderModified", "loadConfig", "saveConfig",
+        "connectionCounter", "getOrInitRepo", "commitLocalChanges", "syncRepo",
+        "SyncRepo", "repairAndroidGitDirs"
     }
-    if (modal) modal.classList.add('hidden');
-    
-    console.log('[sync] Executing:', action);
-    try {
-        const res = await fetch(`/api/sync?action=${action}`);
-        const data = await res.json();
+
+    # 2. Dynamically discover all HTTP handlers across the backend
+    for filename in go_files:
+        filepath = os.path.join(backend_dir, filename)
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
         
-        if (data.status === 'conflict') {
-            if (modal) {
-                modal.classList.remove('hidden');
-            } else {
-                const choice = confirm("Conflict! OK to Force Pull (Keep Untracked), Cancel to Mark Files.");
-                if (choice) window.performSync('pull_force');
-                else window.performSync('pull_mark');
-            }
-        } else if (data.status === 'success') {
-            console.log('[sync] Success');
-            if (action === 'pull_force' || action === 'pull_mark') {
-                location.reload();
-            } else if (action === 'pull' || action === 'pull_ff') {
-                console.log('Sync Complete!');
-            }
-        } else {
-            alert('Sync failed: ' + data.message);
-        }
-    } catch (e) {
-        alert('Sync Error: ' + e);
-    }
-};
-</script>
-</body>"""
+        # Discover functions with http.ResponseWriter
+        handlers = re.findall(r'^func\s+([a-zA-Z0-9_]+)\([^)]*http\.ResponseWriter', content, re.MULTILINE)
+        target_funcs.update(handlers)
+        
+        # Discover functions prefixed with handle/serve
+        action_funcs = re.findall(r'^func\s+(handle[A-Za-z0-9_]+|serve[A-Za-z0-9_]+)\(', content, re.MULTILINE)
+        target_funcs.update(action_funcs)
 
-def replace_func_block(content, func_name, new_code):
-    # Added re.IGNORECASE to mathematically match syncRepo or SyncRepo
-    pattern = re.compile(r'func\s+' + func_name + r'\s*\([^)]*\)[^{]*{', re.IGNORECASE)
-    match = pattern.search(content)
-    if not match: return content
-    
-    start_idx = match.end() - 1
-    brace_count = 0
-    end_idx = -1
-    in_string = in_char = in_backtick = escape = False
-    
-    for i in range(start_idx, len(content)):
-        char = content[i]
-        if escape:
-            escape = False
-            continue
-        if char == '\\':
-            escape = True
-            continue
-        if char == '"' and not in_char and not in_backtick:
-            in_string = not in_string
-        elif char == "'" and not in_string and not in_backtick:
-            in_char = not in_char
-        elif char == '`' and not in_string and not in_char:
-            in_backtick = not in_backtick
-            
-        if in_string or in_char or in_backtick: continue
-            
-        if char == '{': brace_count += 1
-        elif char == '}':
-            brace_count -= 1
-            if brace_count == 0:
-                end_idx = i
-                break
+    # Exclude Go entrypoints
+    target_funcs -= {"StartServer", "init", "main"}
+
+    for filename in go_files:
+        filepath = os.path.join(backend_dir, filename)
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 3. Eliminate Global Variables natively
+        content = re.sub(r'(?m)^\s*appConfig\s+\*?Config\s*\n?', '', content)
+        content = re.sub(r'(?m)^\s*storageDir\s+string\s*\n?', '', content)
+        content = re.sub(r'(?m)^\s*activeConns\s+(?:int64|int32|int)\s*\n?', '', content)
+        content = re.sub(r'(?m)^\s*connMutex\s+sync\.Mutex\s*\n?', '', content)
+        content = re.sub(r'(?m)^\s*gitMutex\s+sync\.Mutex\s*\n?', '', content)
+        content = re.sub(r'(?m)^var\s+appConfig\s+\*?Config\s*\n?', '', content)
+        content = re.sub(r'(?m)^var\s+storageDir\s+string\s*\n?', '', content)
+        content = re.sub(r'(?m)^var\s*\(\s*\)\s*\n?', '', content) # Clean up empty var blocks
+
+        # 4. Inject App Struct into server.go
+        if filename == "server.go":
+            if "type App struct" not in content:
+                app_struct = "\n\n// App encapsulates the global state for the backend\ntype App struct {\n\tConfig      *Config\n\tStorageDir  string\n\tActiveConns int64\n\tConnMutex   sync.Mutex\n\tGitMutex    sync.Mutex\n\tRouter      *http.ServeMux\n}\n"
+                content = re.sub(r'(import \(\n(?:.*?\n)*?\)\n)', r'\1' + app_struct, content, count=1)
                 
-    if end_idx != -1:
-        return content[:match.start()] + new_code + content[end_idx+1:]
-    return content
+                # Ensure missing core dependencies are imported
+                if '"sync"' not in content:
+                    content = re.sub(r'import \(\n', 'import (\n\t"sync"\n', content, count=1)
+                if '"net/http"' not in content:
+                    content = re.sub(r'import \(\n', 'import (\n\t"net/http"\n', content, count=1)
 
-def ensure_imports(content, imports_to_add):
-    if not imports_to_add: return content
-    import_match = re.search(r'import\s+\((.*?)\)', content, re.DOTALL)
-    if import_match:
-        existing = import_match.group(1)
-        for imp in imports_to_add:
-            if f'"{imp}"' not in existing:
-                existing += f'\n\t"{imp}"'
-        content = content[:import_match.start(1)] + existing + content[import_match.end(1):]
-    return content
+            # Prevent parameter shadowing during refactor
+            content = re.sub(r'func StartServer\((.*?)\bstorageDir\b(.*?)\)', r'func StartServer(\1initStorageDir\2)', content)
 
-def run_patch():
-    print("[*] Starting backend AST patching for Sync Engine (Fixing compile errors)...")
-    
-    # 1. Patch Go Files
-    for root, dirs, files in os.walk('.'):
-        for file in files:
-            if file.endswith('.go'):
-                path = os.path.join(root, file)
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                orig = content
-                
-                # Using re.search with ignore case to check if function exists before replacing
-                if re.search(r'func\s+(?i)SyncRepo', content):
-                    content = replace_func_block(content, 'SyncRepo', SYNC_REPO_GO)
-                    content = ensure_imports(content, ['io', 'os', 'strings', 'path/filepath', 'fmt', 'log', 'github.com/go-git/go-git/v5/plumbing', 'github.com/go-git/go-git/v5/plumbing/object'])
-                    content = re.sub(r'(?i)SyncRepo\(\)', 'SyncRepo("pull")', content)
+            # Inject localized `a := &App{}` initialization
+            content = re.sub(r'func StartServer\((.*?)\)\s*\{',
+                             r'func StartServer(\1) {\n\ta := &App{\n\t\tRouter: http.NewServeMux(),\n\t}\n', content)
 
-                if re.search(r'func\s+(?i)handleSync', content):
-                    content = replace_func_block(content, 'handleSync', HANDLE_SYNC_GO)
+        # 5. Transform global usages into App struct fields (Whole word replacements)
+        content = re.sub(r'\bappConfig\b', 'a.Config', content)
+        content = re.sub(r'\bstorageDir\b', 'a.StorageDir', content)
+        content = re.sub(r'\bactiveConns\b', 'a.ActiveConns', content)
+        content = re.sub(r'\bconnMutex\b', 'a.ConnMutex', content)
+        content = re.sub(r'\bgitMutex\b', 'a.GitMutex', content)
 
-                if content != orig:
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    print(f"[+] Successfully patched Go logic in {path}")
-                    
-            # 2. Patch HTML Frontend for Modal
-            if file == 'index.html':
-                path = os.path.join(root, file)
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                if 'id="conflict-modal"' not in content:
-                    content = content.replace('</body>', HTML_MODAL_INJECTION)
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    print(f"[+] Successfully injected Modal UI into {path}")
+        # Revert parameter names if a struct field blindly modified a method signature
+        content = re.sub(r'\(a\.StorageDir string\)', '(storageDir string)', content)
+        content = re.sub(r'a\.StorageDir\s+string', 'storageDir string', content)
 
-            # 3. Version Bump
-            if file == 'version.go' or file == 'build.gradle':
-                path = os.path.join(root, file)
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                orig = content
-                # Catching previous un-bumped versions as well
-                content = re.sub(r'1\.5\.69|1\.5\.70', '1.5.71', content)
-                content = re.sub(r'10569|10570', '10571', content)
-                if orig != content:
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                    print(f"[+] Bumped version in {path} to 1.5.71 (10571)")
+        # 6. Apply `(a *App)` receivers to all target handlers & utilities
+        for func_name in target_funcs:
+            content = re.sub(r'^func ' + func_name + r'\(', r'func (a *App) ' + func_name + '(', content, flags=re.MULTILINE)
+
+        # 7. Route internal function calls securely through the struct instance
+        for func_name in target_funcs:
+            content = re.sub(r'(?<!func )(?<!func \(a \*App\) )(?<!a\.)\b' + func_name + r'\b', r'a.' + func_name, content)
+
+        # 8. Re-wire DefaultServeMux patterns directly into App.Router
+        content = re.sub(r'\bhttp\.HandleFunc\(', 'a.Router.HandleFunc(', content)
+        content = re.sub(r'\bhttp\.Handle\(', 'a.Router.Handle(', content)
+        content = re.sub(r'http\.ListenAndServe\(([^,]+),\s*nil\)', r'http.ListenAndServe(\1, a.Router)', content)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
 
 if __name__ == "__main__":
-    run_patch()
-    print("\n[=] Patching complete! Compile errors should now be resolved.")
+    print("[ ] Starting Dependency Injection Refactor (Version 1.6.0)...")
+    bump_versions()
+    refactor_backend()
+    print("[+] Architecture successfully upgraded! Global variables eradicated.")
+    print("[+] Run 'go build ./...' in the backend folder to verify the DI tree.")

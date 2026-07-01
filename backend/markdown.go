@@ -166,7 +166,7 @@ func compilePageWithBody(name string, mdContent []byte, customBody string) []byt
 	return []byte(layout)
 }
 
-func ensureHeaderModified(content string, defaultTitle string) string {
+func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	parts := strings.SplitN(content, "\n\n", 2)
 	now := time.Now().Format("2006-01-02 15:04:05")
@@ -201,8 +201,8 @@ func ensureHeaderModified(content string, defaultTitle string) string {
 	}
 
 	authorLine := ""
-	if appConfig.Author != "" {
-		authorLine = fmt.Sprintf("\nAuthor: %s", appConfig.Author)
+	if a.Config.Author != "" {
+		authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
 	}
 	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
 }
