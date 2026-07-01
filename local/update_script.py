@@ -112,10 +112,16 @@ HANDLE_SYNC_GO = """func handleSync(w http.ResponseWriter, r *http.Request) {
 		action = "pull"
 	}
 
-	// Ensure local changes are committed before attempting to sync to prevent floating state
-	commitLocalChanges()
+	// Ensure local changes are committed before attempting to sync
+	repo, err := getOrInitRepo()
+	if err == nil {
+		wt, err := repo.Worktree()
+		if err == nil {
+			commitLocalChanges(repo, wt, "Auto-commit before sync")
+		}
+	}
 
-	err := SyncRepo(action)
+	err = SyncRepo(action)
 	if err != nil {
 		if err.Error() == "CONFLICT_DETECTED" {
 			w.Header().Set("Content-Type", "application/json")
@@ -197,7 +203,8 @@ window.performSync = async function(action = 'pull') {
 </body>"""
 
 def replace_func_block(content, func_name, new_code):
-    pattern = re.compile(r'func\s+' + func_name + r'\s*\([^)]*\)[^{]*{')
+    # Added re.IGNORECASE to mathematically match syncRepo or SyncRepo
+    pattern = re.compile(r'func\s+' + func_name + r'\s*\([^)]*\)[^{]*{', re.IGNORECASE)
     match = pattern.search(content)
     if not match: return content
     
@@ -246,7 +253,7 @@ def ensure_imports(content, imports_to_add):
     return content
 
 def run_patch():
-    print("[*] Starting backend AST patching for Sync Engine...")
+    print("[*] Starting backend AST patching for Sync Engine (Fixing compile errors)...")
     
     # 1. Patch Go Files
     for root, dirs, files in os.walk('.'):
@@ -258,13 +265,13 @@ def run_patch():
                 
                 orig = content
                 
-                if 'func SyncRepo' in content:
+                # Using re.search with ignore case to check if function exists before replacing
+                if re.search(r'func\s+(?i)SyncRepo', content):
                     content = replace_func_block(content, 'SyncRepo', SYNC_REPO_GO)
-                    content = ensure_imports(content, ['io', 'os', 'strings', 'path/filepath', 'fmt', 'github.com/go-git/go-git/v5/plumbing', 'github.com/go-git/go-git/v5/plumbing/object'])
-                    # Sanitize any legacy empty SyncRepo calls to default 'pull' action
-                    content = re.sub(r'SyncRepo\(\)', 'SyncRepo("pull")', content)
+                    content = ensure_imports(content, ['io', 'os', 'strings', 'path/filepath', 'fmt', 'log', 'github.com/go-git/go-git/v5/plumbing', 'github.com/go-git/go-git/v5/plumbing/object'])
+                    content = re.sub(r'(?i)SyncRepo\(\)', 'SyncRepo("pull")', content)
 
-                if 'func handleSync' in content:
+                if re.search(r'func\s+(?i)handleSync', content):
                     content = replace_func_block(content, 'handleSync', HANDLE_SYNC_GO)
 
                 if content != orig:
@@ -289,13 +296,14 @@ def run_patch():
                 with open(path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 orig = content
-                content = re.sub(r'1\.5\.69', '1.5.70', content)
-                content = re.sub(r'10569', '10570', content)
+                # Catching previous un-bumped versions as well
+                content = re.sub(r'1\.5\.69|1\.5\.70', '1.5.71', content)
+                content = re.sub(r'10569|10570', '10571', content)
                 if orig != content:
                     with open(path, 'w', encoding='utf-8') as f:
                         f.write(content)
-                    print(f"[+] Bumped version in {path} to 1.5.70 (10570)")
+                    print(f"[+] Bumped version in {path} to 1.5.71 (10571)")
 
 if __name__ == "__main__":
     run_patch()
-    print("\n[=] Patching complete! You can now commit the changes.")
+    print("\n[=] Patching complete! Compile errors should now be resolved.")

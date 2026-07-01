@@ -489,10 +489,16 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		action = "pull"
 	}
 
-	// Ensure local changes are committed before attempting to sync to prevent floating state
-	commitLocalChanges()
+	// Ensure local changes are committed before attempting to sync
+	repo, err := getOrInitRepo()
+	if err == nil {
+		wt, err := repo.Worktree()
+		if err == nil {
+			commitLocalChanges(repo, wt, "Auto-commit before sync")
+		}
+	}
 
-	err := SyncRepo(action)
+	err = SyncRepo(action)
 	if err != nil {
 		if err.Error() == "CONFLICT_DETECTED" {
 			w.Header().Set("Content-Type", "application/json")
