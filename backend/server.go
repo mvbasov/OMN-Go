@@ -32,10 +32,11 @@ var staticFS embed.FS
 
 
 
-func StartServer() {
+func StartServer() *App {
 	a := &App{
 		Router: http.NewServeMux(),
 	}
+
 
 
 	a.initStorage() // Execute synchronously to ensure config is loaded instantly
@@ -160,6 +161,7 @@ func StartServer() {
 			log.Printf("FATAL: Server crashed: %v", err)
 		}
 	}()
+	return a
 }
 
 // a.GetServerPort safely exposes the configured port for frontend wrappers

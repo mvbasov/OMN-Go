@@ -12,11 +12,11 @@ import (
 )
 
 func main() {
-	backend.StartServer()
+	app := backend.StartServer()
 	
 	// Wait for server to bind
 	time.Sleep(500 * time.Millisecond)
-	url := fmt.Sprintf("http://localhost:%d", backend.GetServerPort())
+	url := fmt.Sprintf("http://localhost:%d", app.GetServerPort())
 	
 	var err error
 	switch runtime.GOOS {

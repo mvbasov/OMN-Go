@@ -17,15 +17,34 @@ def patch_file(filepath, processor):
 def bump_versions():
     # Bump backend version
     def process_version(content):
-        return re.sub(r'APP_VERSION\s*=\s*".*?"', 'APP_VERSION = "1.6.2"', content)
+        return re.sub(r'APP_VERSION\s*=\s*".*?"', 'APP_VERSION = "1.6.3"', content)
     patch_file("backend/version.go", process_version)
 
     # Bump Android gradle version
     def process_gradle(content):
-        content = re.sub(r'versionCode\s+\d+', 'versionCode 10602', content)
-        content = re.sub(r'versionName\s+".*?"', 'versionName "1.6.2"', content)
+        content = re.sub(r'versionCode\s+\d+', 'versionCode 10603', content)
+        content = re.sub(r'versionName\s+".*?"', 'versionName "1.6.3"', content)
         return content
     patch_file("android/app/build.gradle", process_gradle)
+
+def refactor_entrypoints():
+    # Dynamically patch any main entrypoint (like main_desktop.go) that queries the server port
+    for filename in os.listdir("."):
+        if filename.endswith(".go") and filename.startswith("main"):
+            with open(filename, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            original_content = content
+            if "backend.GetServerPort()" in content:
+                # Capture the returned App struct pointer
+                content = re.sub(r'(?<!app := )backend\.StartServer\(', r'app := backend.StartServer(', content)
+                # Call the struct method instead of the package function
+                content = content.replace("backend.GetServerPort()", "app.GetServerPort()")
+                
+            if content != original_content:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"[+] Entrypoint Patched: {filename}")
 
 def refactor_backend():
     backend_dir = "backend"
@@ -75,18 +94,24 @@ def refactor_backend():
                 if '"net/http"' not in content:
                     content = re.sub(r'import \(\n', 'import (\n\t"net/http"\n', content, count=1)
             else:
-                # Fix Config type from previous run: *Config -> Config
+                # Fix Config type from previous runs
                 content = re.sub(r'Config\s+\*Config', 'Config Config', content)
 
             content = re.sub(r'func StartServer\((.*?)\bstorageDir\b(.*?)\)', r'func StartServer(\1initStorageDir\2)', content)
             
-            # --- CRITICAL FIX: The Scrubber ---
-            # Remove ALL previously injected App initializations to destroy the duplicates
+            # --- CRITICAL FIX: The Scrubber & Return Export ---
+            # Remove ALL previously injected App initializations
             content = re.sub(r'\n\s*a := &App\{\n\s*Router: http\.NewServeMux\(\),\n\s*\}', '', content)
             
-            # Re-inject exactly ONE pristine initialization block
-            content = re.sub(r'func StartServer\((.*?)\)\s*\{',
-                             r'func StartServer(\1) {\n\ta := &App{\n\t\tRouter: http.NewServeMux(),\n\t}\n', content)
+            # Re-inject exactly ONE pristine initialization block AND change signature to return *App
+            content = re.sub(r'func StartServer\((.*?)\)(?:\s*\*App)?\s*\{',
+                             r'func StartServer(\1) *App {\n\ta := &App{\n\t\tRouter: http.NewServeMux(),\n\t}\n', content)
+            
+            # Scrub any existing returned variables just in case
+            content = re.sub(r'\n\s*return a\s*\n\}', '\n}', content)
+            
+            # Safely append 'return a' to the very end of StartServer (after the goroutine block)
+            content = re.sub(r'(\t*\}\(\)\n)\}', r'\1\treturn a\n}', content)
 
         # 5. Transform global usages into App struct fields
         content = re.sub(r'\bappConfig\b', 'a.Config', content)
@@ -105,12 +130,10 @@ def refactor_backend():
 
         # 6. Apply `(a *App)` receivers to ALL discovered package-level functions
         for func_name in target_funcs:
-            # Matches any indentation or spaces around the opening parenthesis
             content = re.sub(r'(?m)^func\s+' + func_name + r'\s*\(', r'func (a *App) ' + func_name + '(', content)
 
         # 7. Route internal function calls securely through the struct instance
         for func_name in target_funcs:
-            # Multiple fixed-width lookbehinds to securely match function calls/references without double-prefixing
             content = re.sub(r'(?<!func )(?<!func \(a \*App\) )(?<!\.)\b' + func_name + r'\b', r'a.' + func_name, content)
 
         # 8. Re-wire DefaultServeMux patterns directly into App.Router
@@ -122,8 +145,9 @@ def refactor_backend():
             f.write(content)
 
 if __name__ == "__main__":
-    print("[ ] Starting Dependency Injection Refactor (Version 1.6.2)...")
+    print("[ ] Starting Dependency Injection Refactor (Version 1.6.3)...")
     bump_versions()
+    refactor_entrypoints()
     refactor_backend()
     print("[+] Architecture successfully upgraded! Global variables eradicated.")
     print("[+] Run 'go build ./...' in the backend folder to verify the DI tree.")
