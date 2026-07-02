@@ -17,20 +17,22 @@ import (
 )
 
 func (a *App) getConfigPageBody() string {
-	// Redundant safety lock to ensure UI generation never crashes
-	for len(a.Config.GitServers) < 5 {
-		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
+	cfg := a.GetConfig() // snapshot under RLock; render against the copy
+
+	// Redundant safety net so rendering never indexes a short slice.
+	for len(cfg.GitServers) < 5 {
+		cfg.GitServers = append(cfg.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(cfg.GitServers)+1)})
 	}
 
 	checkedStr := ""
-	if a.Config.UseInternalEd {
+	if cfg.UseInternalEd {
 		checkedStr = "checked"
 	}
 
 	gitHTML := "<h3>Git Servers</h3>"
-	for i, gs := range a.Config.GitServers {
+	for i, gs := range cfg.GitServers {
 		checked := ""
-		if a.Config.ActiveGitIndex == i {
+		if cfg.ActiveGitIndex == i {
 			checked = "checked"
 	}
 		gitHTML += fmt.Sprintf(`
@@ -83,7 +85,7 @@ func (a *App) getConfigPageBody() string {
         </div>
     </form>
 </div>
-`, a.Config.ServerPort, a.Config.AdminPassword, a.Config.GuestPassword, a.Config.Author, checkedStr, a.Config.DesktopExtCmd, gitHTML)
+`, cfg.ServerPort, cfg.AdminPassword, cfg.GuestPassword, cfg.Author, checkedStr, cfg.DesktopExtCmd, gitHTML)
 }
 
 func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
@@ -98,51 +100,58 @@ func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
         Press after edit to refresh view
     </button>
 </div>
-`, a.Config.DesktopExtCmd, fileName, viewURL)
+`, a.GetConfig().DesktopExtCmd, fileName, viewURL)
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+		cfg := a.GetConfig()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a.Config)
+		json.NewEncoder(w).Encode(cfg)
 		return
 	}
 	if r.Method == "POST" {
-		portStr := r.FormValue("server_port")
-		var port int
-		fmt.Sscanf(portStr, "%d", &port)
-		if port > 0 {
-			a.Config.ServerPort = port
-		}
-		a.Config.AdminPassword = r.FormValue("admin_password")
-		a.Config.GuestPassword = r.FormValue("guest_password")
-		a.Config.Author = r.FormValue("author")
-		a.Config.UseInternalEd = r.FormValue("use_internal_editor") == "true"
-		a.Config.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
-		// Apply active git index from radio selection
-		if idxStr := r.FormValue("active_git_index"); idxStr != "" {
-			var idx int
-			fmt.Sscanf(idxStr, "%d", &idx)
-			if idx >= 0 && idx < len(a.Config.GitServers) {
-				a.Config.ActiveGitIndex = idx
+		var snapshot Config
+		a.WithConfig(func(c *Config) {
+			portStr := r.FormValue("server_port")
+			var port int
+			fmt.Sscanf(portStr, "%d", &port)
+			if port > 0 {
+				c.ServerPort = port
 			}
-		}
-		// Update all 5 git server slots
-		for i := 0; i < 5; i++ {
-			name := r.FormValue(fmt.Sprintf("git_name_%d", i))
-			url := r.FormValue(fmt.Sprintf("git_url_%d", i))
-			keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
-			pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
-			// update fields if any non‑empty value is supplied (allows clearing)
-			if name != "" || url != "" || keyData != "" || pass != "" {
-				a.Config.GitServers[i].Name = name
-				a.Config.GitServers[i].URL = url
-				a.Config.GitServers[i].SSHKeyData = keyData
-				a.Config.GitServers[i].Password = pass
+			c.AdminPassword = r.FormValue("admin_password")
+			c.GuestPassword = r.FormValue("guest_password")
+			c.Author = r.FormValue("author")
+			c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+			c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+			// Apply active git index from radio selection
+			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
+				var idx int
+				fmt.Sscanf(idxStr, "%d", &idx)
+				if idx >= 0 && idx < len(c.GitServers) {
+					c.ActiveGitIndex = idx
+				}
 			}
-		}
+			// Update all 5 git server slots
+			for i := 0; i < 5; i++ {
+				name := r.FormValue(fmt.Sprintf("git_name_%d", i))
+				url := r.FormValue(fmt.Sprintf("git_url_%d", i))
+				keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
+				pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
+				// update fields if any non‑empty value is supplied (allows clearing)
+				if name != "" || url != "" || keyData != "" || pass != "" {
+					c.GitServers[i].Name = name
+					c.GitServers[i].URL = url
+					c.GitServers[i].SSHKeyData = keyData
+					c.GitServers[i].Password = pass
+				}
+			}
+			snapshot = *c
+		})
 
-		data, _ := json.MarshalIndent(a.Config, "", "  ")
+		// Persist outside the lock — file I/O shouldn't block other
+		// goroutines that only need a config read.
+		data, _ := json.MarshalIndent(snapshot, "", "  ")
 		configPath := filepath.Join(a.StorageDir, "config.json")
 		os.WriteFile(configPath, data, 0644)
 		w.Write([]byte("Saved"))
@@ -172,7 +181,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cmd *exec.Cmd
-	cmdStr := strings.TrimSpace(a.Config.DesktopExtCmd)
+	cmdStr := strings.TrimSpace(a.GetConfig().DesktopExtCmd)
 
 	if cmdStr == "" {
 		switch runtime.GOOS {
@@ -212,11 +221,12 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
+	cfg := a.GetConfig()
 	pwd := r.FormValue("password")
 	role := ""
-	if pwd == a.Config.AdminPassword {
+	if pwd == cfg.AdminPassword {
 		role = "admin"
-	} else if pwd == a.Config.GuestPassword {
+	} else if pwd == cfg.GuestPassword {
 		role = "guest"
 	}
 
@@ -374,8 +384,8 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 				title := strings.TrimSuffix(cleanName, ".md")
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
 				authorLine := ""
-				if a.Config.Author != "" {
-					authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
+				if a.GetConfig().Author != "" {
+					authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
 				}
 				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", title, timestamp, authorLine)
 				os.MkdirAll(filepath.Dir(path), 0755)
@@ -412,8 +422,8 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	targetMdPath := filepath.Join(a.StorageDir, "md", target+".md")
 	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
 		authorLine := ""
-		if a.Config.Author != "" {
-			authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
+		if a.GetConfig().Author != "" {
+			authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
 		}
 		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
 		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
@@ -538,7 +548,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 	w.Header().Set("Content-Type", "text/html")
 	data, err := os.ReadFile(htmlPath)
 	if err == nil {
-		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
+		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.GetConfig().UseInternalEd), 1)
 		w.Write([]byte(injected))
 	} else {
 		http.ServeFile(w, r, htmlPath)
@@ -554,8 +564,8 @@ func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) 
 		} else {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			authorLine := ""
-			if a.Config.Author != "" {
-				authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
+			if a.GetConfig().Author != "" {
+				authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
 			}
 			defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
 			os.MkdirAll(filepath.Dir(mdPath), 0755)
@@ -584,14 +594,14 @@ func (a *App) serveConfigPage(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html")
 	body := a.getConfigPageBody()
 	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
-	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
+	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.GetConfig().UseInternalEd), 1)
 	w.Write([]byte(injected))
 }
 
 func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	relPath := strings.TrimPrefix(path, "/")
 
-	if !a.Config.UseInternalEd {
+	if !a.GetConfig().UseInternalEd {
 		http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
 		return
 	}
@@ -624,7 +634,7 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 
 func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
 	ext := strings.ToLower(filepath.Ext(path))
-	mimeType, exists := a.Config.MimeTypes[ext]
+	mimeType, exists := a.GetConfig().MimeTypes[ext]
 	if !exists {
 		mimeType = mime.TypeByExtension(ext)
 	}

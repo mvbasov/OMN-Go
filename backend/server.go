@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,12 +17,36 @@ import (
 
 // App encapsulates the global state for the backend
 type App struct {
-	Config Config
+	Config      Config
+	ConfigMutex sync.RWMutex // guards all reads/writes of Config
 	StorageDir  string
-	ActiveConns int64
-	ConnMutex   sync.Mutex
-	GitMutex    sync.Mutex
+	ActiveConns int64      // mutate only via atomic.Add/LoadInt64
+	GitMutex    sync.Mutex // serializes all on-disk git repo operations
 	Router      *http.ServeMux
+
+	ready chan struct{} // closed once the HTTP listener is actually serving
+}
+
+// GetConfig returns a copy of the current config, safe for concurrent reads.
+func (a *App) GetConfig() Config {
+	a.ConfigMutex.RLock()
+	defer a.ConfigMutex.RUnlock()
+	return a.Config
+}
+
+// WithConfig runs fn while holding the config write lock. Use for
+// read-modify-write updates (e.g. handleConfig's POST handler).
+func (a *App) WithConfig(fn func(c *Config)) {
+	a.ConfigMutex.Lock()
+	defer a.ConfigMutex.Unlock()
+	fn(&a.Config)
+}
+
+// WaitUntilReady blocks until the HTTP server has actually started
+// listening. Replaces the previous fixed time.Sleep(500ms) hack that used
+// to live in main_desktop.go.
+func (a *App) WaitUntilReady() {
+	<-a.ready
 }
 
 //go:embed frontend/index.html
@@ -35,6 +60,7 @@ var staticFS embed.FS
 func StartServer() *App {
 	a := &App{
 		Router: http.NewServeMux(),
+		ready:  make(chan struct{}),
 	}
 
 
@@ -61,8 +87,7 @@ func StartServer() *App {
 		}()
 
 		// Initialize logger to stream Go logs to the frontend via SSE
-		log.SetOutput(&JSLogger{})
-		a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
+		a.InitLoggerAndRoute()
 		a.Router.HandleFunc("/", a.serveFrontend)
 
 		serveLazyEmbed := func() http.Handler {
@@ -87,7 +112,7 @@ func StartServer() *App {
 					relPath := strings.TrimPrefix(r.URL.Path, "/")
 
 					// Honour external editor preference
-					if !a.Config.UseInternalEd {
+					if !a.GetConfig().UseInternalEd {
 						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
 						return
 					}
@@ -148,15 +173,27 @@ func StartServer() *App {
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
 
+		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
+		// i.e. before any HTTP handler can possibly be invoked concurrently.
 		if a.Config.ServerPort <= 0 {
 			a.Config.ServerPort = 8080
 		}
 
 		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
 
-		log.Printf("OMN-Go Backend running on %s", bindAddr)
-		err := http.ListenAndServe(bindAddr, a.connectionMiddleware(a.Router))
+		// Bind the socket first so we know the server is actually reachable
+		// before signaling readiness to callers (e.g. main_desktop.go).
+		listener, err := net.Listen("tcp", bindAddr)
 		if err != nil {
+			log.Printf("FATAL: Server failed to bind %s: %v", bindAddr, err)
+			close(a.ready) // unblock any waiter rather than hang forever
+			return
+		}
+
+		log.Printf("OMN-Go Backend running on %s", bindAddr)
+		close(a.ready)
+
+		if err := http.Serve(listener, a.connectionMiddleware(a.Router)); err != nil {
 			log.Printf("FATAL: Server crashed: %v", err)
 		}
 	}()
@@ -165,7 +202,7 @@ func StartServer() *App {
 
 // a.GetServerPort safely exposes the configured port for frontend wrappers
 func (a *App) GetServerPort() int {
-	return a.Config.ServerPort
+	return a.GetConfig().ServerPort
 }
 
 // a.autoGitIgnore safely appends extracted cache files to .gitignore

@@ -3,6 +3,7 @@ package backend
 import (
 	"net"
 	"net/http"
+	"sync/atomic"
 )
 
 func (a *App) isLocalConnection(r *http.Request) bool {
@@ -15,10 +16,17 @@ func (a *App) isLocalConnection(r *http.Request) bool {
 
 func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a.ActiveConns++
+		// a.ActiveConns is read/written from every request's goroutine
+		// concurrently; a bare ++/-- here was a data race. Use atomics.
+		atomic.AddInt64(&a.ActiveConns, 1)
+		defer atomic.AddInt64(&a.ActiveConns, -1)
 		next.ServeHTTP(w, r)
-		a.ActiveConns--
 	})
+}
+
+// ActiveConnCount returns the current number of in-flight requests.
+func (a *App) ActiveConnCount() int64 {
+	return atomic.LoadInt64(&a.ActiveConns)
 }
 
 func (a *App) authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {

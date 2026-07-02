@@ -170,9 +170,10 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 	_, err = repo.Remote("origin")
 	if err != nil {
 		log.Printf("[sync] Remote origin missing, adding")
+		cfg := a.GetConfig()
 		_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
 			Name: "origin",
-			URLs: []string{a.Config.GitServers[a.Config.ActiveGitIndex].URL},
+			URLs: []string{cfg.GitServers[cfg.ActiveGitIndex].URL},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("remote add failed: %v", err)
@@ -281,13 +282,20 @@ func (a *App) manualStageFile(repo *git.Repository, wt *git.Worktree, name strin
 // ---------------------------------------------------------------
 
 func (a *App) getSSHAuth() (transport.AuthMethod, error) {
+	// Take one consistent snapshot instead of four separate reads of
+	// a.Config — otherwise a concurrent /api/config POST could change
+	// ActiveGitIndex or GitServers between reads and mix fields from two
+	// different server entries.
+	cfg := a.GetConfig()
+	gs := cfg.GitServers[cfg.ActiveGitIndex]
+
 	sshUser := "git"
-	if idx := strings.Index(a.Config.GitServers[a.Config.ActiveGitIndex].URL, "@"); idx != -1 {
-		sshUser = a.Config.GitServers[a.Config.ActiveGitIndex].URL[:idx]
+	if idx := strings.Index(gs.URL, "@"); idx != -1 {
+		sshUser = gs.URL[:idx]
 	}
 	log.Printf("[sync] SSH user: %s", sshUser)
 
-	keyData := a.Config.GitServers[a.Config.ActiveGitIndex].SSHKeyData
+	keyData := gs.SSHKeyData
 	if keyData == "" {
 		log.Printf("[sync] Error: No SSH key configured")
 		return nil, fmt.Errorf("no SSH key configured")
@@ -295,7 +303,7 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 
 	var signer cryptossh.Signer
 	var err error
-	passphrase := a.Config.GitServers[a.Config.ActiveGitIndex].Password
+	passphrase := gs.Password
 	if passphrase == "" {
 		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
 	} else {
@@ -592,6 +600,14 @@ func (a *App) SyncRepo(action string) error {
 // ---------------------------------------------------------------
 
 func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
+	// GitMutex was declared on App but never taken anywhere in the
+	// original code, so two concurrent /api/sync requests (or a sync
+	// racing a save/checkout elsewhere) could interleave git operations
+	// on the same non-bare worktree and corrupt the index. Serialize all
+	// repo mutation through this lock.
+	a.GitMutex.Lock()
+	defer a.GitMutex.Unlock()
+
 	action := r.URL.Query().Get("action")
 	if action == "" {
 		action = "pull"
@@ -642,6 +658,11 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Same reasoning as handleSync: don't let a status/preview read run
+	// concurrently with an in-progress checkout/reset from another sync.
+	a.GitMutex.Lock()
+	defer a.GitMutex.Unlock()
+
 	repo, err := a.getOrInitRepo()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
@@ -687,8 +708,8 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------
 
 func (a *App) GetConfigAuthor() string {
-	if a.Config.Author != "" {
-		return a.Config.Author
+	if author := a.GetConfig().Author; author != "" {
+		return author
 	}
 	return "OMN-Go User"
 }

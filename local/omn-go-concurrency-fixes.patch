@@ -1,0 +1,521 @@
+diff --git a/backend/config.go b/backend/config.go
+index 234b782..597a4e7 100644
+--- a/backend/config.go
++++ b/backend/config.go
+@@ -28,6 +28,9 @@ type Config struct {
+ }
+ 
+ func (a *App) loadConfig(storageDir string) {
++	a.ConfigMutex.Lock()
++	defer a.ConfigMutex.Unlock()
++
+ 	configPath := filepath.Join(a.StorageDir, "config.json")
+ 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+ 		a.Config = Config{
+diff --git a/backend/git_helper.go b/backend/git_helper.go
+index 4d95343..3e73b03 100644
+--- a/backend/git_helper.go
++++ b/backend/git_helper.go
+@@ -170,9 +170,10 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
+ 	_, err = repo.Remote("origin")
+ 	if err != nil {
+ 		log.Printf("[sync] Remote origin missing, adding")
++		cfg := a.GetConfig()
+ 		_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
+ 			Name: "origin",
+-			URLs: []string{a.Config.GitServers[a.Config.ActiveGitIndex].URL},
++			URLs: []string{cfg.GitServers[cfg.ActiveGitIndex].URL},
+ 		})
+ 		if err != nil {
+ 			return nil, fmt.Errorf("remote add failed: %v", err)
+@@ -281,13 +282,20 @@ func (a *App) manualStageFile(repo *git.Repository, wt *git.Worktree, name strin
+ // ---------------------------------------------------------------
+ 
+ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
++	// Take one consistent snapshot instead of four separate reads of
++	// a.Config — otherwise a concurrent /api/config POST could change
++	// ActiveGitIndex or GitServers between reads and mix fields from two
++	// different server entries.
++	cfg := a.GetConfig()
++	gs := cfg.GitServers[cfg.ActiveGitIndex]
++
+ 	sshUser := "git"
+-	if idx := strings.Index(a.Config.GitServers[a.Config.ActiveGitIndex].URL, "@"); idx != -1 {
+-		sshUser = a.Config.GitServers[a.Config.ActiveGitIndex].URL[:idx]
++	if idx := strings.Index(gs.URL, "@"); idx != -1 {
++		sshUser = gs.URL[:idx]
+ 	}
+ 	log.Printf("[sync] SSH user: %s", sshUser)
+ 
+-	keyData := a.Config.GitServers[a.Config.ActiveGitIndex].SSHKeyData
++	keyData := gs.SSHKeyData
+ 	if keyData == "" {
+ 		log.Printf("[sync] Error: No SSH key configured")
+ 		return nil, fmt.Errorf("no SSH key configured")
+@@ -295,7 +303,7 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
+ 
+ 	var signer cryptossh.Signer
+ 	var err error
+-	passphrase := a.Config.GitServers[a.Config.ActiveGitIndex].Password
++	passphrase := gs.Password
+ 	if passphrase == "" {
+ 		signer, err = cryptossh.ParsePrivateKey([]byte(keyData))
+ 	} else {
+@@ -592,6 +600,14 @@ func (a *App) SyncRepo(action string) error {
+ // ---------------------------------------------------------------
+ 
+ func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
++	// GitMutex was declared on App but never taken anywhere in the
++	// original code, so two concurrent /api/sync requests (or a sync
++	// racing a save/checkout elsewhere) could interleave git operations
++	// on the same non-bare worktree and corrupt the index. Serialize all
++	// repo mutation through this lock.
++	a.GitMutex.Lock()
++	defer a.GitMutex.Unlock()
++
+ 	action := r.URL.Query().Get("action")
+ 	if action == "" {
+ 		action = "pull"
+@@ -642,6 +658,11 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
++	// Same reasoning as handleSync: don't let a status/preview read run
++	// concurrently with an in-progress checkout/reset from another sync.
++	a.GitMutex.Lock()
++	defer a.GitMutex.Unlock()
++
+ 	repo, err := a.getOrInitRepo()
+ 	if err != nil {
+ 		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+@@ -687,8 +708,8 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
+ // ---------------------------------------------------------------
+ 
+ func (a *App) GetConfigAuthor() string {
+-	if a.Config.Author != "" {
+-		return a.Config.Author
++	if author := a.GetConfig().Author; author != "" {
++		return author
+ 	}
+ 	return "OMN-Go User"
+ }
+diff --git a/backend/handlers.go b/backend/handlers.go
+index 739af92..ec4f99f 100644
+--- a/backend/handlers.go
++++ b/backend/handlers.go
+@@ -17,20 +17,22 @@ import (
+ )
+ 
+ func (a *App) getConfigPageBody() string {
+-	// Redundant safety lock to ensure UI generation never crashes
+-	for len(a.Config.GitServers) < 5 {
+-		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
++	cfg := a.GetConfig() // snapshot under RLock; render against the copy
++
++	// Redundant safety net so rendering never indexes a short slice.
++	for len(cfg.GitServers) < 5 {
++		cfg.GitServers = append(cfg.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(cfg.GitServers)+1)})
+ 	}
+ 
+ 	checkedStr := ""
+-	if a.Config.UseInternalEd {
++	if cfg.UseInternalEd {
+ 		checkedStr = "checked"
+ 	}
+ 
+ 	gitHTML := "<h3>Git Servers</h3>"
+-	for i, gs := range a.Config.GitServers {
++	for i, gs := range cfg.GitServers {
+ 		checked := ""
+-		if a.Config.ActiveGitIndex == i {
++		if cfg.ActiveGitIndex == i {
+ 			checked = "checked"
+ 	}
+ 		gitHTML += fmt.Sprintf(`
+@@ -83,7 +85,7 @@ func (a *App) getConfigPageBody() string {
+         </div>
+     </form>
+ </div>
+-`, a.Config.ServerPort, a.Config.AdminPassword, a.Config.GuestPassword, a.Config.Author, checkedStr, a.Config.DesktopExtCmd, gitHTML)
++`, cfg.ServerPort, cfg.AdminPassword, cfg.GuestPassword, cfg.Author, checkedStr, cfg.DesktopExtCmd, gitHTML)
+ }
+ 
+ func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
+@@ -98,51 +100,58 @@ func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
+         Press after edit to refresh view
+     </button>
+ </div>
+-`, a.Config.DesktopExtCmd, fileName, viewURL)
++`, a.GetConfig().DesktopExtCmd, fileName, viewURL)
+ }
+ 
+ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
+ 	if r.Method == "GET" {
++		cfg := a.GetConfig()
+ 		w.Header().Set("Content-Type", "application/json")
+-		json.NewEncoder(w).Encode(a.Config)
++		json.NewEncoder(w).Encode(cfg)
+ 		return
+ 	}
+ 	if r.Method == "POST" {
+-		portStr := r.FormValue("server_port")
+-		var port int
+-		fmt.Sscanf(portStr, "%d", &port)
+-		if port > 0 {
+-			a.Config.ServerPort = port
+-		}
+-		a.Config.AdminPassword = r.FormValue("admin_password")
+-		a.Config.GuestPassword = r.FormValue("guest_password")
+-		a.Config.Author = r.FormValue("author")
+-		a.Config.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+-		a.Config.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+-		// Apply active git index from radio selection
+-		if idxStr := r.FormValue("active_git_index"); idxStr != "" {
+-			var idx int
+-			fmt.Sscanf(idxStr, "%d", &idx)
+-			if idx >= 0 && idx < len(a.Config.GitServers) {
+-				a.Config.ActiveGitIndex = idx
++		var snapshot Config
++		a.WithConfig(func(c *Config) {
++			portStr := r.FormValue("server_port")
++			var port int
++			fmt.Sscanf(portStr, "%d", &port)
++			if port > 0 {
++				c.ServerPort = port
+ 			}
+-		}
+-		// Update all 5 git server slots
+-		for i := 0; i < 5; i++ {
+-			name := r.FormValue(fmt.Sprintf("git_name_%d", i))
+-			url := r.FormValue(fmt.Sprintf("git_url_%d", i))
+-			keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
+-			pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
+-			// update fields if any non‑empty value is supplied (allows clearing)
+-			if name != "" || url != "" || keyData != "" || pass != "" {
+-				a.Config.GitServers[i].Name = name
+-				a.Config.GitServers[i].URL = url
+-				a.Config.GitServers[i].SSHKeyData = keyData
+-				a.Config.GitServers[i].Password = pass
++			c.AdminPassword = r.FormValue("admin_password")
++			c.GuestPassword = r.FormValue("guest_password")
++			c.Author = r.FormValue("author")
++			c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
++			c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
++			// Apply active git index from radio selection
++			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
++				var idx int
++				fmt.Sscanf(idxStr, "%d", &idx)
++				if idx >= 0 && idx < len(c.GitServers) {
++					c.ActiveGitIndex = idx
++				}
+ 			}
+-		}
++			// Update all 5 git server slots
++			for i := 0; i < 5; i++ {
++				name := r.FormValue(fmt.Sprintf("git_name_%d", i))
++				url := r.FormValue(fmt.Sprintf("git_url_%d", i))
++				keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
++				pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
++				// update fields if any non‑empty value is supplied (allows clearing)
++				if name != "" || url != "" || keyData != "" || pass != "" {
++					c.GitServers[i].Name = name
++					c.GitServers[i].URL = url
++					c.GitServers[i].SSHKeyData = keyData
++					c.GitServers[i].Password = pass
++				}
++			}
++			snapshot = *c
++		})
+ 
+-		data, _ := json.MarshalIndent(a.Config, "", "  ")
++		// Persist outside the lock — file I/O shouldn't block other
++		// goroutines that only need a config read.
++		data, _ := json.MarshalIndent(snapshot, "", "  ")
+ 		configPath := filepath.Join(a.StorageDir, "config.json")
+ 		os.WriteFile(configPath, data, 0644)
+ 		w.Write([]byte("Saved"))
+@@ -172,7 +181,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 
+ 	var cmd *exec.Cmd
+-	cmdStr := strings.TrimSpace(a.Config.DesktopExtCmd)
++	cmdStr := strings.TrimSpace(a.GetConfig().DesktopExtCmd)
+ 
+ 	if cmdStr == "" {
+ 		switch runtime.GOOS {
+@@ -212,11 +221,12 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
+ }
+ 
+ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
++	cfg := a.GetConfig()
+ 	pwd := r.FormValue("password")
+ 	role := ""
+-	if pwd == a.Config.AdminPassword {
++	if pwd == cfg.AdminPassword {
+ 		role = "admin"
+-	} else if pwd == a.Config.GuestPassword {
++	} else if pwd == cfg.GuestPassword {
+ 		role = "guest"
+ 	}
+ 
+@@ -374,8 +384,8 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
+ 				title := strings.TrimSuffix(cleanName, ".md")
+ 				timestamp := time.Now().Format("2006-01-02 15:04:05")
+ 				authorLine := ""
+-				if a.Config.Author != "" {
+-					authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
++				if a.GetConfig().Author != "" {
++					authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
+ 				}
+ 				newContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", title, timestamp, authorLine)
+ 				os.MkdirAll(filepath.Dir(path), 0755)
+@@ -412,8 +422,8 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
+ 	targetMdPath := filepath.Join(a.StorageDir, "md", target+".md")
+ 	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
+ 		authorLine := ""
+-		if a.Config.Author != "" {
+-			authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
++		if a.GetConfig().Author != "" {
++			authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
+ 		}
+ 		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
+ 		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
+@@ -538,7 +548,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
+ 	w.Header().Set("Content-Type", "text/html")
+ 	data, err := os.ReadFile(htmlPath)
+ 	if err == nil {
+-		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
++		injected := strings.Replace(string(data), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.GetConfig().UseInternalEd), 1)
+ 		w.Write([]byte(injected))
+ 	} else {
+ 		http.ServeFile(w, r, htmlPath)
+@@ -554,8 +564,8 @@ func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error)
+ 		} else {
+ 			timestamp := time.Now().Format("2006-01-02 15:04:05")
+ 			authorLine := ""
+-			if a.Config.Author != "" {
+-				authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
++			if a.GetConfig().Author != "" {
++				authorLine = fmt.Sprintf("\nAuthor: %s", a.GetConfig().Author)
+ 			}
+ 			defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
+ 			os.MkdirAll(filepath.Dir(mdPath), 0755)
+@@ -584,14 +594,14 @@ func (a *App) serveConfigPage(w http.ResponseWriter) {
+ 	w.Header().Set("Content-Type", "text/html")
+ 	body := a.getConfigPageBody()
+ 	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
+-	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.Config.UseInternalEd), 1)
++	injected := strings.Replace(string(compiled), "</head>", fmt.Sprintf("<script>var APP_VERSION = \"%s\"; var USE_INTERNAL_ED = %t;</script></head>", APP_VERSION, a.GetConfig().UseInternalEd), 1)
+ 	w.Write([]byte(injected))
+ }
+ 
+ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
+ 	relPath := strings.TrimPrefix(path, "/")
+ 
+-	if !a.Config.UseInternalEd {
++	if !a.GetConfig().UseInternalEd {
+ 		http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
+ 		return
+ 	}
+@@ -624,7 +634,7 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
+ 
+ func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
+ 	ext := strings.ToLower(filepath.Ext(path))
+-	mimeType, exists := a.Config.MimeTypes[ext]
++	mimeType, exists := a.GetConfig().MimeTypes[ext]
+ 	if !exists {
+ 		mimeType = mime.TypeByExtension(ext)
+ 	}
+diff --git a/backend/markdown.go b/backend/markdown.go
+index e5d0e36..5fe5d3b 100644
+--- a/backend/markdown.go
++++ b/backend/markdown.go
+@@ -201,8 +201,8 @@ func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
+ 	}
+ 
+ 	authorLine := ""
+-	if a.Config.Author != "" {
+-		authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
++	if author := a.GetConfig().Author; author != "" {
++		authorLine = fmt.Sprintf("\nAuthor: %s", author)
+ 	}
+ 	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
+ }
+diff --git a/backend/middleware.go b/backend/middleware.go
+index bc8be40..f537654 100644
+--- a/backend/middleware.go
++++ b/backend/middleware.go
+@@ -3,6 +3,7 @@ package backend
+ import (
+ 	"net"
+ 	"net/http"
++	"sync/atomic"
+ )
+ 
+ func (a *App) isLocalConnection(r *http.Request) bool {
+@@ -15,12 +16,19 @@ func (a *App) isLocalConnection(r *http.Request) bool {
+ 
+ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-		a.ActiveConns++
++		// a.ActiveConns is read/written from every request's goroutine
++		// concurrently; a bare ++/-- here was a data race. Use atomics.
++		atomic.AddInt64(&a.ActiveConns, 1)
++		defer atomic.AddInt64(&a.ActiveConns, -1)
+ 		next.ServeHTTP(w, r)
+-		a.ActiveConns--
+ 	})
+ }
+ 
++// ActiveConnCount returns the current number of in-flight requests.
++func (a *App) ActiveConnCount() int64 {
++	return atomic.LoadInt64(&a.ActiveConns)
++}
++
+ func (a *App) authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
+ 	return func(w http.ResponseWriter, r *http.Request) {
+ 		// Automatically bypass authorization for internal OS/WebView connections
+diff --git a/backend/server.go b/backend/server.go
+index ce0c2fe..074faaa 100644
+--- a/backend/server.go
++++ b/backend/server.go
+@@ -6,6 +6,7 @@ import (
+ 	"fmt"
+ 	"log"
+ 	"mime"
++	"net"
+ 	"net/http"
+ 	"net/url"
+ 	"os"
+@@ -16,12 +17,36 @@ import (
+ 
+ // App encapsulates the global state for the backend
+ type App struct {
+-	Config Config
++	Config      Config
++	ConfigMutex sync.RWMutex // guards all reads/writes of Config
+ 	StorageDir  string
+-	ActiveConns int64
+-	ConnMutex   sync.Mutex
+-	GitMutex    sync.Mutex
++	ActiveConns int64      // mutate only via atomic.Add/LoadInt64
++	GitMutex    sync.Mutex // serializes all on-disk git repo operations
+ 	Router      *http.ServeMux
++
++	ready chan struct{} // closed once the HTTP listener is actually serving
++}
++
++// GetConfig returns a copy of the current config, safe for concurrent reads.
++func (a *App) GetConfig() Config {
++	a.ConfigMutex.RLock()
++	defer a.ConfigMutex.RUnlock()
++	return a.Config
++}
++
++// WithConfig runs fn while holding the config write lock. Use for
++// read-modify-write updates (e.g. handleConfig's POST handler).
++func (a *App) WithConfig(fn func(c *Config)) {
++	a.ConfigMutex.Lock()
++	defer a.ConfigMutex.Unlock()
++	fn(&a.Config)
++}
++
++// WaitUntilReady blocks until the HTTP server has actually started
++// listening. Replaces the previous fixed time.Sleep(500ms) hack that used
++// to live in main_desktop.go.
++func (a *App) WaitUntilReady() {
++	<-a.ready
+ }
+ 
+ //go:embed frontend/index.html
+@@ -35,6 +60,7 @@ var staticFS embed.FS
+ func StartServer() *App {
+ 	a := &App{
+ 		Router: http.NewServeMux(),
++		ready:  make(chan struct{}),
+ 	}
+ 
+ 
+@@ -61,8 +87,7 @@ func StartServer() *App {
+ 		}()
+ 
+ 		// Initialize logger to stream Go logs to the frontend via SSE
+-		log.SetOutput(&JSLogger{})
+-		a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
++		a.InitLoggerAndRoute()
+ 		a.Router.HandleFunc("/", a.serveFrontend)
+ 
+ 		serveLazyEmbed := func() http.Handler {
+@@ -87,7 +112,7 @@ func StartServer() *App {
+ 					relPath := strings.TrimPrefix(r.URL.Path, "/")
+ 
+ 					// Honour external editor preference
+-					if !a.Config.UseInternalEd {
++					if !a.GetConfig().UseInternalEd {
+ 						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
+ 						return
+ 					}
+@@ -148,15 +173,27 @@ func StartServer() *App {
+ 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
+ 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
+ 
++		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
++		// i.e. before any HTTP handler can possibly be invoked concurrently.
+ 		if a.Config.ServerPort <= 0 {
+ 			a.Config.ServerPort = 8080
+ 		}
+ 
+ 		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
+ 
+-		log.Printf("OMN-Go Backend running on %s", bindAddr)
+-		err := http.ListenAndServe(bindAddr, a.connectionMiddleware(a.Router))
++		// Bind the socket first so we know the server is actually reachable
++		// before signaling readiness to callers (e.g. main_desktop.go).
++		listener, err := net.Listen("tcp", bindAddr)
+ 		if err != nil {
++			log.Printf("FATAL: Server failed to bind %s: %v", bindAddr, err)
++			close(a.ready) // unblock any waiter rather than hang forever
++			return
++		}
++
++		log.Printf("OMN-Go Backend running on %s", bindAddr)
++		close(a.ready)
++
++		if err := http.Serve(listener, a.connectionMiddleware(a.Router)); err != nil {
+ 			log.Printf("FATAL: Server crashed: %v", err)
+ 		}
+ 	}()
+@@ -165,7 +202,7 @@ func StartServer() *App {
+ 
+ // a.GetServerPort safely exposes the configured port for frontend wrappers
+ func (a *App) GetServerPort() int {
+-	return a.Config.ServerPort
++	return a.GetConfig().ServerPort
+ }
+ 
+ // a.autoGitIgnore safely appends extracted cache files to .gitignore
+diff --git a/main_desktop.go b/main_desktop.go
+index 308ab1b..f9a7530 100644
+--- a/main_desktop.go
++++ b/main_desktop.go
+@@ -7,15 +7,16 @@ import (
+ 	"log"
+ 	"os/exec"
+ 	"runtime"
+-	"time"
+ 	"net.basov.omngo/backend"
+ )
+ 
+ func main() {
+ 	app := backend.StartServer()
+-	
+-	// Wait for server to bind
+-	time.Sleep(500 * time.Millisecond)
++
++	// Block until the listener has actually bound, instead of guessing
++	// with a fixed time.Sleep(500ms) that could fire too early on a slow
++	// boot (Docker/Android) or waste time on a fast one.
++	app.WaitUntilReady()
+ 	url := fmt.Sprintf("http://localhost:%d", app.GetServerPort())
+ 	
+ 	var err error

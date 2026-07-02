@@ -7,15 +7,16 @@ import (
 	"log"
 	"os/exec"
 	"runtime"
-	"time"
 	"net.basov.omngo/backend"
 )
 
 func main() {
 	app := backend.StartServer()
-	
-	// Wait for server to bind
-	time.Sleep(500 * time.Millisecond)
+
+	// Block until the listener has actually bound, instead of guessing
+	// with a fixed time.Sleep(500ms) that could fire too early on a slow
+	// boot (Docker/Android) or waste time on a fast one.
+	app.WaitUntilReady()
 	url := fmt.Sprintf("http://localhost:%d", app.GetServerPort())
 	
 	var err error

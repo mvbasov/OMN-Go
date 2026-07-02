@@ -28,6 +28,9 @@ type Config struct {
 }
 
 func (a *App) loadConfig(storageDir string) {
+	a.ConfigMutex.Lock()
+	defer a.ConfigMutex.Unlock()
+
 	configPath := filepath.Join(a.StorageDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		a.Config = Config{

@@ -201,8 +201,8 @@ func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 	}
 
 	authorLine := ""
-	if a.Config.Author != "" {
-		authorLine = fmt.Sprintf("\nAuthor: %s", a.Config.Author)
+	if author := a.GetConfig().Author; author != "" {
+		authorLine = fmt.Sprintf("\nAuthor: %s", author)
 	}
 	return fmt.Sprintf("Title: %s\nDate: %s\nModified: %s%s\n\n%s", defaultTitle, now, now, authorLine, content)
 }
