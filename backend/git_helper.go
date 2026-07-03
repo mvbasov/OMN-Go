@@ -167,19 +167,59 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Repo opened successfully")
 	}
 
-	_, err = repo.Remote("origin")
-	if err != nil {
-		log.Printf("[sync] Remote origin missing, adding")
-		cfg := a.GetConfig()
-		_, err = repo.CreateRemote(&gitconfig.RemoteConfig{
-			Name: "origin",
-			URLs: []string{cfg.GitServers[cfg.ActiveGitIndex].URL},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("remote add failed: %v", err)
-		}
+	if err := a.ensureRemoteURL(repo); err != nil {
+		return nil, err
 	}
 	return repo, nil
+}
+
+// ensureRemoteURL keeps the on-disk "origin" remote in .git/config in sync
+// with whatever is currently configured (Config.GitServers[ActiveGitIndex]).
+//
+// The previous code only ever created "origin" the first time it was
+// missing and never touched it again — so once a repo existed on disk, any
+// later change to the Git URL in the Config screen (editing it, fixing a
+// typo, or switching to a different saved server slot) silently had no
+// effect: every sync kept using whatever URL was in place the very first
+// time a sync ran after install. This runs on every getOrInitRepo call
+// (i.e. before every sync operation) and recreates the remote whenever the
+// configured URL no longer matches what's on disk.
+func (a *App) ensureRemoteURL(repo *git.Repository) error {
+	cfg := a.GetConfig()
+	if cfg.ActiveGitIndex < 0 || cfg.ActiveGitIndex >= len(cfg.GitServers) {
+		return fmt.Errorf("active_git_index %d out of range", cfg.ActiveGitIndex)
+	}
+	desiredURL := strings.TrimSpace(cfg.GitServers[cfg.ActiveGitIndex].URL)
+	if desiredURL == "" {
+		return fmt.Errorf("no Git URL configured for the active server slot")
+	}
+
+	remote, err := repo.Remote("origin")
+	if err != nil {
+		log.Printf("[sync] Remote origin missing, adding %s", desiredURL)
+		_, err := repo.CreateRemote(&gitconfig.RemoteConfig{
+			Name: "origin",
+			URLs: []string{desiredURL},
+		})
+		return err
+	}
+
+	existingURLs := remote.Config().URLs
+	if len(existingURLs) == 1 && existingURLs[0] == desiredURL {
+		return nil // already up to date, nothing to do
+	}
+
+	log.Printf("[sync] origin URL changed (%v -> %s), updating remote", existingURLs, desiredURL)
+	if err := repo.DeleteRemote("origin"); err != nil {
+		return fmt.Errorf("failed to remove stale origin remote: %v", err)
+	}
+	if _, err := repo.CreateRemote(&gitconfig.RemoteConfig{
+		Name: "origin",
+		URLs: []string{desiredURL},
+	}); err != nil {
+		return fmt.Errorf("failed to recreate origin remote: %v", err)
+	}
+	return nil
 }
 
 func (a *App) manualGitInit(dir string) error {
