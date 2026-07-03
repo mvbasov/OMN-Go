@@ -127,6 +127,7 @@ func (a *App) ensureGitignore() {
 # OMN-Go sync ignore
 config.json
 *.html
+*.woff2
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
@@ -162,65 +163,133 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
+		a.ensureGitignore();
 		log.Printf("[sync] Repo initialized")
 	} else {
 		log.Printf("[sync] Repo opened successfully")
 	}
 
-	if err := a.ensureRemoteURL(repo); err != nil {
-		return nil, err
-	}
+	// Remote setup/selection happens separately, in
+	// ensureRemotesAndGetActive — only sync operations need it (a plain
+	// status/preview read doesn't touch any remote), so it isn't done
+	// unconditionally here.
 	return repo, nil
 }
 
-// ensureRemoteURL keeps the on-disk "origin" remote in .git/config in sync
-// with whatever is currently configured (Config.GitServers[ActiveGitIndex]).
+// ---------------------------------------------------------------
+// Remote management — one git remote per configured server slot
+// ---------------------------------------------------------------
 //
-// The previous code only ever created "origin" the first time it was
-// missing and never touched it again — so once a repo existed on disk, any
-// later change to the Git URL in the Config screen (editing it, fixing a
-// typo, or switching to a different saved server slot) silently had no
-// effect: every sync kept using whatever URL was in place the very first
-// time a sync ran after install. This runs on every getOrInitRepo call
-// (i.e. before every sync operation) and recreates the remote whenever the
-// configured URL no longer matches what's on disk.
-func (a *App) ensureRemoteURL(repo *git.Repository) error {
-	cfg := a.GetConfig()
-	if cfg.ActiveGitIndex < 0 || cfg.ActiveGitIndex >= len(cfg.GitServers) {
-		return fmt.Errorf("active_git_index %d out of range", cfg.ActiveGitIndex)
-	}
-	desiredURL := strings.TrimSpace(cfg.GitServers[cfg.ActiveGitIndex].URL)
-	if desiredURL == "" {
-		return fmt.Errorf("no Git URL configured for the active server slot")
-	}
+// Earlier revisions of this file kept a single "origin" remote and rewrote
+// its URL to match whichever server slot was active. That turned out to be
+// unwanted: switching the active slot (or editing its URL) would silently
+// repoint "origin" every time, with no separate history/identity per
+// server. The model here instead is:
+//
+//   - "origin" is a one-time bootstrap remote. It's created only if it
+//     doesn't already exist (seeded from whatever server happens to be
+//     active at that moment) and is never modified again afterwards. It
+//     exists purely as a fallback for the case where the active slot has
+//     no URL configured — not as something that tracks config changes.
+//   - Every server slot with a non-empty URL gets its own persistent
+//     remote, named deterministically by slot index ("gitserver0" ..
+//     "gitserver4") rather than by the user-editable "Name" field, so
+//     renaming a server in Config doesn't orphan its remote. These ARE
+//     kept in sync with config on every call: added when a slot gains a
+//     URL, updated when a slot's URL changes, removed when a slot is
+//     cleared.
+//   - Sync operations use whichever remote corresponds to the currently
+//     active slot, falling back to "origin" only if that slot has no URL.
 
-	remote, err := repo.Remote("origin")
-	if err != nil {
-		log.Printf("[sync] Remote origin missing, adding %s", desiredURL)
-		_, err := repo.CreateRemote(&gitconfig.RemoteConfig{
-			Name: "origin",
-			URLs: []string{desiredURL},
-		})
-		return err
-	}
-
-	existingURLs := remote.Config().URLs
-	if len(existingURLs) == 1 && existingURLs[0] == desiredURL {
-		return nil // already up to date, nothing to do
-	}
-
-	log.Printf("[sync] origin URL changed (%v -> %s), updating remote", existingURLs, desiredURL)
-	if err := repo.DeleteRemote("origin"); err != nil {
-		return fmt.Errorf("failed to remove stale origin remote: %v", err)
-	}
-	if _, err := repo.CreateRemote(&gitconfig.RemoteConfig{
-		Name: "origin",
-		URLs: []string{desiredURL},
-	}); err != nil {
-		return fmt.Errorf("failed to recreate origin remote: %v", err)
-	}
-	return nil
+// slotRemoteName returns the deterministic git remote name for a given
+// GitServers slot index.
+func slotRemoteName(index int) string {
+	return fmt.Sprintf("gitserver%d", index)
 }
+
+// ensureOriginRemote creates "origin" the first time it's missing, seeded
+// from fallbackURL, and otherwise leaves it untouched.
+func (a *App) ensureOriginRemote(repo *git.Repository, fallbackURL string) error {
+	if _, err := repo.Remote("origin"); err == nil {
+		return nil // already exists — this remote is never modified again
+	}
+	if fallbackURL == "" {
+		return nil // nothing to seed it with yet; try again on a later sync
+	}
+	log.Printf("[sync] Remote origin missing, seeding it once from %s", fallbackURL)
+	_, err := repo.CreateRemote(&gitconfig.RemoteConfig{
+		Name: "origin",
+		URLs: []string{fallbackURL},
+	})
+	return err
+}
+
+// ensureSlotRemotes adds/updates/removes one remote per GitServers slot to
+// match cfg, and returns the remote name a sync should use: the active
+// slot's own remote if it has a URL configured, or "origin" as a fallback.
+func (a *App) ensureSlotRemotes(repo *git.Repository, cfg Config) (activeRemoteName string, err error) {
+	for i, gs := range cfg.GitServers {
+		name := slotRemoteName(i)
+		url := strings.TrimSpace(gs.URL)
+
+		remote, rErr := repo.Remote(name)
+		if url == "" {
+			if rErr == nil {
+				log.Printf("[sync] Removing remote %s (slot %d cleared)", name, i)
+				if dErr := repo.DeleteRemote(name); dErr != nil {
+					log.Printf("[sync] Warning: failed to remove remote %s: %v", name, dErr)
+				}
+			}
+			continue
+		}
+
+		if rErr != nil {
+			log.Printf("[sync] Adding remote %s -> %s", name, url)
+			if _, cErr := repo.CreateRemote(&gitconfig.RemoteConfig{Name: name, URLs: []string{url}}); cErr != nil {
+				return "", fmt.Errorf("failed to add remote %s: %v", name, cErr)
+			}
+			continue
+		}
+
+		existing := remote.Config().URLs
+		if len(existing) == 1 && existing[0] == url {
+			continue // already up to date
+		}
+		log.Printf("[sync] Remote %s URL changed (%v -> %s), updating", name, existing, url)
+		if dErr := repo.DeleteRemote(name); dErr != nil {
+			return "", fmt.Errorf("failed to update remote %s: %v", name, dErr)
+		}
+		if _, cErr := repo.CreateRemote(&gitconfig.RemoteConfig{Name: name, URLs: []string{url}}); cErr != nil {
+			return "", fmt.Errorf("failed to update remote %s: %v", name, cErr)
+		}
+	}
+
+	if cfg.ActiveGitIndex >= 0 && cfg.ActiveGitIndex < len(cfg.GitServers) {
+		if strings.TrimSpace(cfg.GitServers[cfg.ActiveGitIndex].URL) != "" {
+			return slotRemoteName(cfg.ActiveGitIndex), nil
+		}
+	}
+	log.Printf("[sync] Active server slot has no URL configured, falling back to origin")
+	return "origin", nil
+}
+
+// ensureRemotesAndGetActive reconciles all git remotes against the current
+// config (see the block comment above) and returns which remote name the
+// caller should use for this sync.
+func (a *App) ensureRemotesAndGetActive(repo *git.Repository) (string, error) {
+	cfg := a.GetConfig()
+
+	bootstrapURL := ""
+	if cfg.ActiveGitIndex >= 0 && cfg.ActiveGitIndex < len(cfg.GitServers) {
+		bootstrapURL = strings.TrimSpace(cfg.GitServers[cfg.ActiveGitIndex].URL)
+	}
+	if err := a.ensureOriginRemote(repo, bootstrapURL); err != nil {
+		return "", err
+	}
+
+	return a.ensureSlotRemotes(repo, cfg)
+}
+
 
 func (a *App) manualGitInit(dir string) error {
 	gitDir := filepath.Join(dir, ".git")
@@ -237,6 +306,7 @@ func (a *App) manualGitInit(dir string) error {
 		return err
 	}
 	a.protectGitDirs()
+	a.ensureGitignore()
 
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
@@ -612,15 +682,15 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 // not possible (diverged history, or unstaged local changes in the way) it
 // returns the CONFLICT_DETECTED sentinel so the caller can offer the user a
 // choice between "pull_abort" and "pull_mark" (3-way merge).
-func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
-	log.Printf("[sync] Pull: fetching origin")
-	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
+	log.Printf("[sync] Pull: fetching %s", remoteName)
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 
 	err = wTree.Pull(&git.PullOptions{
-		RemoteName: "origin",
+		RemoteName: remoteName,
 		Auth:       auth,
 		Force:      false,
 	})
@@ -644,13 +714,13 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 // preserved) so that once the user hand-resolves the markers and commits,
 // that commit's parent is the remote tip and a normal push can
 // fast-forward. The pre-merge HEAD is saved so "pull_abort" can undo this.
-func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
-	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 
-	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
 	if err != nil {
 		return fmt.Errorf("remote master not found: %v", err)
 	}
@@ -748,8 +818,8 @@ func (a *App) syncPullAbort(wTree *git.Worktree) error {
 // syncPullForce resets local to exactly match origin/master, then deletes
 // any file that is neither tracked by git nor covered by .gitignore, per
 // the requirement that only a *force* pull is allowed to delete such files.
-func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
-	log.Printf("[sync] Force pull: fetching origin")
+func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
+	log.Printf("[sync] Force pull: fetching %s", remoteName)
 
 	if runtime.GOOS == "android" {
 		tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
@@ -758,14 +828,14 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		a.ensureGitignore()
 	}
 
-	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 
-	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
 	if err != nil {
-		return fmt.Errorf("failed to find origin/master: %v", err)
+		return fmt.Errorf("failed to find %s/master: %v", remoteName, err)
 	}
 
 	if err := repo.Storer.SetReference(plumbing.NewHashReference(
@@ -796,11 +866,11 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 // push
 // ---------------------------------------------------------------
 
-// hasUnpushedCommits reports whether local HEAD differs from origin/master
-// after a fresh fetch — used by a plain "push" to decide whether there is
-// really nothing to do when the working tree itself is already clean.
-func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod) (bool, error) {
-	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+// hasUnpushedCommits reports whether local HEAD differs from the given
+// remote's master after a fresh fetch — used by a plain "push" to decide
+// whether there is really nothing to do when the working tree is clean.
+func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod, remoteName string) (bool, error) {
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return false, err
 	}
@@ -808,7 +878,7 @@ func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod
 	if err != nil {
 		return false, err
 	}
-	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
 	if err != nil {
 		// No remote ref yet (e.g. first-ever push) — treat as ahead.
 		return true, nil
@@ -830,7 +900,7 @@ func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod
 //     spec, no auto-pull/auto-merge is attempted.
 //   - A force push always pushes with Force:true, overwriting the remote
 //     to match local regardless of divergence.
-func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, message string, force bool) error {
+func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName, message string, force bool) error {
 	matcher, mErr := a.loadGitignoreMatcher(wTree)
 	if mErr != nil {
 		matcher = gitignore.NewMatcher(nil)
@@ -866,16 +936,16 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 	}
 
 	if !force && !hasRelevantChanges {
-		ahead, aErr := a.hasUnpushedCommits(repo, auth)
+		ahead, aErr := a.hasUnpushedCommits(repo, auth, remoteName)
 		if aErr == nil && !ahead {
 			log.Printf("[sync] push: nothing to commit, nothing to push")
 			return nil
 		}
 	}
 
-	log.Printf("[sync] Pushing to origin master (force=%v)", force)
+	log.Printf("[sync] Pushing to %s master (force=%v)", remoteName, force)
 	err = repo.Push(&git.PushOptions{
-		RemoteName: "origin",
+		RemoteName: remoteName,
 		Auth:       auth,
 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
 		Force:      force,
@@ -939,6 +1009,10 @@ func (a *App) SyncRepoWithMessage(action string, message string) error {
 	if err != nil {
 		return err
 	}
+	remoteName, err := a.ensureRemotesAndGetActive(repo)
+	if err != nil {
+		return err
+	}
 	auth, err := a.getSSHAuth()
 	if err != nil {
 		return err
@@ -946,17 +1020,17 @@ func (a *App) SyncRepoWithMessage(action string, message string) error {
 
 	switch action {
 	case "push", "upload":
-		return a.syncPush(repo, wTree, auth, message, false)
+		return a.syncPush(repo, wTree, auth, remoteName, message, false)
 	case "push_force", "upload_force":
-		return a.syncPush(repo, wTree, auth, message, true)
+		return a.syncPush(repo, wTree, auth, remoteName, message, true)
 	case "pull", "pull_ff", "download":
-		return a.syncPull(repo, wTree, auth)
+		return a.syncPull(repo, wTree, auth, remoteName)
 	case "pull_mark":
-		return a.syncPullMerge(repo, wTree, auth)
+		return a.syncPullMerge(repo, wTree, auth, remoteName)
 	case "pull_abort", "abort":
 		return a.syncPullAbort(wTree)
 	case "pull_force", "download_force":
-		return a.syncPullForce(repo, wTree, auth)
+		return a.syncPullForce(repo, wTree, auth, remoteName)
 	}
 	return fmt.Errorf("unknown sync action: %s", action)
 }
