@@ -4,37 +4,78 @@
 
 if (window.location.protocol !== 'file:') {
     const Logger = (function() {
-    window.syncAction = async function (action) {
-            let force = document.getElementById('forceSyncCb') && document.getElementById('forceSyncCb').checked;
+        // runSync is the single place that talks to /api/sync. It always
+        // POSTs action/force/message together and always expects a JSON
+        // {status, message} response — the backend previously only read
+        // "action" from the URL query string while this file posted it in
+        // the body, so the action was silently ignored and every request
+        // fell back to a plain "pull". Both this file and the inline
+        // conflict-modal script in index.html now go through this one
+        // function so the two can't drift out of sync with each other.
+        window.runSync = async function(action, opts) {
+            opts = opts || {};
+            const fd = new URLSearchParams();
+            fd.append('action', action);
+            if (opts.force) fd.append('force', 'true');
+            if (opts.message) fd.append('message', opts.message);
+
+            let data;
+            try {
+                const res = await fetch('/api/sync', { method: 'POST', body: fd });
+                data = await res.json();
+            } catch (e) {
+                alert('Sync error: ' + e);
+                return null;
+            }
+
+            const modal = document.getElementById('conflict-modal');
+            switch (data.status) {
+                case 'success':
+                    if (modal) modal.classList.add('hidden');
+                    return data;
+                case 'conflict':
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                    } else {
+                        const choice = confirm('Conflict! OK to Force Pull (Keep Untracked), Cancel to Mark Files.');
+                        if (choice) window.runSync('pull_force');
+                        else window.runSync('pull_mark');
+                    }
+                    return data;
+                case 'push_conflict':
+                    alert('Push rejected: the remote has new commits. Please pull first, then try pushing again.');
+                    return data;
+                case 'needs_commit_message':
+                    alert('Please provide a commit message.');
+                    return data;
+                default:
+                    alert('Sync failed: ' + (data.message || 'unknown error'));
+                    return data;
+            }
+        };
+
+        window.syncAction = async function (action) {
+            let forceCb = document.getElementById('forceSyncCb');
+            let force = forceCb && forceCb.checked;
             if (force) {
                 if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
                     return;
                 }
             }
+            if (forceCb) forceCb.checked = false;
+
             if (action === 'upload') {
-                // Use new commit message flow
+                // Uploads always go through the commit-message modal, which
+                // also shows the file list and handles "nothing to commit".
                 previewAndCommit(force);
                 return;
             }
-            const fd = new URLSearchParams();
-            fd.append('action', action);
-            if (force) fd.append('force', 'true');
-            const res = await fetch('/api/sync', { method: 'POST', body: fd });
-            if (force && document.getElementById('forceSyncCb')) {
-                document.getElementById('forceSyncCb').checked = false;
-            }
-            const capAction = action.charAt(0).toUpperCase() + action.slice(1);
-            if (res.ok) {
-                let msg = await res.text();
-                if (msg.includes('Nothing to push')) {
-                    alert(msg);
-                } else if (confirm(msg + '\n\nWould you like to reload the page now to see updated content (console will be reset)?')) {
+
+            const data = await window.runSync(action, { force });
+            if (data && data.status === 'success') {
+                if (confirm('Sync complete.\n\nWould you like to reload the page now to see updated content?')) {
                     window.location.reload();
                 }
-            } else {
-                let msg = await res.text();
-                console.error('OMN-Go sync failed:', msg);
-                alert(capAction + ' failed: ' + msg + '\n\nOpen console to copy error details.');
             }
         }
         // Export to global scope to preserve HTML onclick attributes
@@ -87,28 +128,14 @@ if (window.location.protocol !== 'file:') {
             return;
         }
         const force = window._commitForce || false;
-        const fd = new URLSearchParams();
-        fd.append('action', 'upload');
-        fd.append('message', message);
-        if (force) fd.append('force', 'true');
-        try {
-            const res = await fetch('/api/sync', { method: 'POST', body: fd });
-            if (force && document.getElementById('forceSyncCb')) {
-                document.getElementById('forceSyncCb').checked = false;
-            }
-            if (res.ok) {
-                let msg = await res.text();
-                if (confirm(msg + '\n\nWould you like to reload the page now to see updated content?')) {
-                    window.location.reload();
-                }
-            } else {
-                let msg = await res.text();
-                alert('Upload failed: ' + msg);
-            }
-        } catch(e) {
-            alert('Error: ' + e);
-        }
         hideCommitModal();
+
+        const data = await window.runSync('upload', { force, message });
+        if (data && data.status === 'success') {
+            if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+                window.location.reload();
+            }
+        }
     };
 
     window.hideCommitModal = function() {

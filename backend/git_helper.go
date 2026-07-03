@@ -409,188 +409,514 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 // ---------------------------------------------------------------
 // Sync operations (download / upload)
 // ---------------------------------------------------------------
+//
+// UNUSED: executeSyncDownload and executeSyncUpload below are never called
+// anywhere in this codebase — SyncRepo/SyncRepoWithMessage implement pull
+// and push inline via syncPull/syncPullForce/syncPush instead. Left here,
+// commented out, for reference rather than deleted outright. Both are
+// unexported, so they cannot be part of any external (e.g. Android/gomobile)
+// binding — safe to leave disabled. (Confirmed: MainActivity.java only
+// calls Backend.startServer(); all sync operations reach the backend via
+// the HTTP handlers below, not direct native calls.)
+//
+// func (a *App) executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
+// 	if force {
+// 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+//
+// 		if runtime.GOOS == "android" {
+// 			tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
+// 			os.MkdirAll(tmpDir, 0755)
+// 			os.Setenv("TMPDIR", tmpDir)
+// 			a.ensureGitignore()
+// 		}
+//
+// 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+// 		if err != nil && err != git.NoErrAlreadyUpToDate {
+// 			return fmt.Errorf("fetch failed: %v", err)
+// 		}
+//
+// 		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to find origin/master: %v", err)
+// 		}
+//
+// 		err = wTree.Checkout(&git.CheckoutOptions{
+// 			Hash:  ref.Hash(),
+// 			Force: true,
+// 			Keep:  true,
+// 		})
+// 		if err != nil {
+// 			return fmt.Errorf("hard reset failed: %v", err)
+// 		}
+//
+// 		repo.Storer.SetReference(plumbing.NewHashReference(
+// 			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
+// 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
+// 			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
+// 	} else {
+// 		log.Printf("[sync] Fetching from origin master for merge")
+// 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+// 		if err != nil && err != git.NoErrAlreadyUpToDate {
+// 			return fmt.Errorf("fetch failed: %v", err)
+// 		}
+//
+// 		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to find origin/master: %v", err)
+// 		}
+//
+// 		err = wTree.Checkout(&git.CheckoutOptions{
+// 			Hash:  ref.Hash(),
+// 			Force: false,
+// 			Keep:  true,
+// 		})
+// 		if err != nil {
+// 			return fmt.Errorf("checkout failed: %v", err)
+// 		}
+//
+// 		repo.Storer.SetReference(plumbing.NewHashReference(
+// 			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
+// 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
+// 			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
+// 	}
+// 	return nil
+// }
+//
+// func (a *App) executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bool) error {
+// 	log.Printf("[sync] Pushing to origin master (Force: %v)", force)
+// 	err := repo.Push(&git.PushOptions{
+// 		RemoteName: "origin",
+// 		Auth:       auth,
+// 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
+// 		Force:      force,
+// 	})
+// 	if err != nil && err != git.NoErrAlreadyUpToDate {
+// 		return fmt.Errorf("push failed: %v", err)
+// 	}
+// 	return nil
+// }
 
-func (a *App) executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
-	if force {
-		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
+// ---------------------------------------------------------------
+// Pre-merge checkpoint (backs "pull_abort")
+// ---------------------------------------------------------------
+//
+// pull_mark moves the local branch ref forward to the remote tip so a
+// subsequent commit can fast-forward-push cleanly once the user resolves
+// the injected conflict markers. pull_abort needs to be able to undo that,
+// so we stash the local HEAD hash from *before* pull_mark ran in a small
+// file under .git/. Using a file (rather than an in-memory App field) means
+// this survives an app restart and needs no changes to the App struct in
+// server.go.
 
-		if runtime.GOOS == "android" {
-			tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
-			os.MkdirAll(tmpDir, 0755)
-			os.Setenv("TMPDIR", tmpDir)
-			a.ensureGitignore()
-		}
+func (a *App) premergeHeadPath() string {
+	return filepath.Join(a.StorageDir, ".git", "OMNGO_PREMERGE_HEAD")
+}
 
-		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return fmt.Errorf("fetch failed: %v", err)
-		}
-
-		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
-		if err != nil {
-			return fmt.Errorf("failed to find origin/master: %v", err)
-		}
-
-		err = wTree.Checkout(&git.CheckoutOptions{
-			Hash:  ref.Hash(),
-			Force: true,
-			Keep:  true,
-		})
-		if err != nil {
-			return fmt.Errorf("hard reset failed: %v", err)
-		}
-
-		repo.Storer.SetReference(plumbing.NewHashReference(
-			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
-		repo.Storer.SetReference(plumbing.NewSymbolicReference(
-			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
-	} else {
-		log.Printf("[sync] Fetching from origin master for merge")
-		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return fmt.Errorf("fetch failed: %v", err)
-		}
-
-		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
-		if err != nil {
-			return fmt.Errorf("failed to find origin/master: %v", err)
-		}
-
-		err = wTree.Checkout(&git.CheckoutOptions{
-			Hash:  ref.Hash(),
-			Force: false,
-			Keep:  true,
-		})
-		if err != nil {
-			return fmt.Errorf("checkout failed: %v", err)
-		}
-
-		repo.Storer.SetReference(plumbing.NewHashReference(
-			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
-		repo.Storer.SetReference(plumbing.NewSymbolicReference(
-			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
+func (a *App) savePremergeHead(h plumbing.Hash) {
+	if err := os.WriteFile(a.premergeHeadPath(), []byte(h.String()), 0644); err != nil {
+		log.Printf("[sync] failed to save pre-merge HEAD: %v", err)
 	}
+}
+
+func (a *App) loadPremergeHead() (plumbing.Hash, bool) {
+	data, err := os.ReadFile(a.premergeHeadPath())
+	if err != nil {
+		return plumbing.ZeroHash, false
+	}
+	h := plumbing.NewHash(strings.TrimSpace(string(data)))
+	if h.IsZero() {
+		return plumbing.ZeroHash, false
+	}
+	return h, true
+}
+
+func (a *App) clearPremergeHead() {
+	os.Remove(a.premergeHeadPath())
+}
+
+// ---------------------------------------------------------------
+// Force-pull cleanup
+// ---------------------------------------------------------------
+
+// cleanUntrackedFiles deletes any file the worktree reports as Untracked,
+// *unless* it matches a .gitignore pattern. Only "force pull" calls this —
+// a plain pull/push must never touch files outside git's own tracked set.
+func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher) {
+	status, err := wTree.Status()
+	if err != nil {
+		log.Printf("[sync] force pull: could not compute status for cleanup: %v", err)
+		return
+	}
+	for name, fileStat := range status {
+		if fileStat.Worktree != git.Untracked {
+			continue
+		}
+		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
+			log.Printf("[sync] force pull: keeping ignored file %s", name)
+			continue
+		}
+		full := filepath.Join(a.StorageDir, name)
+		if err := os.Remove(full); err != nil {
+			log.Printf("[sync] force pull: failed to delete %s: %v", name, err)
+		} else {
+			log.Printf("[sync] force pull: deleted untracked file %s", name)
+		}
+	}
+}
+
+// ---------------------------------------------------------------
+// pull
+// ---------------------------------------------------------------
+
+// syncPull fast-forwards local to origin/master when possible. When it is
+// not possible (diverged history, or unstaged local changes in the way) it
+// returns the CONFLICT_DETECTED sentinel so the caller can offer the user a
+// choice between "pull_abort" and "pull_mark" (3-way merge).
+func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
+	log.Printf("[sync] Pull: fetching origin")
+	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("fetch failed: %v", err)
+	}
+
+	err = wTree.Pull(&git.PullOptions{
+		RemoteName: "origin",
+		Auth:       auth,
+		Force:      false,
+	})
+	if err == git.ErrNonFastForwardUpdate || err == git.ErrUnstagedChanges {
+		log.Printf("[sync] Pull: fast-forward not possible (%v)", err)
+		return fmt.Errorf("CONFLICT_DETECTED")
+	}
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("pull failed: %v", err)
+	}
+	log.Printf("[sync] Pull: fast-forward complete")
 	return nil
 }
 
-func (a *App) executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bool) error {
-	log.Printf("[sync] Pushing to origin master (Force: %v)", force)
-	err := repo.Push(&git.PushOptions{
+// syncPullMerge implements the "3 way diff merge" option offered after a
+// pull conflict. For every locally modified file that also differs from
+// the remote copy, it writes standard diff3-style conflict markers
+// (<<<<<<< LOCAL / ||||||| BASE / ======= / >>>>>>> REMOTE) using the
+// git merge-base as the BASE section where one can be found. The local
+// branch ref is then moved to the remote tip (working tree contents are
+// preserved) so that once the user hand-resolves the markers and commits,
+// that commit's parent is the remote tip and a normal push can
+// fast-forward. The pre-merge HEAD is saved so "pull_abort" can undo this.
+func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
+	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("fetch failed: %v", err)
+	}
+
+	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	if err != nil {
+		return fmt.Errorf("remote master not found: %v", err)
+	}
+
+	localHead, err := repo.Head()
+	if err != nil {
+		return fmt.Errorf("local HEAD not found: %v", err)
+	}
+	a.savePremergeHead(localHead.Hash())
+
+	remoteCommit, err := repo.CommitObject(remoteRef.Hash())
+	if err != nil {
+		return fmt.Errorf("remote commit lookup failed: %v", err)
+	}
+	remoteTree, err := remoteCommit.Tree()
+	if err != nil {
+		return fmt.Errorf("remote tree lookup failed: %v", err)
+	}
+
+	var baseTree *object.Tree
+	if localCommit, cErr := repo.CommitObject(localHead.Hash()); cErr == nil {
+		if bases, mErr := localCommit.MergeBase(remoteCommit); mErr == nil && len(bases) > 0 {
+			baseTree, _ = bases[0].Tree()
+		}
+	}
+
+	status, err := wTree.Status()
+	if err != nil {
+		return fmt.Errorf("status error: %v", err)
+	}
+
+	for path, fileStatus := range status {
+		if fileStatus.Worktree != git.Modified && fileStatus.Staging != git.Modified {
+			continue
+		}
+
+		file, err := wTree.Filesystem.Open(path)
+		if err != nil {
+			continue
+		}
+		localContent, _ := io.ReadAll(file)
+		file.Close()
+
+		remoteFile, err := remoteTree.File(path)
+		if err != nil {
+			continue // remote doesn't have this file — nothing to reconcile
+		}
+		remoteContentStr, _ := remoteFile.Contents()
+		if string(localContent) == remoteContentStr {
+			continue
+		}
+
+		baseSection := ""
+		if baseTree != nil {
+			if baseFile, bErr := baseTree.File(path); bErr == nil {
+				if baseContent, cErr := baseFile.Contents(); cErr == nil && baseContent != string(localContent) {
+					baseSection = fmt.Sprintf("||||||| BASE\n%s", baseContent)
+				}
+			}
+		}
+
+		conflictText := fmt.Sprintf("<<<<<<< LOCAL (Your changes)\n%s%s=======\n%s>>>>>>> REMOTE (Incoming from origin)\n",
+			string(localContent), baseSection, remoteContentStr)
+
+		if outFile, oErr := wTree.Filesystem.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644); oErr == nil {
+			outFile.Write([]byte(conflictText))
+			outFile.Close()
+		}
+	}
+
+	if err := wTree.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.MixedReset}); err != nil {
+		return fmt.Errorf("reset to remote failed: %v", err)
+	}
+	log.Printf("[sync] Pull: 3-way conflict markers written, awaiting manual resolution")
+	return nil
+}
+
+// syncPullAbort discards an in-progress pull_mark, restoring local state
+// (both the branch ref and the working tree) to what it was immediately
+// before pull_mark ran. If there is nothing to abort, this is a no-op.
+func (a *App) syncPullAbort(wTree *git.Worktree) error {
+	hash, ok := a.loadPremergeHead()
+	if !ok {
+		log.Printf("[sync] pull_abort: nothing to abort")
+		return nil
+	}
+	if err := wTree.Reset(&git.ResetOptions{Commit: hash, Mode: git.HardReset}); err != nil {
+		return fmt.Errorf("abort reset failed: %v", err)
+	}
+	a.clearPremergeHead()
+	log.Printf("[sync] pull_abort: restored local state to %s", hash.String())
+	return nil
+}
+
+// syncPullForce resets local to exactly match origin/master, then deletes
+// any file that is neither tracked by git nor covered by .gitignore, per
+// the requirement that only a *force* pull is allowed to delete such files.
+func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod) error {
+	log.Printf("[sync] Force pull: fetching origin")
+
+	if runtime.GOOS == "android" {
+		tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
+		os.MkdirAll(tmpDir, 0755)
+		os.Setenv("TMPDIR", tmpDir)
+		a.ensureGitignore()
+	}
+
+	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("fetch failed: %v", err)
+	}
+
+	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	if err != nil {
+		return fmt.Errorf("failed to find origin/master: %v", err)
+	}
+
+	if err := repo.Storer.SetReference(plumbing.NewHashReference(
+		plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())); err != nil {
+		return fmt.Errorf("failed to move local branch: %v", err)
+	}
+
+	if err := wTree.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/master"),
+		Force:  true,
+	}); err != nil {
+		return fmt.Errorf("checkout failed: %v", err)
+	}
+
+	matcher, mErr := a.loadGitignoreMatcher(wTree)
+	if mErr != nil {
+		log.Printf("[sync] force pull: could not load .gitignore, skipping untracked cleanup: %v", mErr)
+	} else {
+		a.cleanUntrackedFiles(wTree, matcher)
+	}
+
+	a.clearPremergeHead() // any pending 3-way merge is now moot
+	log.Printf("[sync] Force pull complete")
+	return nil
+}
+
+// ---------------------------------------------------------------
+// push
+// ---------------------------------------------------------------
+
+// hasUnpushedCommits reports whether local HEAD differs from origin/master
+// after a fresh fetch — used by a plain "push" to decide whether there is
+// really nothing to do when the working tree itself is already clean.
+func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod) (bool, error) {
+	err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return false, err
+	}
+	localHead, err := repo.Head()
+	if err != nil {
+		return false, err
+	}
+	remoteRef, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
+	if err != nil {
+		// No remote ref yet (e.g. first-ever push) — treat as ahead.
+		return true, nil
+	}
+	return localHead.Hash() != remoteRef.Hash(), nil
+}
+
+// syncPush implements both "push" and "force push":
+//
+//   - If there is nothing uncommitted and nothing already ahead of the
+//     remote, it stops (returns nil) without contacting the remote.
+//   - If there ARE uncommitted local changes, a commit message is
+//     required; without one it returns COMMIT_MESSAGE_REQUIRED.
+//   - A force push always requires a commit message up front (even if
+//     there happen to be no pending changes to commit), since it is a
+//     destructive operation on the remote.
+//   - A non-force push that is rejected as non-fast-forward returns
+//     PUSH_CONFLICT_DETECTED and otherwise does nothing further — per
+//     spec, no auto-pull/auto-merge is attempted.
+//   - A force push always pushes with Force:true, overwriting the remote
+//     to match local regardless of divergence.
+func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, message string, force bool) error {
+	matcher, mErr := a.loadGitignoreMatcher(wTree)
+	if mErr != nil {
+		matcher = gitignore.NewMatcher(nil)
+	}
+	status, err := wTree.Status()
+	if err != nil {
+		return fmt.Errorf("status error: %v", err)
+	}
+
+	hasRelevantChanges := false
+	for name, fileStat := range status {
+		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
+			continue
+		}
+		if name == "config.json" {
+			continue
+		}
+		if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			hasRelevantChanges = true
+			break
+		}
+	}
+
+	needsMessage := hasRelevantChanges || force
+	if needsMessage && strings.TrimSpace(message) == "" {
+		return fmt.Errorf("COMMIT_MESSAGE_REQUIRED")
+	}
+
+	if hasRelevantChanges {
+		if _, cErr := a.commitLocalChanges(repo, wTree, message); cErr != nil {
+			return fmt.Errorf("commit failed: %v", cErr)
+		}
+	}
+
+	if !force && !hasRelevantChanges {
+		ahead, aErr := a.hasUnpushedCommits(repo, auth)
+		if aErr == nil && !ahead {
+			log.Printf("[sync] push: nothing to commit, nothing to push")
+			return nil
+		}
+	}
+
+	log.Printf("[sync] Pushing to origin master (force=%v)", force)
+	err = repo.Push(&git.PushOptions{
 		RemoteName: "origin",
 		Auth:       auth,
 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
 		Force:      force,
 	})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
+	if err == git.NoErrAlreadyUpToDate {
+		return nil
+	}
+	if err != nil {
+		if !force && err == git.ErrNonFastForwardUpdate {
+			log.Printf("[sync] push: rejected as non-fast-forward, leaving local state untouched")
+			return fmt.Errorf("PUSH_CONFLICT_DETECTED")
+		}
 		return fmt.Errorf("push failed: %v", err)
 	}
 	return nil
 }
 
+// ---------------------------------------------------------------
+// Dispatcher
+// ---------------------------------------------------------------
+
+// SyncRepo runs a git sync action with no commit message. Kept exported and
+// with its original single-argument signature for backward compatibility
+// with any existing caller. New code — including handleSync below — should
+// call SyncRepoWithMessage, which additionally accepts a commit message for
+// the "push"/"push_force" actions.
 func (a *App) SyncRepo(action string) error {
-	r, err := a.getOrInitRepo()
+	return a.SyncRepoWithMessage(action, "")
+}
+
+// SyncRepoWithMessage implements the four required git operations:
+//
+//	pull        fast-forward if possible; returns the CONFLICT_DETECTED
+//	            sentinel error if it is not (diverged history, or local
+//	            changes in the way). Aliases: "pull_ff", "download".
+//	pull_mark   after a "pull" conflict: writes 3-way conflict markers so
+//	            the user can resolve them by hand ("make 3 way diff merge")
+//	pull_abort  after a "pull" conflict: discards it, restoring local state.
+//	            Alias: "abort".
+//	pull_force  resets local to exactly match remote; also deletes any file
+//	            that is neither tracked nor covered by .gitignore.
+//	            Alias: "download_force".
+//	push        commits (with the given message) if there are local
+//	            changes, then pushes; does nothing further on conflict.
+//	            Alias: "upload".
+//	push_force  commits (with the given message) if needed, then
+//	            force-pushes, resetting the remote to local state.
+//	            Alias: "upload_force".
+//
+// All repo mutation is serialized via a.GitMutex, so this is safe to call
+// from multiple goroutines at once (e.g. concurrent HTTP requests).
+func (a *App) SyncRepoWithMessage(action string, message string) error {
+	a.GitMutex.Lock()
+	defer a.GitMutex.Unlock()
+
+	repo, err := a.getOrInitRepo()
 	if err != nil {
 		return err
 	}
-	w, err := r.Worktree()
+	wTree, err := repo.Worktree()
 	if err != nil {
 		return err
 	}
 	auth, err := a.getSSHAuth()
-        if err != nil {
-                return err
-        }
-
-	if action == "push" {
-		err = r.Push(&git.PushOptions{
-			RemoteName: "origin",
-			Auth:       auth,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return err
-		}
-		return nil
+	if err != nil {
+		return err
 	}
 
-	if strings.HasPrefix(action, "pull") {
-		// Force fetch to guarantee we have the remote tree locally
-		err = r.Fetch(&git.FetchOptions{
-			RemoteName: "origin",
-			Auth:       auth,
-			Force:      true,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			log.Printf("[sync] Fetch info: %v", err)
-		}
-
-		remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
-		if err != nil {
-			return fmt.Errorf("remote master not found: %v", err)
-		}
-
-		if action == "pull" || action == "pull_ff" {
-			err = w.Pull(&git.PullOptions{
-				RemoteName: "origin",
-				Auth:       auth,
-				Force:      false,
-			})
-			if err == git.ErrNonFastForwardUpdate || err == git.ErrUnstagedChanges {
-				return fmt.Errorf("CONFLICT_DETECTED")
-			}
-			if err != nil && err != git.NoErrAlreadyUpToDate {
-				return err
-			}
-			return nil
-		}
-
-		if action == "pull_force" {
-			// Force Merge to Remote State (Safely overwrites tracked, ignores/keeps untracked)
-			ref := plumbing.NewHashReference(plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())
-			err = r.Storer.SetReference(ref)
-			if err != nil {
-				return err
-			}
-
-			err = w.Checkout(&git.CheckoutOptions{
-				Branch: plumbing.ReferenceName("refs/heads/master"),
-				Force:  true,
-			})
-			return err
-		}
-
-		if action == "pull_mark" {
-			// Inject Merge Conflict Markers
-			remoteCommit, _ := r.CommitObject(remoteRef.Hash())
-			remoteTree, _ := remoteCommit.Tree()
-			status, _ := w.Status()
-
-			for path, fileStatus := range status {
-				if fileStatus.Worktree == git.Modified || fileStatus.Staging == git.Modified {
-					file, err := w.Filesystem.Open(path)
-					if err != nil {
-						continue
-					}
-					localContent, _ := io.ReadAll(file)
-					file.Close()
-
-					remoteFile, err := remoteTree.File(path)
-					if err == nil {
-						remoteContentStr, _ := remoteFile.Contents()
-						if string(localContent) != remoteContentStr {
-							conflictText := fmt.Sprintf("<<<<<<< LOCAL (Your changes)\\n%s=======\\n%s>>>>>>> REMOTE (Incoming from origin)\\n", string(localContent), remoteContentStr)
-							outFile, err := w.Filesystem.OpenFile(path, os.O_RDWR|os.O_TRUNC, 0644)
-							if err == nil {
-								outFile.Write([]byte(conflictText))
-								outFile.Close()
-							}
-						}
-					}
-				}
-			}
-			// Reset index to remote hash to allow user to resolve and commit
-			w.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.MixedReset})
-			return nil
-		}
+	switch action {
+	case "push", "upload":
+		return a.syncPush(repo, wTree, auth, message, false)
+	case "push_force", "upload_force":
+		return a.syncPush(repo, wTree, auth, message, true)
+	case "pull", "pull_ff", "download":
+		return a.syncPull(repo, wTree, auth)
+	case "pull_mark":
+		return a.syncPullMerge(repo, wTree, auth)
+	case "pull_abort", "abort":
+		return a.syncPullAbort(wTree)
+	case "pull_force", "download_force":
+		return a.syncPullForce(repo, wTree, auth)
 	}
 	return fmt.Errorf("unknown sync action: %s", action)
 }
@@ -599,52 +925,62 @@ func (a *App) SyncRepo(action string) error {
 // HTTP handler
 // ---------------------------------------------------------------
 
+// writeSyncJSON writes a small {"status":..., "message":...} JSON body.
+// Using json.Marshal (rather than fmt.Sprintf-ing a JSON literal, as the
+// original code did) avoids producing invalid JSON when an error message
+// happens to contain a quote or backslash.
+func writeSyncJSON(w http.ResponseWriter, status, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": status, "message": message})
+}
+
 func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
-	// GitMutex was declared on App but never taken anywhere in the
-	// original code, so two concurrent /api/sync requests (or a sync
-	// racing a save/checkout elsewhere) could interleave git operations
-	// on the same non-bare worktree and corrupt the index. Serialize all
-	// repo mutation through this lock.
-	a.GitMutex.Lock()
-	defer a.GitMutex.Unlock()
-
-	action := r.URL.Query().Get("action")
-	if action == "" {
-		action = "pull"
-	}
-
-	// Ensure local changes are committed before attempting to sync
-	repo, err := a.getOrInitRepo()
-	if err == nil {
-		wt, err := repo.Worktree()
-		if err == nil {
-			a.commitLocalChanges(repo, wt, "Auto-commit before sync")
-		}
-	}
-
-	err = a.SyncRepo(action)
-	if err != nil {
-		if err.Error() == "CONFLICT_DETECTED" {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"status":"conflict","message":"Merge conflict detected."}`))
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%v"}`, err)))
+	// r.FormValue reads from both the URL query string and a POST body
+	// (application/x-www-form-urlencoded or multipart). The frontend uses
+	// both conventions in different places — omn-go-sse.js posts
+	// action/force/message in the body, while the conflict-resolution
+	// buttons in index.html hit this endpoint with a query string — so
+	// this handler needs to accept either.
+	if err := r.ParseForm(); err != nil {
+		writeSyncJSON(w, "error", fmt.Sprintf("bad request: %v", err))
 		return
 	}
 
-	if action == "pull" || action == "pull_force" || action == "pull_mark" {
-		err = a.SyncRepo("push")
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(fmt.Sprintf(`{"status":"error","message":"Pull succeeded, but Push failed: %v"}`, err)))
-			return
+	action := r.FormValue("action")
+	if action == "" {
+		action = "pull"
+	}
+	message := r.FormValue("message")
+	force := r.FormValue("force") == "true"
+
+	// The UI's "Force" checkbox is a separate field, not a distinct action
+	// name — translate it into the canonical *_force action here so
+	// SyncRepoWithMessage only has to deal with one vocabulary.
+	if force {
+		switch action {
+		case "pull", "pull_ff", "download":
+			action = "pull_force"
+		case "push", "upload":
+			action = "push_force"
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"success"}`))
+	err := a.SyncRepoWithMessage(action, message)
+	if err != nil {
+		switch err.Error() {
+		case "CONFLICT_DETECTED":
+			writeSyncJSON(w, "conflict", "Fast-forward not possible. Choose abort or 3-way merge.")
+		case "PUSH_CONFLICT_DETECTED":
+			writeSyncJSON(w, "push_conflict", "Remote has new commits. Pull before pushing.")
+		case "COMMIT_MESSAGE_REQUIRED":
+			writeSyncJSON(w, "needs_commit_message", "Please provide a commit message.")
+		default:
+			writeSyncJSON(w, "error", err.Error())
+		}
+		return
+	}
+
+	writeSyncJSON(w, "success", "")
 }
 
 func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
@@ -714,6 +1050,12 @@ func (a *App) GetConfigAuthor() string {
 	return "OMN-Go User"
 }
 
+// NOTE: GetInsecureSSHAuth has no callers anywhere in this Go codebase, and
+// with MainActivity.java confirmed to only call Backend.startServer() (all
+// sync traffic goes through the HTTP handlers, same as desktop), there is
+// no evidence any caller needs it. Still left in place rather than
+// commented out, since it's exported and this file can't rule out every
+// possible native caller. Safe to delete once you've confirmed that.
 func (a *App) GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
 	publicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
 	if err != nil {
