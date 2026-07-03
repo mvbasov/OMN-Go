@@ -127,7 +127,6 @@ func (a *App) ensureGitignore() {
 # OMN-Go sync ignore
 config.json
 *.html
-*.woff2
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
@@ -163,7 +162,7 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
-		a.ensureGitignore();
+		a.ensureGitignore()
 		log.Printf("[sync] Repo initialized")
 	} else {
 		log.Printf("[sync] Repo opened successfully")
@@ -659,6 +658,19 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 	}
 	for name, fileStat := range status {
 		if fileStat.Worktree != git.Untracked {
+			continue
+		}
+		// Explicit safety net, same as commitLocalChanges/syncPush/
+		// handleSyncPreview: config.json holds this device's local
+		// admin/guest passwords and server list and must never be
+		// touched by sync, regardless of what .gitignore currently
+		// says. Relying on the matcher alone isn't safe here — a force
+		// pull's checkout can leave .gitignore in a state (fetched from
+		// remote, possibly without this line, or momentarily stale)
+		// where the matcher no longer protects it, which is exactly
+		// what deleted it.
+		if name == "config.json" {
+			log.Printf("[sync] force pull: keeping root config.json (preserve locally)")
 			continue
 		}
 		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
