@@ -238,7 +238,13 @@ if (window.location.protocol !== 'file:') {
 
         const res = await fetch('/api/newpage', { method: 'POST', body: fd });
         if (res.ok) {
-            window.location.href = '/' + fileName + '.html?edit=true';
+            // The server resolves fileName relative to the current page's
+            // directory (a bare name becomes a sibling of src, not a
+            // root-level page), so the actual created page may live at
+            // e.g. "local/test" even though fileName was just "test".
+            // Redirect using what the server tells us it actually created.
+            const resolvedTarget = await res.text();
+            window.location.href = '/' + resolvedTarget + '.html?edit=true';
         } else {
             alert("Failed to create new page!");
         }

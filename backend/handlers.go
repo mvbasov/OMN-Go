@@ -220,6 +220,39 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	w.Write(compiledWait)
 }
 
+// resolveNewPageTarget resolves a newly-requested page name the same way a
+// bare relative link on the source page would resolve (see
+// rewriteInternalLink in markdown.go):
+//   - a bare name with no "/" is created as a sibling of source, in the
+//     same directory - not at the storage root
+//   - a leading "/" is treated as absolute, anchored at the storage root
+//   - a target that already specifies its own directory is used as-is
+func (a *App) resolveNewPageTarget(source, target string) string {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return target
+	}
+
+	if strings.HasPrefix(target, "/") {
+		return strings.TrimPrefix(target, "/")
+	}
+
+	if strings.Contains(target, "/") {
+		return target
+	}
+
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return target
+	}
+
+	dir := ""
+	if slash := strings.LastIndex(source, "/"); slash >= 0 {
+		dir = source[:slash+1]
+	}
+	return dir + target
+}
+
 func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 	cfg := a.GetConfig()
 	pwd := r.FormValue("password")
@@ -417,6 +450,15 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A bare target name (no "/") used to always land at the storage root
+	// regardless of which page it was created from, so creating "test"
+	// while viewing "local/local" produced "test" instead of "local/test" -
+	// inconsistent with how a bare relative link on that same page resolves
+	// (see rewriteInternalLink). Resolve it the same way here: relative to
+	// source's directory unless target is itself absolute or already
+	// specifies a directory.
+	target = a.resolveNewPageTarget(source, target)
+
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	targetMdPath := filepath.Join(a.StorageDir, "md", target+".md")
@@ -467,7 +509,7 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Write([]byte("Created"))
+	w.Write([]byte(target))
 }
 
 func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
