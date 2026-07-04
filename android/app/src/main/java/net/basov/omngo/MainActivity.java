@@ -143,6 +143,39 @@ public class MainActivity extends Activity {
                         );
                         return true;
                     }
+                    // Local app traffic (our own Go server) - let the WebView load it itself.
+                    return false;
+                }
+
+                if (url != null) {
+                    // Any other scheme (tel:, mailto:, geo:, sms:, market:,
+                    // intent://, whatsapp:, etc.) is something the WebView
+                    // has no renderer for - it fails with
+                    // ERR_UNKNOWN_URL_SCHEME if we don't intercept it here.
+                    // Hand it off to the OS so the matching app (Dialer,
+                    // Maps, Email, Messaging...) can handle it instead.
+                    try {
+                        android.content.Intent intent;
+                        if (url.startsWith("intent://")) {
+                            // "intent:" links pack extra info (target
+                            // package, fallback URL, etc.) into a special
+                            // URI format that needs Intent.parseUri rather
+                            // than a plain Uri.parse + ACTION_VIEW.
+                            intent = android.content.Intent.parseUri(url, android.content.Intent.URI_INTENT_SCHEME);
+                        } else {
+                            intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
+                        }
+                        if (intent.resolveActivity(view.getContext().getPackageManager()) != null) {
+                            view.getContext().startActivity(intent);
+                        }
+                    } catch (Exception e) {
+                        // No app installed to handle this scheme, or a
+                        // malformed URI - nothing sane to do with it, so
+                        // swallow it rather than crash or let the WebView
+                        // throw ERR_UNKNOWN_URL_SCHEME.
+                        e.printStackTrace();
+                    }
+                    return true;
                 }
                 return false;
             }
