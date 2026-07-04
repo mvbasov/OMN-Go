@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -227,6 +228,12 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 //     same directory - not at the storage root
 //   - a leading "/" is treated as absolute, anchored at the storage root
 //   - a target that already specifies its own directory is used as-is
+//
+// source is defensively trimmed of any stray leading/trailing slashes
+// before computing its directory: a trailing slash (e.g. "path/file/"
+// instead of "path/file") would otherwise make the directory computation
+// treat the whole string as its own directory, producing "path/file/new"
+// instead of the intended sibling "path/new".
 func (a *App) resolveNewPageTarget(source, target string) string {
 	target = strings.TrimSpace(target)
 	if target == "" {
@@ -234,23 +241,23 @@ func (a *App) resolveNewPageTarget(source, target string) string {
 	}
 
 	if strings.HasPrefix(target, "/") {
-		return strings.TrimPrefix(target, "/")
+		return strings.TrimPrefix(path.Clean(target), "/")
 	}
 
 	if strings.Contains(target, "/") {
-		return target
+		return path.Clean(target)
 	}
 
-	source = strings.TrimSpace(source)
+	source = strings.Trim(strings.TrimSpace(source), "/")
 	if source == "" {
 		return target
 	}
 
-	dir := ""
-	if slash := strings.LastIndex(source, "/"); slash >= 0 {
-		dir = source[:slash+1]
+	dir := path.Dir(source)
+	if dir == "." {
+		return target
 	}
-	return dir + target
+	return dir + "/" + target
 }
 
 func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {

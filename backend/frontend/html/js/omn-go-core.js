@@ -165,19 +165,49 @@ if (typeof currentNote === 'undefined') {
             if(target) {
                 const href = target.getAttribute('href');
                 if (href) {
-                    if (href.startsWith('http')) {
+                    // Pure anchors and javascript: actions - leave the
+                    // browser's native handling completely alone.
+                    if (href.startsWith('#') || href.startsWith('javascript:')) {
+                        return;
+                    }
+
+                    // http(s):// and protocol-relative "//" links are
+                    // external - open them in a new tab instead of
+                    // navigating the app itself away.
+                    if (/^https?:\/\//i.test(href) || href.startsWith('//')) {
                         e.preventDefault();
                         window.open(href, '_blank');
-                    } else if (!href.startsWith('javascript:') && !href.startsWith('#')) {
-                        e.preventDefault();
-                        let cleanHref = href;
-                        if (cleanHref.endsWith('.md')) {
-                            cleanHref = cleanHref.substring(0, cleanHref.length - 3) + '.html';
-                        } else if (!cleanHref.includes('.')) {
-                            cleanHref = cleanHref + '.html';
-                        }
-                        window.location.href = cleanHref;
+                        return;
                     }
+
+                    // Any other URI scheme (tel:, mailto:, geo:, sms:,
+                    // market:, intent://, whatsapp:, ...) isn't a page
+                    // reference at all - leave it untouched so the
+                    // browser/WebView's own link handling can launch the
+                    // matching app. This used to fall through to the
+                    // "internal page" rewrite below, which appended a
+                    // bogus ".html" onto anything without a literal "."
+                    // in it - turning e.g. "tel:5551234" into
+                    // "tel:5551234.html" and breaking it outright.
+                    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) {
+                        return;
+                    }
+
+                    // Everything else is an internal page reference. The
+                    // server already normalized this exact href when it
+                    // rendered the page (rewriteInternalLink in
+                    // markdown.go converts ".md" to ".html", appends
+                    // ".html" to bare page names, and leaves any
+                    // "?query"/"#fragment" suffix untouched) - there's
+                    // nothing left to redo here. The old naive re-check
+                    // below used to re-break already-correct hrefs, e.g.
+                    // "Page?x=1" became "Page?x=1.html", and
+                    // "Page.md#section" was left with a literal ".md"
+                    // (which 404s) because it matched neither of its two
+                    // branches. Just navigate to exactly what was
+                    // rendered.
+                    e.preventDefault();
+                    window.location.href = href;
                 }
             }
         });
