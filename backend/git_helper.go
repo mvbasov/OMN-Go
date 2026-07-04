@@ -448,7 +448,8 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 	if err != nil {
 		return false, fmt.Errorf("status check error: %v", err)
 	}
-	if status.IsClean() {
+	_, mergePending := a.loadMergeParent()
+	if status.IsClean() && !mergePending {
 		log.Printf("[sync] Nothing to commit")
 		return false, nil
 	}
@@ -487,7 +488,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 		}
 	}
 
-	if !hasRealChanges {
+	if !hasRealChanges && !mergePending {
 		log.Printf("[sync] No real changes could be staged (FUSE false-dirty or ignored)")
 		return false, nil
 	}
@@ -501,10 +502,36 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 		When:  time.Now(),
 	}
 
-	commitHash, err := wTree.Commit(message, &git.CommitOptions{
+	commitOpts := &git.CommitOptions{
 		Author:    sig,
 		Committer: sig,
-	})
+	}
+
+	// If a pull_mark 3-way merge is pending, this commit needs to
+	// actually be a merge commit (parents: local HEAD and the remote tip
+	// that was merged in), not a plain linear commit - otherwise no real
+	// git merge ever took place, and the divergent remote history the
+	// user just resolved conflict markers against would simply vanish
+	// from the graph. go-git only auto-fills Parents with HEAD when the
+	// caller leaves it empty, so HEAD has to be included explicitly here
+	// alongside the pending remote parent.
+	var pendingMergeParent plumbing.Hash
+	hasPendingMerge := false
+	if h, ok := a.loadMergeParent(); ok {
+		headRef, hErr := repo.Head()
+		if hErr != nil {
+			return false, fmt.Errorf("could not resolve HEAD for pending merge commit: %v", hErr)
+		}
+		pendingMergeParent = h
+		hasPendingMerge = true
+		commitOpts.Parents = []plumbing.Hash{headRef.Hash(), h}
+		// The merge resolution may leave the tree identical to one parent
+		// (e.g. purely a "take remote's version" resolution) - that's
+		// still a legitimate merge commit, not an empty no-op commit.
+		commitOpts.AllowEmptyCommits = true
+	}
+
+	commitHash, err := wTree.Commit(message, commitOpts)
 	if err == git.ErrEmptyCommit {
 		log.Printf("[sync] Commit aborted: git.ErrEmptyCommit")
 		return false, nil
@@ -512,7 +539,12 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 		return false, fmt.Errorf("commit error: %v", err)
 	}
 
-	log.Printf("[sync] Committed with hash: %s", commitHash.String())
+	if hasPendingMerge {
+		a.clearMergeParent()
+		log.Printf("[sync] Committed merge with hash: %s (parents: HEAD, %s)", commitHash.String(), pendingMergeParent.String())
+	} else {
+		log.Printf("[sync] Committed with hash: %s", commitHash.String())
+	}
 	return true, nil
 }
 
@@ -552,6 +584,46 @@ func (a *App) loadPremergeHead() (plumbing.Hash, bool) {
 
 func (a *App) clearPremergeHead() {
 	os.Remove(a.premergeHeadPath())
+}
+
+// ---------------------------------------------------------------
+// Pending merge parent (backs a real two-parent merge commit)
+// ---------------------------------------------------------------
+//
+// pull_mark writes conflict markers into the working tree but must not
+// pretend a merge happened by simply moving the branch ref onto the
+// remote tip - that discards the local commit from the branch's history
+// (recoverable only via OMNGO_PREMERGE_HEAD) and produces a plain linear
+// commit on top of remote, not an actual git merge. Instead we leave HEAD
+// where it is and record the remote tip here; the next real commit (in
+// commitLocalChanges) picks this up and includes it as a second parent,
+// producing a genuine merge commit once the user has resolved the
+// injected conflict markers by hand.
+
+func (a *App) mergeParentPath() string {
+	return filepath.Join(a.StorageDir, ".git", "OMNGO_MERGE_PARENT")
+}
+
+func (a *App) saveMergeParent(h plumbing.Hash) {
+	if err := os.WriteFile(a.mergeParentPath(), []byte(h.String()), 0644); err != nil {
+		log.Printf("[sync] failed to save pending merge parent: %v", err)
+	}
+}
+
+func (a *App) loadMergeParent() (plumbing.Hash, bool) {
+	data, err := os.ReadFile(a.mergeParentPath())
+	if err != nil {
+		return plumbing.ZeroHash, false
+	}
+	h := plumbing.NewHash(strings.TrimSpace(string(data)))
+	if h.IsZero() {
+		return plumbing.ZeroHash, false
+	}
+	return h, true
+}
+
+func (a *App) clearMergeParent() {
+	os.Remove(a.mergeParentPath())
 }
 
 // ---------------------------------------------------------------
@@ -714,9 +786,18 @@ func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth tran
 		}
 	}
 
-	if err := wTree.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.MixedReset}); err != nil {
-		return fmt.Errorf("reset to remote failed: %v", err)
-	}
+	// Record the remote tip as a pending second parent instead of moving
+	// the local branch ref onto it. Resetting HEAD to remoteRef here (the
+	// previous approach) is not an actual git merge: no merge commit is
+	// ever created, the real local commit becomes unreachable from any
+	// branch (recoverable only via OMNGO_PREMERGE_HEAD), and nothing
+	// beyond a log line ever records that a merge was needed - the user's
+	// next commit just looks like a plain commit sitting on remote's tip.
+	// commitLocalChanges checks for this pending parent and, once the
+	// user resolves the conflict markers by hand and commits, creates a
+	// genuine two-parent merge commit (local HEAD + this remote tip),
+	// which is what "3-way merge" is actually supposed to produce.
+	a.saveMergeParent(remoteRef.Hash())
 	log.Printf("[sync] Pull: 3-way conflict markers written, awaiting manual resolution")
 	return nil
 }
@@ -734,6 +815,7 @@ func (a *App) syncPullAbort(wTree *git.Worktree) error {
 		return fmt.Errorf("abort reset failed: %v", err)
 	}
 	a.clearPremergeHead()
+	a.clearMergeParent()
 	log.Printf("[sync] pull_abort: restored local state to %s", hash.String())
 	return nil
 }
@@ -781,6 +863,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 	}
 
 	a.clearPremergeHead() // any pending 3-way merge is now moot
+	a.clearMergeParent()
 	log.Printf("[sync] Force pull complete")
 	return nil
 }
@@ -845,6 +928,15 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 			hasRelevantChanges = true
 			break
 		}
+	}
+
+	// A pending pull_mark merge must always result in a real commit, even
+	// in the edge case where the user's hand-resolution happens to match
+	// HEAD exactly (status would otherwise look clean) - otherwise the
+	// merge parent record lingers indefinitely and no merge commit is
+	// ever produced.
+	if _, mergePending := a.loadMergeParent(); mergePending {
+		hasRelevantChanges = true
 	}
 
 	needsMessage := hasRelevantChanges || force
