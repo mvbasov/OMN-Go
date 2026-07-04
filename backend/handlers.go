@@ -464,6 +464,7 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	// (see rewriteInternalLink). Resolve it the same way here: relative to
 	// source's directory unless target is itself absolute or already
 	// specifies a directory.
+	rawTarget := target
 	target = a.resolveNewPageTarget(source, target)
 
 	now := time.Now().Format("2006-01-02 15:04:05")
@@ -484,7 +485,27 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		sourceData, err := os.ReadFile(sourceMdPath)
 		if err == nil {
 			content := string(sourceData)
-			linkStr := fmt.Sprintf("* [%s](%s)", title, target)
+
+			// The href embedded in source must match how source itself
+			// will resolve it when clicked, not the fully-resolved
+			// storage path. A bare rawTarget (no "/") was resolved above
+			// relative to source's own directory (see
+			// resolveNewPageTarget) - inserting that same bare name here
+			// lets the browser's ordinary relative-link resolution land
+			// on exactly that file, since it resolves relative to
+			// source's directory too. Inserting the already-resolved
+			// "target" instead (e.g. "path/new") used to have the browser
+			// resolve it AGAIN relative to source's directory when
+			// clicked, doubling the nesting into "path/path/new". A
+			// rawTarget that already specified its own directory (or was
+			// absolute) is anchored at the storage root, so it needs an
+			// explicit leading "/" here to avoid being misresolved the
+			// same relative way.
+			linkHref := strings.TrimSpace(rawTarget)
+			if strings.Contains(linkHref, "/") {
+				linkHref = "/" + target
+			}
+			linkStr := fmt.Sprintf("* [%s](%s)", title, linkHref)
 			parts := strings.SplitN(content, "\n\n", 2)
 
 			isHeader := false
