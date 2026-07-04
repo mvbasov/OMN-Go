@@ -173,7 +173,19 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1001 && webView != null) {
             if (currentEditingName != null && !currentEditingName.isEmpty()) {
-                webView.loadUrl("http://127.0.0.1:8080/" + android.net.Uri.encode(currentEditingName) + ".html");
+                // currentEditingName already carries its extension (e.g. "Welcome.md"),
+                // since it comes straight from the omngo://edit?name= URL built by the
+                // frontend as currentNote + PAGE_EXT. Blindly appending ".html" here used
+                // to produce "Welcome.md.html", which the server then re-suffixed into a
+                // "Welcome.md.md" file on disk. Strip the existing extension first so we
+                // reload the actual page name, matching handleEditExternal's viewURL logic
+                // on the desktop side.
+                String baseName = currentEditingName;
+                int dotIdx = baseName.lastIndexOf('.');
+                if (dotIdx > 0) {
+                    baseName = baseName.substring(0, dotIdx);
+                }
+                webView.loadUrl("http://127.0.0.1:8080/" + android.net.Uri.encode(baseName) + ".html");
                 currentEditingName = null;
             } else {
                 webView.reload(); // Refresh view when returning from external editor

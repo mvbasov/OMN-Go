@@ -528,6 +528,12 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string) {
 	name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
+	// Defensive: page names should never carry a .md suffix of their own.
+	// A caller that mistakenly requests "Welcome.md.html" (extension baked
+	// into the name before ".html" was appended) would otherwise produce
+	// mdPath "md/Welcome.md.md" below. Stripping it here makes that whole
+	// class of double-extension bug impossible regardless of the caller.
+	name = strings.TrimSuffix(name, ".md")
 
 	if name == "Config" {
 		a.serveConfigPage(w)
