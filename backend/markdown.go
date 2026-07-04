@@ -14,6 +14,15 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
+// hrefRe pulls out the raw href attribute value so we can decide, per link,
+// how (or whether) to rewrite it.
+var hrefRe = regexp.MustCompile(`href="([^"]*)"`)
+
+// extRe matches a trailing filename extension (e.g. ".html", ".png", ".js")
+// so we only append ".html" to links that don't already point at a
+// concrete file.
+var extRe = regexp.MustCompile(`\.[a-zA-Z0-9]+$`)
+
 var mdParser = goldmark.New(
 	goldmark.WithExtensions(extension.GFM),
 	goldmark.WithParserOptions(
@@ -56,9 +65,91 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	}
 
 	// Remap static browsing links natively
-	htmlStr = regexp.MustCompile(`href="([^"http#:]+)\.md"`).ReplaceAllString(htmlStr, `href="$1.html"`)
-	htmlStr = regexp.MustCompile(`href="([^"\.#:]+)"`).ReplaceAllString(htmlStr, `href="$1.html"`)
+	htmlStr = hrefRe.ReplaceAllStringFunc(htmlStr, func(m string) string {
+		match := hrefRe.FindStringSubmatch(m)
+		if len(match) < 2 {
+			return m
+		}
+		return `href="` + a.rewriteInternalLink(match[1]) + `"`
+	})
 	return htmlStr
+}
+
+// rewriteInternalLink normalizes a raw markdown-authored href the way a
+// browser would resolve it, so that:
+//   - "./page", "../page", and bare "page" stay relative to the current page
+//   - "/page" stays an absolute path for the site root
+//   - "#anchor" and "?query" suffixes (and page#anchor / page?query
+//     combinations) are left untouched rather than having ".html" appended
+//     after them
+//
+// The only thing this function actually changes is normalizing an internal
+// page reference's extension: ".md" becomes ".html", and a bare page name
+// with no extension gets ".html" appended. Anything that already has a
+// concrete extension (.html, .js, .css, .png, ...), any external URL
+// (http(s)://, //, mailto:, tel:, javascript:, data:), and any link that is
+// purely an anchor or query string is passed through unchanged.
+func (a *App) rewriteInternalLink(href string) string {
+	if href == "" {
+		return href
+	}
+
+	lower := strings.ToLower(href)
+	switch {
+	case strings.HasPrefix(lower, "http://"),
+		strings.HasPrefix(lower, "https://"),
+		strings.HasPrefix(href, "//"),
+		strings.HasPrefix(lower, "mailto:"),
+		strings.HasPrefix(lower, "tel:"),
+		strings.HasPrefix(lower, "javascript:"),
+		strings.HasPrefix(lower, "data:"),
+		strings.HasPrefix(href, "#"):
+		return href
+	}
+
+	// Split off the query/fragment suffix so it's never touched by the
+	// extension rewrite below (e.g. "Page?x=1" must not become
+	// "Page?x=1.html", and "Page#section" must not become
+	// "Page#section.html").
+	path := href
+	suffix := ""
+	if idx := strings.IndexAny(href, "?#"); idx >= 0 {
+		path = href[:idx]
+		suffix = href[idx:]
+	}
+
+	// A bare "?query" or the (already-handled) "#anchor" case with nothing
+	// before it — nothing to rewrite, it's relative to the current page.
+	if path == "" {
+		return href
+	}
+
+	// Only touch the final path segment; preserve any "./", "../", nested
+	// directories, or a leading "/" exactly as written so relative and
+	// absolute semantics are unaffected.
+	dir := ""
+	base := path
+	if slash := strings.LastIndex(path, "/"); slash >= 0 {
+		dir = path[:slash+1]
+		base = path[slash+1:]
+	}
+
+	// Directory-only reference (".", "..", "", trailing slash) - leave as-is.
+	if base == "" || base == "." || base == ".." {
+		return href
+	}
+
+	switch {
+	case strings.HasSuffix(base, ".md"):
+		base = strings.TrimSuffix(base, ".md") + ".html"
+	case extRe.MatchString(base):
+		// Already has a concrete extension (.html, .js, .css, .png, ...) -
+		// leave it alone.
+	default:
+		base += ".html"
+	}
+
+	return dir + base + suffix
 }
 
 func (a *App) htmlEscape(s string) string {
