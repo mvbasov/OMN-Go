@@ -2,8 +2,9 @@ package backend
 
 import (
 	"bytes"
-	"path/filepath"
 	"fmt"
+	"html/template"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -161,10 +162,23 @@ func (a *App) htmlEscape(s string) string {
 }
 
 func (a *App) compilePage(name string, mdContent []byte) []byte {
-	return a.compilePageWithBody(name, mdContent, "")
+	return a.compilePageWithBody(name, mdContent, "", false)
 }
 
-func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
+// compilePageWithBody renders the full page shell (indexPageTmpl) for a
+// single note/page/asset-edit view.
+//
+// customBody, when non-empty, is used as the (already-HTML) main content
+// instead of rendering mdContent as markdown - this is how the "view raw
+// file for external/internal editing" and Config-dashboard pages reuse the
+// same page shell without being markdown themselves.
+//
+// isEditMode marks this render as an in-browser edit view for a
+// non-markdown asset (a .js/.css/.json file opened via ?edit=true): it
+// forces IsMarkdown off and asks the template to auto-switch into edit
+// mode on load, matching what a separate post-render script injection used
+// to bolt on after the fact.
+func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string, isEditMode bool) []byte {
 	var headers []string
 	var bodyLines []string
 	inHeader := true
@@ -193,22 +207,32 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		renderedBody = a.renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
 	}
 
-	layout := string(frontendHTML)
-
 	title := "OMN-Go - " + name
-	var metaTags []string
+	var metaTags []metaTagView
+	var tags []string
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
-		if len(parts) == 2 {
-			k := strings.ToLower(strings.TrimSpace(parts[0]))
-			v := a.htmlEscape(strings.TrimSpace(parts[1]))
-			metaTags = append(metaTags, fmt.Sprintf(`    <meta name="%s" content="%s" />`, k, v))
-			if k == "title" {
-				title = strings.TrimSpace(parts[1])
+		if len(parts) != 2 {
+			continue
+		}
+		k := strings.ToLower(strings.TrimSpace(parts[0]))
+		v := strings.TrimSpace(parts[1])
+		// No manual escaping here (unlike the old a.htmlEscape(v) call) -
+		// indexPageTmpl's {{.Value}} is inside an HTML attribute, and
+		// html/template escapes attribute contexts correctly on its own.
+		metaTags = append(metaTags, metaTagView{Name: k, Value: v})
+		if k == "title" {
+			title = v
+		}
+		if k == "tags" {
+			for _, tag := range strings.Split(v, ",") {
+				if tag = strings.TrimSpace(tag); tag != "" {
+					tags = append(tags, tag)
+				}
 			}
 		}
 	}
-	metaTags = append(metaTags, fmt.Sprintf(`    <meta name="generator" content="OMN-Go %s" />`, APP_VERSION))
+	metaTags = append(metaTags, metaTagView{Name: "generator", Value: "OMN-Go " + APP_VERSION})
 
 	// Determine file extension for editor use
 	pageExt := ""
@@ -218,43 +242,26 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		// non-markdown file — keep its extension (e.g. .js, .css, .json)
 		pageExt = filepath.Ext(name)
 	}
-	metaScript := fmt.Sprintf(`    <script>
-      var PackageName = 'net.basov.omngo';
-      var PageName = '%s';
-      var Title = '%s';
-      var PAGE_EXT = '%s';
-    </script>`, name, title, pageExt)
+	// isEditMode is only ever true for a non-markdown asset (see the
+	// doc comment above), so pageExt is never ".md"/"" in that case
+	// anyway - the explicit !isEditMode guard is defensive belt-and-braces
+	// rather than load-bearing.
+	isMarkdown := !isEditMode && (pageExt == ".md" || pageExt == "")
 
-	// Build tag links for the header
-	var tagLinks []string
-	for _, h := range headers {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "tags") {
-			for _, tag := range strings.Split(parts[1], ",") {
-				tag = strings.TrimSpace(tag)
-				if tag != "" {
-					tagLinks = append(tagLinks, fmt.Sprintf(`<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, a.htmlEscape(tag), a.htmlEscape(tag)))
-				}
-			}
-		}
+	view := indexPageView{
+		Title:       title,
+		PackageName: "net.basov.omngo",
+		PageName:    name,
+		PageExt:     pageExt,
+		IsMarkdown:  isMarkdown,
+		IsEditMode:  isEditMode,
+		MetaTags:    metaTags,
+		Tags:        tags,
+		RawMD:       string(mdContent),
+		PreviewBody: template.HTML(renderedBody),
 	}
-	tagsHTML := strings.Join(tagLinks, "\n")
 
-	metaBlock := strings.Join(metaTags, "\n") + "\n" + metaScript
-
-	// Explicitly set IS_MARKDOWN = true for markdown pages (overrides any previous false)
-	if pageExt == ".md" || pageExt == "" {
-		metaBlock += "\n    <script>var IS_MARKDOWN = true;</script>"
-	}
-	layout = strings.ReplaceAll(layout, "</head>", metaBlock+"\n</head>")
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PAGE_TITLE -->", title)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_PREVIEW_BODY -->", renderedBody)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_RAW_MD -->", a.htmlEscape(string(mdContent)))
-	layout = strings.ReplaceAll(layout, "/* OMN_GO_PAGE_NAME_JS */", fmt.Sprintf(`let currentNote = "%s";`, name))
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_TAGS -->", tagsHTML)
-	layout = strings.ReplaceAll(layout, "<!-- OMN_GO_METADATA_PANEL -->", "")
-
-	return []byte(layout)
+	return []byte(renderTemplate(indexPageTmpl, view, "compilePageWithBody"))
 }
 
 func (a *App) ensureHeaderModified(content string, defaultTitle string) string {

@@ -3,12 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><!-- OMN_GO_PAGE_TITLE --></title>
+    <title>{{.Title}}</title>
     <link rel="stylesheet" href="/css/omn-go-core.css">
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
     <script src="/js/omn-go-core.js" defer></script>
     <script src="/js/omn-go-sse.js" defer></script>
+    {{range .MetaTags}}<meta name="{{.Name}}" content="{{.Value}}" />
+    {{end}}
+    <script>
+      var PackageName = '{{.PackageName}}';
+      var PageName = '{{.PageName}}';
+      var Title = '{{.Title}}';
+      var PAGE_EXT = '{{.PageExt}}';
+    </script>
+    {{if .IsMarkdown}}<script>var IS_MARKDOWN = true;</script>{{end}}
+    {{if .IsEditMode}}<script>setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>{{end}}
+    <!-- OMN_GO_RUNTIME_VARS -->
 </head>
 <body>
     
@@ -43,18 +54,18 @@
                     <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
                 </div>
                 <!-- Tag pills -->
-                <div id="headerTags"><!-- OMN_GO_TAGS --></div>
+                <div id="headerTags">{{range .Tags}}<a href="Tags.html#{{.}}" class="taglink"><span class="tagmark">{{.}}</span></a>{{end}}</div>
             </div>
             <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
-                <!-- OMN_GO_PAGE_TITLE -->
+                {{.Title}}
                 <span id="title_arrow" class="title-arrow">+</span>
             </h4>
         </div>
 
         <div id="content" class="page-content">
-            <div id="metadataPanel" class="hidden metadata-panel"><!-- OMN_GO_METADATA_PANEL --></div>
-            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload."><!-- OMN_GO_RAW_MD --></textarea>
-            <div id="preview"><!-- OMN_GO_PREVIEW_BODY --></div>
+            <div id="metadataPanel" class="hidden metadata-panel"></div>
+            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload.">{{.RawMD}}</textarea>
+            <div id="preview">{{.PreviewBody}}</div>
         </div>
     </div>
 
@@ -100,7 +111,7 @@
     </div>
 
     <script>
-        /* OMN_GO_PAGE_NAME_JS */
+        let currentNote = "{{.PageName}}";
     </script>
 
     <!-- Code & Math Formatting Assets -->

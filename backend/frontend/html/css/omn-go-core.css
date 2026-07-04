@@ -508,4 +508,8 @@ a.taglink {
 .git-server-label { font-weight: bold; display: flex; align-items: center; gap: 0.5rem; }
 .git-server-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
 .git-server-input { border: 1px solid #ccc; padding: 0.5rem; width: 100%; box-sizing: border-box; border-radius: 4px; }
+.git-server-key { font-family: monospace; min-height: 60px; }
 @media (max-width: 600px) { .git-server-grid { grid-template-columns: 1fr; } }
+
+/* ====== Config Save Button Row ====== */
+.config-save-row { margin-top: 20px; }

@@ -49,11 +49,21 @@ func (a *App) WaitUntilReady() {
 	<-a.ready
 }
 
-//go:embed frontend/index.html
-var frontendHTML []byte
-
 //go:embed frontend/html frontend/md
 var staticFS embed.FS
+
+// templatesFS holds internal server-rendered page fragments (the Config
+// dashboard, the "editing externally" wait page, ...). These are
+// deliberately embedded separately from staticFS: staticFS's frontend/html
+// tree is lazily extracted to StorageDir/html on first request (see
+// serveLazyEmbed / serveStaticAsset) and is treated as user-editable
+// content that a person can open with ?edit=true and overwrite. Templates
+// are neither - they're Go-side rendering logic, not user content - so
+// mixing them into frontend/html would both let a user "edit" and corrupt
+// them and require excluding them from every static-file listing by hand.
+//
+//go:embed frontend/templates
+var templatesFS embed.FS
 
 
 
@@ -127,11 +137,9 @@ func StartServer() *App {
 					escapedContent := a.htmlEscape(string(rawContent))
 					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
 					// Pass raw content as mdContent so the textarea is populated
-					compiled := a.compilePageWithBody(relPath, rawContent, customBody)
-					scriptInjection := "<script>var IS_MARKDOWN = false; setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>"
-					compiled = []byte(strings.Replace(string(compiled), "</head>", scriptInjection+"\n</head>", 1))
+					compiled := a.compilePageWithBody(relPath, rawContent, customBody, true)
 					w.Header().Set("Content-Type", "text/html")
-					w.Write(compiled)
+					w.Write(a.injectRuntimeVars(compiled))
 					return
 				}
 
