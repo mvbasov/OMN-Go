@@ -127,6 +127,7 @@ func (a *App) ensureGitignore() {
 # OMN-Go sync ignore
 config.json
 *.html
+*.woff2
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
@@ -514,96 +515,6 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 	log.Printf("[sync] Committed with hash: %s", commitHash.String())
 	return true, nil
 }
-
-// ---------------------------------------------------------------
-// Sync operations (download / upload)
-// ---------------------------------------------------------------
-//
-// UNUSED: executeSyncDownload and executeSyncUpload below are never called
-// anywhere in this codebase — SyncRepo/SyncRepoWithMessage implement pull
-// and push inline via syncPull/syncPullForce/syncPush instead. Left here,
-// commented out, for reference rather than deleted outright. Both are
-// unexported, so they cannot be part of any external (e.g. Android/gomobile)
-// binding — safe to leave disabled. (Confirmed: MainActivity.java only
-// calls Backend.startServer(); all sync operations reach the backend via
-// the HTTP handlers below, not direct native calls.)
-//
-// func (a *App) executeSyncDownload(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, force bool) error {
-// 	if force {
-// 		log.Printf("[sync] Force Download: Fetching and Hard Resetting")
-//
-// 		if runtime.GOOS == "android" {
-// 			tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
-// 			os.MkdirAll(tmpDir, 0755)
-// 			os.Setenv("TMPDIR", tmpDir)
-// 			a.ensureGitignore()
-// 		}
-//
-// 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
-// 		if err != nil && err != git.NoErrAlreadyUpToDate {
-// 			return fmt.Errorf("fetch failed: %v", err)
-// 		}
-//
-// 		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to find origin/master: %v", err)
-// 		}
-//
-// 		err = wTree.Checkout(&git.CheckoutOptions{
-// 			Hash:  ref.Hash(),
-// 			Force: true,
-// 			Keep:  true,
-// 		})
-// 		if err != nil {
-// 			return fmt.Errorf("hard reset failed: %v", err)
-// 		}
-//
-// 		repo.Storer.SetReference(plumbing.NewHashReference(
-// 			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
-// 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
-// 			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
-// 	} else {
-// 		log.Printf("[sync] Fetching from origin master for merge")
-// 		err := repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth})
-// 		if err != nil && err != git.NoErrAlreadyUpToDate {
-// 			return fmt.Errorf("fetch failed: %v", err)
-// 		}
-//
-// 		ref, err := repo.Reference(plumbing.NewRemoteReferenceName("origin", "master"), true)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to find origin/master: %v", err)
-// 		}
-//
-// 		err = wTree.Checkout(&git.CheckoutOptions{
-// 			Hash:  ref.Hash(),
-// 			Force: false,
-// 			Keep:  true,
-// 		})
-// 		if err != nil {
-// 			return fmt.Errorf("checkout failed: %v", err)
-// 		}
-//
-// 		repo.Storer.SetReference(plumbing.NewHashReference(
-// 			plumbing.ReferenceName("refs/heads/master"), ref.Hash()))
-// 		repo.Storer.SetReference(plumbing.NewSymbolicReference(
-// 			plumbing.HEAD, plumbing.ReferenceName("refs/heads/master")))
-// 	}
-// 	return nil
-// }
-//
-// func (a *App) executeSyncUpload(repo *git.Repository, auth transport.AuthMethod, force bool) error {
-// 	log.Printf("[sync] Pushing to origin master (Force: %v)", force)
-// 	err := repo.Push(&git.PushOptions{
-// 		RemoteName: "origin",
-// 		Auth:       auth,
-// 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
-// 		Force:      force,
-// 	})
-// 	if err != nil && err != git.NoErrAlreadyUpToDate {
-// 		return fmt.Errorf("push failed: %v", err)
-// 	}
-// 	return nil
-// }
 
 // ---------------------------------------------------------------
 // Pre-merge checkpoint (backs "pull_abort")
