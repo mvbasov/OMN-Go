@@ -1,0 +1,116 @@
+# Combined single-file, single-stage-graph version of Dockerfile.base +
+# Dockerfile, used ONLY by CI (see android-gomobile-release.yml).
+#
+# Why this exists as a separate file instead of two `docker buildx build`
+# invocations: GitHub's setup-buildx-action creates a builder using the
+# `docker-container` driver, which runs BuildKit in an isolated container
+# with its OWN image store - it does not share the local Docker daemon's
+# image store for FROM resolution, even after a prior build `--load`ed a
+# result into that daemon. Two separate `docker buildx build` calls where
+# the second does `FROM omn-go-base:latest` therefore tries to PULL that
+# name from a registry and fails ("pull access denied"). Building both
+# stages as one BuildKit graph sidesteps the problem entirely - there is
+# no cross-invocation image reference to resolve.
+#
+# Local development is unaffected: Dockerfile.base and Dockerfile remain
+# the two-file setup for `docker buildx build -f Dockerfile.base ...` then
+# `docker buildx build ...` on a machine using the default `docker`
+# driver (which DOES share the local image store). Keep this file's
+# content in sync with those two if you change either.
+
+# ============================== STAGE 1 ===============================
+FROM golang:1.26-bookworm AS base_env
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    openjdk-17-jdk wget unzip cmake ninja-build
+
+RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O /tmp/dl/cmd.zip && \
+    mkdir -p /opt/android/cmdline-tools && \
+    unzip -q /tmp/dl/cmd.zip -d /opt/android/cmdline-tools && \
+    mv /opt/android/cmdline-tools/cmdline-tools /opt/android/cmdline-tools/latest
+
+ENV ANDROID_HOME=/opt/android
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+RUN --mount=type=cache,target=/opt/android/.android/cache,sharing=locked \
+    yes | sdkmanager --licenses && \
+    sdkmanager "platforms;android-34" "build-tools;33.0.1" "platform-tools" "ndk;25.2.9519653"
+
+RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
+    wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/dl/gradle.zip && \
+    mkdir -p /opt/gradle && \
+    unzip -q /tmp/dl/gradle.zip -d /opt/gradle
+ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
+
+WORKDIR /app
+
+# The host has no Go toolchain, so go.sum is generated here, inside the
+# container, once. golang.org/x/mobile isn't in the committed go.mod
+# either, so it's added here as a `tool` dependency. The result is
+# stashed under /root/lockfiles - a path the project_builder stage's
+# later `COPY . .` never touches - so it survives that copy intact and
+# gets restored afterward instead of being silently reverted to the
+# host's incomplete go.mod.
+COPY go.mod ./
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile && \
+    go mod download && \
+    go install golang.org/x/mobile/cmd/gobind && \
+    go install golang.org/x/mobile/cmd/gomobile && \
+    gomobile init && \
+    mkdir -p /root/lockfiles && cp go.mod go.sum /root/lockfiles/
+
+# ============================== STAGE 2 ===============================
+FROM base_env AS project_builder
+
+ARG KEYSTORE_PASSWORD
+ARG KEY_ALIAS
+ARG KEY_PASSWORD
+ARG SKIP_TESTS=0
+
+COPY . .
+
+# Restore the fully-resolved go.mod/go.sum from stage 1, undoing whatever
+# the host's (go.sum-less, x/mobile-less) copies the line above just
+# brought in.
+RUN cp /root/lockfiles/go.mod /root/lockfiles/go.sum ./
+
+# Safety net, not a resolution step: reconciles go.mod against the now-
+# fully-present source. Should be a no-op - and touch no network - as
+# long as go.mod hasn't drifted from what the source actually imports.
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    go mod tidy
+
+# Quality Gate: vet + unit tests must pass before ANY artifact is built.
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    if [ "$SKIP_TESTS" = "1" ]; then \
+        echo "WARNING: SKIP_TESTS=1 - test gate bypassed"; \
+    else \
+        go vet ./backend/... && \
+        go test ./backend/...; \
+    fi
+
+# Desktop Binary (OMN-Go naming convention)
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
+    export GOFLAGS="-ldflags=-s -w -trimpath" && \
+    GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
+
+# Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    mkdir -p android/app/libs && \
+    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+    cd android && \
+    gradle assembleRelease && \
+    cp app/build/outputs/apk/release/*.apk ../bin/

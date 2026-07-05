@@ -9,21 +9,16 @@ ARG KEY_PASSWORD
 #   docker build --build-arg SKIP_TESTS=1 ...
 ARG SKIP_TESTS=0
 
-# go.mod and go.sum are deliberately excluded from this build's context
-# (see Dockerfile.dockerignore) so this COPY cannot overwrite the
-# already-resolved /app/go.mod + /app/go.sum baked into omn-go-base -
-# those are the only copies that exist anywhere (the host has no Go
-# toolchain to produce go.sum itself). This is what makes an ordinary
-# source-only rebuild fully offline: nothing in this stage can trigger a
-# module re-resolution or re-download. To pick up an actual dependency
-# change, rebuild Dockerfile.base first (bump go.mod there) - that's the
-# one place go.mod is ever written.
 COPY . .
+
+# Restore the fully-resolved go.mod/go.sum stashed by Dockerfile.base at
+# /root/lockfiles, undoing whatever the host's (go.sum-less, x/mobile-less)
+# copies the COPY above just brought in. No .dockerignore trickery needed.
+RUN cp /root/lockfiles/go.mod /root/lockfiles/go.sum ./
 
 # Safety net, not a resolution step: reconciles go.mod against the now-
 # fully-present source. Should be a no-op - and touch no network - as
-# long as go.mod (inherited from the base image, untouched by the COPY
-# above) hasn't drifted from what the source actually imports.
+# long as go.mod hasn't drifted from what the source actually imports.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go mod tidy
 
@@ -56,9 +51,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     mkdir -p android/app/libs && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
-# Gradle's own dependency cache, separately cache-mounted so re-running
-# `gradle assembleRelease` with an unchanged build.gradle doesn't re-pull
-# the Android Gradle Plugin / Maven dependencies from the network either.
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     cd android && \
     gradle assembleRelease && \

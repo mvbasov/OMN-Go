@@ -32,42 +32,39 @@ jobs:
         run: |
           echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
 
-      # --cache-from/--cache-to type=gha is what makes the Dockerfile
-      # changes actually pay off in CI: GitHub Actions runners are
-      # ephemeral, so without an external cache backend, every run starts
-      # with an empty BuildKit cache and empty /go/pkg/mod cache mounts
-      # regardless of how well the Dockerfiles are laid out - go.mod not
-      # having changed wouldn't save anything, because there'd be nothing
-      # cached to reuse. type=gha persists both the layer cache and the
-      # cache-mount contents (module cache, go-build cache, gradle cache)
-      # in GitHub's Actions cache between workflow runs.
+      # Built from Dockerfile.ci - a merged, single-BuildKit-graph version
+      # of Dockerfile.base + Dockerfile (see that file's header comment
+      # for why). setup-buildx-action's builder uses the `docker-container`
+      # driver, which runs BuildKit in an isolated container that does NOT
+      # share the runner's local Docker daemon image store: two separate
+      # `docker buildx build` calls, where the second does
+      # `FROM omn-go-base:latest`, fail trying to PULL that name from a
+      # registry instead of reusing what the first `--load`ed. Building
+      # both stages as one graph sidesteps that - there's no cross-
+      # invocation image reference for it to fail to resolve.
       #
-      # Separate scopes (base / builder) so the two images' caches don't
-      # evict each other under GitHub's total per-repo cache size limit.
+      # --cache-from/--cache-to type=gha persists BOTH the layer cache and
+      # the /go/pkg/mod, go-build, and gradle cache-mount contents in
+      # GitHub's Actions cache between workflow runs - without it, every
+      # run would start cold regardless of how the Dockerfile is laid out,
+      # since GitHub Actions runners are fresh VMs each time.
+      # mode=max also caches the base_env stage's layers, not just the
+      # final image, so an unchanged go.mod/toolchain setup is skipped
+      # entirely on the next run, not just de-duplicated at the Go-module
+      # level.
       #
-      # --load is required because the extract/release steps below use
-      # the classic `docker create`/`docker cp` against the image name -
-      # without --load, a buildx build result isn't available to the
-      # local Docker daemon.
-      - name: Build Docker base image
-        run: |
-          docker buildx build \
-            -f Dockerfile.base \
-            -t omn-go-base:latest \
-            --cache-from type=gha,scope=omngo-base \
-            --cache-to type=gha,mode=max,scope=omngo-base \
-            --load \
-            .
-
+      # --load makes the result available to the classic `docker create`/
+      # `docker cp` steps further down.
       - name: Build Docker image
         run: |
           docker buildx build \
+            -f Dockerfile.ci \
             -t omn-go-builder:latest \
             --build-arg KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}" \
             --build-arg KEY_ALIAS="${KEY_ALIAS}" \
             --build-arg KEY_PASSWORD="${KEY_PASSWORD}" \
-            --cache-from type=gha,scope=omngo-builder \
-            --cache-to type=gha,mode=max,scope=omngo-builder \
+            --cache-from type=gha,scope=omngo \
+            --cache-to type=gha,mode=max,scope=omngo \
             --load \
             .
         env:

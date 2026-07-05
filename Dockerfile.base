@@ -3,12 +3,6 @@ FROM golang:1.26-bookworm AS base_env
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# --mount=type=cache persists these dirs ACROSS builds (not just within one
-# build's layer cache) - even a base-image bump or `--no-cache` won't force
-# a re-download of packages already fetched once. Cache-mount contents are
-# never baked into the image, so this also means we can drop the old
-# `rm -rf /var/lib/apt/lists/*` cleanup: that directory was never part of
-# this image's layers in the first place once it's a cache mount.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y \
@@ -24,7 +18,6 @@ RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
 ENV ANDROID_HOME=/opt/android
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-# Accept licenses and install platform dependencies.
 RUN --mount=type=cache,target=/opt/android/.android/cache,sharing=locked \
     yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-34" "build-tools;33.0.1" "platform-tools" "ndk;25.2.9519653"
@@ -38,28 +31,26 @@ ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
 
 WORKDIR /app
 
-# The host has no Go toolchain, so go.sum cannot be generated/committed
-# there - it can only be produced inside a container. This image is where
-# that happens, ONCE, and the result (go.mod + go.sum, both fully
-# resolved) is baked into this image's own /app.
+# The host has no Go toolchain, so go.sum can only be generated here,
+# inside the container - once, whenever go.mod changes. golang.org/x/mobile
+# isn't in the committed go.mod either (nothing on the host could have
+# added it), so it's added here as a `tool` dependency, matching stage 2's
+# `go mod tidy` expectations.
 #
-# This is also why golang.org/x/mobile (gobind/gomobile) is added as a
-# `tool` dependency HERE rather than expecting it already in the committed
-# go.mod: there's nowhere else it could have been added. This `go get`
-# call is the one place in this whole pipeline that's allowed to genuinely
-# need the network for module *resolution* (not just download) - every
-# other Go step, here and in stage 2, only ever needs bytes already
-# resolved and cached.
+# The result is stashed under /root/lockfiles - NOT under /app - so that
+# stage 2's later `COPY . .` (which brings in the host's incomplete,
+# go.sum-less go.mod) can't overwrite it. Stage 2 restores it explicitly
+# instead. (Earlier revisions tried to solve this with a second
+# .dockerignore file to exclude go.mod/go.sum from stage 2's COPY - that
+# works but is fragile: BuildKit's per-Dockerfile ignore file REPLACES the
+# root .dockerignore rather than merging with it, so it silently drops
+# every other exclusion too unless kept in careful sync by hand. This
+# stash-and-restore approach needs no ignore-file trickery at all.)
 COPY go.mod ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile && \
     go mod download && \
     go install golang.org/x/mobile/cmd/gobind && \
     go install golang.org/x/mobile/cmd/gomobile && \
-    gomobile init
-
-# Stage 2 must NEVER re-copy go.mod/go.sum from the host and overwrite
-# what was just resolved above (the host copy has no go.sum and no
-# x/mobile entry at all) - see Dockerfile.dockerignore, which excludes
-# both files specifically from stage 2's build context so its `COPY . .`
-# leaves these two files exactly as they are in this image.
+    gomobile init && \
+    mkdir -p /root/lockfiles && cp go.mod go.sum /root/lockfiles/
