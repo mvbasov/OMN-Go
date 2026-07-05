@@ -843,16 +843,46 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		return fmt.Errorf("failed to find %s/master: %v", remoteName, err)
 	}
 
+	// Check out the remote commit by Hash BEFORE touching the local branch
+	// ref - this matters more than it looks like it should.
+	//
+	// The previous order here was: move "refs/heads/master" (what HEAD
+	// already points to) to remoteRef.Hash() first, then
+	// Checkout({Branch: "refs/heads/master"}). By the time Checkout ran,
+	// HEAD and the checkout target were already the same commit, so
+	// Checkout had no real old-tree-vs-new-tree diff left to compute. With
+	// nothing meaningful to diff, its Force-mode fallback reconciles the
+	// literal worktree contents against the target tree directly: any
+	// path on disk that isn't part of that tree gets removed, with no
+	// regard for whether it was ever tracked by git or covered by
+	// .gitignore - git's tracked/untracked bookkeeping is bypassed
+	// entirely, not merely misapplied. That's what was deleting
+	// config.json despite it never being tracked and always being
+	// gitignored: this ordering never gave those checks a chance to
+	// matter in the first place.
+	//
+	// Checking out by Hash instead uses the *current* HEAD (still the old
+	// local master, untouched so far) as the diff baseline, so Checkout
+	// only creates/updates/removes paths that actually differ between the
+	// two TRACKED trees - exactly what a force-checkout should do.
+	if err := wTree.Checkout(&git.CheckoutOptions{
+		Hash:  remoteRef.Hash(),
+		Force: true,
+	}); err != nil {
+		return fmt.Errorf("checkout failed: %v", err)
+	}
+
+	// Checking out by Hash leaves HEAD detached at that commit. Move
+	// "refs/heads/master" to match and re-attach HEAD to it, so the repo
+	// ends up exactly where it needs to be - on branch master, at the
+	// remote's tip - just reached in the right order this time.
 	if err := repo.Storer.SetReference(plumbing.NewHashReference(
 		plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())); err != nil {
 		return fmt.Errorf("failed to move local branch: %v", err)
 	}
-
-	if err := wTree.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.ReferenceName("refs/heads/master"),
-		Force:  true,
-	}); err != nil {
-		return fmt.Errorf("checkout failed: %v", err)
+	if err := repo.Storer.SetReference(plumbing.NewSymbolicReference(
+		plumbing.HEAD, plumbing.ReferenceName("refs/heads/master"))); err != nil {
+		return fmt.Errorf("failed to reattach HEAD to master: %v", err)
 	}
 
 	matcher, mErr := a.loadGitignoreMatcher(wTree)
