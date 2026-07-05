@@ -5,9 +5,26 @@ ARG KEYSTORE_PASSWORD
 ARG KEY_ALIAS
 ARG KEY_PASSWORD
 
+# Set to 1 to skip the test gate for an emergency build:
+#   docker build --build-arg SKIP_TESTS=1 ...
+ARG SKIP_TESTS=0
+
 COPY . .
 RUN go get -tool golang.org/x/mobile/cmd/gobind && \
     go mod tidy
+
+# Quality Gate: vet + unit tests must pass before ANY artifact is built.
+# Runs after `go mod tidy` (modules resolved) and before the desktop/APK
+# steps, so a red test aborts the build before minutes of gomobile/gradle
+# work. Tests run as a plain native-linux `go test` - deliberately WITHOUT
+# the release GOFLAGS (-s -w -trimpath), which are only exported inside the
+# desktop build step below and strip debug info tests don't want anyway.
+RUN if [ "$SKIP_TESTS" = "1" ]; then \
+        echo "WARNING: SKIP_TESTS=1 - test gate bypassed"; \
+    else \
+        go vet ./backend/... && \
+        go test ./backend/...; \
+    fi
 
 # Desktop Binary (OMN-Go naming convention)
 RUN VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \

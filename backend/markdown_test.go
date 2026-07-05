@@ -1,0 +1,202 @@
+package backend
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestRewriteInternalLink(t *testing.T) {
+	a := &App{}
+	tests := []struct{ in, want string }{
+		// bare page names get .html
+		{"Page", "Page.html"},
+		{"./Page", "./Page.html"},
+		{"../Page", "../Page.html"},
+		{"/Page", "/Page.html"},
+		{"dir/Page", "dir/Page.html"},
+		// .md becomes .html
+		{"Page.md", "Page.html"},
+		{"dir/Page.md", "dir/Page.html"},
+		// concrete extensions untouched
+		{"img.png", "img.png"},
+		{"style.css", "style.css"},
+		{"Page.html", "Page.html"},
+		// external / special schemes untouched
+		{"http://example.com/x", "http://example.com/x"},
+		{"https://example.com/x", "https://example.com/x"},
+		{"//cdn.example.com/x", "//cdn.example.com/x"},
+		{"mailto:a@b.c", "mailto:a@b.c"},
+		{"tel:+123", "tel:+123"},
+		{"javascript:void(0)", "javascript:void(0)"},
+		{"data:text/plain,x", "data:text/plain,x"},
+		// pure anchor / query untouched
+		{"#section", "#section"},
+		{"?x=1", "?x=1"},
+		// anchor/query suffixes preserved AFTER the .html rewrite
+		{"Page#section", "Page.html#section"},
+		{"Page?x=1", "Page.html?x=1"},
+		{"Page.md#section", "Page.html#section"},
+		// directory-only references untouched
+		{".", "."},
+		{"..", ".."},
+		{"dir/", "dir/"},
+		// empty
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := a.rewriteInternalLink(tt.in); got != tt.want {
+			t.Errorf("rewriteInternalLink(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestRenderMarkdownToHTMLMathProtection(t *testing.T) {
+	a := &App{}
+	// Underscores inside math would be corrupted into <em> by the markdown
+	// parser if the $$...$$ / $...$ protection didn't hold.
+	md := "Before\n\n$$x_1 + y_2$$\n\nand inline $a_b$ end"
+	out := a.renderMarkdownToHTML([]byte(md))
+
+	if !strings.Contains(out, "$$x_1 + y_2$$") {
+		t.Errorf("block math not preserved verbatim, got:\n%s", out)
+	}
+	if !strings.Contains(out, "$a_b$") {
+		t.Errorf("inline math not preserved verbatim, got:\n%s", out)
+	}
+	if strings.Contains(out, "x<em>") || strings.Contains(out, "a<em>") {
+		t.Error("markdown emphasis corrupted math content")
+	}
+}
+
+func TestRenderMarkdownToHTMLLinkRewrite(t *testing.T) {
+	a := &App{}
+	out := a.renderMarkdownToHTML([]byte("[a](Other) [b](Other.md) [c](img.png) [d](https://x.y/z)"))
+
+	for _, want := range []string{`href="Other.html"`, `href="img.png"`, `href="https://x.y/z"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %s in rendered output:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, `href="Other.md"`) {
+		t.Error(".md link not rewritten to .html")
+	}
+}
+
+func TestCompilePageWithBodyHeaders(t *testing.T) {
+	a := &App{}
+	md := "Title: My \"Quoted\" Page\nTags: alpha, beta\nAuthor: Someone\n\n# Heading\n\nBody **bold** text."
+	out := string(a.compilePage("TestPage", []byte(md)))
+
+	if strings.Contains(out, "%%") {
+		t.Fatalf("unfilled placeholder in compiled page:\n%s", out)
+	}
+	// Title extracted from header and HTML-escaped.
+	if !strings.Contains(out, "My &quot;Quoted&quot; Page") {
+		t.Error("title from header not used/escaped")
+	}
+	// Header lines become meta tags.
+	if !strings.Contains(out, `<meta name="author" content="Someone"`) {
+		t.Error("author header not emitted as meta tag")
+	}
+	// Generator meta always appended.
+	if !strings.Contains(out, `content="OMN-Go `+APP_VERSION+`"`) {
+		t.Error("generator meta tag missing")
+	}
+	// Tag pills for both tags.
+	for _, tag := range []string{"alpha", "beta"} {
+		if !strings.Contains(out, `Tags.html#`+tag) {
+			t.Errorf("tag pill for %q missing", tag)
+		}
+	}
+	// Markdown body rendered (header block excluded from body).
+	if !strings.Contains(out, "<strong>bold</strong>") {
+		t.Error("markdown body not rendered")
+	}
+	if strings.Contains(out, `<meta name="title" content="My`) == false {
+		t.Error("title header not emitted as meta tag")
+	}
+	// Bare page: markdown flag set.
+	if !strings.Contains(out, "var IS_MARKDOWN = true;") {
+		t.Error("IS_MARKDOWN missing for markdown page")
+	}
+	// Raw source present, escaped, in the editor textarea.
+	if !strings.Contains(out, "Body **bold** text.") {
+		t.Error("raw markdown missing from editor textarea")
+	}
+}
+
+func TestCompilePageWithBodyEditMode(t *testing.T) {
+	a := &App{}
+	raw := []byte("console.log('x');")
+	out := string(a.compilePageWithBody("app.js", raw, "<pre>console.log('x');</pre>", true))
+
+	if strings.Contains(out, "var IS_MARKDOWN = true;") {
+		t.Error("IS_MARKDOWN set for a .js edit view")
+	}
+	if !strings.Contains(out, "toggleMode") {
+		t.Error("edit-mode auto-toggle script missing")
+	}
+	if !strings.Contains(out, "var PAGE_EXT = '.js';") {
+		t.Error("PAGE_EXT not derived from filename")
+	}
+	if !strings.Contains(out, "<pre>console.log('x');</pre>") {
+		t.Error("custom body not used as preview")
+	}
+}
+
+func TestEnsureHeaderModifiedUpdatesExisting(t *testing.T) {
+	a := &App{}
+	in := "Title: T\nDate: 2026-01-01 00:00:00\nModified: 2026-01-01 00:00:00\n\nBody"
+	out := a.ensureHeaderModified(in, "T")
+
+	if strings.Contains(out, "Modified: 2026-01-01 00:00:00") {
+		t.Error("stale Modified timestamp not replaced")
+	}
+	if strings.Count(out, "Modified:") != 1 {
+		t.Errorf("expected exactly one Modified line, got %d", strings.Count(out, "Modified:"))
+	}
+	if !strings.HasSuffix(out, "Body") {
+		t.Errorf("body lost or altered: %q", out)
+	}
+	if !strings.Contains(out, "Title: T\n") {
+		t.Error("existing header lines lost")
+	}
+}
+
+func TestEnsureHeaderModifiedAddsMissingModified(t *testing.T) {
+	a := &App{}
+	out := a.ensureHeaderModified("Title: T\nDate: 2026-01-01\n\nBody", "T")
+	if strings.Count(out, "Modified:") != 1 {
+		t.Errorf("Modified line not added exactly once:\n%s", out)
+	}
+}
+
+func TestEnsureHeaderModifiedSynthesizesHeader(t *testing.T) {
+	a := &App{}
+	a.Config.Author = "Tester"
+	out := a.ensureHeaderModified("Just body text", "NewPage")
+
+	for _, want := range []string{"Title: NewPage", "Date: ", "Modified: ", "Author: Tester"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("synthesized header missing %q:\n%s", want, out)
+		}
+	}
+	if !strings.HasSuffix(out, "Just body text") {
+		t.Error("body not preserved after synthesized header")
+	}
+}
+
+// Content starting with markdown or HTML must NOT be mistaken for a
+// key:value header block (a "#" heading or "<script>" can contain ":").
+func TestEnsureHeaderModifiedNonHeaderFirstLine(t *testing.T) {
+	a := &App{}
+	for _, in := range []string{"# Head: line\n\nBody", "<script>x: 1</script>\n\nBody"} {
+		out := a.ensureHeaderModified(in, "P")
+		if !strings.Contains(out, "Title: P") {
+			t.Errorf("input %q: expected synthesized header, got:\n%s", in, out)
+		}
+		if !strings.Contains(out, in) {
+			t.Errorf("input %q: original content not preserved verbatim", in)
+		}
+	}
+}
