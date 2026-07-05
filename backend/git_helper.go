@@ -820,6 +820,106 @@ func (a *App) syncPullAbort(wTree *git.Worktree) error {
 	return nil
 }
 
+// writeTreeToWorktree writes every blob in tree into wTree's filesystem and
+// returns the set of paths it wrote. It deliberately does NOT ask go-git
+// to reconcile the rest of the worktree against tree the way
+// Worktree.Checkout/Reset do internally - it only ever creates or
+// overwrites the exact paths tree contains, and touches nothing else.
+//
+// See the comment in syncPullForce for why that distinction is the whole
+// point: Checkout(Force: true) - even called correctly - doesn't limit its
+// "make the worktree match" behavior to files git actually knows about. On
+// a repo with no commit yet to diff against (a fresh install, before this
+// device has ever completed a sync) or a partially-reconciled state, it
+// falls back to reconciling literally everything on disk against the
+// target tree, deleting whatever isn't part of it - including config.json,
+// which was never tracked and is always in .gitignore, because tracked
+// status and .gitignore are never actually consulted by that fallback.
+func (a *App) writeTreeToWorktree(repo *git.Repository, wTree *git.Worktree, tree *object.Tree) (map[string]bool, error) {
+	newIndex := &index.Index{Version: 2}
+	written := map[string]bool{}
+
+	fileIter := tree.Files()
+	defer fileIter.Close()
+
+	err := fileIter.ForEach(func(f *object.File) error {
+		reader, err := f.Reader()
+		if err != nil {
+			return fmt.Errorf("open blob for %s: %v", f.Name, err)
+		}
+		defer reader.Close()
+
+		if dir := filepath.Dir(f.Name); dir != "." {
+			if err := wTree.Filesystem.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("mkdir for %s: %v", f.Name, err)
+			}
+		}
+		out, err := wTree.Filesystem.Create(f.Name)
+		if err != nil {
+			return fmt.Errorf("create %s: %v", f.Name, err)
+		}
+		_, copyErr := io.Copy(out, reader)
+		closeErr := out.Close()
+		if copyErr != nil {
+			return fmt.Errorf("write %s: %v", f.Name, copyErr)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close %s: %v", f.Name, closeErr)
+		}
+
+		size := uint32(0)
+		var modTime time.Time
+		if info, statErr := wTree.Filesystem.Stat(f.Name); statErr == nil {
+			size = uint32(info.Size())
+			modTime = info.ModTime()
+		}
+
+		newIndex.Entries = append(newIndex.Entries, &index.Entry{
+			Name:       f.Name,
+			Hash:       f.Hash,
+			Mode:       f.Mode,
+			Size:       size,
+			ModifiedAt: modTime,
+		})
+		written[f.Name] = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := repo.Storer.SetIndex(newIndex); err != nil {
+		return nil, fmt.Errorf("failed to update index: %v", err)
+	}
+	return written, nil
+}
+
+// oldTrackedPaths returns every path tracked in the repo's current HEAD
+// commit, or an empty set if there is no HEAD yet (an unborn branch -
+// exactly the fresh-install case, where nothing has ever been tracked).
+func oldTrackedPaths(repo *git.Repository) (map[string]bool, error) {
+	paths := map[string]bool{}
+	head, err := repo.Head()
+	if err != nil {
+		return paths, nil
+	}
+	commit, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("HEAD commit lookup failed: %v", err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("HEAD tree lookup failed: %v", err)
+	}
+	fileIter := tree.Files()
+	defer fileIter.Close()
+	err = fileIter.ForEach(func(f *object.File) error {
+		paths[f.Name] = true
+		return nil
+	})
+	return paths, err
+}
+
 // syncPullForce resets local to exactly match origin/master, then deletes
 // any file that is neither tracked by git nor covered by .gitignore, per
 // the requirement that only a *force* pull is allowed to delete such files.
@@ -843,46 +943,49 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		return fmt.Errorf("failed to find %s/master: %v", remoteName, err)
 	}
 
-	// Check out the remote commit by Hash BEFORE touching the local branch
-	// ref - this matters more than it looks like it should.
-	//
-	// The previous order here was: move "refs/heads/master" (what HEAD
-	// already points to) to remoteRef.Hash() first, then
-	// Checkout({Branch: "refs/heads/master"}). By the time Checkout ran,
-	// HEAD and the checkout target were already the same commit, so
-	// Checkout had no real old-tree-vs-new-tree diff left to compute. With
-	// nothing meaningful to diff, its Force-mode fallback reconciles the
-	// literal worktree contents against the target tree directly: any
-	// path on disk that isn't part of that tree gets removed, with no
-	// regard for whether it was ever tracked by git or covered by
-	// .gitignore - git's tracked/untracked bookkeeping is bypassed
-	// entirely, not merely misapplied. That's what was deleting
-	// config.json despite it never being tracked and always being
-	// gitignored: this ordering never gave those checks a chance to
-	// matter in the first place.
-	//
-	// Checking out by Hash instead uses the *current* HEAD (still the old
-	// local master, untouched so far) as the diff baseline, so Checkout
-	// only creates/updates/removes paths that actually differ between the
-	// two TRACKED trees - exactly what a force-checkout should do.
-	if err := wTree.Checkout(&git.CheckoutOptions{
-		Hash:  remoteRef.Hash(),
-		Force: true,
-	}); err != nil {
-		return fmt.Errorf("checkout failed: %v", err)
+	// What was tracked before this pull, so we can tell "file the remote
+	// deleted" (safe to remove) apart from "file that was never tracked in
+	// the first place" (config.json, or anything else this app manages
+	// outside git - never a candidate for removal here, regardless of
+	// what's in the new tree).
+	oldPaths, err := oldTrackedPaths(repo)
+	if err != nil {
+		return fmt.Errorf("failed to read current tracked tree: %v", err)
 	}
 
-	// Checking out by Hash leaves HEAD detached at that commit. Move
-	// "refs/heads/master" to match and re-attach HEAD to it, so the repo
-	// ends up exactly where it needs to be - on branch master, at the
-	// remote's tip - just reached in the right order this time.
+	remoteCommit, err := repo.CommitObject(remoteRef.Hash())
+	if err != nil {
+		return fmt.Errorf("remote commit lookup failed: %v", err)
+	}
+	remoteTree, err := remoteCommit.Tree()
+	if err != nil {
+		return fmt.Errorf("remote tree lookup failed: %v", err)
+	}
+
+	newPaths, err := a.writeTreeToWorktree(repo, wTree, remoteTree)
+	if err != nil {
+		return fmt.Errorf("failed to write remote tree: %v", err)
+	}
+
+	// Remove files that WERE tracked before this pull but are no longer
+	// part of the remote's tree (e.g. a note deleted on another device).
+	// Only ever considers paths that were genuinely tracked, so nothing
+	// this app manages outside git is a candidate for removal here.
+	for p := range oldPaths {
+		if newPaths[p] {
+			continue
+		}
+		full := filepath.Join(a.StorageDir, p)
+		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+			log.Printf("[sync] force pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
+		} else {
+			log.Printf("[sync] force pull: removed file no longer tracked upstream: %s", p)
+		}
+	}
+
 	if err := repo.Storer.SetReference(plumbing.NewHashReference(
 		plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())); err != nil {
 		return fmt.Errorf("failed to move local branch: %v", err)
-	}
-	if err := repo.Storer.SetReference(plumbing.NewSymbolicReference(
-		plumbing.HEAD, plumbing.ReferenceName("refs/heads/master"))); err != nil {
-		return fmt.Errorf("failed to reattach HEAD to master: %v", err)
 	}
 
 	matcher, mErr := a.loadGitignoreMatcher(wTree)
