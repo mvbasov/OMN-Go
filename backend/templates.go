@@ -132,7 +132,16 @@ var indexPageTmpl = mustParseTemplate("index.html")
 
 // runtimeVarsMarker is a literal (non-template-action) placeholder that
 // indexPageTmpl always emits once, near the end of <head>.
-const runtimeVarsMarker = "<!-- OMN_GO_RUNTIME_VARS -->"
+//
+// This deliberately is NOT an HTML comment (<!-- ... -->): html/template
+// silently strips all HTML comments from its rendered output as a
+// security measure (it treats them as untrusted/dead code, partly to
+// block old-IE conditional-comment injection tricks). A comment marker
+// here would never survive templating, so injectRuntimeVars's
+// bytes.Replace below would never find anything to replace - which is
+// exactly what happened before this was a plain <meta> tag: APP_VERSION
+// was never actually defined in the served page.
+const runtimeVarsMarker = `<meta id="omn-go-runtime-vars-marker">`
 
 // injectRuntimeVars splices the two globals that must reflect the
 // *currently running* server - not whatever was true when a page was last

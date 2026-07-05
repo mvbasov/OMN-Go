@@ -10,13 +10,12 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10700
-        versionName "1.7.0"
+        versionCode 10701
+        versionName "1.7.1"
     }
 
     signingConfigs {
         release {
-            storeFile file('omn-go.keystore')
             storeFile file('omn-go.keystore')
             storePassword System.getenv("KEYSTORE_PASSWORD") ?: "fallback"
             keyAlias System.getenv("KEY_ALIAS") ?: "omn-go"
