@@ -3,37 +3,63 @@ FROM golang:1.26-bookworm AS base_env
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
-    openjdk-17-jdk wget unzip cmake ninja-build \
-    && rm -rf /var/lib/apt/lists/*
+# --mount=type=cache persists these dirs ACROSS builds (not just within one
+# build's layer cache) - even a base-image bump or `--no-cache` won't force
+# a re-download of packages already fetched once. Cache-mount contents are
+# never baked into the image, so this also means we can drop the old
+# `rm -rf /var/lib/apt/lists/*` cleanup: that directory was never part of
+# this image's layers in the first place once it's a cache mount.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    openjdk-17-jdk wget unzip cmake ninja-build
 
 # Install Android CMD Line Tools
-RUN wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O /tmp/cmd.zip && \
+RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O /tmp/dl/cmd.zip && \
     mkdir -p /opt/android/cmdline-tools && \
-    unzip /tmp/cmd.zip -d /opt/android/cmdline-tools && \
-    mv /opt/android/cmdline-tools/cmdline-tools /opt/android/cmdline-tools/latest && \
-    rm /tmp/cmd.zip
+    unzip -q /tmp/dl/cmd.zip -d /opt/android/cmdline-tools && \
+    mv /opt/android/cmdline-tools/cmdline-tools /opt/android/cmdline-tools/latest
 
 ENV ANDROID_HOME=/opt/android
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-# Accept licenses and install platform dependencies
-RUN yes | sdkmanager --licenses && \
+# Accept licenses and install platform dependencies.
+RUN --mount=type=cache,target=/opt/android/.android/cache,sharing=locked \
+    yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-34" "build-tools;33.0.1" "platform-tools" "ndk;25.2.9519653"
 
 # Install Gradle
-RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip && \
+RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
+    wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/dl/gradle.zip && \
     mkdir -p /opt/gradle && \
-    unzip -q /tmp/gradle.zip -d /opt/gradle && \
-    rm /tmp/gradle.zip
+    unzip -q /tmp/dl/gradle.zip -d /opt/gradle
 ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
 
 WORKDIR /app
+
+# The host has no Go toolchain, so go.sum cannot be generated/committed
+# there - it can only be produced inside a container. This image is where
+# that happens, ONCE, and the result (go.mod + go.sum, both fully
+# resolved) is baked into this image's own /app.
+#
+# This is also why golang.org/x/mobile (gobind/gomobile) is added as a
+# `tool` dependency HERE rather than expecting it already in the committed
+# go.mod: there's nowhere else it could have been added. This `go get`
+# call is the one place in this whole pipeline that's allowed to genuinely
+# need the network for module *resolution* (not just download) - every
+# other Go step, here and in stage 2, only ever needs bytes already
+# resolved and cached.
 COPY go.mod ./
-RUN go get github.com/yuin/goldmark@latest && \
-    go get golang.org/x/mobile@latest && \
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile && \
     go mod download && \
-    go install golang.org/x/mobile/cmd/gobind@latest && \
-    go install golang.org/x/mobile/cmd/gomobile@latest && \
+    go install golang.org/x/mobile/cmd/gobind && \
+    go install golang.org/x/mobile/cmd/gomobile && \
     gomobile init
 
+# Stage 2 must NEVER re-copy go.mod/go.sum from the host and overwrite
+# what was just resolved above (the host copy has no go.sum and no
+# x/mobile entry at all) - see Dockerfile.dockerignore, which excludes
+# both files specifically from stage 2's build context so its `COPY . .`
+# leaves these two files exactly as they are in this image.

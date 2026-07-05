@@ -1,0 +1,33 @@
+# Applies ONLY to builds using `-f Dockerfile` (BuildKit's per-Dockerfile
+# ignore-file convention: <dockerfile-name>.dockerignore). IMPORTANT: when
+# this file exists, BuildKit uses it INSTEAD OF the root .dockerignore for
+# this Dockerfile - it does not merge the two. Everything below the first
+# blank line is this project's existing root .dockerignore content,
+# copied here verbatim so stage 2 keeps every exclusion it already had;
+# only the two lines above that are new.
+#
+# Dockerfile.base has no ignore file of its own, so it still falls back to
+# the root .dockerignore unchanged and is unaffected by this file.
+#
+# go.mod and go.sum are excluded here on purpose: the host has no Go
+# toolchain to produce go.sum, so the only fully-resolved copies of these
+# two files exist inside the omn-go-base image (see Dockerfile.base).
+# Excluding them from this build's COPY . . means that step can never
+# overwrite them with the host's incomplete (go.sum-less, missing the
+# x/mobile tool entry) go.mod - the image's already-resolved versions
+# survive untouched, and stage 2 never needs the network for module
+# resolution.
+#
+# If you ever add a real go.sum to the repo, remove the go.mod/go.sum
+# lines below and go back to letting COPY . . bring in the host's copies.
+go.mod
+go.sum
+
+.git/
+.github/
+.gitignore
+.env
+doc/
+local/
+output-binaries/
+README.md
