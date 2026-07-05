@@ -164,15 +164,45 @@ func TestWriteTreeToWorktreeRestoresTrackedOnly(t *testing.T) {
 		t.Error("config.json wrongly reported as written")
 	}
 
-	// Index must reflect the tree (a subsequent Status should see the
-	// restored files as clean, not as local modifications).
+	// Index must reflect the tree. Two checks, both unambiguous:
+	//
+	// 1) Authoritative: read the index back and verify each file has an
+	//    entry whose blob hash matches the tree's.
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		t.Fatalf("reading back index: %v", err)
+	}
+	tree := headTree(t, repo)
+	for _, rel := range []string{"md/Keep.md", "md/Restore.md"} {
+		entry, err := idx.Entry(rel)
+		if err != nil {
+			t.Errorf("%s missing from rebuilt index: %v", rel, err)
+			continue
+		}
+		treeFile, err := tree.File(rel)
+		if err != nil {
+			t.Fatalf("tree.File(%s): %v", rel, err)
+		}
+		if entry.Hash != treeFile.Hash {
+			t.Errorf("%s index hash %s != tree hash %s", rel, entry.Hash, treeFile.Hash)
+		}
+	}
+
+	// 2) Status: check MAP MEMBERSHIP directly. go-git's Status map only
+	//    contains changed/untracked files - clean files are absent - and
+	//    status.File() fabricates a default Untracked entry for absent
+	//    paths, which is what made the previous version of this assertion
+	//    misreport clean files as dirty. Absent from the map = clean =
+	//    pass; present is a failure unless explicitly Unmodified.
 	status, err := wt.Status()
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
 	for _, rel := range []string{"md/Keep.md", "md/Restore.md"} {
-		if !status.IsUntracked(rel) && status.File(rel).Worktree != git.Unmodified {
-			t.Errorf("%s not clean in status after index rebuild: %+v", rel, status.File(rel))
+		if fs, inMap := status[rel]; inMap &&
+			(fs.Worktree != git.Unmodified || fs.Staging != git.Unmodified) {
+			t.Errorf("%s not clean after index rebuild: staging=%q worktree=%q",
+				rel, string(fs.Staging), string(fs.Worktree))
 		}
 	}
 }
