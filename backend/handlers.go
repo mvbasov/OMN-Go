@@ -45,7 +45,7 @@ func (a *App) getConfigPageBody() string {
 		})
 	}
 
-	return renderTemplate(configPageTmpl, view, "getConfigPageBody")
+	return renderConfigPage(view)
 }
 
 func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
@@ -54,7 +54,7 @@ func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
 		FileName: fileName,
 		ViewURL:  viewURL,
 	}
-	return renderTemplate(externalEditTmpl, view, "getExternalEditPageBody")
+	return renderExternalEditPage(view)
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {

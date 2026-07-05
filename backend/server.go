@@ -213,24 +213,3 @@ func (a *App) GetServerPort() int {
 	return a.GetConfig().ServerPort
 }
 
-// a.autoGitIgnore safely appends extracted cache files to .gitignore
-func (a *App) autoGitIgnore(cachePath string) {
-	ignoreFile := ".gitignore"
-	content, err := os.ReadFile(ignoreFile)
-	if err != nil && !os.IsNotExist(err) {
-		return // Skip if we can't read an existing file due to permissions
-	}
-	
-	// Git requires forward slashes
-	ignoreStr := filepath.ToSlash(cachePath)
-	
-	// Only append if the file path is not already in .gitignore
-	if !strings.Contains(string(content), ignoreStr) {
-		f, err := os.OpenFile(ignoreFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err == nil {
-			f.WriteString("\n" + ignoreStr)
-			f.Close()
-		}
-	}
-}
-

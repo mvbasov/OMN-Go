@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -153,12 +152,10 @@ func (a *App) rewriteInternalLink(href string) string {
 	return dir + base + suffix
 }
 
+// htmlEscape is kept as a method for its existing call sites; the single
+// escaping implementation lives in templates.go (escapeHTML).
 func (a *App) htmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, "\"", "&quot;")
-	return s
+	return escapeHTML(s)
 }
 
 func (a *App) compilePage(name string, mdContent []byte) []byte {
@@ -217,9 +214,8 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		}
 		k := strings.ToLower(strings.TrimSpace(parts[0]))
 		v := strings.TrimSpace(parts[1])
-		// No manual escaping here (unlike the old a.htmlEscape(v) call) -
-		// indexPageTmpl's {{.Value}} is inside an HTML attribute, and
-		// html/template escapes attribute contexts correctly on its own.
+		// No escaping here - renderIndexPage escapes every meta name/value
+		// for the HTML-attribute context itself.
 		metaTags = append(metaTags, metaTagView{Name: k, Value: v})
 		if k == "title" {
 			title = v
@@ -258,10 +254,10 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		MetaTags:    metaTags,
 		Tags:        tags,
 		RawMD:       string(mdContent),
-		PreviewBody: template.HTML(renderedBody),
+		PreviewHTML: renderedBody,
 	}
 
-	return []byte(renderTemplate(indexPageTmpl, view, "compilePageWithBody"))
+	return []byte(renderIndexPage(view))
 }
 
 func (a *App) ensureHeaderModified(content string, defaultTitle string) string {

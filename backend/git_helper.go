@@ -1312,23 +1312,6 @@ func (a *App) GetConfigAuthor() string {
 	return "OMN-Go User"
 }
 
-// NOTE: GetInsecureSSHAuth has no callers anywhere in this Go codebase, and
-// with MainActivity.java confirmed to only call Backend.startServer() (all
-// sync traffic goes through the HTTP handlers, same as desktop), there is
-// no evidence any caller needs it. Still left in place rather than
-// commented out, since it's exported and this file can't rule out every
-// possible native caller. Safe to delete once you've confirmed that.
-func (a *App) GetInsecureSSHAuth(user, keyPath, passphrase string) (transport.AuthMethod, error) {
-	publicKeys, err := gitssh.NewPublicKeysFromFile(user, keyPath, passphrase)
-	if err != nil {
-		return nil, err
-	}
-	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
-		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
-	}
-	return publicKeys, nil
-}
-
 // Prevent Android media scanner delete critical empty directoryes
 func (a *App) protectGitDirs() {
     if runtime.GOOS != "android" {

@@ -2,9 +2,9 @@
     <div class="ext-edit-icon">📝</div>
     <h2 class="ext-edit-title">Editing Externally</h2>
     <p class="ext-edit-msg">
-        We have launched <strong>{{.Cmd}}</strong> to edit <code>{{.FileName}}</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
+        We have launched <strong>%%CMD%%</strong> to edit <code>%%FILE_NAME%%</code>. Please complete your changes in your editor, save the file, and click the button below to view the updated file.
     </p>
-    <button onclick="window.location.replace('/{{.ViewURL}}')" class="ext-edit-btn">
+    <button onclick="window.location.replace('/%%VIEW_URL_ATTR_JS%%')" class="ext-edit-btn">
         Press after edit to refresh view
     </button>
 </div>

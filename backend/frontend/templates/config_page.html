@@ -3,44 +3,31 @@
     <form id="configForm" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" name="server_port" value="{{.ServerPort}}" class="config-input" required />
+            <input type="number" id="cfgPort" name="server_port" value="%%SERVER_PORT%%" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" name="admin_password" value="{{.AdminPassword}}" class="config-input" required />
+            <input type="password" id="cfgAdminPwd" name="admin_password" value="%%ADMIN_PWD%%" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" name="guest_password" value="{{.GuestPassword}}" class="config-input" required />
+            <input type="password" id="cfgGuestPwd" name="guest_password" value="%%GUEST_PWD%%" class="config-input" required />
         </div>
         <div class="config-field">
             <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" name="author" value="{{.Author}}" class="config-input" />
+            <input type="text" id="cfgAuthor" name="author" value="%%AUTHOR%%" class="config-input" />
         </div>
         <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" {{if .UseInternalEd}}checked{{end}} />
+            <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %%INTERNAL_ED_CHECKED%% />
             <label class="config-label">Use Internal Editor</label>
         </div>
         <div class="config-field">
             <label class="config-label">Desktop External Cmd</label>
-            <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="{{.DesktopExtCmd}}" class="config-input" />
+            <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
         </div>
 
         <h3>Git Servers</h3>
-        {{range .GitServers}}
-        <div class="git-server-card">
-            <label class="git-server-label">
-                <input type="radio" name="active_git_index" value="{{.Index}}" {{if .Active}}checked{{end}}>
-                Use as Active Server (Slot {{.Slot}})
-            </label>
-            <div class="git-server-grid">
-                <input type="text" id="git_name_{{.Index}}" name="git_name_{{.Index}}" value="{{.Name}}" placeholder="Server Name" class="git-server-input">
-                <input type="text" id="git_url_{{.Index}}" name="git_url_{{.Index}}" value="{{.URL}}" placeholder="Git URL (git@...)" class="git-server-input">
-                <textarea id="git_key_{{.Index}}" name="git_key_{{.Index}}" placeholder="SSH Private Key" class="git-server-input git-server-key">{{.SSHKeyData}}</textarea>
-                <input type="password" id="git_pass_{{.Index}}" name="git_pass_{{.Index}}" value="{{.Password}}" placeholder="Key Password (Optional)" class="git-server-input">
-            </div>
-        </div>
-        {{end}}
+%%GIT_SERVERS%%
 
         <div class="config-field config-save-row">
             <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>

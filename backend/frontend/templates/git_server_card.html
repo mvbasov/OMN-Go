@@ -1,0 +1,12 @@
+<div class="git-server-card">
+    <label class="git-server-label">
+        <input type="radio" name="active_git_index" value="%%INDEX%%" %%ACTIVE_CHECKED%%>
+        Use as Active Server (Slot %%SLOT%%)
+    </label>
+    <div class="git-server-grid">
+        <input type="text" id="git_name_%%INDEX%%" name="git_name_%%INDEX%%" value="%%NAME%%" placeholder="Server Name" class="git-server-input">
+        <input type="text" id="git_url_%%INDEX%%" name="git_url_%%INDEX%%" value="%%URL%%" placeholder="Git URL (git@...)" class="git-server-input">
+        <textarea id="git_key_%%INDEX%%" name="git_key_%%INDEX%%" placeholder="SSH Private Key" class="git-server-input git-server-key">%%SSH_KEY%%</textarea>
+        <input type="password" id="git_pass_%%INDEX%%" name="git_pass_%%INDEX%%" value="%%PASSWORD%%" placeholder="Key Password (Optional)" class="git-server-input">
+    </div>
+</div>

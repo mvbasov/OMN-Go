@@ -3,22 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}}</title>
+    <title>%%TITLE_HTML%%</title>
     <link rel="stylesheet" href="/css/omn-go-core.css">
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
     <script src="/js/omn-go-core.js" defer></script>
     <script src="/js/omn-go-sse.js" defer></script>
-    {{range .MetaTags}}<meta name="{{.Name}}" content="{{.Value}}" />
-    {{end}}
+%%META_TAGS%%
     <script>
-      var PackageName = '{{.PackageName}}';
-      var PageName = '{{.PageName}}';
-      var Title = '{{.Title}}';
-      var PAGE_EXT = '{{.PageExt}}';
+      var PackageName = '%%PACKAGE_JS%%';
+      var PageName = '%%PAGE_NAME_JS%%';
+      var Title = '%%TITLE_JS%%';
+      var PAGE_EXT = '%%PAGE_EXT_JS%%';
     </script>
-    {{if .IsMarkdown}}<script>var IS_MARKDOWN = true;</script>{{end}}
-    {{if .IsEditMode}}<script>setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>{{end}}
+%%COND_SCRIPTS%%
     <meta id="omn-go-runtime-vars-marker">
 </head>
 <body>
@@ -54,18 +52,18 @@
                     <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
                 </div>
                 <!-- Tag pills -->
-                <div id="headerTags">{{range .Tags}}<a href="Tags.html#{{.}}" class="taglink"><span class="tagmark">{{.}}</span></a>{{end}}</div>
+                <div id="headerTags">%%TAGS_HTML%%</div>
             </div>
             <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
-                {{.Title}}
+                %%TITLE_HTML%%
                 <span id="title_arrow" class="title-arrow">+</span>
             </h4>
         </div>
 
         <div id="content" class="page-content">
             <div id="metadataPanel" class="hidden metadata-panel"></div>
-            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload.">{{.RawMD}}</textarea>
-            <div id="preview">{{.PreviewBody}}</div>
+            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload.">%%RAW_MD_HTML%%</textarea>
+            <div id="preview">%%PREVIEW_BODY%%</div>
         </div>
     </div>
 
@@ -111,7 +109,7 @@
     </div>
 
     <script>
-        let currentNote = "{{.PageName}}";
+        let currentNote = "%%PAGE_NAME_JS%%";
     </script>
 
     <!-- Code & Math Formatting Assets -->
