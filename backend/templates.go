@@ -201,6 +201,7 @@ type configPageView struct {
 	Author        string
 	UseInternalEd bool
 	DesktopExtCmd string
+	Theme         string // "auto" | "light" | "dark" (normalized)
 	GitServers    []gitServerView
 }
 
@@ -227,6 +228,22 @@ func renderConfigPage(v configPageView) string {
 		internalEdChecked = "checked"
 	}
 
+	// Exactly one option is marked selected; normalizeTheme guarantees
+	// the value is one of the three, with unknown/empty mapping to auto.
+	themeSel := map[string]string{
+		"THEME_AUTO_SEL":  "",
+		"THEME_LIGHT_SEL": "",
+		"THEME_DARK_SEL":  "",
+	}
+	switch normalizeTheme(v.Theme) {
+	case ThemeLight:
+		themeSel["THEME_LIGHT_SEL"] = "selected"
+	case ThemeDark:
+		themeSel["THEME_DARK_SEL"] = "selected"
+	default:
+		themeSel["THEME_AUTO_SEL"] = "selected"
+	}
+
 	return fill(configPageTmpl, map[string]string{
 		"SERVER_PORT":         fmt.Sprintf("%d", v.ServerPort),
 		"ADMIN_PWD":           escapeHTML(v.AdminPassword),
@@ -234,6 +251,9 @@ func renderConfigPage(v configPageView) string {
 		"AUTHOR":              escapeHTML(v.Author),
 		"INTERNAL_ED_CHECKED": internalEdChecked,
 		"DESKTOP_EXT_CMD":     escapeHTML(v.DesktopExtCmd),
+		"THEME_AUTO_SEL":      themeSel["THEME_AUTO_SEL"],
+		"THEME_LIGHT_SEL":     themeSel["THEME_LIGHT_SEL"],
+		"THEME_DARK_SEL":      themeSel["THEME_DARK_SEL"],
 		"GIT_SERVERS":         cards.String(),
 	})
 }
@@ -264,17 +284,31 @@ func renderExternalEditPage(v externalEditView) string {
 // cached on disk.
 const runtimeVarsMarker = `<meta id="omn-go-runtime-vars-marker">`
 
-// injectRuntimeVars splices the two globals that must reflect the
-// *currently running* server - not whatever was true when a page was last
-// compiled to the on-disk HTML cache - into a rendered page's
-// runtimeVarsMarker. Pages are cached to disk (precompileAllPages /
-// serveHTMLPage's mtime check) so markdown isn't re-rendered per request,
-// but APP_VERSION (bumped between releases) and UseInternalEd (toggleable
-// at any time from Config) must always reflect *now*; recompiling every
-// page whenever either changes would defeat the cache. Both values are
-// server-controlled constants/booleans, never user input, so splicing them
-// with fmt is safe.
+// injectRuntimeVars splices the globals that must reflect the *currently
+// running* server - not whatever was true when a page was last compiled
+// to the on-disk HTML cache - into a rendered page's runtimeVarsMarker.
+// Pages are cached to disk (precompileAllPages / serveHTMLPage's mtime
+// check) so markdown isn't re-rendered per request, but APP_VERSION
+// (bumped between releases), UseInternalEd and Theme (both toggleable at
+// any time from Config) must always reflect *now*; recompiling every page
+// whenever any of them changes would defeat the cache.
+//
+// The theme is applied by setting data-theme on <html> right here rather
+// than baking a class into the markup: the marker sits inside <head>, so
+// this script runs before the body is painted - no flash of the wrong
+// theme - and it works identically for pages compiled long before the
+// theme was changed. The CSS handles the rest: an explicit "light"/"dark"
+// value pins the palette, while "auto" (or a missing attribute, e.g. an
+// exported page opened via file:// where this marker is never replaced)
+// falls through to the prefers-color-scheme media query.
+//
+// All values are server-controlled (APP_VERSION is a build constant,
+// UseInternalEd a bool, Theme whitelisted through normalizeTheme), never
+// user input, so splicing them with fmt is safe.
 func (a *App) injectRuntimeVars(page []byte) []byte {
-	script := fmt.Sprintf(`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t;</script>`, APP_VERSION, a.GetConfig().UseInternalEd)
+	cfg := a.GetConfig()
+	script := fmt.Sprintf(
+		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
+		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme))
 	return bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
 }

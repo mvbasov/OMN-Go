@@ -1,89 +1,570 @@
-@font-face {
-  font-family: 'Material Icons';
-  font-style: normal;
-  font-weight: 400;
-  src: url('/css/fonts/material-icons.woff2') format('woff2');
+/* ==========================================================================
+   OMN-Go Core Stylesheet
+   ==========================================================================
+   Table of contents:
+     1. Design tokens (theming: light / dark / auto)
+     2. Fonts & icons
+     3. Base & page layout
+     4. Page chrome (header, title, tags, footer)
+     5. Content area (preview / editor)
+     6. Components (overlays, modals, panels, buttons)
+     7. Config page
+     8. External editor page
+     9. JS console
+    10. Markdown content (tables, TOC, paragraph style)
+    11. Utilities & legacy compatibility
+    12. Responsive
+
+   Theming model:
+     - All colors live in custom properties defined in section 1.
+     - The server sets  <html data-theme="auto|light|dark">  at runtime via
+       an injected head script (see injectRuntimeVars in templates.go), so
+       cached pages pick up config changes without recompiling.
+     - "light" and "dark" pin the palette explicitly. "auto" - or NO
+       attribute at all, e.g. an exported page opened via file:// where the
+       runtime script is never injected - follows the OS/browser setting
+       through the prefers-color-scheme media query. No JS is involved in
+       the auto case.
+     - IMPORTANT: the dark palette is defined TWICE below (once for
+       [data-theme="dark"], once inside the media query for auto). Plain
+       CSS has no way to share a declaration block between an attribute
+       selector and a media query, so when you touch a dark token, update
+       BOTH copies.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. Design tokens
+   ========================================================================== */
+
+:root {
+    /* -- Light palette (default) -- */
+    color-scheme: light;
+
+    /* Surfaces */
+    --bg:            #f9f9f9;   /* page background */
+    --bg-surface:    #ffffff;   /* cards, modals, preview */
+    --bg-band:       #e8e8e8;   /* page header / footer strips */
+    --bg-inset:      #f5f5f5;   /* pre blocks, title arrow, subtle fills */
+    --bg-metadata:   #e9ecef;   /* metadata panel */
+    --bg-toc:        #fafafa;   /* table of contents box */
+    --bg-hover:      #d0d0d0;   /* header button / tag hover */
+
+    /* Text */
+    --text:          #333333;   /* body text */
+    --text-strong:   #1a1a1a;   /* titles, headings */
+    --text-heading:  #444444;   /* labels, secondary headings */
+    --text-muted:    #555555;   /* hints, descriptions */
+    --text-faint:    #666666;   /* footer, minor hints */
+    --text-dim:      #888888;   /* version footer */
+
+    /* Borders */
+    --border:        #cccccc;   /* inputs, general borders */
+    --border-soft:   #dddddd;   /* editor, cards */
+    --border-card:   #e1e4e8;   /* config / ext-edit panels */
+    --border-strong: #999999;   /* header action buttons */
+    --border-title:  #eaecef;   /* config title underline */
+
+    /* Semantic accents (shared by both themes unless overridden) */
+    --accent:        #0056b3;   /* primary blue */
+    --accent-hover:  #004494;
+    --success:       #28a745;   /* save / confirm green */
+    --success-hover: #218838;
+    --danger:        #dc3545;   /* cancel / destructive red */
+    --info:          #17a2b8;   /* create / note / bookmark teal */
+    --secondary:     #6c757d;   /* refresh / settings gray */
+
+    /* Tags */
+    --tag-bg:        #E7E7E7;
+    --tag-border:    #505050;
+    --tag-selected:  #888888;
+
+    /* Markdown tables */
+    --table-border:  #4d6bfe;
+    --table-th-bg:   #CCCCCC;
+    --table-th-text: #000000;
+    --table-row-odd: #EEEEEE;
+    --table-row-even:#FFFFFF;
+    --table-text:    #000000;
+
+    /* Effects */
+    --overlay-bg:    rgba(0, 0, 0, 0.7);
+    --shadow:        rgba(0, 0, 0, 0.1);
+    --shadow-soft:   rgba(0, 0, 0, 0.05);
+    --shadow-strong: rgba(0, 0, 0, 0.2);
 }
-.material-icons {
-  font-family: 'Material Icons';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
+
+/* -- Dark palette, explicit: <html data-theme="dark"> --
+   (Keep in sync with the auto copy inside the media query below.) */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg:            #1b1d1e;
+    --bg-surface:    #25282a;
+    --bg-band:       #2a2d2f;
+    --bg-inset:      #303336;
+    --bg-metadata:   #2e3235;
+    --bg-toc:        #232628;
+    --bg-hover:      #3a3e41;
+
+    --text:          #d4d4d4;
+    --text-strong:   #e8eaed;
+    --text-heading:  #c4c7cb;
+    --text-muted:    #9aa0a6;
+    --text-faint:    #8a9096;
+    --text-dim:      #7a8086;
+
+    --border:        #45494d;
+    --border-soft:   #3a3e41;
+    --border-card:   #3a3e41;
+    --border-strong: #5a5f63;
+    --border-title:  #3a3e41;
+
+    --accent:        #4d9fff;
+    --accent-hover:  #6cb0ff;
+
+    --tag-bg:        #3a3d40;
+    --tag-border:    #808080;
+    --tag-selected:  #5a5f63;
+
+    --table-th-bg:   #3a3d40;
+    --table-th-text: #e8eaed;
+    --table-row-odd: #2a2d2f;
+    --table-row-even:#25282a;
+    --table-text:    #d4d4d4;
+
+    --shadow:        rgba(0, 0, 0, 0.4);
+    --shadow-soft:   rgba(0, 0, 0, 0.25);
+    --shadow-strong: rgba(0, 0, 0, 0.6);
 }
 
-body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f9f9f9; color: #333; }
-.overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal { background: #fff; padding: 20px; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
-.modal input, .modal button, .modal textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
-.modal button { background: #0056b3; color: white; border: none; cursor: pointer; border-radius: 4px; }
-#mainUI { display: flex; flex: 1; flex-direction: column; }
-.header { background: #333; color: #fff; padding: 10px 20px; display: flex; gap: 15px; align-items: center; }
-.header a, .header button { color: #fff; text-decoration: none; cursor: pointer; background: transparent; border: 1px solid #555; padding: 5px 10px; border-radius: 4px; font-size: 14px; display: flex; align-items: center; }
-.header a:hover, .header button:hover { background: #555; }
-.content-area { flex: 1; padding: 20px; position: relative; display: flex; flex-direction: column; }
-#editor { display: none; width: 100%; flex: 1; border: 1px solid #ccc; padding: 10px; font-family: monospace; resize: none; box-sizing: border-box; }
-#preview { width: 100%; flex: 1; background: #fff; border: 1px solid #ccc; padding: 20px; overflow-y: auto; box-sizing: border-box; line-height: 1.6; }
-.toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; gap: 10px; }
-.toolbar button { padding: 5px 15px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; }
-.hidden { display: none !important; }
-.panel { position: absolute; top: 50px; right: 20px; background: white; border: 1px solid #ccc; padding: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px; z-index: 40; }
-.panel h3 { margin-top: 0; }
-.panel input, .panel textarea, .panel button { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; }
-.panel button { background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
+/* -- Dark palette, automatic: theme "auto" (or no data-theme attribute,
+   e.g. exported pages opened via file://) follows the system setting.
+   This block is a byte-for-byte copy of [data-theme="dark"] above -
+   update BOTH when changing a dark token. -- */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]),
+    :root[data-theme="auto"] {
+        color-scheme: dark;
 
-/* JS Console UI */
-.console-modal { display: none; position: fixed; top: 10%; left: 10%; width: 80%; height: 80%; background: #1e1e1e; color: #00ff00; z-index: 10000; border: 2px solid #555; border-radius: 8px; flex-direction: column; font-family: monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-.console-header { padding: 10px; background: #333; color: #fff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #555; font-weight: bold; }
-.console-actions { display: flex; gap: 8px; }
-.console-logs { flex: 1; overflow-y: auto; padding: 10px; white-space: pre-wrap; word-break: break-all; font-size: 12px; line-height: 1.4; }
-.btn-console { color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.btn-console-clear { background: #888; }
-.btn-console-close { background: #ff5555; }
-.btn-console-main { margin-left: 8px; padding: 4px 8px; background: #ff9800 !important; color: #fff !important; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; }
-.btn-console-main-fixed { position: fixed; bottom: 4px; left: 8px; z-index: 9999; margin-left: 0; }
-.icon-sm { font-size: 18px; }
-.icon-xs { font-size: 16px; margin-right: 4px; }
+        --bg:            #1b1d1e;
+        --bg-surface:    #25282a;
+        --bg-band:       #2a2d2f;
+        --bg-inset:      #303336;
+        --bg-metadata:   #2e3235;
+        --bg-toc:        #232628;
+        --bg-hover:      #3a3e41;
 
-/* Responsive Design */
-@media (max-width: 600px) {
-    .header { 
-        flex-wrap: wrap; 
-        justify-content: center; 
-        gap: 5px; 
-        padding: 5px;
+        --text:          #d4d4d4;
+        --text-strong:   #e8eaed;
+        --text-heading:  #c4c7cb;
+        --text-muted:    #9aa0a6;
+        --text-faint:    #8a9096;
+        --text-dim:      #7a8086;
+
+        --border:        #45494d;
+        --border-soft:   #3a3e41;
+        --border-card:   #3a3e41;
+        --border-strong: #5a5f63;
+        --border-title:  #3a3e41;
+
+        --accent:        #4d9fff;
+        --accent-hover:  #6cb0ff;
+
+        --tag-bg:        #3a3d40;
+        --tag-border:    #808080;
+        --tag-selected:  #5a5f63;
+
+        --table-th-bg:   #3a3d40;
+        --table-th-text: #e8eaed;
+        --table-row-odd: #2a2d2f;
+        --table-row-even:#25282a;
+        --table-text:    #d4d4d4;
+
+        --shadow:        rgba(0, 0, 0, 0.4);
+        --shadow-soft:   rgba(0, 0, 0, 0.25);
+        --shadow-strong: rgba(0, 0, 0, 0.6);
     }
-    .header strong { width: 100%; text-align: center; margin-bottom: 5px; }
-    .header a, .header button { padding: 5px; }
-    .content-area { padding: 10px; }
-    .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
-    .modal { width: 90%; }
 }
 
-/* Configuration Dashboard */
+/* ==========================================================================
+   2. Fonts & icons
+   ========================================================================== */
+
+@font-face {
+    font-family: 'Material Icons';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/css/fonts/material-icons.woff2') format('woff2');
+}
+
+.material-icons {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   3. Base & page layout
+   ========================================================================== */
+
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+}
+
+#mainUI {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.page_container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ==========================================================================
+   4. Page chrome (header, title, tags, footer)
+   ========================================================================== */
+
+.page-header {
+    overflow: hidden;
+    background-color: var(--bg-band);
+    width: 100%;
+    margin: 0;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.collapsible-header {
+    background-color: var(--bg-band);
+    width: 100%;
+    padding: 0.5em;
+    box-sizing: border-box;
+}
+.collapsible-header.hidden {
+    display: none;
+}
+
+.header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.header-actions a,
+.header-actions button {
+    color: var(--text);
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+.header-actions a:hover,
+.header-actions button:hover {
+    background: var(--bg-hover);
+}
+
+.header-info {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.header-info span {
+    font-weight: bold;
+    color: var(--text-strong);
+}
+
+.page-title {
+    margin: 0.4em 0 0.5em 0;
+    width: 100%;
+    text-align: center;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--text-strong);
+}
+.page-title:hover {
+    color: var(--accent);
+}
+
+.title-arrow {
+    display: inline-block;
+    border: 1px solid var(--text-faint);
+    border-radius: 6px;
+    padding: 0.1em 0.4em;
+    margin-left: 6px;
+    font-size: 0.9em;
+    color: var(--text-heading);
+    background: var(--bg-inset);
+    vertical-align: middle;
+}
+
+/* -- Tag pills -- */
+#headerTags {
+    margin-top: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+a.taglink {
+    text-decoration: none;
+    color: var(--text);
+}
+.tagmark {
+    background-color: var(--tag-bg);
+    padding: 2px 8px;
+    border: 1px solid var(--tag-border);
+    border-radius: 8px;
+    font-size: 0.85em;
+    display: inline-block;
+}
+.tagmark:hover {
+    background-color: var(--bg-hover);
+}
+.tagmarkselected {
+    color: var(--bg-surface);
+    background-color: var(--tag-selected);
+}
+
+/* -- Footer / status bar -- */
+.page-footer {
+    overflow-x: hidden;
+    flex-shrink: 0;
+    background-color: var(--bg-band);
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.version-footer-inline {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* ==========================================================================
+   5. Content area (preview / editor)
+   ========================================================================== */
+
+.page-content {
+    padding: 0.5em;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;       /* allow shrinking below content size */
+    overflow: hidden;    /* prevent double scrollbars; children scroll */
+}
+
+#preview {
+    width: 100%;
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    line-height: 1.6;
+}
+.page-content #preview {
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow-y: auto;    /* scroll if content overflows */
+}
+
+#editor {
+    display: none;
+    width: 100%;
+    flex: 1;
+    border: 1px solid var(--border);
+    padding: 10px;
+    font-family: monospace;
+    resize: none;
+    box-sizing: border-box;
+    background: var(--bg-surface);
+    color: var(--text);
+}
+.page-content #editor {
+    border: 1px solid var(--border-soft);
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    resize: vertical;    /* allow manual resize if desired */
+    box-sizing: border-box;
+}
+
+/* -- Metadata panel -- */
+.metadata-panel {
+    background: var(--bg-metadata);
+    padding: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* ==========================================================================
+   6. Components (overlays, modals, panels, buttons)
+   ========================================================================== */
+
+.overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--overlay-bg);
+    display: none;   /* JS switches to flex when shown */
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.modal {
+    background: var(--bg-surface);
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px var(--shadow);
+    width: 300px;
+}
+.modal input, .modal button, .modal textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    padding: 8px;
+}
+.modal button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.panel {
+    position: absolute;
+    top: 50px;
+    right: 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 15px;
+    box-shadow: 0 4px 8px var(--shadow);
+    width: 300px;
+    z-index: 40;
+}
+.panel h3 { margin-top: 0; }
+.panel input, .panel textarea, .panel button {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    padding: 8px;
+}
+.panel button {
+    background: var(--success);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.modal-buttons-row {
+    display: flex;
+    gap: 10px;
+}
+.btn-cancel {
+    background: var(--danger);
+}
+
+/* -- Form controls pick up theme colors (inputs inside modals/panels) -- */
+.modal input, .modal textarea,
+.panel input, .panel textarea {
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+/* -- Header action button accents --
+   Semantic colors stay identical in both themes; !important preserved
+   from the pre-token version to keep specificity behavior unchanged. */
+.btn-create-page,
+.btn-quick-note,
+.btn-add-bookmark {
+    background: var(--info) !important;
+    border-color: var(--info) !important;
+    color: white !important;
+}
+.btn-refresh,
+.btn-settings {
+    background: var(--secondary) !important;
+    border-color: var(--secondary) !important;
+    color: white !important;
+}
+
+/* -- Editing controls -- */
+.btn-metadata-toggle {
+    display: block;
+    background: var(--info);
+    color: white;
+    border: none;
+}
+#saveBtn.btn-save-note {
+    display: none;                   /* hidden in view mode; inline style takes over in edit */
+    background: var(--success);
+    color: white;
+    border: none;
+}
+
+/* ==========================================================================
+   7. Config page
+   ========================================================================== */
+
 .config-panel {
     max-width: 600px;
     margin: 0 auto;
-    background: #ffffff;
+    background: var(--bg-surface);
     padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border: 1px solid #e1e4e8;
+    box-shadow: 0 4px 12px var(--shadow);
+    border: 1px solid var(--border-card);
 }
 .config-title {
     margin-top: 0;
-    color: #1a1a1a;
+    color: var(--text-strong);
     font-size: 24px;
     font-weight: 700;
-    border-bottom: 2px solid #eaecef;
+    border-bottom: 2px solid var(--border-title);
     padding-bottom: 10px;
 }
 .config-form {
@@ -96,14 +577,16 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     display: block;
     font-weight: 600;
     margin-bottom: 8px;
-    color: #444;
+    color: var(--text-heading);
 }
 .config-input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border);
     border-radius: 4px;
     box-sizing: border-box;
+    background: var(--bg-surface);
+    color: var(--text);
 }
 .config-checkbox-row {
     display: flex;
@@ -117,16 +600,16 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 }
 .config-checkbox-label {
     font-weight: 600;
-    color: #444;
+    color: var(--text-heading);
     cursor: pointer;
 }
 .config-hint {
-    color: #666;
+    color: var(--text-faint);
     display: block;
     margin-top: 5px;
 }
 .config-save-btn {
-    background: #28a745;
+    background: var(--success);
     color: white;
     border: none;
     padding: 12px 20px;
@@ -138,18 +621,60 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     transition: background 0.2s;
 }
 .config-save-btn:hover {
-    background: #218838;
+    background: var(--success-hover);
+}
+.config-save-row {
+    margin-top: 20px;
 }
 
-/* External Editor Page */
+/* -- Git server cards -- */
+.git-server-card {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px var(--shadow-soft);
+    background-color: var(--bg-inset);
+    color: var(--text);
+}
+.git-server-label {
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.git-server-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.git-server-input {
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text);
+}
+.git-server-key {
+    font-family: monospace;
+    min-height: 60px;
+}
+
+/* ==========================================================================
+   8. External editor page
+   ========================================================================== */
+
 .ext-edit-panel {
     max-width: 600px;
     margin: 40px auto;
-    background: #ffffff;
+    background: var(--bg-surface);
     padding: 40px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border: 1px solid #e1e4e8;
+    box-shadow: 0 4px 12px var(--shadow);
+    border: 1px solid var(--border-card);
     text-align: center;
 }
 .ext-edit-icon {
@@ -158,18 +683,18 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
 }
 .ext-edit-title {
     margin-top: 0;
-    color: #1a1a1a;
+    color: var(--text-strong);
     font-size: 24px;
     font-weight: 700;
 }
 .ext-edit-msg {
-    color: #555;
+    color: var(--text-muted);
     font-size: 16px;
     margin-bottom: 30px;
     line-height: 1.5;
 }
 .ext-edit-btn {
-    background: #0056b3;
+    background: var(--accent);
     color: white;
     border: none;
     padding: 15px 30px;
@@ -178,248 +703,100 @@ body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direc
     cursor: pointer;
     font-size: 18px;
     transition: background 0.2s;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px var(--shadow-strong);
 }
 .ext-edit-btn:hover {
-    background: #004494;
+    background: var(--accent-hover);
 }
 
-/* ---------- Header Buttons (replacing inline styles) ---------- */
-/* --- Change --- */
-.btn-create-page {
-    background: #17a2b8 !important;
-    border-color: #17a2b8 !important;
-}
-.btn-quick-note {
-    background: #17a2b8 !important;
-    border-color: #17a2b8 !important;
-}
-.btn-add-bookmark {
-    background: #17a2b8 !important;
-    border-color: #17a2b8 !important;
-}
-/* --- System --- */
-.btn-refresh {
-    background: #6c757d !important;
-    border-color: #6c757d !important;
-}
-.btn-settings {
-    background: #6c757d !important;
-    border-color: #6c757d !important;
-}
+/* ==========================================================================
+   9. JS console
+   ==========================================================================
+   Deliberately NOT themed: a terminal-style console is dark in both
+   themes, matching its green-on-black identity. */
 
-/* ---------- Toolbar Buttons ---------- */
-.btn-metadata-toggle {
-    display: block;
-    background: #17a2b8;
-    color: white;
-    border: none;
-}
-#saveBtn.btn-save-note {
-    display: none;                   /* hidden in view mode; inline style takes over in edit */
-    background: #28a745;
-    color: white;
-    border: none;
-}
-
-/* ---------- Metadata Panel ---------- */
-.metadata-panel {
-    background: #e9ecef;
-    padding: 15px;
-    font-family: monospace;
-    white-space: pre-wrap;
-    border: 1px solid #ccc;
-    margin-bottom: 10px;
-    border-radius: 4px;
-    font-size: 13px;
-}
-
-/* ---------- Modal Button Rows ---------- */
-.modal-buttons-row {
-    display: flex;
-    gap: 10px;
-}
-.btn-cancel {
-    background: #dc3545;
-}
-
-/* ---------- Version Footer ---------- */
-.version-footer {
-    position: fixed;
-    bottom: 4px;
-    right: 8px;
-    font-size: 0.75rem;
-    color: #888;
-    z-index: 9999;
-    opacity: 0.7;
-    pointer-events: none;
-}
-
-/* ---------- Overlay default state (hidden, toggled by JS) ---------- */
-.overlay {
-    display: none;   /* overwritten by JS to flex when needed */
-}
-
-/* ====== Legacy OMN Design: Page Container Flex Layout ====== */
-.page_container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    margin: 0;
-}
-
-/* ====== Collapsible Page Header ====== */
-.page-header {
-    overflow: hidden;
-    background-color: #e8e8e8;
-    width: 100%;
-    margin: 0;
-    flex-shrink: 0;
-    user-select: none;
-}
-.collapsible-header {
-    background-color: #e8e8e8;
-    width: 100%;
-    padding: 0.5em;
-    box-sizing: border-box;
-}
-.collapsible-header.hidden {
+.console-modal {
     display: none;
-}
-.header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 6px;
-}
-.header-actions a,
-.header-actions button {
-    color: #333;
-    text-decoration: none;
-    cursor: pointer;
-    background: transparent;
-    border: 1px solid #999;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-}
-.header-actions a:hover,
-.header-actions button:hover {
-    background: #d0d0d0;
-}
-.header-info {
-    font-size: 0.9em;
-    color: #555;
-    margin-bottom: 4px;
-}
-.header-info span {
-    font-weight: bold;
-    color: #222;
-}
-.page-title {
-    margin: 0.4em 0 0.5em 0;
-    width: 100%;
-    text-align: center;
-    cursor: pointer;
-    font-size: 1.1em;
-    font-weight: bold;
-    color: #1a1a1a;
-}
-.page-title:hover {
-    color: #0056b3;
-}
-.title-arrow {
-    display: inline-block;
-    border: 1px solid #666;
-    border-radius: 6px;
-    padding: 0.1em 0.4em;
-    margin-left: 6px;
-    font-size: 0.9em;
-    color: #444;
-    background: #f5f5f5;
-    vertical-align: middle;
-}
-
-/* ====== Page Content (flex:1 scrollable, no borders) ====== */
-.page-content {
-    padding: 0.5em;
-    flex: 1;
-    display: flex;
+    position: fixed;
+    top: 10%; left: 10%;
+    width: 80%; height: 80%;
+    background: #1e1e1e;
+    color: #00ff00;
+    z-index: 10000;
+    border: 2px solid #555;
+    border-radius: 8px;
     flex-direction: column;
-    min-height: 0;       /* allow shrinking below content size */
-    overflow: hidden;    /* prevent double scrollbars; children scroll */
+    font-family: monospace;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
-.page-content #preview {
-    border: none;
-    background: transparent;
-    padding: 10px 0;
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    overflow-y: auto;    /* scroll if content overflows */
-}
-.page-content #editor {
-    border: 1px solid #ddd;
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    resize: vertical;    /* allow manual resize if desired */
-    box-sizing: border-box;
-}
-
-/* ====== Page Footer (status bar) ====== */
-.page-footer {
-    overflow-x: hidden;
-    flex-shrink: 0;
-    background-color: #e8e8e8;
-    padding: 2px 8px;
-    font-size: 0.75rem;
-    color: #666;
+.console-header {
+    padding: 10px;
+    background: #333;
+    color: #fff;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid #555;
+    font-weight: bold;
 }
-.version-footer-inline {
-    font-size: 0.7rem;
-    opacity: 0.7;
-}
-
-/* ====== Tag Display (from legacy common.css) ====== */
-#headerTags {
-    margin-top: 5px;
+.console-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+    gap: 8px;
 }
-a.taglink {
-    text-decoration: none;
-    color: black;
+.console-logs {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 12px;
+    line-height: 1.4;
 }
-.tagmark {
-    background-color: #E7E7E7;
-    padding: 2px 8px;
-    border: 1px solid #505050;
-    border-radius: 8px;
-    font-size: 0.85em;
-    display: inline-block;
-}
-.tagmark:hover {
-    background-color: #d0d0d0;
-}
-.tagmarkselected {
+.btn-console {
     color: white;
-    background-color: #888;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+.btn-console-clear { background: #888; }
+.btn-console-close { background: #ff5555; }
+.btn-console-main {
+    margin-left: 8px;
+    padding: 4px 8px;
+    background: #ff9800 !important;
+    color: #fff !important;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+}
+.btn-console-main-fixed {
+    position: fixed;
+    bottom: 4px;
+    left: 8px;
+    z-index: 9999;
+    margin-left: 0;
+}
+.icon-sm { font-size: 18px; }
+.icon-xs { font-size: 16px; margin-right: 4px; }
 
-/* ====== TOC (Table of Contents) ====== */
+/* ==========================================================================
+   10. Markdown content (tables, TOC, paragraph style)
+   ========================================================================== */
+
+/* -- Table of contents box -- */
 #TOC {
-    border: solid black 1px;
+    border: solid var(--text) 1px;
     margin: 10px;
     padding: 10px;
-    background: #fafafa;
+    background: var(--bg-toc);
 }
 .TOCEntry {
     font-family: sans-serif;
@@ -434,7 +811,7 @@ a.taglink {
 .TOCLevel5 { font-weight: bold; margin-left: 1em; }
 .TOCLevel6 { font-weight: bold; margin-left: 1.5em; }
 
-/* ====== Table Styling (from legacy common.css) ====== */
+/* -- Tables (legacy common.css look, tokenized) -- */
 #preview table,
 #content table {
     border-collapse: collapse;
@@ -445,47 +822,81 @@ a.taglink {
 #content table,
 #content th,
 #content td {
-    border: 2px solid #4d6bfe;
+    border: 2px solid var(--table-border);
 }
 #preview th,
 #content th {
-    background-color: #CCCCCC;
-    color: black;
+    background-color: var(--table-th-bg);
+    color: var(--table-th-text);
 }
 #preview tr:nth-child(odd),
 #content tr:nth-child(odd) {
-    background-color: #EEEEEE;
-    color: black;
+    background-color: var(--table-row-odd);
+    color: var(--table-text);
 }
 #preview tr:nth-child(even),
 #content tr:nth-child(even) {
-    background-color: #FFFFFF;
-    color: black;
+    background-color: var(--table-row-even);
+    color: var(--table-text);
 }
 
-/* ====== Utility Color Classes (from legacy common.css) ====== */
-.bg-yellow { background-color: yellow; }
-.bg-aqua   { background-color: aqua; }
-.fg-red    { color: red; }
-.fg-green  { color: green; }
-
-/* ====== Paragraph Indent (legacy style) ====== */
+/* -- Paragraph indent (legacy style) -- */
 #preview p {
     text-indent: 1em;
     margin: 0 3px;
 }
 
-/* ====== Remove old .header (replaced by .page-header) ====== */
+/* ==========================================================================
+   11. Utilities & legacy compatibility
+   ========================================================================== */
+
+/* Explicit color utilities used inside user notes: these are content
+   semantics (highlighting), not chrome, so they intentionally keep their
+   literal colors in both themes. */
+.bg-yellow { background-color: yellow; color: #000; }
+.bg-aqua   { background-color: aqua;   color: #000; }
+.fg-red    { color: red; }
+.fg-green  { color: green; }
+
+/* Deprecated selectors kept so old exported pages don't break. */
 .header {
-    display: none;  /* deprecated, kept for compatibility */
+    display: none;  /* replaced by .page-header */
+}
+.header a, .header button {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid #555;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+.header a:hover, .header button:hover {
+    background: #555;
 }
 .content-area {
     /* deprecated, kept for compatibility */
 }
-
-/* ====== Adjust old version-footer (now inline) ====== */
+.toolbar {
+    display: none;  /* integrated into .header-actions */
+}
+.toolbar button {
+    padding: 5px 15px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+}
+.btn-metadata-toggle,
+.btn-save-note {
+    /* inherit from .header-actions styling */
+}
 .version-footer {
-    position: static;  /* override fixed positioning */
+    position: static;   /* was fixed; now inline in #status */
     font-size: inherit;
     color: inherit;
     z-index: auto;
@@ -493,23 +904,21 @@ a.taglink {
     pointer-events: auto;
 }
 
-/* Toolbar no longer a standalone element, but integrated in .header-actions */
-.toolbar {
-    display: none;
+/* ==========================================================================
+   12. Responsive
+   ========================================================================== */
+
+@media (max-width: 600px) {
+    .header {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px;
+        padding: 5px;
+    }
+    .header strong { width: 100%; text-align: center; margin-bottom: 5px; }
+    .header a, .header button { padding: 5px; }
+    .content-area { padding: 10px; }
+    .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
+    .modal { width: 90%; }
+    .git-server-grid { grid-template-columns: 1fr; }
 }
-.btn-metadata-toggle,
-.btn-save-note {
-    /* inherit from .header-actions styling */
-}
-
-
-/* ====== Git Server UI Styles ====== */
-.git-server-card { padding: 1rem; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); background-color: #f9fafb; color: #000; }
-.git-server-label { font-weight: bold; display: flex; align-items: center; gap: 0.5rem; }
-.git-server-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
-.git-server-input { border: 1px solid #ccc; padding: 0.5rem; width: 100%; box-sizing: border-box; border-radius: 4px; }
-.git-server-key { font-family: monospace; min-height: 60px; }
-@media (max-width: 600px) { .git-server-grid { grid-template-columns: 1fr; } }
-
-/* ====== Config Save Button Row ====== */
-.config-save-row { margin-top: 20px; }

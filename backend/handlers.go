@@ -32,6 +32,7 @@ func (a *App) getConfigPageBody() string {
 		Author:        cfg.Author,
 		UseInternalEd: cfg.UseInternalEd,
 		DesktopExtCmd: cfg.DesktopExtCmd,
+		Theme:         cfg.Theme,
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -78,6 +79,9 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			c.Author = r.FormValue("author")
 			c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 			c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+			// Whitelisted via normalizeTheme: anything but light/dark
+			// (including a missing field) becomes auto.
+			c.Theme = normalizeTheme(r.FormValue("theme"))
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int

@@ -226,3 +226,47 @@ func TestSaveUploadedFileWrongField(t *testing.T) {
 		t.Error("expected error for missing form field, got nil")
 	}
 }
+
+func postConfig(t *testing.T, a *App, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	a.handleConfig(rec, req)
+	return rec
+}
+
+func TestHandleConfigSavesTheme(t *testing.T) {
+	a := newTestApp(t)
+
+	rec := postConfig(t, a, url.Values{"theme": {"dark"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body.String())
+	}
+	if got := a.GetConfig().Theme; got != ThemeDark {
+		t.Errorf("in-memory theme = %q, want dark", got)
+	}
+	// Must survive a restart: persisted to config.json.
+	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
+	if err != nil {
+		t.Fatalf("config.json not written: %v", err)
+	}
+	if !strings.Contains(string(data), `"theme": "dark"`) {
+		t.Errorf("config.json missing persisted theme:\n%s", data)
+	}
+}
+
+func TestHandleConfigRejectsInvalidTheme(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.Theme = ThemeDark // pre-existing valid value
+
+	rec := postConfig(t, a, url.Values{"theme": {"purple; drop table"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	// Whitelist: garbage never lands in config, not even transiently -
+	// it normalizes to auto.
+	if got := a.GetConfig().Theme; got != ThemeAuto {
+		t.Errorf("invalid theme stored as %q, want auto", got)
+	}
+}

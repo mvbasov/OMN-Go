@@ -15,6 +15,30 @@ import (
 // slot count is a one-line change.
 const maxGitServers = 5
 
+// UI theme values accepted in Config.Theme. ThemeAuto means "follow the
+// OS/browser dark-mode setting" (implemented purely in CSS via a
+// prefers-color-scheme media query - no JS needed for the auto case).
+const (
+	ThemeAuto  = "auto"
+	ThemeLight = "light"
+	ThemeDark  = "dark"
+)
+
+// normalizeTheme maps any input to a valid theme value. Unknown or empty
+// values (including configs written before the theme field existed)
+// become ThemeAuto. Centralized here so the config loader, the config
+// POST handler and the page renderer can't disagree on what's valid -
+// everything downstream (injectRuntimeVars, renderConfigPage) may safely
+// assume the value is one of the three constants.
+func normalizeTheme(s string) string {
+	switch s {
+	case ThemeLight, ThemeDark:
+		return s
+	default:
+		return ThemeAuto
+	}
+}
+
 type GitServerConfig struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -30,6 +54,7 @@ type Config struct {
 	Author           string            `json:"author"`
 	UseInternalEd    bool              `json:"use_internal_editor"`
 	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
+	Theme            string            `json:"theme"` // "auto" | "light" | "dark", see normalizeTheme
 	MimeTypes        map[string]string `json:"mime_types"`
 	ActiveGitIndex   int               `json:"active_git_index"`
 	GitServers       []GitServerConfig `json:"git_servers"`
@@ -48,6 +73,7 @@ func (a *App) loadConfig(storageDir string) {
 			Author:        "Anonymous",
 			UseInternalEd: true,
 			DesktopExtCmd: "subl",
+			Theme:         ThemeAuto,
 			MimeTypes: map[string]string{
 				".css":   "text/css",
 				".js":    "application/javascript",
@@ -90,6 +116,10 @@ func (a *App) loadConfig(storageDir string) {
 	if a.Config.ServerPort == 0 {
 		a.Config.ServerPort = 8080
 	}
+	// Configs written before the theme field existed carry "" here;
+	// normalize once at load so the rest of the code never sees an
+	// invalid value.
+	a.Config.Theme = normalizeTheme(a.Config.Theme)
 	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})

@@ -17,6 +17,14 @@
             <label class="config-label">Author Name</label>
             <input type="text" id="cfgAuthor" name="author" value="%%AUTHOR%%" class="config-input" />
         </div>
+        <div class="config-field">
+            <label class="config-label">Theme</label>
+            <select id="cfgTheme" name="theme" class="config-input">
+                <option value="auto" %%THEME_AUTO_SEL%%>Auto (follow system)</option>
+                <option value="light" %%THEME_LIGHT_SEL%%>Light</option>
+                <option value="dark" %%THEME_DARK_SEL%%>Dark</option>
+            </select>
+        </div>
         <div class="config-field config-checkbox-row">
             <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %%INTERNAL_ED_CHECKED%% />
             <label class="config-label">Use Internal Editor</label>

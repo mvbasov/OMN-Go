@@ -244,3 +244,73 @@ func TestRenderedPageAcceptsRuntimeVars(t *testing.T) {
 		t.Error("rendered index page did not accept runtime vars injection")
 	}
 }
+
+func TestRenderConfigPageThemeSelection(t *testing.T) {
+	cases := []struct {
+		theme        string
+		wantSelected string
+	}{
+		{"dark", `value="dark" selected`},
+		{"light", `value="light" selected`},
+		{"auto", `value="auto" selected`},
+		// pre-theme configs (empty) and garbage both normalize to auto
+		{"", `value="auto" selected`},
+		{"purple", `value="auto" selected`},
+	}
+	for _, tc := range cases {
+		out := renderConfigPage(configPageView{Theme: tc.theme})
+		if !strings.Contains(out, tc.wantSelected) {
+			t.Errorf("theme=%q: expected %q in output", tc.theme, tc.wantSelected)
+		}
+		// Exactly one option may be selected.
+		if n := strings.Count(out, " selected"); n != 1 {
+			t.Errorf("theme=%q: %d options selected, want exactly 1", tc.theme, n)
+		}
+		if strings.Contains(out, "%%") {
+			t.Fatalf("theme=%q: unfilled placeholder left in output", tc.theme)
+		}
+	}
+}
+
+func TestInjectRuntimeVarsTheme(t *testing.T) {
+	page := []byte("<head>" + runtimeVarsMarker + "</head>")
+
+	// Explicit theme delivered verbatim, and applied to <html> from the
+	// injected head script (before first paint).
+	a := &App{}
+	a.Config.Theme = ThemeDark
+	out := string(a.injectRuntimeVars(page))
+	if !strings.Contains(out, `var OMN_THEME = "dark";`) {
+		t.Error("dark theme not injected")
+	}
+	if !strings.Contains(out, `document.documentElement.setAttribute('data-theme', OMN_THEME);`) {
+		t.Error("data-theme application script missing")
+	}
+
+	// Unset / invalid themes normalize to auto at the injection point too
+	// (belt and braces on top of loadConfig's normalization).
+	for _, raw := range []string{"", "purple"} {
+		b := &App{}
+		b.Config.Theme = raw
+		got := string(b.injectRuntimeVars(page))
+		if !strings.Contains(got, `var OMN_THEME = "auto";`) {
+			t.Errorf("theme=%q: expected auto in injection, got:\n%s", raw, got)
+		}
+	}
+}
+
+func TestNormalizeTheme(t *testing.T) {
+	cases := map[string]string{
+		"auto":   ThemeAuto,
+		"light":  ThemeLight,
+		"dark":   ThemeDark,
+		"":       ThemeAuto,
+		"purple": ThemeAuto,
+		"DARK":   ThemeAuto, // case-sensitive whitelist by design
+	}
+	for in, want := range cases {
+		if got := normalizeTheme(in); got != want {
+			t.Errorf("normalizeTheme(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
