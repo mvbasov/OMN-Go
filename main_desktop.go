@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"runtime"
 	"net.basov.omngo/backend"
@@ -18,7 +19,16 @@ func main() {
 	// boot (Docker/Android) or waste time on a fast one.
 	app.WaitUntilReady()
 	url := fmt.Sprintf("http://localhost:%d", app.GetServerPort())
-	
+
+	// A replacement process spawned by /api/restart marks itself with this
+	// env var: the user's browser tab already exists (the frontend reloads
+	// it after the restart), so opening another one here would leave a
+	// duplicate tab on every ShareLAN toggle.
+	if os.Getenv("OMN_GO_RESTARTED") == "1" {
+		log.Printf("Restarted instance; browser already open at %s", url)
+		select {} // Block main thread
+	}
+
 	var err error
 	switch runtime.GOOS {
 	case "linux":

@@ -16,53 +16,54 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // The Go server (plus its wake lock and the scoped-storage dir
-        // setup) is owned by ServerService, a foreground service with a
-        // persistent notification. Starting it from the Activity used to
-        // tie the server's fate to the Activity's process priority: as
-        // soon as this Activity left the screen (home, split-screen focus
-        // loss, screen lock), the process fell into the cached bucket and
-        // Android 12+'s cached-app freezer froze it - the "server only
-        // answers while the app is visible" bug. See ServerService for
-        // the full explanation.
+        // The Go server (plus storage-dir setup) is owned by ServerService.
+        // It is started with plain startService() - NOT
+        // startForegroundService() - on purpose: the service itself decides
+        // from config.json whether to promote to foreground (LAN sharing
+        // on) or stay a plain background service (sharing off), and
+        // startForegroundService() would impose the 5-second "must call
+        // startForeground" obligation even in the sharing-off case where
+        // no notification is wanted. Mismatches between how the service
+        // was started and what it did were exactly the source of the
+        // "notification doesn't match sharing state" bugs.
+        boolean lanSharing = ServerService.isLanSharingEnabled(this);
 
-        // Android 13+ requires runtime consent for the service's
-        // notification to be visible. The service runs either way; this
-        // just makes its notification (and Stop button) show up.
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(
-                new String[]{ android.Manifest.permission.POST_NOTIFICATIONS }, 1002);
-        }
-
-        android.content.Intent svcIntent = new android.content.Intent(this, ServerService.class);
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(svcIntent);
-        } else {
-            startService(svcIntent);
-        }
-
-        // Deep Doze (long screen-off periods) suspends network for apps
-        // regardless of wake locks; the battery-optimization exemption is
-        // what keeps the server reachable over LAN with the screen locked.
-        // Asked at most once - if the user declines, they can still grant
-        // it later via system Settings > Battery.
-        try {
-            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                android.content.SharedPreferences prefs = getSharedPreferences("omngo", MODE_PRIVATE);
-                if (!prefs.getBoolean("asked_battery_opt", false)) {
-                    prefs.edit().putBoolean("asked_battery_opt", true).apply();
-                    android.content.Intent bi = new android.content.Intent(
-                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    bi.setData(android.net.Uri.parse("package:" + getPackageName()));
-                    startActivity(bi);
-                }
+        // Permissions are requested ONLY when LAN sharing is actually
+        // enabled - i.e. at sharing start time (first launch after the
+        // ShareLAN restart), never on ordinary local-only app starts.
+        if (lanSharing) {
+            // Android 13+ needs runtime consent for the sharing
+            // notification to be visible.
+            if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    new String[]{ android.Manifest.permission.POST_NOTIFICATIONS }, 1002);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            // Deep Doze (long screen-off periods) suspends network for
+            // apps regardless of wake locks; the battery-optimization
+            // exemption is what keeps LAN requests answered with the
+            // screen locked. Asked at most once - if declined, it can be
+            // granted later via system Settings > Battery.
+            try {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    android.content.SharedPreferences prefs = getSharedPreferences("omngo", MODE_PRIVATE);
+                    if (!prefs.getBoolean("asked_battery_opt", false)) {
+                        prefs.edit().putBoolean("asked_battery_opt", true).apply();
+                        android.content.Intent bi = new android.content.Intent(
+                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        bi.setData(android.net.Uri.parse("package:" + getPackageName()));
+                        startActivity(bi);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
+
+        startService(new android.content.Intent(this, ServerService.class));
         // Create Native Loading Layout
         android.widget.FrameLayout rootLayout = new android.widget.FrameLayout(this);
         rootLayout.setBackgroundColor(android.graphics.Color.parseColor("#f9f9f9"));

@@ -87,6 +87,19 @@ if (window.location.protocol !== 'file:') {
         try {
             const res = await fetch('/api/config', { method: 'POST', body: fd });
             if (res.ok) {
+                const body = await res.text();
+                if (body === 'RestartRequired') {
+                    // ShareLAN changed: the listen socket is bound once at
+                    // startup, so the server must fully restart to rebind.
+                    alert('LAN sharing changed - the application will now restart to apply it.\n\nDesktop: this page reloads automatically in a few seconds.\nAndroid: the app will close; reopen it manually.');
+                    try { await fetch('/api/restart', { method: 'POST' }); } catch (e) { /* connection drops as the server exits - expected */ }
+                    // Desktop: the replacement process is up within ~1-3s
+                    // (bind retry included); reload to reconnect. On
+                    // Android the whole app process exits before this
+                    // timer matters.
+                    setTimeout(function(){ window.location.reload(); }, 3000);
+                    return;
+                }
                 alert('Configuration saved. Reloading...');
                 window.location.reload();
             } else {

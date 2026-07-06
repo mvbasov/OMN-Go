@@ -67,6 +67,12 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" {
+		// The listen socket is bound exactly once at startup, so flipping
+		// ShareLAN can only take effect through a full process restart.
+		// Capture the pre-save value to detect the flip and tell the
+		// frontend, which then drives /api/restart.
+		prevShareLAN := a.GetConfig().ShareLAN
+
 		var snapshot Config
 		a.WithConfig(func(c *Config) {
 			portStr := r.FormValue("server_port")
@@ -126,10 +132,72 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
+		if snapshot.ShareLAN != prevShareLAN {
+			// Saved fine, but the new bind address only exists after a
+			// restart. The frontend reacts to this exact string (see
+			// saveConfig in omn-go-sse.js) by calling /api/restart.
+			w.Write([]byte("RestartRequired"))
+			return
+		}
 		w.Write([]byte("Saved"))
 		return
 	}
 	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+// handleRestart restarts the whole application process so startup-bound
+// state - above all the listen address chosen from ShareLAN - is rebuilt
+// from the just-saved config. Triggered by the frontend right after a
+// config save that flipped ShareLAN.
+//
+// Per platform:
+//   - Android: plain os.Exit(0). The process (Go server, WebView UI - the
+//     whole app) terminates; ServerService is START_STICKY, so the system
+//     recreates it shortly after, which restarts the Go server with the
+//     new config and rebuilds the notification/foreground state from that
+//     same config (see ServerService.onStartCommand). The UI closes; the
+//     user reopens the app manually - at which point MainActivity also
+//     re-evaluates which permissions LAN sharing now needs.
+//   - Desktop: spawn a fresh copy of our own executable (marked with
+//     OMN_GO_RESTARTED=1 so main_desktop.go doesn't open a second browser
+//     tab), then exit. The bind-retry loop in server.go absorbs the brief
+//     window where the child races the parent's socket teardown.
+//
+// The HTTP response is written before any of this happens so the browser
+// actually receives it; the exit runs on a delayed goroutine.
+func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	log.Printf("[restart] restart requested via /api/restart")
+	w.Write([]byte("Restarting"))
+
+	go func() {
+		time.Sleep(500 * time.Millisecond) // let the response flush
+
+		if runtime.GOOS == "android" {
+			os.Exit(0)
+		}
+
+		exe, err := os.Executable()
+		if err != nil {
+			log.Printf("[restart] cannot locate own executable, not restarting: %v", err)
+			return
+		}
+		cmd := exec.Command(exe, os.Args[1:]...)
+		cmd.Env = append(os.Environ(), "OMN_GO_RESTARTED=1")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			// Failing to spawn must NOT kill the running server - a
+			// working old instance beats no instance at all.
+			log.Printf("[restart] failed to start replacement process, keeping current one: %v", err)
+			return
+		}
+		log.Printf("[restart] replacement process started (pid %d), exiting", cmd.Process.Pid)
+		os.Exit(0)
+	}()
 }
 
 func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {

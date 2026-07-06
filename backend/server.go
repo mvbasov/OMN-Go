@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 
@@ -177,6 +178,7 @@ func StartServer() *App {
 		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
 		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
 		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
+		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
@@ -204,7 +206,21 @@ func StartServer() *App {
 
 		// Bind the socket first so we know the server is actually reachable
 		// before signaling readiness to callers (e.g. main_desktop.go).
-		listener, err := net.Listen("tcp", bindAddr)
+		// Retried briefly: during a self-restart (/api/restart) the
+		// replacement process can race the old one's socket teardown, and
+		// dying on the first EADDRINUSE would turn every restart into a
+		// coin flip. Ten 300ms attempts (~3s) comfortably covers that
+		// window while still failing fast on a genuinely occupied port.
+		var listener net.Listener
+		var err error
+		for attempt := 1; attempt <= 10; attempt++ {
+			listener, err = net.Listen("tcp", bindAddr)
+			if err == nil {
+				break
+			}
+			log.Printf("bind %s failed (attempt %d/10), retrying: %v", bindAddr, attempt, err)
+			time.Sleep(300 * time.Millisecond)
+		}
 		if err != nil {
 			log.Printf("FATAL: Server failed to bind %s: %v", bindAddr, err)
 			close(a.ready) // unblock any waiter rather than hang forever
