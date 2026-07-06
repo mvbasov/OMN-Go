@@ -108,3 +108,9 @@ Note: to analyze .apk size:
 ```
 unzip -l omn-go-v1.4.2-arm64-v8a-release.apk | sort -k3 -rn | head -20
 ```
+
+#### Android background service
+
+1. Behavior change: the server previously always bound `0.0.0.0`. After this patch the default is loopback-only — anyone currently reaching it over LAN must enable "Share on LAN" in Config once (then restart). The bind happens once at startup, so toggling requires an app restart — the UI hint says so.
+1. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is restricted on Google Play; fine for your self-distributed APKs, but strip it if you ever submit to Play.
+1. Untested here (no Android SDK in this environment): please verify on-device that split-screen, screen-locked LAN requests, and the notification Stop button behave as expected. Also note Android 15 will add a 6-hour limit to `dataSync`-type services once you move to targetSdk 35 — at that point the type should change to `specialUse`; not needed at targetSdk 34.
