@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import net.basov.omngo.backend.Backend;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -17,20 +16,50 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Ensure Android OS mounts scoped storage directories for native C/Go access
-        java.io.File[] mediaDirs = getExternalMediaDirs();
-        if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
-            mediaDirs[0].mkdirs();
+        // The Go server (plus its wake lock and the scoped-storage dir
+        // setup) is owned by ServerService, a foreground service with a
+        // persistent notification. Starting it from the Activity used to
+        // tie the server's fate to the Activity's process priority: as
+        // soon as this Activity left the screen (home, split-screen focus
+        // loss, screen lock), the process fell into the cached bucket and
+        // Android 12+'s cached-app freezer froze it - the "server only
+        // answers while the app is visible" bug. See ServerService for
+        // the full explanation.
+
+        // Android 13+ requires runtime consent for the service's
+        // notification to be visible. The service runs either way; this
+        // just makes its notification (and Stop button) show up.
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                new String[]{ android.Manifest.permission.POST_NOTIFICATIONS }, 1002);
         }
 
-        // Start the Go Backend Server from the gomobile .aar
-        Backend.startServer();
+        android.content.Intent svcIntent = new android.content.Intent(this, ServerService.class);
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(svcIntent);
+        } else {
+            startService(svcIntent);
+        }
 
-        // Acquire partial wake lock to keep the Go server alive in the background
+        // Deep Doze (long screen-off periods) suspends network for apps
+        // regardless of wake locks; the battery-optimization exemption is
+        // what keeps the server reachable over LAN with the screen locked.
+        // Asked at most once - if the user declines, they can still grant
+        // it later via system Settings > Battery.
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
-            android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "OMNGo::ServerWakeLock");
-            wl.acquire();
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                android.content.SharedPreferences prefs = getSharedPreferences("omngo", MODE_PRIVATE);
+                if (!prefs.getBoolean("asked_battery_opt", false)) {
+                    prefs.edit().putBoolean("asked_battery_opt", true).apply();
+                    android.content.Intent bi = new android.content.Intent(
+                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    bi.setData(android.net.Uri.parse("package:" + getPackageName()));
+                    startActivity(bi);
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -202,6 +202,7 @@ type configPageView struct {
 	UseInternalEd bool
 	DesktopExtCmd string
 	Theme         string // "auto" | "light" | "dark" (normalized)
+	ShareLAN      bool
 	GitServers    []gitServerView
 }
 
@@ -227,6 +228,10 @@ func renderConfigPage(v configPageView) string {
 	if v.UseInternalEd {
 		internalEdChecked = "checked"
 	}
+	shareLanChecked := ""
+	if v.ShareLAN {
+		shareLanChecked = "checked"
+	}
 
 	// Exactly one option is marked selected; normalizeTheme guarantees
 	// the value is one of the three, with unknown/empty mapping to auto.
@@ -250,6 +255,7 @@ func renderConfigPage(v configPageView) string {
 		"GUEST_PWD":           escapeHTML(v.GuestPassword),
 		"AUTHOR":              escapeHTML(v.Author),
 		"INTERNAL_ED_CHECKED": internalEdChecked,
+		"SHARE_LAN_CHECKED":   shareLanChecked,
 		"DESKTOP_EXT_CMD":     escapeHTML(v.DesktopExtCmd),
 		"THEME_AUTO_SEL":      themeSel["THEME_AUTO_SEL"],
 		"THEME_LIGHT_SEL":     themeSel["THEME_LIGHT_SEL"],

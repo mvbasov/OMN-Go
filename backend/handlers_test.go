@@ -270,3 +270,32 @@ func TestHandleConfigRejectsInvalidTheme(t *testing.T) {
 		t.Errorf("invalid theme stored as %q, want auto", got)
 	}
 }
+
+func TestHandleConfigSavesShareLAN(t *testing.T) {
+	a := newTestApp(t)
+
+	// Checkbox checked -> true, persisted.
+	rec := postConfig(t, a, url.Values{"share_lan": {"true"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if !a.GetConfig().ShareLAN {
+		t.Error("share_lan=true not stored")
+	}
+	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
+	if err != nil {
+		t.Fatalf("config.json not written: %v", err)
+	}
+	if !strings.Contains(string(data), `"share_lan": true`) {
+		t.Errorf("config.json missing persisted share_lan:\n%s", data)
+	}
+
+	// Unchecked checkbox = field absent from the form -> back to false.
+	rec = postConfig(t, a, url.Values{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if a.GetConfig().ShareLAN {
+		t.Error("absent share_lan field did not clear the option")
+	}
+}

@@ -55,6 +55,12 @@ type Config struct {
 	UseInternalEd    bool              `json:"use_internal_editor"`
 	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
 	Theme            string            `json:"theme"` // "auto" | "light" | "dark", see normalizeTheme
+	// ShareLAN controls the listen address: false (default) binds
+	// 127.0.0.1 so only this device can reach the server; true binds
+	// 0.0.0.0 so other devices on the network can connect (protected by
+	// the admin/guest passwords via authMiddleware). Changing it takes
+	// effect on the next application start - the socket is bound once.
+	ShareLAN         bool              `json:"share_lan"`
 	MimeTypes        map[string]string `json:"mime_types"`
 	ActiveGitIndex   int               `json:"active_git_index"`
 	GitServers       []GitServerConfig `json:"git_servers"`

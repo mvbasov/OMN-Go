@@ -187,7 +187,20 @@ func StartServer() *App {
 			a.Config.ServerPort = 8080
 		}
 
-		bindAddr := fmt.Sprintf("0.0.0.0:%d", a.Config.ServerPort)
+		// BEHAVIOR CHANGE vs pre-ShareLAN versions: the server used to
+		// always bind 0.0.0.0. It now binds loopback-only unless the
+		// "Share on LAN" config option is enabled - the socket itself is
+		// the enforcement, so with sharing off there is no way for
+		// another device to even complete a TCP handshake, regardless of
+		// any auth logic. (authMiddleware still guards non-local clients
+		// with the admin/guest passwords when sharing is on.) Since the
+		// listener is bound exactly once, toggling this option in the
+		// Config page takes effect on the next application start.
+		bindHost := "127.0.0.1"
+		if a.Config.ShareLAN {
+			bindHost = "0.0.0.0"
+		}
+		bindAddr := fmt.Sprintf("%s:%d", bindHost, a.Config.ServerPort)
 
 		// Bind the socket first so we know the server is actually reachable
 		// before signaling readiness to callers (e.g. main_desktop.go).

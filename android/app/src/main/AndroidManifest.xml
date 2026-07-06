@@ -4,6 +4,20 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!--
+      Background-server support (ServerService). FOREGROUND_SERVICE covers
+      API 28+; FOREGROUND_SERVICE_DATA_SYNC is the typed companion required
+      by targetSdk 34 for the dataSync service type declared below.
+      POST_NOTIFICATIONS (runtime-requested on Android 13+) makes the
+      service's persistent notification visible. The battery-optimization
+      exemption (requested once from MainActivity) keeps network alive in
+      deep Doze while the screen is locked; note this permission is
+      restricted on Google Play but fine for self-distributed APKs.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!--
       Android 11+ (API 30+) hides other apps' components by default
@@ -76,5 +90,17 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!--
+          Owns the Go HTTP server (see ServerService.java). stopWithTask=
+          "false" keeps the server answering even after the user swipes
+          the app out of recents - the notification's Stop button is the
+          intended way to shut it down.
+        -->
+        <service
+            android:name=".ServerService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

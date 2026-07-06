@@ -30,6 +30,13 @@
             <label class="config-label">Use Internal Editor</label>
         </div>
         <div class="config-field">
+            <div class="config-checkbox-row">
+                <input type="checkbox" id="cfgShareLan" name="share_lan" value="true" %%SHARE_LAN_CHECKED%% />
+                <label class="config-label">Share on LAN</label>
+            </div>
+            <span class="config-hint">When off, the server answers only this device (127.0.0.1 / localhost). When on, it listens on all network interfaces so other devices can connect using the admin or guest password. Takes effect after application restart.</span>
+        </div>
+        <div class="config-field">
             <label class="config-label">Desktop External Cmd</label>
             <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
         </div>

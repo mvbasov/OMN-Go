@@ -33,6 +33,7 @@ func (a *App) getConfigPageBody() string {
 		UseInternalEd: cfg.UseInternalEd,
 		DesktopExtCmd: cfg.DesktopExtCmd,
 		Theme:         cfg.Theme,
+		ShareLAN:      cfg.ShareLAN,
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -82,6 +83,10 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			// Whitelisted via normalizeTheme: anything but light/dark
 			// (including a missing field) becomes auto.
 			c.Theme = normalizeTheme(r.FormValue("theme"))
+			// Unchecked checkboxes are simply absent from the form, so
+			// this correctly reads as false when the box is cleared.
+			// Takes effect on next start (see server.go bind logic).
+			c.ShareLAN = r.FormValue("share_lan") == "true"
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int
