@@ -9,5 +9,4 @@ Welcome to OMN-Go! Start editing and organizing your notes completely offline.
 * [Scripting Rules](ScriptRules.md)
 * [Bookmarks](Bookmarks)
 * [Quick Notes](QuickNotes)
-* [Help](Welcome)
 <!-- * [Test OMN-Go](/Test/OMN-Go/OMN-Go) -->

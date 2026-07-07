@@ -1,6 +1,32 @@
 // --- OMN-Go Core Architecture ---
 // These modules are strictly for offline viewing, Markdown rendering, and UI manipulation.
 
+// Single source of truth for KaTeX auto-render config, used by the one
+// call site in this file (see window.onload below). There used to be a
+// SECOND call inside a MutationObserver watching #preview for any DOM
+// change - including the very DOM changes KaTeX's own render produces
+// (replacing "$...$" text with <span class="katex">...</span> markup).
+// That mutation re-triggered the observer, which re-ran renderMathInElement
+// over content that now included KaTeX's own freshly-injected output -
+// re-scanning already-rendered math markup with the same delimiter regex,
+// which is what corrupted unrelated nearby plain text. #preview's content
+// is set once by the server and nothing in this file mutates it
+// afterward, so the observer wasn't needed for anything - it's removed
+// below rather than "fixed", since a feedback-prone mechanism with no job
+// to do is just risk with no benefit.
+function omnGoRenderMath(container) {
+    if (typeof OMN_GO_KATEX === 'undefined' || !OMN_GO_KATEX || !window.renderMathInElement) return;
+    renderMathInElement(container, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+        ],
+        throwOnError: false
+    });
+}
+
 const UI = (function() {
     function executeScripts(container) {
                 const scripts = container.querySelectorAll('script');
@@ -320,15 +346,7 @@ window.onload = () => {
                 });
             }
             if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
-                renderMathInElement(document.getElementById('preview') || document.body, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ],
-                    throwOnError: false
-                });
+                omnGoRenderMath(document.getElementById('preview') || document.body);
             }
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
                 const tb = document.getElementById('toggleBtn');
@@ -345,29 +363,6 @@ window.onload = () => {
                 if (el) el.scrollIntoView();
             }
         };
-
-document.addEventListener("DOMContentLoaded", () => {
-            // Setup Auto-Rendering for KaTeX via MutationObserver
-            const previewNode = document.getElementById('preview') || document.body;
-            let renderTimeout;
-            const observer = new MutationObserver(() => {
-                clearTimeout(renderTimeout);
-                renderTimeout = setTimeout(() => {
-                    if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
-                        renderMathInElement(previewNode, {
-                            delimiters: [
-                                {left: '$$', right: '$$', display: true},
-                                {left: '$', right: '$', display: false},
-                                {left: '\(', right: '\)', display: false},
-                                {left: '\[', right: '\]', display: true}
-                            ],
-                            throwOnError: false
-                        });
-                    }
-                }, 50);
-            });
-            observer.observe(previewNode, { childList: true, subtree: true });
-        });
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');
