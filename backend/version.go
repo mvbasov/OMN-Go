@@ -1,4 +1,4 @@
 package backend
 
 // APP_VERSION is the global application version
-const APP_VERSION = "1.7.15"
+const APP_VERSION = "1.8.0"
