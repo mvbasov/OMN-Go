@@ -441,7 +441,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Upload failed", http.StatusInternalServerError)
 		return
 	}
-	w.Write(fmt.Appendf(nil, "![%s]({filename}/images/%s)", filename, filename))
+	w.Write(fmt.Appendf(nil, "![%s](/images/%s)", filename, filename))
 }
 
 func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
@@ -452,7 +452,7 @@ func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Upload failed", http.StatusInternalServerError)
 		return
 	}
-	w.Write(fmt.Appendf(nil, "[%s]({filename}/user_json/%s)", filename, filename))
+	w.Write(fmt.Appendf(nil, "[%s](/user_json/%s)", filename, filename))
 }
 
 func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
