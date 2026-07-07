@@ -132,10 +132,37 @@ config.json
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
 /md/local/
+/db/
 `
-	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+	content, err := os.ReadFile(gitignorePath)
+	if os.IsNotExist(err) {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
 		log.Printf("[sync] Created .gitignore")
+		return
+	}
+	if err != nil {
+		return
+	}
+	// The file already exists (every install predating a given entry):
+	// append entries that are missing rather than only handling the
+	// file-absent case. Without this, /db/ - binary SQLite files that
+	// must never be committed - would silently stay unignored on every
+	// existing installation.
+	appended := false
+	for _, entry := range []string{"/db/"} {
+		if !strings.Contains(string(content), entry) {
+			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Printf("[sync] cannot update .gitignore: %v", err)
+				return
+			}
+			f.WriteString("\n" + entry + "\n")
+			f.Close()
+			appended = true
+		}
+	}
+	if appended {
+		log.Printf("[sync] Updated .gitignore with new entries")
 	}
 }
 

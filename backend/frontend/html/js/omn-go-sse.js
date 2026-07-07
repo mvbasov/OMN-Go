@@ -304,6 +304,109 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
+    // --- Server-backed SQLite (replacement for the removed WebSQL API) ---
+    // Data lives server-side in <storage>/db/<name>.sqlite, so unlike the
+    // old per-browser window.openDatabase, every device sees the same
+    // data. Requires admin role (local connections qualify automatically).
+    //
+    // Modern API (preferred for new note scripts):
+    //   const db = omnGoOpenDatabase('mydata');
+    //   await db.exec('CREATE TABLE IF NOT EXISTS t(a,b)');
+    //   const r = await db.exec('SELECT * FROM t WHERE a > ?', [5]);
+    //   r.rows._array.forEach(row => console.log(row.a, row.b));
+    //   await db.batch([['INSERT INTO t VALUES(?,?)', [1,2]],
+    //                   ['INSERT INTO t VALUES(?,?)', [3,4]]]); // atomic
+    window.omnGoOpenDatabase = function(name) {
+        async function post(statements) {
+            const res = await fetch('/api/sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ db: name, statements: statements })
+            });
+            const data = await res.json();
+            if (data.status !== 'success') {
+                const idx = (data.failed_statement !== undefined && data.failed_statement !== null)
+                    ? ' (statement #' + data.failed_statement + ')' : '';
+                throw new Error((data.message || 'SQL error') + idx);
+            }
+            return data.results;
+        }
+
+        // Server result -> WebSQL-shaped result set.
+        function wrap(r) {
+            const cols = r.columns || [];
+            const arr = (r.rows || []).map(row => {
+                const o = {};
+                cols.forEach((c, i) => { o[c] = row[i]; });
+                return o;
+            });
+            return {
+                insertId: r.last_insert_id,
+                rowsAffected: r.rows_affected,
+                rows: { length: arr.length, item: i => arr[i], _array: arr }
+            };
+        }
+
+        const db = {
+            exec: async function(sql, args) {
+                return wrap((await post([{ sql: sql, args: args || [] }]))[0]);
+            },
+            batch: async function(stmts) {
+                const norm = stmts.map(s => Array.isArray(s)
+                    ? { sql: s[0], args: s[1] || [] }
+                    : { sql: s.sql, args: s.args || [] });
+                return (await post(norm)).map(wrap);
+            },
+            // WebSQL-compatible: db.transaction(tx => tx.executeSql(...)).
+            // All statements queued synchronously inside the callback run
+            // as ONE atomic server-side transaction. Statements queued
+            // from inside success callbacks run as a FOLLOW-UP atomic
+            // batch (a separate transaction) - the one semantic
+            // difference from real WebSQL, where the whole cascade shared
+            // a transaction.
+            transaction: function(cb, errCb, doneCb) {
+                const queue = [];
+                const tx = {
+                    executeSql: function(sql, args, okCb, failCb) {
+                        queue.push({ sql: sql, args: args || [], okCb: okCb, failCb: failCb });
+                    }
+                };
+                try { cb(tx); } catch (e) { if (errCb) errCb(e); return; }
+                (async () => {
+                    while (queue.length) {
+                        const batch = queue.splice(0, queue.length);
+                        let results;
+                        try {
+                            results = await post(batch.map(q => ({ sql: q.sql, args: q.args })));
+                        } catch (e) {
+                            batch.forEach(q => { if (q.failCb) try { q.failCb(tx, e); } catch (_) {} });
+                            if (errCb) errCb(e);
+                            return;
+                        }
+                        batch.forEach((q, i) => {
+                            if (q.okCb) try { q.okCb(tx, wrap(results[i])); } catch (_) {}
+                        });
+                        // okCb calls may have queued more statements; loop.
+                    }
+                    if (doneCb) doneCb();
+                })();
+            }
+        };
+        db.readTransaction = db.transaction;
+        return db;
+    };
+
+    // Drop-in stand-in for the deprecated WebSQL entry point, so old note
+    // scripts keep working with the original call shape. version /
+    // displayName / size are accepted and ignored.
+    window.openDatabase = function(name, version, displayName, size, creationCallback) {
+        const db = window.omnGoOpenDatabase(name);
+        if (typeof creationCallback === 'function') {
+            try { creationCallback(db); } catch (e) { console.error(e); }
+        }
+        return db;
+    };
+
     window.checkSession = async function() {
         // Unhide UI if role cookies exist
         if (document.cookie.includes('session_role=')) {
@@ -351,4 +454,6 @@ if (window.location.protocol !== 'file:') {
     window.submitQuickNote = function() { printDebug('submitQuickNote'); };
     window.submitBookmark = function() { printDebug('submitBookmark'); };
     window.checkSession = function() { printDebug('checkSession'); };
+    window.omnGoOpenDatabase = function() { printDebug('omnGoOpenDatabase'); };
+    window.openDatabase = function() { printDebug('openDatabase'); };
 }

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"sync"
+	"database/sql"
 	"embed"
 	"fmt"
 	"log"
@@ -24,6 +25,9 @@ type App struct {
 	ActiveConns int64      // mutate only via atomic.Add/LoadInt64
 	GitMutex    sync.Mutex // serializes all on-disk git repo operations
 	Router      *http.ServeMux
+
+	sqlMu  sync.Mutex         // guards sqlDBs (see sqlite.go)
+	sqlDBs map[string]*sql.DB // lazily-opened user SQLite handles, by name
 
 	ready chan struct{} // closed once the HTTP listener is actually serving
 }
@@ -179,6 +183,7 @@ func StartServer() *App {
 		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
 		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
 		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
+		a.Router.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
