@@ -123,11 +123,11 @@ func (fi *stableFileInfo) ModTime() time.Time {
 func (a *App) ensureGitignore() {
 	gitignorePath := filepath.Join(a.StorageDir, ".gitignore")
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
-	gitignoreBase := `
-# OMN-Go sync ignore
+	gitignoreBase := `# OMN-Go sync ignore
 config.json
 *.html
 *.woff2
+*.woff
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
