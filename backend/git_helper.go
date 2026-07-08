@@ -705,6 +705,31 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 // not possible (diverged history, or unstaged local changes in the way) it
 // returns the CONFLICT_DETECTED sentinel so the caller can offer the user a
 // choice between "pull_abort" and "pull_mark" (3-way merge).
+// trackedWorktreeIsDirty reports whether any TRACKED file has a local
+// modification that hasn't been committed. Untracked content (new notes
+// not yet committed, db_json exports, ...) never counts - only tracked
+// files, because those are exactly what writeTreeToWorktree in syncPull
+// below would silently overwrite with the remote's copy. go-git's native
+// Worktree.Pull() (previously used here) refused to fast-forward over
+// dirty tracked files on its own (ErrUnstagedChanges); replacing it with
+// our own worktree-writing logic means we now have to make that same
+// check explicitly, or a pull would quietly discard uncommitted edits.
+func trackedWorktreeIsDirty(wTree *git.Worktree) (bool, error) {
+	status, err := wTree.Status()
+	if err != nil {
+		return false, err
+	}
+	for _, fileStat := range status {
+		if fileStat.Worktree == git.Untracked {
+			continue
+		}
+		if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
 	log.Printf("[sync] Pull: fetching %s", remoteName)
 	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
@@ -712,18 +737,111 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 
-	err = wTree.Pull(&git.PullOptions{
-		RemoteName: remoteName,
-		Auth:       auth,
-		Force:      false,
-	})
-	if err == git.ErrNonFastForwardUpdate || err == git.ErrUnstagedChanges {
-		log.Printf("[sync] Pull: fast-forward not possible (%v)", err)
+	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
+	if err != nil {
+		return fmt.Errorf("failed to find %s/master: %v", remoteName, err)
+	}
+
+	localHead, headErr := repo.Head()
+	if headErr == nil && localHead.Hash() == remoteRef.Hash() {
+		log.Printf("[sync] Pull: already up to date")
+		return nil
+	}
+
+	// Refuse over dirty tracked files, exactly like the native Pull this
+	// replaces used to (ErrUnstagedChanges) - see trackedWorktreeIsDirty.
+	dirty, dErr := trackedWorktreeIsDirty(wTree)
+	if dErr != nil {
+		return fmt.Errorf("status check failed: %v", dErr)
+	}
+	if dirty {
+		log.Printf("[sync] Pull: local tracked changes present, cannot fast-forward")
 		return fmt.Errorf("CONFLICT_DETECTED")
 	}
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return fmt.Errorf("pull failed: %v", err)
+
+	// Fast-forward only: refuse (same sentinel the caller already handles,
+	// matching the native Pull's ErrNonFastForwardUpdate) if local HEAD
+	// is not an ancestor of the remote tip - i.e. this device has its own
+	// unpushed commits that a blind jump to remote's tree would strand.
+	// An unborn local branch (nothing committed here yet) trivially
+	// qualifies as "already an ancestor" - there's nothing to strand.
+	if headErr == nil {
+		localCommit, cErr := repo.CommitObject(localHead.Hash())
+		if cErr != nil {
+			return fmt.Errorf("local HEAD commit lookup failed: %v", cErr)
+		}
+		remoteCommit, rcErr := repo.CommitObject(remoteRef.Hash())
+		if rcErr != nil {
+			return fmt.Errorf("remote commit lookup failed: %v", rcErr)
+		}
+		isAncestor, aErr := localCommit.IsAncestor(remoteCommit)
+		if aErr != nil {
+			return fmt.Errorf("ancestry check failed: %v", aErr)
+		}
+		if !isAncestor {
+			log.Printf("[sync] Pull: fast-forward not possible (local has unpushed commits)")
+			return fmt.Errorf("CONFLICT_DETECTED")
+		}
 	}
+
+	// What was tracked before this pull, so a file the remote deleted can
+	// be told apart from a file that was never tracked in the first place
+	// (config.json, a user database's .sqlite file, or anything else this
+	// app manages outside git - never a candidate for removal here).
+	oldPaths, err := oldTrackedPaths(repo)
+	if err != nil {
+		return fmt.Errorf("failed to read current tracked tree: %v", err)
+	}
+
+	remoteCommit, err := repo.CommitObject(remoteRef.Hash())
+	if err != nil {
+		return fmt.Errorf("remote commit lookup failed: %v", err)
+	}
+	remoteTree, err := remoteCommit.Tree()
+	if err != nil {
+		return fmt.Errorf("remote tree lookup failed: %v", err)
+	}
+
+	// writeTreeToWorktree (shared with syncPullForce) only ever creates or
+	// overwrites paths the remote's tree actually contains, and touches
+	// nothing else. This is the actual fix: go-git's native
+	// Worktree.Pull(), used here previously, applies a fast-forward via
+	// the same worktree-reconciliation machinery as Checkout/Reset -
+	// already found, for Force Pull, to not limit itself to files git
+	// actually tracks (see that function's doc comment). A gitignored,
+	// always-untracked file living in the same directory tree - here, a
+	// user database's .sqlite file - could be deleted and silently
+	// recreated by that machinery even on a PLAIN pull, changing the
+	// file's on-disk identity out from under any already-open connection
+	// to it. That's exactly what "attempt to write a readonly database
+	// (1032)" (SQLITE_READONLY_DBMOVED) means: the connection notices, on
+	// its next write, that the file it opened is no longer the file at
+	// that path.
+	newPaths, err := a.writeTreeToWorktree(repo, wTree, remoteTree)
+	if err != nil {
+		return fmt.Errorf("failed to write remote tree: %v", err)
+	}
+
+	// Remove files that WERE tracked before this pull but are no longer
+	// part of the remote's tree (e.g. a note deleted on another device).
+	// Only ever considers paths that were genuinely tracked.
+	for p := range oldPaths {
+		if newPaths[p] {
+			continue
+		}
+		full := filepath.Join(a.StorageDir, p)
+		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+			log.Printf("[sync] pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
+		} else {
+			log.Printf("[sync] pull: removed file no longer tracked upstream: %s", p)
+		}
+	}
+
+	if err := repo.Storer.SetReference(plumbing.NewHashReference(
+		plumbing.ReferenceName("refs/heads/master"), remoteRef.Hash())); err != nil {
+		return fmt.Errorf("failed to move local branch: %v", err)
+	}
+
 	log.Printf("[sync] Pull: fast-forward complete")
 	return nil
 }

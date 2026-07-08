@@ -169,6 +169,112 @@ func returnsRows(query string) bool {
 	return false
 }
 
+// evictUserDB closes and forgets a cached database handle, so the next
+// openUserDB call reopens the file from scratch instead of reusing a
+// handle tied to a now-stale file identity. Paired with
+// isStaleDBHandleError below: this is what lets /api/sql self-heal from a
+// SQLITE_READONLY_DBMOVED-class error (see syncPull in git_helper.go for
+// the one concrete cause already found and fixed) instead of leaving
+// every query against that database permanently failing until a full
+// process restart.
+func (a *App) evictUserDB(name string) {
+	a.sqlMu.Lock()
+	db, ok := a.sqlDBs[name]
+	if ok {
+		delete(a.sqlDBs, name)
+	}
+	a.sqlMu.Unlock()
+	if ok {
+		if err := db.Close(); err != nil {
+			log.Printf("[db] close evicted handle for %q: %v", name, err)
+		}
+	}
+}
+
+// isStaleDBHandleError reports whether err is the class of error SQLite
+// raises when an already-open connection's underlying file was replaced
+// on disk out from under it (SQLITE_READONLY_DBMOVED, code 1032) - the
+// driver re-stats the path on every write and refuses to write once the
+// file it opened no longer matches what's at that path. Matched on
+// message text rather than a driver-specific error type, since that's
+// what modernc.org/sqlite's error actually renders as (verified against
+// a live "attempt to write a readonly database (1032)" report) and avoids
+// this file depending on driver-internal type details for something this
+// narrow.
+func isStaleDBHandleError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "readonly database") ||
+		strings.Contains(msg, "SQLITE_READONLY") ||
+		strings.Contains(msg, "(1032)")
+}
+
+// runSQLBatchWithRetry runs statements against dbName as one transaction,
+// self-healing ONCE from a stale-handle error by evicting the cached
+// connection, reopening the database fresh, and retrying the whole batch
+// from scratch. Safe to retry from scratch because a failed Begin or a
+// rolled-back transaction has committed nothing on the first attempt.
+func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]sqlResult, *int, error) {
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		db, err := a.openUserDB(dbName)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			if attempt == 1 && isStaleDBHandleError(err) {
+				log.Printf("[db] %s: stale handle on begin, reopening and retrying: %v", dbName, err)
+				a.evictUserDB(dbName)
+				lastErr = err
+				continue
+			}
+			return nil, nil, fmt.Errorf("begin: %w", err)
+		}
+
+		results := make([]sqlResult, 0, len(statements))
+		var failedIdx *int
+		var stmtErr error
+		for i, stmt := range statements {
+			var res sqlResult
+			res, stmtErr = runStatement(tx, stmt)
+			if stmtErr != nil {
+				idx := i
+				failedIdx = &idx
+				break
+			}
+			results = append(results, res)
+		}
+
+		if stmtErr != nil {
+			tx.Rollback()
+			if attempt == 1 && isStaleDBHandleError(stmtErr) {
+				log.Printf("[db] %s: stale handle on statement #%d, reopening and retrying: %v", dbName, *failedIdx, stmtErr)
+				a.evictUserDB(dbName)
+				lastErr = stmtErr
+				continue
+			}
+			return nil, failedIdx, stmtErr
+		}
+
+		if err := tx.Commit(); err != nil {
+			if attempt == 1 && isStaleDBHandleError(err) {
+				log.Printf("[db] %s: stale handle on commit, reopening and retrying: %v", dbName, err)
+				a.evictUserDB(dbName)
+				lastErr = err
+				continue
+			}
+			return nil, nil, fmt.Errorf("commit: %w", err)
+		}
+
+		return results, nil, nil
+	}
+	return nil, nil, fmt.Errorf("after retry: %w", lastErr)
+}
+
 // handleSQL executes one atomic batch of statements against one named
 // user database. See the file-top comment for the wire protocol.
 func (a *App) handleSQL(w http.ResponseWriter, r *http.Request) {
@@ -193,36 +299,13 @@ func (a *App) handleSQL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, err := a.openUserDB(req.DB)
+	results, failedIdx, err := a.runSQLBatchWithRetry(req.DB, req.Statements)
 	if err != nil {
-		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error", Message: err.Error()})
-		return
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		writeSQLResponse(w, http.StatusInternalServerError, sqlResponse{Status: "error", Message: "begin: " + err.Error()})
-		return
-	}
-
-	results := make([]sqlResult, 0, len(req.Statements))
-	for i, stmt := range req.Statements {
-		res, stmtErr := runStatement(tx, stmt)
-		if stmtErr != nil {
-			tx.Rollback()
-			idx := i
-			writeSQLResponse(w, http.StatusBadRequest, sqlResponse{
-				Status:          "error",
-				Message:         stmtErr.Error(),
-				FailedStatement: &idx,
-			})
-			return
-		}
-		results = append(results, res)
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeSQLResponse(w, http.StatusInternalServerError, sqlResponse{Status: "error", Message: "commit: " + err.Error()})
+		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{
+			Status:          "error",
+			Message:         err.Error(),
+			FailedStatement: failedIdx,
+		})
 		return
 	}
 	writeSQLResponse(w, http.StatusOK, sqlResponse{Status: "success", Results: results})
