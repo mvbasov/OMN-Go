@@ -133,6 +133,7 @@ config.json
 /html/js/omn-go-sse.js
 /md/local/
 /db/
+/html/db_json/local-*
 `
 	content, err := os.ReadFile(gitignorePath)
 	if os.IsNotExist(err) {
@@ -149,7 +150,7 @@ config.json
 	// must never be committed - would silently stay unignored on every
 	// existing installation.
 	appended := false
-	for _, entry := range []string{"/db/"} {
+	for _, entry := range []string{"/db/", "/html/db_json/local-*"} {
 		if !strings.Contains(string(content), entry) {
 			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
@@ -1067,6 +1068,18 @@ func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod
 //   - A force push always pushes with Force:true, overwriting the remote
 //     to match local regardless of divergence.
 func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName, message string, force bool) error {
+	// Regenerate the JSON mirror for every database BEFORE looking at
+	// what's changed, so a database write since the last push is picked
+	// up and staged this time - the same "refresh the cache right before
+	// it's needed" timing serveHTMLPage/precompileAllPages already use
+	// for .md -> .html, just running here instead of on page view. A
+	// database that fails to export (e.g. a BLOB table) is logged and
+	// skipped by exportAllDatabases itself; it must never block pushing
+	// everything else.
+	if _, err := a.exportAllDatabases(true); err != nil {
+		log.Printf("[sync] database export before push failed: %v", err)
+	}
+
 	matcher, mErr := a.loadGitignoreMatcher(wTree)
 	if mErr != nil {
 		matcher = gitignore.NewMatcher(nil)
@@ -1311,6 +1324,7 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var files []string
+	seen := map[string]bool{}
 	for name, fileStat := range status {
 		// Skip ignored and root config.json
 		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
@@ -1321,7 +1335,28 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		}
 		if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
 			files = append(files, name)
+			seen[name] = true
 		}
+	}
+
+	// Dry-run database export (write=false: computes what WOULD change,
+	// touches no file on disk) so the preview - and therefore the commit
+	// modal's file list - is accurate even though nothing has actually
+	// been written yet. This is also what makes "commit canceled -> JSON
+	// left unchanged" true for free: nothing here ever calls this with
+	// write=true, so a canceled push never had anything to undo.
+	dryRun, dErr := a.exportAllDatabases(false)
+	if dErr != nil {
+		log.Printf("[sync] database export preview failed: %v", dErr)
+	}
+	for _, f := range dryRun {
+		if seen[f] {
+			continue
+		}
+		if matcher != nil && matcher.Match(strings.Split(f, string(filepath.Separator)), false) {
+			continue // e.g. a local-* database's export, correctly excluded
+		}
+		files = append(files, f)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

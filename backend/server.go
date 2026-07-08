@@ -184,6 +184,8 @@ func StartServer() *App {
 		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
 		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
 		a.Router.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
+		a.Router.HandleFunc("/api/db/export", a.authMiddleware(a.handleDBExport, true))
+		a.Router.HandleFunc("/api/db/restore", a.authMiddleware(a.handleDBRestore, true))
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))

@@ -393,6 +393,33 @@ if (window.location.protocol !== 'file:') {
             }
         };
         db.readTransaction = db.transaction;
+
+        // Manual force-triggers for the git-tracked JSON backup (see
+        // Database.md). Normal operation needs neither: export happens
+        // automatically right before every git push, and restore happens
+        // lazily the next time this database is opened after a pull
+        // brings in newer JSON. These exist for wiring a manual "Backup
+        // now" / "Restore now" button onto a specific page, or for
+        // debugging from the console.
+        //
+        // table (optional) restricts the call to one table/view/trigger
+        // by name; omitted, the whole database is exported/restored.
+        db.exportBackup = async function(table) {
+            let url = '/api/db/export?db=' + encodeURIComponent(name);
+            if (table) url += '&table=' + encodeURIComponent(table);
+            const res = await fetch(url, { method: 'POST' });
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.message || 'export failed');
+            return data.changed_files || [];
+        };
+        db.restoreBackup = async function(table) {
+            let url = '/api/db/restore?db=' + encodeURIComponent(name);
+            if (table) url += '&table=' + encodeURIComponent(table);
+            const res = await fetch(url, { method: 'POST' });
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.message || 'restore failed');
+            return true;
+        };
         return db;
     };
 

@@ -45,6 +45,10 @@ import (
 //   - db names are [A-Za-z0-9_-], max 64 chars - the name is used as a
 //     filename, so this is the path-traversal guard.
 //   - request body capped at 1 MB, max 500 statements per batch.
+//
+// Git-tracked JSON backup/restore for these databases (export at push
+// time, lazy restore on next open, plus manual /api/db/export|restore
+// endpoints) lives in sqlite_backup.go.
 
 // dbNameRe is the whitelist for user database names (used as filenames).
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -54,11 +58,30 @@ const (
 	sqlMaxStatements = 500
 )
 
-// openUserDB returns the cached handle for a named user database, opening
-// (and creating) it on first use. Handles live for the process lifetime -
-// SQLite files need no explicit close, and the OS reclaims everything on
-// exit, matching how the rest of this app treats resources.
+// openUserDB returns the handle for a named user database, opening (and
+// creating) it on first use, then - now that the lock is free - checks
+// whether a git-tracked JSON backup is newer than the on-disk .sqlite
+// file (e.g. a pull just brought in updated data) and restores from it
+// first if so. This mirrors the existing .md -> .html staleness check
+// (serveHTMLPage), just with the source/cache roles swapped: JSON is the
+// tracked source, .sqlite is the regenerable cache. See sqlite_backup.go.
 func (a *App) openUserDB(name string) (*sql.DB, error) {
+	db, err := a.openUserDBLocked(name)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.restoreIfStale(db, name); err != nil {
+		// Serving slightly-stale data beats failing every query in this
+		// database because of an unrelated backup-file problem.
+		log.Printf("[db-restore] %s: %v", name, err)
+	}
+	return db, nil
+}
+
+// openUserDBLocked does the actual open-or-return-cached work under
+// a.sqlMu. Split out from openUserDB so the lock is never held while
+// restoreIfStale (which may run a whole restore transaction) executes.
+func (a *App) openUserDBLocked(name string) (*sql.DB, error) {
 	if !dbNameRe.MatchString(name) {
 		return nil, fmt.Errorf("invalid database name %q (allowed: letters, digits, '_', '-', max 64 chars)", name)
 	}
