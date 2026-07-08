@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -227,7 +228,10 @@ func TestRestoreSingleObjectIsStrict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Diverge both "items" and "log".
+	// Diverge both "items" and "log". Note: inserting into "items" fires
+	// items_ai (AFTER INSERT ON items), which itself adds a log row - so
+	// this single INSERT contributes to BOTH tables' divergence, on top
+	// of the explicit log INSERT right after it.
 	if _, resp := postSQL(t, a, `{"db":"notes","statements":[
 		{"sql":"INSERT INTO items(name) VALUES('extra')"},
 		{"sql":"INSERT INTO log(msg) VALUES('extra')"}
@@ -250,10 +254,13 @@ func TestRestoreSingleObjectIsStrict(t *testing.T) {
 	if n, _ := resp.Results[0].Rows[0][0].(float64); n != 2 {
 		t.Errorf("items count = %v, want 2 (restored)", n)
 	}
-	// log's extra row must survive - single-object restore of "items"
-	// must not have touched it.
-	if n, _ := resp.Results[1].Rows[0][0].(float64); n != 3 {
-		t.Errorf("log count = %v, want 3 (untouched by items-only restore)", n)
+	// log started this test at 2 (from setupBackupDB's own two trigger
+	// firings), gained a 3rd row from items_ai firing on the 'extra'
+	// items insert above, and a 4th from the explicit log insert - all of
+	// which must survive untouched, since single-object restore of
+	// "items" must never touch "log".
+	if n, _ := resp.Results[1].Rows[0][0].(float64); n != 4 {
+		t.Errorf("log count = %v, want 4 (untouched by items-only restore)", n)
 	}
 }
 
@@ -267,9 +274,17 @@ func TestRestoreNoBackupIsAnError(t *testing.T) {
 	}
 }
 
-func TestSanitizeObjectNameCollisionSkipsBoth(t *testing.T) {
+// Per the agreed design ("log error about collision"): the FIRST object to
+// claim a given sanitized filename exports normally; only SECOND-and-later
+// objects colliding on that same name are skipped. Silently dropping every
+// colliding object (including the first, uncontested claimant) would lose
+// legitimate data for no reason.
+func TestSanitizeObjectNameCollisionKeepsFirstSkipsRest(t *testing.T) {
 	a := newTestApp(t)
-	// "a.b" and "a-b" both sanitize to "a_b" -> collision.
+	// "a-b" and "a.b" both sanitize to "a_b" -> collision. sqlite_master
+	// (and therefore listDatabaseObjects) returns tables ordered by name,
+	// so "a-b" ('-' = 0x2D) sorts before "a.b" ('.' = 0x2E) and is the one
+	// that wins the "a_b" filename.
 	_, resp := postSQL(t, a, `{"db":"notes","statements":[
 		{"sql":"CREATE TABLE \"a.b\"(x INTEGER)"},
 		{"sql":"CREATE TABLE \"a-b\"(x INTEGER)"},
@@ -287,8 +302,31 @@ func TestSanitizeObjectNameCollisionSkipsBoth(t *testing.T) {
 	if !strings.Contains(strings.Join(changed, ","), "notes_clean_sch.json") {
 		t.Error("unrelated non-colliding table was not exported")
 	}
-	if strings.Contains(strings.Join(changed, ","), "notes_a_b_sch.json") {
-		t.Error("colliding objects should not have produced a file")
+
+	// Exactly one "a_b" schema file exists, and it belongs to the winner.
+	schPath := filepath.Join(a.StorageDir, "html", "db_json", "notes_a_b_sch.json")
+	raw, err := os.ReadFile(schPath)
+	if err != nil {
+		t.Fatalf("expected the first colliding object to export normally: %v", err)
+	}
+	var sf schemaFile
+	if err := json.Unmarshal(raw, &sf); err != nil {
+		t.Fatalf("parse %s: %v", schPath, err)
+	}
+	if sf.Object != "a-b" {
+		t.Errorf("winning object = %q, want %q (sort order)", sf.Object, "a-b")
+	}
+
+	// The loser must not have overwritten it under a different path either.
+	entries, _ := os.ReadDir(filepath.Join(a.StorageDir, "html", "db_json"))
+	count := 0
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "a_b") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 file for the colliding pair, found %d: %v", count, entries)
 	}
 }
 
