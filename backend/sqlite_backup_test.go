@@ -281,13 +281,18 @@ func TestRestoreNoBackupIsAnError(t *testing.T) {
 // legitimate data for no reason.
 func TestSanitizeObjectNameCollisionKeepsFirstSkipsRest(t *testing.T) {
 	a := newTestApp(t)
-	// "a-b" and "a.b" both sanitize to "a_b" -> collision. sqlite_master
-	// (and therefore listDatabaseObjects) returns tables ordered by name,
-	// so "a-b" ('-' = 0x2D) sorts before "a.b" ('.' = 0x2E) and is the one
-	// that wins the "a_b" filename.
+	// "a.b" and "a b" both sanitize to "a_b" - genuine collision, since
+	// sanitizeObjectName's regexp `[^A-Za-z0-9_-]` treats '-' as SAFE (it
+	// passes through unchanged), so a hyphen variant like "a-b" would
+	// NOT collide with either of these; only characters the regexp
+	// actually replaces (here: '.' and ' ', both -> '_') do.
+	// sqlite_master (and therefore listDatabaseObjects) returns tables
+	// ordered by name using SQLite's default byte-wise collation, and
+	// ' ' (0x20) sorts before '.' (0x2E), so "a b" is the one that wins
+	// the "a_b" filename.
 	_, resp := postSQL(t, a, `{"db":"notes","statements":[
 		{"sql":"CREATE TABLE \"a.b\"(x INTEGER)"},
-		{"sql":"CREATE TABLE \"a-b\"(x INTEGER)"},
+		{"sql":"CREATE TABLE \"a b\"(x INTEGER)"},
 		{"sql":"CREATE TABLE clean(x INTEGER)"}
 	]}`)
 	if resp.Status != "success" {
@@ -313,8 +318,8 @@ func TestSanitizeObjectNameCollisionKeepsFirstSkipsRest(t *testing.T) {
 	if err := json.Unmarshal(raw, &sf); err != nil {
 		t.Fatalf("parse %s: %v", schPath, err)
 	}
-	if sf.Object != "a-b" {
-		t.Errorf("winning object = %q, want %q (sort order)", sf.Object, "a-b")
+	if sf.Object != "a b" {
+		t.Errorf("winning object = %q, want %q (sort order)", sf.Object, "a b")
 	}
 
 	// The loser must not have overwritten it under a different path either.
@@ -325,8 +330,8 @@ func TestSanitizeObjectNameCollisionKeepsFirstSkipsRest(t *testing.T) {
 			count++
 		}
 	}
-	if count != 1 {
-		t.Errorf("expected exactly 1 file for the colliding pair, found %d: %v", count, entries)
+	if count != 2 { // notes_a_b_sch.json + notes_a_b_data.json, from ONE winning table
+		t.Errorf("expected exactly 2 files (sch+data) for the colliding pair's single winner, found %d: %v", count, entries)
 	}
 }
 
