@@ -732,15 +732,16 @@ func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) 
 
 	mdContent, err := os.ReadFile(mdPath)
 	if err == nil {
-		htmlStat, errHtml := os.Stat(htmlPath)
-		mdStat, errMd := os.Stat(mdPath)
-		if errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime()) {
-			updatedContent := a.ensureHeaderModified(string(mdContent), name)
-			if updatedContent != string(mdContent) {
-				os.WriteFile(mdPath, []byte(updatedContent), 0644)
-				mdContent = []byte(updatedContent)
-			}
-		}
+		// Pure cache regeneration: recompile .html from whatever .md is
+		// on disk right now. This function runs on an ordinary page VIEW
+		// whenever the cache is stale (see serveHTMLPage's mtime check),
+		// not only on save - so it must never rewrite the .md source.
+		// ensureHeaderModified (which stamps "Modified: <time.Now()>")
+		// belongs exclusively to the explicit save path (handleSaveNote).
+		// Calling it here used to bump - and rewrite - the source file's
+		// Modified timestamp on every plain view that happened to need a
+		// cache rebuild, which is exactly the bug this comment guards
+		// against reintroducing.
 		compiled := a.compilePage(name, mdContent)
 		os.MkdirAll(filepath.Dir(htmlPath), 0755)
 		os.WriteFile(htmlPath, compiled, 0644)
