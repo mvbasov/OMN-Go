@@ -804,7 +804,15 @@ func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path stri
 		return
 	}
 
-	embedPath := "frontend" + filepath.Clean(path)
+	// Embed path must match the //go:embed directive's root (server.go:
+	// "frontend/html frontend/md"), i.e. frontend/html/<path> - NOT
+	// frontend/<path>. This used to be missing the "html" segment, so any
+	// asset served only through this catch-all handler and not yet
+	// extracted to disk (e.g. favicon.ico, robots.txt: not under /js/,
+	// /css/, /json/, so never touched by serveLazyEmbed's extraction, and
+	// not a .html page) always missed staticFS and fell through to a 404,
+	// even though the file was genuinely embedded in the binary.
+	embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(path))
 	if data, err := staticFS.ReadFile(embedPath); err == nil {
 		os.MkdirAll(filepath.Dir(filePath), 0755)
 		os.WriteFile(filePath, data, 0644)
