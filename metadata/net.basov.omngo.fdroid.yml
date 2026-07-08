@@ -1,0 +1,148 @@
+# F-Droid build metadata (fdroiddata recipe) for OMN-Go.
+#
+# WHERE THIS FILE ACTUALLY LIVES: F-Droid's real build recipe is a file in
+# the SEPARATE `fdroiddata` GitLab repository, at
+# metadata/net.basov.omngo.fdroid.yml there - not something F-Droid reads
+# out of THIS repo automatically. This copy is kept here purely as a
+# versioned reference so the recipe evolves alongside the app instead of
+# living only inside a merge request; submitting to F-Droid means copying
+# this content into a merge request against gitlab.com/fdroid/fdroiddata.
+#
+# STATUS: draft, not yet submitted. Items marked TODO below need a real
+# value before this can build - see the accompanying notes for the full
+# list (Go version + checksum, release tag, first CurrentVersionCode).
+#
+# WHY NO DOCKER: F-Droid's build server runs its own sandboxed environment
+# and executes the Init:/Prebuild:/Build: shell steps directly - it does
+# not accept or run a Dockerfile. Everything Dockerfile.base +
+# Dockerfile.ci did has to be expressed as plain shell here instead. Two
+# things are notably DIFFERENT from the Docker pipeline as a result:
+#   1. F-Droid's buildserver already provides Android SDK/NDK/JDK/Gradle
+#      for Gradle-type builds - Dockerfile.base's SDK cmdline-tools/NDK/
+#      Gradle installation is redundant here and intentionally omitted.
+#      Only the Go toolchain and gomobile are genuinely custom and need
+#      bootstrapping below.
+#   2. There is no BuildKit cache mount equivalent - every build starts
+#      cold. Not fixed here; F-Droid's own build server has its own
+#      caching between builds at the infrastructure level.
+
+Categories:
+  - Writing
+  - Development
+  # "Text Editor" and "Note" (as requested) are not, as of this writing,
+  # in F-Droid's standard category list (see fdroiddata/categories.yml) -
+  # Writing and Development already cover a note-taking/editor app well.
+  # Verify the current category list and adjust before submitting; a
+  # reviewer will likely raise this if these two don't map cleanly.
+License: MIT
+AuthorName: Mikhail Basov
+WebSite: https://github.com/mvbasov/OMN-Go
+SourceCode: https://github.com/mvbasov/OMN-Go
+IssueTracker: https://github.com/mvbasov/OMN-Go/issues
+Changelog: https://github.com/mvbasov/OMN-Go/blob/master/fastlane/metadata/android/en-US/changelogs/%c.txt
+
+# No ads, analytics, or trackers; git sync and LAN sharing both point at
+# user-configured, self-hostable endpoints rather than a fixed
+# proprietary service, so neither qualifies for the Tethered/NonFreeNet
+# anti-features. Leaving this present-but-empty as an explicit "checked,
+# none apply" marker rather than omitting the field silently.
+AntiFeatures:
+
+RepoType: git
+Repo: https://github.com/mvbasov/OMN-Go.git
+
+Builds:
+  - versionName: '1.8.6'
+    versionCode: 10806
+    # TODO: confirm this tag exists (or use the real commit hash for the
+    # 1.8.6 release) before submitting - placeholder matching the
+    # project's "vX.Y.Z" version naming seen elsewhere (version.go).
+    commit: v1.8.6
+    subdir: android
+
+    # ---- Go toolchain + gomobile bootstrap --------------------------
+    # Mirrors Dockerfile.base + Dockerfile.ci's stage 1 (Go side only -
+    # see the file-top note on why the Android SDK/NDK/Gradle steps from
+    # those files are dropped here).
+    prebuild:
+      # TODO: pin the exact Go version + sha256 matching go.mod's
+      # `go 1.26` directive - placeholders below MUST be replaced with
+      # real values from https://go.dev/dl/ before this build can run.
+      - export GOROOT_BOOTSTRAP_DIR=$(pwd)/../go-toolchain
+      - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+      - echo "REPLACE_WITH_REAL_SHA256_CHECKSUM  /tmp/go.tar.gz" | sha256sum -c -
+      - mkdir -p $GOROOT_BOOTSTRAP_DIR
+      - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
+      - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
+      - export GOPATH=$(pwd)/../go-path
+      - export PATH=$GOPATH/bin:$PATH
+      # Go/gomobile steps run from the repo root (where go.mod lives),
+      # not from subdir: android - hence the explicit cd.
+      - cd ..
+      # go.mod as committed doesn't yet carry a resolved go.sum or the
+      # golang.org/x/mobile tool entries (see git_helper.go's comments on
+      # why - the same reason Dockerfile.base regenerates these inside
+      # the container every time). Replicated here for the same reason;
+      # this is also the main reproducibility weak point in this recipe -
+      # see the note below the Builds: list for the better long-term fix.
+      - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
+      - go mod tidy
+      - go install golang.org/x/mobile/cmd/gobind
+      - go install golang.org/x/mobile/cmd/gomobile
+      - gomobile init
+      - mkdir -p android/app/libs
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android
+
+    # fdroidserver builds the "fdroid" product flavor's release variant
+    # (./gradlew assembleFdroidRelease) from this - no manual gradle
+    # invocation needed in build:/prebuild: for that part.
+    gradle:
+      - fdroid
+
+    # ---- Vendored offline third-party frontend assets ----------------
+    # backend/frontend/html/{css,js}/ vendors minified copies of
+    # highlight.js (BSD-3-Clause), KaTeX + its auto-render extension
+    # (MIT), and the Material Icons webfont (Apache-2.0) so the note UI's
+    # code highlighting, math rendering, and icons all work with the app
+    # fully offline - a deliberate feature (see UserManual.md), not an
+    # oversight. F-Droid's source scanner flags vendored minified/binary
+    # third-party files by default; this allowlists exactly those paths.
+    #
+    # Expect this to be a real review discussion point: the more
+    # idiomatic F-Droid answer is often to fetch-and-verify (checksum)
+    # these from their own upstream releases in prebuild: instead of
+    # committing them, similar to the Go toolchain bootstrap above. Not
+    # done here yet because that means pinning exact upstream version +
+    # hash for each of the ~20 vendored files (see the fonts/ directory
+    # for the full KaTeX font set) - a bigger, separate piece of work.
+    scanignore:
+      - backend/frontend/html/js/highlight.min.js
+      - backend/frontend/html/js/katex.min.js
+      - backend/frontend/html/js/auto-render.min.js
+      - backend/frontend/html/css/highlight.default.min.css
+      - backend/frontend/html/css/katex.min.css
+      - backend/frontend/html/css/fonts/
+
+AutoUpdateMode: None
+UpdateCheckMode: Tags
+CurrentVersion: '1.8.6'
+CurrentVersionCode: 10806
+
+# ---------------------------------------------------------------------
+# Bigger open item, not fully solved by this recipe:
+#
+# The prebuild: step's `go get -tool ...` + `go mod tidy` resolves
+# golang.org/x/mobile's version fresh from the network on every F-Droid
+# build, rather than from a version pinned in a committed go.sum. That
+# matches what Dockerfile.base does today, but it's not ideal for a
+# published build recipe: F-Droid's reproducible-builds effort (and
+# just general good practice) favors every dependency version being
+# fixed by the committed source, not resolved at build time. The clean
+# fix is upstream of this file entirely - generate a real go.sum with
+# the x/mobile tool entries already present (on ANY machine with Go
+# installed, not necessarily the build host) and commit it to the main
+# repo - which would let this recipe drop straight to `go mod download`
+# the way the rest of the CI pipeline already does. Worth doing before
+# first submission, not strictly required to get a first build working.
+# ---------------------------------------------------------------------

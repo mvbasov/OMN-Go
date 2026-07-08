@@ -10,8 +10,42 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10806
-        versionName "1.8.6"
+        versionCode 10807
+        versionName "1.8.7"
+    }
+
+    // Two distribution channels, same source. "fdroid" gets its own
+    // applicationId (not just an ID suffix on the same one) so it can be
+    // installed alongside the standard build, and so F-Droid's own
+    // signing key never collides with the standard release's key - same
+    // package + a different signer would otherwise block installs or
+    // updates for anyone switching between the two sources. Gradle
+    // automatically overlays src/fdroid/res/ on top of src/main/res/ for
+    // this flavor (already used for the F-Droid launcher icon variant) -
+    // no extra wiring needed for that part.
+    //
+    // NOTE for CI: adding flavors changes the generated Gradle task
+    // names. `gradle assembleRelease` (used by Dockerfile.ci today) is
+    // no longer valid on its own - it becomes `assembleStandardRelease`
+    // / `assembleFdroidRelease` (or `assembleRelease` still works as an
+    // umbrella task that builds BOTH flavors' release variants, if
+    // that's preferred). Not changed here since the desktop/Docker build
+    // pipeline is out of scope for this change - flag for a follow-up
+    // once ready to wire the F-Droid build path into CI.
+    flavorDimensions "distribution"
+    productFlavors {
+        standard {
+            dimension "distribution"
+            // Default channel: desktop-signed release (GitHub releases,
+            // direct APK download). No changes vs. current behavior.
+        }
+        fdroid {
+            dimension "distribution"
+            // TODO: confirm exact spelling before first real submission -
+            // see accompanying notes.
+            applicationId "net.basov.omngo.fdroid"
+            versionNameSuffix "-fdroid"
+        }
     }
 
     signingConfigs {

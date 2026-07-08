@@ -1,0 +1,4 @@
+* Optional LAN sharing, off by default, with a persistent notification and Stop button while active on Android
+* Embedded SQL database available to note scripts, with automatic git-tracked JSON backups
+* Light / dark / system theme switch
+* Various sync reliability and background-operation fixes

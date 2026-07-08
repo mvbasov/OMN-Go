@@ -1,0 +1,18 @@
+OMN-Go is a self-hosted, Markdown-based personal wiki and notes app. It runs a small local web server on your device and serves your notes through a browser-style interface - no account, no cloud service, and no dependency on any third party to keep working.
+
+Notes are plain Markdown files with a small metadata header (title, date, tags), compiled to static HTML pages you can browse, search visually, and link between using ordinary relative or absolute links.
+
+Key features:
+
+* Full Markdown editing, with an internal editor or your preferred external text editor.
+* Optional git synchronization over SSH, so the same notes stay up to date across every device you run OMN-Go on. Conflicts are shown clearly, with manual-merge and safe pull/push options.
+* Optional LAN sharing: off by default (the app only answers itself); when enabled, other devices on your network can reach your notes over HTTP with a password, useful for reading or editing from a second device without setting up sync.
+* An embedded SQL database that note scripts can read and write directly, with automatic git-trackable JSON backups of its contents alongside your notes.
+* Quick capture: a one-tap quick-note box and a bookmark collector, including Android share-to-app support.
+* Math formulas (KaTeX) and syntax-highlighted code blocks, both opt-in per page.
+* Light, dark, and system-following themes.
+* Material Design icons and small HTML/JS building blocks you can drop into any note.
+
+OMN-Go does not include ads, analytics, or trackers of any kind, and does not require an internet connection for day-to-day note-taking - sync and LAN sharing are both entirely optional.
+
+AI coding assistants have been actively used in this app's development - for implementation, refactoring, and drafting supporting documentation such as this listing - alongside human review and direction.
