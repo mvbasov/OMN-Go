@@ -10,7 +10,7 @@
 #
 # STATUS: draft, not yet submitted. Items marked TODO below need a real
 # value before this can build - see the accompanying notes for the full
-# list (Go version + checksum, release tag, first CurrentVersionCode).
+# list (release-tag commit hash, first CurrentVersionCode confirmation).
 #
 # WHY NO DOCKER: F-Droid's build server runs its own sandboxed environment
 # and executes the Init:/Prebuild:/Build: shell steps directly - it does
@@ -34,6 +34,18 @@
 # below, in-tree, via `gomobile bind` - there is no srclib and
 # android/fdroid_prepare_aar.sh is NOT used by this recipe. That script
 # is kept only as a leftover; see its header for a pointer back here.
+#
+# NOTE ON RELEASE TAGS: the main repo's GitHub Actions release workflow
+# (.github/workflows/android-gomobile-release.yml) tags ordinary releases
+# as `vX.Y.Z` and builds+signs them with the project's own key - those
+# tags are NOT what this recipe should build from, since F-Droid re-signs
+# with its own key regardless and needs a source state that's frozen
+# specifically for its own build, not whatever `master` looked like when
+# a regular release happened to go out. By convention, a separate
+# `vX.Y.Zf` tag (note the trailing "f") is created at the point a given
+# commit is actually submitted/updated for F-Droid - see
+# UpdateCheckMode below, which is scoped to only ever consider tags
+# matching that pattern.
 
 Categories:
   - Writing
@@ -61,12 +73,26 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.8.6'
-    versionCode: 10806
-    # TODO: confirm this tag exists (or use the real commit hash for the
-    # 1.8.6 release) before submitting - placeholder matching the
-    # project's "vX.Y.Z" version naming seen elsewhere (version.go).
-    commit: v1.8.6
+  - versionName: '1.8.8'
+    versionCode: 10808
+    # TODO (verify before relying on this build): F-Droid's own docs
+    # recommend the full commit hash here rather than a tag name, since
+    # tags can be force-moved after the fact and a hash can't - see
+    # https://f-droid.org/docs/Build_Metadata_Reference/ ("Don't use
+    # branch name or tag name. The full commit hash should be used.").
+    # `v1.8.8f` is used here as a placeholder because this recipe was
+    # updated at the same time the test tag was created and the
+    # resulting commit hash hasn't been looked up yet - resolve it with
+    # `git rev-parse v1.8.8f` against the real repo and replace the
+    # line below before actually feeding this to fdroidserver.
+    #
+    # TODO: versionCode 10808 assumes the project's existing
+    # MAJOR*10000 + MINOR*100 + PATCH pattern (1.8.6 -> 10806,
+    # 1.8.7 -> 10807) holds for 1.8.8 too - confirm android/app/build.gradle
+    # at the v1.8.8f commit actually says versionCode 10808 /
+    # versionName "1.8.8" before trusting this entry; fdroidserver will
+    # reject the build if these don't match what Gradle actually produces.
+    commit: v1.8.8f
     subdir: android
 
     # ---- Go toolchain + gomobile bootstrap, then omngo.aar ----------
@@ -76,12 +102,13 @@ Builds:
     # there is no separate Go-backend repository and no srclib (see the
     # file-top NOTE ON omngo.aar above).
     prebuild:
-      # TODO: pin the exact Go version + sha256 matching go.mod's
-      # `go 1.26` directive - placeholders below MUST be replaced with
-      # real values from https://go.dev/dl/ before this build can run.
+      # Go 1.26.0 linux-amd64, matching go.mod's `go 1.26` directive.
+      # sha256 below confirmed against the actual upstream archive on
+      # 2026-07-09 (`sha256sum go1.26.0.linux-amd64.tar.gz`) - re-verify
+      # against https://go.dev/dl/ if the pinned Go version ever changes.
       - export GOROOT_BOOTSTRAP_DIR=$(pwd)/../go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
-      - echo "REPLACE_WITH_REAL_SHA256_CHECKSUM  /tmp/go.tar.gz" | sha256sum -c -
+      - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
       - mkdir -p $GOROOT_BOOTSTRAP_DIR
       - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
@@ -130,9 +157,9 @@ Builds:
     # For THIS recipe specifically, the prebuild: step above overwrites
     # those committed files by fetching and sha256-verifying each one
     # fresh from its own upstream release via
-    # android/fdroid_fetch_assets.sh, rather than trusting the binaries
-    # already sitting in the checked-out source - the more idiomatic
-    # F-Droid answer flagged as a TODO in earlier drafts of this recipe.
+    # android/fdroid_fetch_assets.sh (all hashes pinned as of 2026-07-09),
+    # rather than trusting the binaries already sitting in the
+    # checked-out source.
     #
     # scanignore is still required here, not made redundant by the fetch
     # step: F-Droid's source scanner runs against the checked-out source
@@ -149,9 +176,13 @@ Builds:
       - backend/frontend/html/css/fonts/
 
 AutoUpdateMode: None
-UpdateCheckMode: Tags
-CurrentVersion: '1.8.6'
-CurrentVersionCode: 10806
+# Scoped to the F-Droid-only "vX.Y.Zf" tags described in the NOTE ON
+# RELEASE TAGS comment at the top of this file - without this pattern,
+# fdroidserver's tag scan would also pick up the main repo's ordinary
+# `vX.Y.Z` release tags, which are not meant for F-Droid to build.
+UpdateCheckMode: Tags .*f$
+CurrentVersion: '1.8.8'
+CurrentVersionCode: 10808
 
 # ---------------------------------------------------------------------
 # Bigger open item, not fully solved by this recipe:
@@ -169,11 +200,4 @@ CurrentVersionCode: 10806
 # repo - which would let this recipe drop straight to `go mod download`
 # the way the rest of the CI pipeline already does. Worth doing before
 # first submission, not strictly required to get a first build working.
-#
-# Similarly, android/fdroid_fetch_assets.sh's SHA256 map (see that
-# script) ships with REPLACE_WITH_SHA256 placeholders for every asset
-# until someone runs the script's --print-hashes mode once on a machine
-# with normal internet access and commits the real values - this recipe
-# will fail closed (by design) until that's done, same as the Go
-# checksum TODO above.
 # ---------------------------------------------------------------------
