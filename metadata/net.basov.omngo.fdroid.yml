@@ -25,6 +25,15 @@
 #   2. There is no BuildKit cache mount equivalent - every build starts
 #      cold. Not fixed here; F-Droid's own build server has its own
 #      caching between builds at the infrastructure level.
+#
+# NOTE ON omngo.aar: earlier drafts of this pipeline assumed the Go
+# backend would be compiled to an .aar in a SEPARATE repository and
+# pulled in here as a srclib (see android/fdroid_prepare_aar.sh's
+# header comment history). That separate repository was never created.
+# This recipe instead builds omngo.aar directly in the prebuild: step
+# below, in-tree, via `gomobile bind` - there is no srclib and
+# android/fdroid_prepare_aar.sh is NOT used by this recipe. That script
+# is kept only as a leftover; see its header for a pointer back here.
 
 Categories:
   - Writing
@@ -60,10 +69,12 @@ Builds:
     commit: v1.8.6
     subdir: android
 
-    # ---- Go toolchain + gomobile bootstrap --------------------------
+    # ---- Go toolchain + gomobile bootstrap, then omngo.aar ----------
     # Mirrors Dockerfile.base + Dockerfile.ci's stage 1 (Go side only -
     # see the file-top note on why the Android SDK/NDK/Gradle steps from
-    # those files are dropped here).
+    # those files are dropped here). omngo.aar is built HERE, in-tree -
+    # there is no separate Go-backend repository and no srclib (see the
+    # file-top NOTE ON omngo.aar above).
     prebuild:
       # TODO: pin the exact Go version + sha256 matching go.mod's
       # `go 1.26` directive - placeholders below MUST be replaced with
@@ -93,6 +104,14 @@ Builds:
       - mkdir -p android/app/libs
       - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android
+      # ---- Vendored offline third-party frontend assets, fetched here
+      # instead of trusted from the committed copies (see the removed
+      # scanignore note below the gradle: key) - fetch-and-verify against
+      # the pinned sha256 list in the script itself, run from the repo
+      # root the same way the Go/gomobile steps above are.
+      - cd ..
+      - sh android/fdroid_fetch_assets.sh
+      - cd android
 
     # fdroidserver builds the "fdroid" product flavor's release variant
     # (./gradlew assembleFdroidRelease) from this - no manual gradle
@@ -101,21 +120,26 @@ Builds:
       - fdroid
 
     # ---- Vendored offline third-party frontend assets ----------------
-    # backend/frontend/html/{css,js}/ vendors minified copies of
-    # highlight.js (BSD-3-Clause), KaTeX + its auto-render extension
-    # (MIT), and the Material Icons webfont (Apache-2.0) so the note UI's
-    # code highlighting, math rendering, and icons all work with the app
+    # backend/frontend/html/{css,js}/ normally carries committed minified
+    # copies of highlight.js (BSD-3-Clause), KaTeX + its auto-render
+    # extension (MIT), and the Material Icons webfont (Apache-2.0) so the
+    # note UI's code highlighting, math rendering, and icons all work
     # fully offline - a deliberate feature (see UserManual.md), not an
-    # oversight. F-Droid's source scanner flags vendored minified/binary
-    # third-party files by default; this allowlists exactly those paths.
+    # oversight.
     #
-    # Expect this to be a real review discussion point: the more
-    # idiomatic F-Droid answer is often to fetch-and-verify (checksum)
-    # these from their own upstream releases in prebuild: instead of
-    # committing them, similar to the Go toolchain bootstrap above. Not
-    # done here yet because that means pinning exact upstream version +
-    # hash for each of the ~20 vendored files (see the fonts/ directory
-    # for the full KaTeX font set) - a bigger, separate piece of work.
+    # For THIS recipe specifically, the prebuild: step above overwrites
+    # those committed files by fetching and sha256-verifying each one
+    # fresh from its own upstream release via
+    # android/fdroid_fetch_assets.sh, rather than trusting the binaries
+    # already sitting in the checked-out source - the more idiomatic
+    # F-Droid answer flagged as a TODO in earlier drafts of this recipe.
+    #
+    # scanignore is still required here, not made redundant by the fetch
+    # step: F-Droid's source scanner runs against the checked-out source
+    # tree, which still contains the ordinarily-committed binaries at
+    # scan time (prebuild: hasn't run yet) - so these paths still need to
+    # be allowlisted even though prebuild: replaces their contents before
+    # the actual Gradle build sees them.
     scanignore:
       - backend/frontend/html/js/highlight.min.js
       - backend/frontend/html/js/katex.min.js
@@ -145,4 +169,11 @@ CurrentVersionCode: 10806
 # repo - which would let this recipe drop straight to `go mod download`
 # the way the rest of the CI pipeline already does. Worth doing before
 # first submission, not strictly required to get a first build working.
+#
+# Similarly, android/fdroid_fetch_assets.sh's SHA256 map (see that
+# script) ships with REPLACE_WITH_SHA256 placeholders for every asset
+# until someone runs the script's --print-hashes mode once on a machine
+# with normal internet access and commits the real values - this recipe
+# will fail closed (by design) until that's done, same as the Go
+# checksum TODO above.
 # ---------------------------------------------------------------------
