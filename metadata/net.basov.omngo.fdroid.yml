@@ -117,6 +117,18 @@ Builds:
       # Go/gomobile steps run from the repo root (where go.mod lives),
       # not from subdir: android - hence the explicit cd.
       - cd ..
+      # ---- Vendored offline third-party frontend assets ---------------
+      # MUST run BEFORE `gomobile bind` below, not after: backend/ embeds
+      # these files at compile time via `//go:embed`, so gomobile bind
+      # reads whatever is on disk the moment it runs. Fetching fresh,
+      # sha256-verified copies AFTER the .aar is already built would
+      # verify the files sitting on disk but have zero effect on what
+      # actually got embedded - the .aar would silently keep whatever was
+      # there before (the ordinarily-committed copies), defeating the
+      # entire point of fetching them. (An earlier draft of this recipe
+      # had this backwards - fetched after `gomobile bind` - which is why
+      # this comment is here instead of just the one line.)
+      - sh android/fdroid_fetch_assets.sh
       # go.mod as committed doesn't yet carry a resolved go.sum or the
       # golang.org/x/mobile tool entries (see git_helper.go's comments on
       # why - the same reason Dockerfile.base regenerates these inside
@@ -129,15 +141,10 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
+      # omngo.aar embeds whatever is under backend/frontend/html/ at this
+      # point - the fetch-and-verify step above has already run, so this
+      # picks up the freshly-verified assets, not the committed ones.
       - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
-      - cd android
-      # ---- Vendored offline third-party frontend assets, fetched here
-      # instead of trusted from the committed copies (see the removed
-      # scanignore note below the gradle: key) - fetch-and-verify against
-      # the pinned sha256 list in the script itself, run from the repo
-      # root the same way the Go/gomobile steps above are.
-      - cd ..
-      - sh android/fdroid_fetch_assets.sh
       - cd android
 
     # fdroidserver builds the "fdroid" product flavor's release variant
@@ -155,8 +162,9 @@ Builds:
     # oversight.
     #
     # For THIS recipe specifically, the prebuild: step above overwrites
-    # those committed files by fetching and sha256-verifying each one
-    # fresh from its own upstream release via
+    # those committed files - BEFORE `gomobile bind` runs, since backend/
+    # embeds them via `//go:embed` at compile time - by fetching and
+    # sha256-verifying each one fresh from its own upstream release via
     # android/fdroid_fetch_assets.sh (all hashes pinned as of 2026-07-09),
     # rather than trusting the binaries already sitting in the
     # checked-out source.
@@ -166,7 +174,7 @@ Builds:
     # tree, which still contains the ordinarily-committed binaries at
     # scan time (prebuild: hasn't run yet) - so these paths still need to
     # be allowlisted even though prebuild: replaces their contents before
-    # the actual Gradle build sees them.
+    # gomobile bind (and, in turn, the actual Gradle build) sees them.
     scanignore:
       - backend/frontend/html/js/highlight.min.js
       - backend/frontend/html/js/katex.min.js
