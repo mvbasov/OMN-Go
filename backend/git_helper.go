@@ -125,17 +125,18 @@ func (a *App) ensureGitignore() {
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
 	gitignoreBase := `# OMN-Go sync ignore
 config.json
+assets_version
+/asset_backups/
 *.html
 *.woff2
 *.woff
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js
+/html/js/omn-go-editor.js
 /md/local/
 /db/
 /html/db_json/local-*
-/asset_backups/
-/assets_version
 `
 	content, err := os.ReadFile(gitignorePath)
 	if os.IsNotExist(err) {
