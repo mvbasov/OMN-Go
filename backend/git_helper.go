@@ -1151,30 +1151,34 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 // push
 // ---------------------------------------------------------------
 
-// hasUnpushedCommits reports whether local HEAD differs from the given
-// remote's master after a fresh fetch — used by a plain "push" to decide
-// whether there is really nothing to do when the working tree is clean.
-func (a *App) hasUnpushedCommits(repo *git.Repository, auth transport.AuthMethod, remoteName string) (bool, error) {
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return false, err
-	}
-	localHead, err := repo.Head()
-	if err != nil {
-		return false, err
-	}
-	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
-	if err != nil {
-		// No remote ref yet (e.g. first-ever push) — treat as ahead.
-		return true, nil
-	}
-	return localHead.Hash() != remoteRef.Hash(), nil
-}
+// NOTE: this file used to also have a hasUnpushedCommits() helper here,
+// called from syncPush() below to skip the actual repo.Push call
+// entirely whenever a fresh repo.Fetch against the ACTIVE remote showed
+// local HEAD already matching that remote's master. It was removed -
+// see the comment on syncPush for why: it made "push" silently do
+// nothing against whichever remote it happened to check, which is
+// exactly wrong once multiple remotes (git server "profiles"/slots) are
+// in play and the just-switched-to one hasn't seen local HEAD yet.
 
 // syncPush implements both "push" and "force push":
 //
-//   - If there is nothing uncommitted and nothing already ahead of the
-//     remote, it stops (returns nil) without contacting the remote.
+//   - If there is nothing uncommitted, this still attempts the actual
+//     push - repo.Push itself already reports git.NoErrAlreadyUpToDate
+//     safely when the active remote truly has nothing new, and that is
+//     now the ONLY thing this function trusts for that determination.
+//     (An earlier version tried to predict this ahead of time via a
+//     separate hasUnpushedCommits fetch-and-compare against the active
+//     remote, purely to skip the push call when nothing seemed to have
+//     changed. That produced a real bug with multiple configured git
+//     remotes/"profiles": after committing and pushing while profile 1
+//     was active, switching to profile 2 and pressing upload again
+//     would log "nothing to commit, nothing to push" and never contact
+//     profile 2's remote at all - even though profile 2 had never seen
+//     that commit - because the working tree was clean (correctly,
+//     nothing NEW to commit) while the separate pre-check's own
+//     fetch-and-compare against profile 2 could end up wrong in ways an
+//     actual repo.Push attempt against profile 2 isn't. Removed in favor
+//     of always just asking the real remote via the push itself.)
 //   - If there ARE uncommitted local changes, a commit message is
 //     required; without one it returns COMMIT_MESSAGE_REQUIRED.
 //   - A force push always requires a commit message up front (even if
@@ -1241,14 +1245,6 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 		}
 	}
 
-	if !force && !hasRelevantChanges {
-		ahead, aErr := a.hasUnpushedCommits(repo, auth, remoteName)
-		if aErr == nil && !ahead {
-			log.Printf("[sync] push: nothing to commit, nothing to push")
-			return nil
-		}
-	}
-
 	log.Printf("[sync] Pushing to %s master (force=%v)", remoteName, force)
 	err = repo.Push(&git.PushOptions{
 		RemoteName: remoteName,
@@ -1257,6 +1253,7 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 		Force:      force,
 	})
 	if err == git.NoErrAlreadyUpToDate {
+		log.Printf("[sync] push: remote %s already up to date", remoteName)
 		return nil
 	}
 	if err != nil {
