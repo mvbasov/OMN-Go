@@ -102,6 +102,7 @@ if (typeof currentNote === 'undefined') {
                         logs = [];
                         if (logsContainer) logsContainer.innerHTML = '';
                         if (consoleBtn) consoleBtn.innerHTML = '<i class="material-icons icon-xs">terminal</i><span>0</span>';
+                        updateConsoleFooterDot();
                     };
                 }
 
@@ -112,6 +113,10 @@ if (typeof currentNote === 'undefined') {
                 consoleBtn.onclick = () => {
                     consoleModal.style.display = 'flex';
                 };
+                // Footer dot tap-to-open is wired in updateConsoleFooterDot,
+                // because the footer (#status) is parsed after #preview and so
+                // may not exist yet when initConsoleUI first runs.
+                updateConsoleFooterDot();
 
                 let metadataEl = Array.from(document.querySelectorAll('*')).find(el => {
                     if (el.children.length > 0) return false;
@@ -178,6 +183,27 @@ if (typeof currentNote === 'undefined') {
                 window.location.href = url;
             }
 
+            // The header console button is hidden while the header is folded
+            // (the default). This footer dot is always visible, so it tells
+            // the user that console messages exist without unfolding. It's the
+            // same orange as the console button (#ff9800) and lives in the
+            // page footer (#status), added by the template.
+            function updateConsoleFooterDot() {
+                var fd = document.getElementById('omn-go-console-footer-dot');
+                if (!fd) return;
+                // Wire tap-to-open once the footer exists (it is parsed after
+                // #preview, so a note's parse-time log can run before it).
+                // consoleModal exists once initConsoleUI has run.
+                if (!fd._wired && consoleModal) {
+                    fd._wired = true;
+                    fd.onclick = function () { consoleModal.style.display = 'flex'; };
+                }
+                fd.style.display = logs.length ? 'inline-block' : 'none';
+            }
+            // After the body (hence the footer) is parsed, reflect any
+            // messages captured during parsing.
+            document.addEventListener('DOMContentLoaded', updateConsoleFooterDot);
+
             function appendLog(type, args, jump) {
                 logs.push({type, args, jump});
                 if (!document.body) {
@@ -186,6 +212,7 @@ if (typeof currentNote === 'undefined') {
                 }
                 if (!consoleBtn) initConsoleUI();
                 consoleBtn.innerHTML = `<i class="material-icons icon-xs">terminal</i><span>${logs.length}</span>`;
+                updateConsoleFooterDot();
 
                 if (logsContainer) {
                     const msg = document.createElement('div');
