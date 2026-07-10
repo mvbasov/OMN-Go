@@ -68,6 +68,63 @@ func TestRenderMarkdownToHTMLMathProtection(t *testing.T) {
 	}
 }
 
+// TestRenderMarkdownRawNoPlaceholderLeak guards the bug where documentation
+// pages that mention "<script>" inside inline code and inside fenced code
+// blocks (like Database.md) leaked "OMN_RAW_n_END" placeholder tokens into
+// the rendered HTML. The old five-sequential-pass shielding matched the
+// literal "<script>" in a code span and paired it with a real "</script>"
+// in a later fenced example, producing placeholders whose stored text
+// contained other placeholders; restoring them in Go's randomized
+// map-iteration order left some unrestored (so it surfaced on some devices
+// only). The combined single-pass scan must never leak, deterministically.
+func TestRenderMarkdownRawNoPlaceholderLeak(t *testing.T) {
+	a := &App{}
+	md := strings.Join([]string{
+		"A note's own `<script>` block can use it.",
+		"",
+		"```html",
+		"<script>",
+		"const t = `total ${a + b}`;",
+		"console.log('$5 and $10');",
+		"</script>",
+		"```",
+		"",
+		"Then more `<script>` prose and a second example:",
+		"",
+		"```js",
+		"const x = `${y}`;",
+		"</script>", // a stray close inside a fence, as docs sometimes have
+		"```",
+		"",
+		"<script>",
+		"document.title = `x ${1 + 2}`;",
+		"</script>",
+	}, "\n")
+
+	// Render repeatedly: the historical bug was nondeterministic (map order).
+	first := a.renderMarkdownToHTML([]byte(md))
+	for i := 0; i < 40; i++ {
+		out := a.renderMarkdownToHTML([]byte(md))
+		if strings.Contains(out, "OMN_RAW_") {
+			t.Fatalf("raw placeholder leaked into output:\n%s", out)
+		}
+		if strings.Contains(out, "OMN_MATH_") {
+			t.Fatalf("math placeholder leaked into output:\n%s", out)
+		}
+		if out != first {
+			t.Fatalf("rendering is not deterministic across runs")
+		}
+	}
+	// The fenced examples must survive as code, and a real top-level <script>
+	// (with '$' template literals) must pass through unescaped.
+	if !strings.Contains(first, "<pre><code") {
+		t.Error("fenced code block was not rendered as a code block")
+	}
+	if !strings.Contains(first, "document.title = `x ${1 + 2}`;") {
+		t.Error("real top-level <script> with template literal was not preserved")
+	}
+}
+
 func TestRenderMarkdownToHTMLLinkRewrite(t *testing.T) {
 	a := &App{}
 	out := a.renderMarkdownToHTML([]byte("[a](Other) [b](Other.md) [c](img.png) [d](https://x.y/z)"))

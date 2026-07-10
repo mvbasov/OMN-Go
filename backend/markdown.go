@@ -39,12 +39,28 @@ var mdParser = goldmark.New(
 var (
 	// Raw/verbatim regions whose contents must never be treated as markdown or
 	// KaTeX math: their text routinely contains '$', '*', '_', backticks and JS
-	// `${...}` template literals. Block-level first, then inline code.
-	reRawScript  = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script>`)
-	reRawStyle   = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</style>`)
-	reRawPre     = regexp.MustCompile(`(?is)<pre\b[^>]*>.*?</pre>`)
-	reFencedCode = regexp.MustCompile("(?s)```.*?```")
-	reInlineCode = regexp.MustCompile("`[^`]*`")
+	// `${...}` template literals.
+	//
+	// This is ONE combined, leftmost-first alternation rather than five
+	// sequential passes, and that matters for correctness. Documentation
+	// pages (e.g. Database.md) legitimately mention "<script>" inside inline
+	// code and inside ``` fenced blocks. Run as separate passes, the
+	// <script>...</script> regex matched the FIRST literal "<script>" (inside
+	// a code span) and paired it with a real "</script>" far away in a later
+	// fenced example - swallowing everything between and producing
+	// placeholders whose stored text contained OTHER placeholders. Restoring
+	// those nested placeholders in a single map-iteration pass then left some
+	// unrestored (Go randomizes map order, so it surfaced on some
+	// runs/devices and not others): exactly the leaked "OMN_RAW_n_END" tokens
+	// this fixes. A single combined scan consumes each raw region whole, so a
+	// "<script>" mentioned inside a code span or fence is part of that
+	// span's/fence's match and can never start its own - no nesting, and
+	// restore order is genuinely irrelevant.
+	//
+	// Alternation order is significant: the fenced ``` alternative must
+	// precede the inline ` one, or a triple-backtick fence would first match
+	// as an empty `` inline span.
+	reRaw = regexp.MustCompile("(?is)<script\\b[^>]*>.*?</script>|<style\\b[^>]*>.*?</style>|<pre\\b[^>]*>.*?</pre>|```.*?```|`[^`]*`")
 
 	// KaTeX math delimiters, protected from goldmark's emphasis handling.
 	reMathBlock  = regexp.MustCompile(`(?s)\$\$.*?\$\$`)
@@ -75,11 +91,11 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	//    literals (and any '$' inside code), which tears apart <script> notes
 	//    like the SVG editor. Restored just before goldmark so <script>/<style>/
 	//    <pre> pass through via html.WithUnsafe() and code renders as before.
-	for _, re := range []*regexp.Regexp{reRawScript, reRawStyle, reRawPre, reFencedCode, reInlineCode} {
-		contentStr = re.ReplaceAllStringFunc(contentStr, func(m string) string {
-			return stash(rawBlocks, "RAW", m)
-		})
-	}
+	//    A single combined scan (reRaw) consumes each region whole, so raw
+	//    regions never nest inside one another's placeholders.
+	contentStr = reRaw.ReplaceAllStringFunc(contentStr, func(m string) string {
+		return stash(rawBlocks, "RAW", m)
+	})
 
 	// 2. Protect genuine KaTeX math (now only in prose) from emphasis corruption.
 	contentStr = reMathBlock.ReplaceAllStringFunc(contentStr, func(m string) string {
@@ -89,11 +105,12 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 		return stash(mathBlocks, "MATH", m)
 	})
 
-	// 3. Restore the raw regions before rendering so goldmark parses them as it
-	//    always has ('_END' placeholders can't collide, so order is irrelevant).
-	for placeholder, original := range rawBlocks {
-		contentStr = strings.ReplaceAll(contentStr, placeholder, original)
-	}
+	// 3. Restore the raw regions before rendering so goldmark parses them as
+	//    it always has. The combined scan above guarantees no placeholder's
+	//    stored text contains another, so order is irrelevant; the fixed-point
+	//    helper is cheap insurance against any future change reintroducing
+	//    nesting (a silent, order-dependent leak otherwise).
+	contentStr = restorePlaceholders(contentStr, rawBlocks)
 
 	var buf bytes.Buffer
 	if err := mdParser.Convert([]byte(contentStr), &buf); err != nil {
@@ -101,10 +118,8 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	}
 	htmlStr := buf.String()
 
-	// Restore math blocks natively for the offline KaTeX frontend
-	for placeholder, original := range mathBlocks {
-		htmlStr = strings.ReplaceAll(htmlStr, placeholder, original)
-	}
+	// Restore math blocks natively for the offline KaTeX frontend.
+	htmlStr = restorePlaceholders(htmlStr, mathBlocks)
 
 	// Remap static browsing links natively
 	htmlStr = hrefRe.ReplaceAllStringFunc(htmlStr, func(m string) string {
@@ -115,6 +130,27 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 		return `href="` + a.rewriteInternalLink(match[1]) + `"`
 	})
 	return htmlStr
+}
+
+// restorePlaceholders substitutes every placeholder in store back into s,
+// repeating until the string stops changing so a placeholder whose stored
+// text itself contains another placeholder is still fully restored
+// regardless of Go's randomized map-iteration order. With the current
+// single-pass stashing no nesting occurs, so this converges in one pass; the
+// loop (bounded by the number of placeholders, since restoration forms a DAG
+// and can never cycle) makes a stray, order-dependent leak - like the
+// historical "OMN_RAW_n_END" one - structurally impossible.
+func restorePlaceholders(s string, store map[string]string) string {
+	for i := 0; i <= len(store); i++ {
+		before := s
+		for placeholder, original := range store {
+			s = strings.ReplaceAll(s, placeholder, original)
+		}
+		if s == before {
+			break
+		}
+	}
+	return s
 }
 
 // rewriteInternalLink normalizes a raw markdown-authored href the way a
