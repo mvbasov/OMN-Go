@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit: %%TITLE_HTML%%</title>
+    <!-- Theme variables + Material Icons font come from the shared core
+         stylesheet; the runtime marker below is replaced server-side with
+         the data-theme setter so there is no flash of the wrong theme. -->
+    <link rel="stylesheet" href="/css/omn-go-core.css">
+    <script>
+      // Context for omn-go-editor.js. The note SOURCE is deliberately NOT
+      // present here - the editor fetches it from /api/note on load, so a
+      // rendered page never carries a second, hidden copy of its own text.
+      var OMN_EDIT_NAME = '%%NAME_JS%%';
+      var OMN_EDIT_EXT  = '%%PAGE_EXT_JS%%';
+      var OMN_EDIT_VIEW = '%%VIEW_URL_JS%%';
+    </script>
+    <meta id="omn-go-runtime-vars-marker">
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex; flex-direction: column;
+            background: var(--bg); color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        .omn-editor-bar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px;
+            background: var(--bg-band);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .omn-editor-name {
+            font-weight: 600; color: var(--text-strong);
+            margin-right: 8px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 40vw;
+        }
+        .omn-editor-spacer { flex: 1 1 auto; }
+        .omn-editor-bar button {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--bg-surface); color: var(--text);
+            border: 1px solid var(--border-strong);
+            border-radius: 4px; cursor: pointer;
+            padding: 4px 8px; line-height: 1;
+        }
+        .omn-editor-bar button:hover { background: var(--bg-hover); }
+        .omn-editor-bar .material-icons { font-size: 20px; }
+        .omn-editor-tools { display: inline-flex; gap: 4px; align-items: center; }
+        .omn-editor-tools::after {
+            content: ""; width: 1px; align-self: stretch;
+            background: var(--border); margin: 0 4px;
+        }
+        #editorSave { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+        #editorSave:hover { background: var(--accent); color: #fff; }
+        .omn-editor #editor {
+            display: block; flex: 1 1 auto; width: 100%;
+            box-sizing: border-box; border: none; outline: none;
+            padding: 12px 14px; margin: 0; resize: none;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 14px; line-height: 1.5; tab-size: 4;
+            background: var(--bg-surface); color: var(--text);
+        }
+        .omn-editor-status {
+            padding: 4px 12px; font-size: 12px;
+            background: var(--bg-band); border-top: 1px solid var(--border);
+            color: var(--text-faint); min-height: 1.2em;
+        }
+        .omn-editor-status.editor-status-error { color: #ff5555; }
+        .omn-editor-status.editor-status-ok    { color: #3fb950; }
+        .omn-editor-status.editor-status-dirty { color: var(--text-heading); }
+    </style>
+</head>
+<body class="omn-editor">
+    <div class="omn-editor-bar">
+        <a href="%%VIEW_URL_ATTR%%" title="Back to view" style="text-decoration:none;color:inherit;display:inline-flex;align-items:center;"><i class="material-icons">arrow_back</i></a>
+        <span class="omn-editor-name">%%TITLE_HTML%%</span>
+        <span class="omn-editor-tools" id="editorTools"><!-- tool buttons injected by omn-go-editor.js --></span>
+        <span class="omn-editor-spacer"></span>
+        <button id="editorSave" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
+        <button id="editorCancel" type="button" title="Cancel"><i class="material-icons">close</i></button>
+    </div>
+    <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    <div class="omn-editor-status" id="editorStatus">Loading…</div>
+
+    <script src="/js/omn-go-editor.js"></script>
+</body>
+</html>

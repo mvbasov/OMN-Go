@@ -107,6 +107,7 @@ var (
 	configPageTmpl    = loadTemplate("config_page.html")
 	gitServerCardTmpl = loadTemplate("git_server_card.html")
 	externalEditTmpl  = loadTemplate("external_edit.html")
+	editorPageTmpl    = loadTemplate("editor.html")
 )
 
 // fill replaces %%NAME%% placeholders in tmpl. Every value passed in MUST
@@ -140,10 +141,8 @@ type indexPageView struct {
 	PageName    string
 	PageExt     string
 	IsMarkdown  bool
-	IsEditMode  bool
 	MetaTags    []metaTagView
 	Tags        []string
-	RawMD       string
 	PreviewHTML string
 }
 
@@ -157,9 +156,6 @@ func renderIndexPage(v indexPageView) string {
 	condScripts := ""
 	if v.IsMarkdown {
 		condScripts += "    <script>var IS_MARKDOWN = true;</script>\n"
-	}
-	if v.IsEditMode {
-		condScripts += "    <script>setTimeout(function(){ if(typeof toggleMode==='function') toggleMode(); }, 120);</script>\n"
 	}
 
 	var tags strings.Builder
@@ -177,8 +173,31 @@ func renderIndexPage(v indexPageView) string {
 		"META_TAGS":    metaTags.String(),
 		"COND_SCRIPTS": condScripts,
 		"TAGS_HTML":    tags.String(),
-		"RAW_MD_HTML":  escapeHTML(v.RawMD),
 		"PREVIEW_BODY": v.PreviewHTML,
+	})
+}
+
+// --- Standalone note editor page (editor.html) ---
+
+// editorPageView holds everything renderEditorPage needs. All fields are
+// raw values escaped here for the context each is spliced into. The note's
+// text is intentionally absent: the editor fetches it from /api/note at
+// editing start, so a rendered page never carries a second copy of itself.
+type editorPageView struct {
+	Title   string // display name (page/asset)
+	Name    string // value for /api/note and /api/save
+	PageExt string // e.g. ".md", ".js" (informational)
+	ViewURL string // where to return after save/cancel
+}
+
+func renderEditorPage(v editorPageView) string {
+	return fill(editorPageTmpl, map[string]string{
+		"TITLE_HTML":  escapeHTML(v.Title),
+		"NAME_JS":     escapeJS(v.Name),
+		"PAGE_EXT_JS": escapeJS(v.PageExt),
+		"VIEW_URL_JS": escapeJS(v.ViewURL),
+		// ViewURL also appears as a plain href on the "back" link.
+		"VIEW_URL_ATTR": escapeHTML(v.ViewURL),
 	})
 }
 

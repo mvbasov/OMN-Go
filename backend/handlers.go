@@ -256,7 +256,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 		viewURL = baseName + ".html"
 	}
 	waitBody := a.getExternalEditPageBody(name, viewURL)
-	compiledWait := a.compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody, false)
+	compiledWait := a.compilePageWithBody(name, fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n", name, time.Now().Format("2006-01-02 15:04:05")), waitBody)
 	w.Write(a.injectRuntimeVars(compiledWait))
 }
 
@@ -666,13 +666,18 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasSuffix(path, ".html") {
-		a.serveHTMLPage(w, r, path)
+	// Edit intent takes precedence for BOTH markdown pages and static
+	// assets, so the one dedicated editor page handles every editable file
+	// uniformly. Previously only non-".html" assets reached serveEditor
+	// here; markdown pages fell through to serveHTMLPage and relied on an
+	// in-page toggle that baked the entire source into every rendered page.
+	if r.URL.Query().Get("edit") == "true" {
+		a.serveEditor(w, r, path)
 		return
 	}
 
-	if r.URL.Query().Get("edit") == "true" {
-		a.serveEditor(w, r, path)
+	if strings.HasSuffix(path, ".html") {
+		a.serveHTMLPage(w, r, path)
 		return
 	}
 
@@ -751,10 +756,13 @@ func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) 
 func (a *App) serveConfigPage(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html")
 	body := a.getConfigPageBody()
-	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body, false)
+	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
 	w.Write(a.injectRuntimeVars(compiled))
 }
 
+// serveEditor handles every ?edit=true request. With the internal editor
+// enabled it renders the dedicated standalone editor page; with it disabled
+// it hands off to the external-editor flow, exactly as before.
 func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	relPath := strings.TrimPrefix(path, "/")
 
@@ -763,30 +771,42 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 
-	mdPath, htmlPath, _, isPage := a.resolvePageName(relPath)
-	filePath := htmlPath
+	a.renderInternalEditor(w, relPath)
+}
+
+// renderInternalEditor writes the standalone editor page for relPath. The
+// note text is NOT embedded here - the page fetches it from /api/note on
+// load (see omn-go-editor.js), which is the whole point of the rewrite:
+// the rendered view page no longer carries a hidden second copy of itself.
+//
+// This is shared by serveEditor (markdown pages and catch-all assets) and
+// the /js|/css|/json lazy-embed edit branch in server.go, so all editable
+// files open the same editor.
+func (a *App) renderInternalEditor(w http.ResponseWriter, relPath string) {
+	_, _, baseName, isPage := a.resolvePageName(relPath)
+
+	// name is what /api/note and /api/save expect; viewURL is where Save
+	// and Cancel return to.
+	name := relPath
+	viewURL := "/" + relPath
+	pageExt := filepath.Ext(relPath)
+	title := relPath
 	if isPage {
-		filePath = mdPath
+		name = baseName
+		viewURL = "/" + baseName + ".html"
+		pageExt = ".md"
+		title = baseName
 	}
 
-	var rawContent []byte
-	if data, err := os.ReadFile(filePath); err == nil {
-		rawContent = data
-	} else {
-		if mkErr := os.MkdirAll(filepath.Dir(filePath), 0755); mkErr != nil {
-			log.Printf("serveEditor: mkdir failed for %q: %v", filePath, mkErr)
-		} else if writeErr := os.WriteFile(filePath, []byte{}, 0644); writeErr != nil {
-			log.Printf("serveEditor: failed to create empty file %q: %v", filePath, writeErr)
-		}
-		rawContent = []byte{}
-	}
-	
-	escapedContent := a.htmlEscape(string(rawContent))
-	customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
-	compiled := a.compilePageWithBody(relPath, rawContent, customBody, true)
+	page := renderEditorPage(editorPageView{
+		Title:   title,
+		Name:    name,
+		PageExt: pageExt,
+		ViewURL: viewURL,
+	})
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write(a.injectRuntimeVars(compiled))
+	w.Write(a.injectRuntimeVars([]byte(page)))
 }
 
 func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {

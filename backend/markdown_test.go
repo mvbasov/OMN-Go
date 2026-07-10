@@ -119,22 +119,26 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	if !strings.Contains(out, "var IS_MARKDOWN = true;") {
 		t.Error("IS_MARKDOWN missing for markdown page")
 	}
-	// Raw source present, escaped, in the editor textarea.
-	if !strings.Contains(out, "Body **bold** text.") {
-		t.Error("raw markdown missing from editor textarea")
+	// The rendered page must NOT carry its own source in an editor
+	// textarea (editing is a separate page); only the rendered body.
+	if strings.Contains(out, "<textarea id=\"editor\"") {
+		t.Error("compiled page still embeds an #editor textarea (doubled content)")
+	}
+	if !strings.Contains(out, "<strong>bold</strong>") {
+		t.Error("rendered body missing")
 	}
 }
 
-func TestCompilePageWithBodyEditMode(t *testing.T) {
+func TestCompilePageWithBodyCustomBody(t *testing.T) {
 	a := &App{}
 	raw := []byte("console.log('x');")
-	out := string(a.compilePageWithBody("app.js", raw, "<pre>console.log('x');</pre>", true))
+	// A non-markdown asset rendered with a custom body (e.g. the Config
+	// dashboard / external-edit wait page path): IS_MARKDOWN off, PAGE_EXT
+	// derived from the name, custom body used verbatim as the content.
+	out := string(a.compilePageWithBody("app.js", raw, "<pre>console.log('x');</pre>"))
 
 	if strings.Contains(out, "var IS_MARKDOWN = true;") {
-		t.Error("IS_MARKDOWN set for a .js edit view")
-	}
-	if !strings.Contains(out, "toggleMode") {
-		t.Error("edit-mode auto-toggle script missing")
+		t.Error("IS_MARKDOWN set for a .js custom-body view")
 	}
 	if !strings.Contains(out, "var PAGE_EXT = '.js';") {
 		t.Error("PAGE_EXT not derived from filename")

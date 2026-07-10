@@ -9,7 +9,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,29 +121,12 @@ func StartServer() *App {
 					}
 				}
 
-				// Check for edit mode before serving static file
+				// Edit intent: hand off to the one dedicated editor page
+				// (which also honours the external-editor preference).
+				// Editing a .js/.css/.json asset uses the exact same editor
+				// as a markdown note; the content is fetched via /api/note.
 				if r.URL.Query().Get("edit") == "true" {
-					relPath := strings.TrimPrefix(r.URL.Path, "/")
-
-					// Honour external editor preference
-					if !a.GetConfig().UseInternalEd {
-						http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
-						return
-					}
-
-					rawContent, err := os.ReadFile(physPath)
-					if err != nil {
-						// File does not exist - create empty one and proceed
-						os.MkdirAll(filepath.Dir(physPath), 0755)
-						os.WriteFile(physPath, []byte{}, 0644)
-						rawContent = []byte{}
-					}
-					escapedContent := a.htmlEscape(string(rawContent))
-					customBody := "<pre style=\"white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 10px; border-radius: 4px;\">" + escapedContent + "</pre>"
-					// Pass raw content as mdContent so the textarea is populated
-					compiled := a.compilePageWithBody(relPath, rawContent, customBody, true)
-					w.Header().Set("Content-Type", "text/html")
-					w.Write(a.injectRuntimeVars(compiled))
+					a.serveEditor(w, r, r.URL.Path)
 					return
 				}
 

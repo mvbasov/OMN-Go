@@ -201,23 +201,21 @@ func (a *App) htmlEscape(s string) string {
 }
 
 func (a *App) compilePage(name string, mdContent []byte) []byte {
-	return a.compilePageWithBody(name, mdContent, "", false)
+	return a.compilePageWithBody(name, mdContent, "")
 }
 
 // compilePageWithBody renders the full page shell (indexPageTmpl) for a
 // single note/page/asset-edit view.
 //
 // customBody, when non-empty, is used as the (already-HTML) main content
-// instead of rendering mdContent as markdown - this is how the "view raw
-// file for external/internal editing" and Config-dashboard pages reuse the
-// same page shell without being markdown themselves.
+// instead of rendering mdContent as markdown - this is how the
+// Config-dashboard and "editing externally" wait pages reuse the same page
+// shell without being markdown themselves.
 //
-// isEditMode marks this render as an in-browser edit view for a
-// non-markdown asset (a .js/.css/.json file opened via ?edit=true): it
-// forces IsMarkdown off and asks the template to auto-switch into edit
-// mode on load, matching what a separate post-render script injection used
-// to bolt on after the fact.
-func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string, isEditMode bool) []byte {
+// Editing is no longer an in-page mode: ?edit=true is served by the
+// dedicated editor page (renderEditorPage), so this function only ever
+// produces read/view shells.
+func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
 	var headers []string
 	var bodyLines []string
 	inHeader := true
@@ -272,7 +270,7 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 	}
 	metaTags = append(metaTags, metaTagView{Name: "generator", Value: "OMN-Go " + APP_VERSION})
 
-	// Determine file extension for editor use
+	// Determine file extension (used by the view page's edit link).
 	pageExt := ""
 	if strings.HasSuffix(name, ".md") {
 		pageExt = ".md"
@@ -280,11 +278,7 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		// non-markdown file — keep its extension (e.g. .js, .css, .json)
 		pageExt = filepath.Ext(name)
 	}
-	// isEditMode is only ever true for a non-markdown asset (see the
-	// doc comment above), so pageExt is never ".md"/"" in that case
-	// anyway - the explicit !isEditMode guard is defensive belt-and-braces
-	// rather than load-bearing.
-	isMarkdown := !isEditMode && (pageExt == ".md" || pageExt == "")
+	isMarkdown := pageExt == ".md" || pageExt == ""
 
 	view := indexPageView{
 		Title:       title,
@@ -292,10 +286,8 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		PageName:    name,
 		PageExt:     pageExt,
 		IsMarkdown:  isMarkdown,
-		IsEditMode:  isEditMode,
 		MetaTags:    metaTags,
 		Tags:        tags,
-		RawMD:       string(mdContent),
 		PreviewHTML: renderedBody,
 	}
 

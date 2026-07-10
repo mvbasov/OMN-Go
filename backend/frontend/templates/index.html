@@ -59,8 +59,11 @@
                     <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
                     <!-- Editing controls -->
                     <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
-                    <button id="saveBtn" onclick="saveNote()" class="admin-only btn-save-note"><i class="material-icons">save</i></button>
-                    <button id="toggleBtn" onclick="toggleMode()" class="admin-only"><i class="material-icons">edit</i></button>
+                    <!-- Editing is a separate page now: this navigates to the
+                         dedicated editor, which fetches the source itself.
+                         The rendered page no longer carries a hidden copy of
+                         its own markdown. -->
+                    <button id="toggleBtn" onclick="window.location.href = window.location.pathname + '?edit=true'" class="admin-only" title="Edit"><i class="material-icons">edit</i></button>
                 </div>
                 <!-- Tag pills -->
                 <div id="headerTags">%%TAGS_HTML%%</div>
@@ -73,7 +76,9 @@
 
         <div id="content" class="page-content">
             <div id="metadataPanel" class="hidden metadata-panel"></div>
-            <textarea id="editor" class="admin-only" placeholder="Markdown/Code content... Drag images here to upload.">%%RAW_MD_HTML%%</textarea>
+            <!-- No editor textarea here anymore: editing happens on the
+                 dedicated /...?edit=true page, so the note source is not
+                 duplicated into every rendered view. -->
             <div id="preview">%%PREVIEW_BODY%%</div>
         </div>
     </div>

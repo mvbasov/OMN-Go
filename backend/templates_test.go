@@ -66,7 +66,6 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 		IsMarkdown:  true,
 		MetaTags:    []metaTagView{{Name: "author", Value: `A "quoted" <author>`}},
 		Tags:        []string{`tag<1>`, "plain"},
-		RawMD:       "# raw <b>md</b> content",
 		PreviewHTML: "<p>trusted <strong>html</strong></p>",
 	}
 	out := renderIndexPage(v)
@@ -85,10 +84,12 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, "tag&lt;1&gt;") {
 		t.Error("tag pill not HTML-escaped")
 	}
-	// Raw markdown must be escaped inside the textarea, i.e. present in
-	// escaped form and absent in raw form outside PreviewHTML.
-	if !strings.Contains(out, "# raw &lt;b&gt;md&lt;/b&gt; content") {
-		t.Error("raw markdown not HTML-escaped for the editor textarea")
+	// The rendered view page must NOT carry a copy of its own source: the
+	// editor textarea (and the old %%RAW_MD_HTML%% placeholder) is gone,
+	// editing is a separate page. Guard against the doubled content
+	// regressing.
+	if strings.Contains(out, "<textarea id=\"editor\"") {
+		t.Error("rendered view page still embeds an #editor textarea (doubled content)")
 	}
 	// Trusted preview HTML is spliced unescaped.
 	if !strings.Contains(out, "<p>trusted <strong>html</strong></p>") {
@@ -104,14 +105,8 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, `var currentNote = 'Weird\'Page\"Name';`) {
 		t.Error("currentNote not JS-escaped in inline script")
 	}
-	// Conditional markdown script present, edit-mode script absent. (Note:
-	// "toggleMode" itself appears in a header button on every page, so key
-	// on the auto-toggle's unique setTimeout delay instead.)
 	if !strings.Contains(out, "var IS_MARKDOWN = true;") {
 		t.Error("IS_MARKDOWN script missing for markdown page")
-	}
-	if strings.Contains(out, "}, 120);") {
-		t.Error("edit-mode auto-toggle script present on a non-edit render")
 	}
 	// Runtime-vars marker must survive rendering so injectRuntimeVars can
 	// find it later (this is the regression where an HTML-comment marker
@@ -123,20 +118,36 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	// view; here we only assert what we passed in came through.
 }
 
-func TestRenderIndexPageEditMode(t *testing.T) {
-	v := indexPageView{
-		Title:      "app.js",
-		PageName:   "app.js",
-		PageExt:    ".js",
-		IsMarkdown: false,
-		IsEditMode: true,
+func TestRenderEditorPage(t *testing.T) {
+	out := renderEditorPage(editorPageView{
+		Title:   `Weird'Page"Name`,
+		Name:    `Weird'Page"Name`,
+		PageExt: ".md",
+		ViewURL: "/Weird'Page\"Name.html",
+	})
+
+	if strings.Contains(out, "%%") {
+		t.Fatalf("unfilled placeholder in editor page:\n%s", out)
 	}
-	out := renderIndexPage(v)
-	if strings.Contains(out, "var IS_MARKDOWN = true;") {
-		t.Error("IS_MARKDOWN wrongly set for non-markdown edit view")
+	// The source is fetched at runtime, never baked in.
+	if strings.Contains(out, "OMN_EDIT_SOURCE") || strings.Contains(out, "textarea>Weird") {
+		t.Error("editor page must not embed note source")
 	}
-	if !strings.Contains(out, "toggleMode") {
-		t.Error("edit-mode auto-toggle script missing")
+	// The editor fetches from /api/note and loads its own script.
+	if !strings.Contains(out, "/js/omn-go-editor.js") {
+		t.Error("editor page does not load omn-go-editor.js")
+	}
+	// Name is JS-escaped in the OMN_EDIT_NAME string literal.
+	if !strings.Contains(out, `var OMN_EDIT_NAME = 'Weird\'Page\"Name';`) {
+		t.Error("OMN_EDIT_NAME not JS-escaped")
+	}
+	// Title is HTML-escaped where it appears in text.
+	if !strings.Contains(out, "Weird&#39;Page&quot;Name") {
+		t.Error("editor title not HTML-escaped")
+	}
+	// Runtime marker present so the theme is injected (no flash).
+	if !strings.Contains(out, runtimeVarsMarker) {
+		t.Error("editor page missing runtime-vars marker for theme injection")
 	}
 }
 

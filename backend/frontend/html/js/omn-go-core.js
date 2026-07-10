@@ -382,11 +382,9 @@ window.addEventListener('load', () => {
                 const tb = document.getElementById('toggleBtn');
                 if (tb) tb.style.display = 'none';
             }
-            if (window.location.search.includes('edit=true')) {
-                setTimeout(() => {
-                    if (typeof currentMode !== 'undefined' && currentMode === 'view' && typeof toggleMode === 'function') toggleMode();
-                }, 100);
-            }
+            // Note: ?edit=true is now handled entirely server-side (it serves
+            // the standalone editor page), so a rendered view page never
+            // carries that query and there is no in-page edit toggle to fire.
             let hash = window.location.hash;
             if (hash) {
                 let el = document.getElementById(hash.substring(1));

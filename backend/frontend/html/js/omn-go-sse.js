@@ -156,68 +156,12 @@ if (window.location.protocol !== 'file:') {
         document.getElementById('commitMessage').value = '';
     };
 
-    window.loadNoteIntoEditor = async function() {
-        const res = await fetch('/api/getnote?name=' + encodeURIComponent(currentNote));
-        if (res.ok) {
-            document.getElementById('editor').value = await res.text();
-        }
-    };
-
-    window.toggleMode = async function() {
-        if (currentMode === 'view') {
-            if (typeof USE_INTERNAL_ED !== 'undefined' && !USE_INTERNAL_ED) {
-                var ext = (typeof PAGE_EXT !== 'undefined' && PAGE_EXT) ? PAGE_EXT : '.md';
-                window.location.replace('/api/edit-external?name=' + encodeURIComponent(currentNote + ext));
-                return;
-            }
-
-            await loadNoteIntoEditor();
-
-            const editor = document.getElementById('editor');
-            const preview = document.getElementById('preview');
-            const btn = document.getElementById('toggleBtn');
-
-            editor.style.display = 'block';
-            preview.style.display = 'none';
-            btn.innerHTML = '<i class="material-icons" title="Switch to View Mode">visibility</i>';
-            document.getElementById('saveBtn').style.display = 'block';
-            document.getElementById('metaToggleBtn').style.display = 'none';
-            document.getElementById('metadataPanel').classList.add('hidden');
-            currentMode = 'edit';
-        } else {
-            const editor = document.getElementById('editor');
-            const preview = document.getElementById('preview');
-            const btn = document.getElementById('toggleBtn');
-
-            editor.style.display = 'none';
-            preview.style.display = 'block';
-            btn.innerHTML = '<i class="material-icons" title="Switch to Edit Mode">edit</i>';
-            document.getElementById('saveBtn').style.display = 'none';
-            document.getElementById('metaToggleBtn').style.display = 'block';
-            currentMode = 'view';
-        }
-    };
-
-    window.setupEditorDragDrop = function() {
-        const editor = document.getElementById('editor');
-        if (!editor) return;
-        editor.addEventListener('dragover', e => e.preventDefault());
-        editor.addEventListener('drop', async e => {
-            e.preventDefault();
-            if(e.dataTransfer.files.length > 0) {
-                const fd = new FormData();
-                fd.append('image', e.dataTransfer.files[0]);
-                const res = await fetch('/api/upload', { method: 'POST', body: fd });
-                if(res.ok) {
-                    const text = await res.text();
-                    const cursor = editor.selectionStart;
-                    editor.value = editor.value.substring(0, cursor) + text + editor.value.substring(cursor);
-                    editor.dispatchEvent(new Event('input'));
-                }
-            }
-        });
-    };
-    document.addEventListener('DOMContentLoaded', window.setupEditorDragDrop);
+    // NOTE: In-page editing was removed. Editing a note now opens the
+    // dedicated editor page (any URL with ?edit=true, served by the Go
+    // backend and driven by omn-go-editor.js), which fetches the source
+    // from /api/note itself. The view page therefore no longer embeds an
+    // #editor textarea, and the old toggleMode / loadNoteIntoEditor /
+    // setupEditorDragDrop / saveNote helpers that manipulated it are gone.
 
     window.login = async function() {
         const pwd = document.getElementById('pwdInput').value;
@@ -263,19 +207,6 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
-    window.saveNote = async function() {
-        let content = document.getElementById('editor').value;
-        const fd = new URLSearchParams();
-        fd.append('name', currentNote);
-        fd.append('content', content);
-        const res = await fetch('/api/save', { method: 'POST', body: fd });
-        if(res.ok) {
-            alert('Note saved!');
-            window.location.reload();
-        } else {
-            alert('Failed to save!');
-        }
-    };
 
     window.submitQuickNote = async function() {
         const fd = new URLSearchParams();
@@ -471,13 +402,9 @@ if (window.location.protocol !== 'file:') {
 } else {
     console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
     window.printDebug = function(funcName) { console.debug('\'' + funcName + '\' Not usable on standalone page'); }
-    
-    window.loadNoteIntoEditor = function() { printDebug('loadNoteIntoEditor'); };
-    window.toggleMode = function() { printDebug('toggleMode'); };
-    window.setupEditorDragDrop = function() { printDebug('setupEditorDragDrop'); };
+
     window.login = function() { printDebug('login'); };
     window.createNewPage = function() { printDebug('createNewPage'); };
-    window.saveNote = function() { printDebug('saveNote'); };
     window.submitQuickNote = function() { printDebug('submitQuickNote'); };
     window.submitBookmark = function() { printDebug('submitBookmark'); };
     window.checkSession = function() { printDebug('checkSession'); };
