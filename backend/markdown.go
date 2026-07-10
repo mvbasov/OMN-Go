@@ -34,24 +34,66 @@ var mdParser = goldmark.New(
 	),
 )
 
+// Regexes used by renderMarkdownToHTML to shield content from the markdown /
+// math passes. Compiled once.
+var (
+	// Raw/verbatim regions whose contents must never be treated as markdown or
+	// KaTeX math: their text routinely contains '$', '*', '_', backticks and JS
+	// `${...}` template literals. Block-level first, then inline code.
+	reRawScript  = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script>`)
+	reRawStyle   = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</style>`)
+	reRawPre     = regexp.MustCompile(`(?is)<pre\b[^>]*>.*?</pre>`)
+	reFencedCode = regexp.MustCompile("(?s)```.*?```")
+	reInlineCode = regexp.MustCompile("`[^`]*`")
+
+	// KaTeX math delimiters, protected from goldmark's emphasis handling.
+	reMathBlock  = regexp.MustCompile(`(?s)\$\$.*?\$\$`)
+	reMathInline = regexp.MustCompile(`\$[^\$]+\$`)
+)
+
 func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	contentStr := string(mdContent)
+
+	rawBlocks := make(map[string]string)
 	mathBlocks := make(map[string]string)
 	counter := 0
+	// Placeholders are alphanumeric and "_END"-terminated so goldmark passes
+	// them through verbatim and no placeholder is ever a substring of another
+	// (OMN_MATH_1_END is not contained in OMN_MATH_10_END). The previous
+	// scheme (OMN_MATH_INLINE_%d) collided on restore — "_1" matched inside
+	// "_10" and, because a Go map iterates in random order, fragments of
+	// unrelated math/code were spliced into each other.
+	stash := func(store map[string]string, tag, m string) string {
+		placeholder := fmt.Sprintf("OMN_%s_%d_END", tag, counter)
+		store[placeholder] = m
+		counter++
+		return placeholder
+	}
 
-	// Protect complex KaTeX Math blocks from markdown emphasis corruption
-	contentStr = regexp.MustCompile(`(?s)\$\$.*?\$\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
-		placeholder := fmt.Sprintf("OMN_MATH_BLOCK_%d", counter)
-		mathBlocks[placeholder] = m
-		counter++
-		return placeholder
+	// 1. Shield raw/verbatim regions BEFORE the math pass. Without this the
+	//    inline-math regex below pairs up the '$' signs in JS `${...}` template
+	//    literals (and any '$' inside code), which tears apart <script> notes
+	//    like the SVG editor. Restored just before goldmark so <script>/<style>/
+	//    <pre> pass through via html.WithUnsafe() and code renders as before.
+	for _, re := range []*regexp.Regexp{reRawScript, reRawStyle, reRawPre, reFencedCode, reInlineCode} {
+		contentStr = re.ReplaceAllStringFunc(contentStr, func(m string) string {
+			return stash(rawBlocks, "RAW", m)
+		})
+	}
+
+	// 2. Protect genuine KaTeX math (now only in prose) from emphasis corruption.
+	contentStr = reMathBlock.ReplaceAllStringFunc(contentStr, func(m string) string {
+		return stash(mathBlocks, "MATH", m)
 	})
-	contentStr = regexp.MustCompile(`\$[^\$]+\$`).ReplaceAllStringFunc(contentStr, func(m string) string {
-		placeholder := fmt.Sprintf("OMN_MATH_INLINE_%d", counter)
-		mathBlocks[placeholder] = m
-		counter++
-		return placeholder
+	contentStr = reMathInline.ReplaceAllStringFunc(contentStr, func(m string) string {
+		return stash(mathBlocks, "MATH", m)
 	})
+
+	// 3. Restore the raw regions before rendering so goldmark parses them as it
+	//    always has ('_END' placeholders can't collide, so order is irrelevant).
+	for placeholder, original := range rawBlocks {
+		contentStr = strings.ReplaceAll(contentStr, placeholder, original)
+	}
 
 	var buf bytes.Buffer
 	if err := mdParser.Convert([]byte(contentStr), &buf); err != nil {
