@@ -45,6 +45,14 @@ const UI = (function() {
 })();
 
 // --- Global Listeners & State ---
+// This file is loaded synchronously in <head>, BEFORE the body (and any
+// classic <script> embedded in a note) is parsed. That is deliberate and
+// mirrors classic OMN's functions.js: everything defined here - the
+// console interceptor, the uncaught-error handlers and the helper
+// globals - must already exist when a note's classic script executes
+// during parsing. Nothing at the top level of this file may touch
+// document.body or any element: the body does not exist yet. DOM work
+// belongs inside a DOMContentLoaded/load listener.
 if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
@@ -177,8 +185,20 @@ if (typeof currentNote === 'undefined') {
             wrapConsole('dir', originalDir, 'dir');
             wrapConsole('time', originalTime, 'time');
             wrapConsole('timeEnd', originalTimeEnd, 'timeEnd');
+            // Installed at <head> time, before the body parses, so this
+            // catches errors from EVERY note script - including syntax
+            // errors in classic inline <script> blocks, which the browser
+            // reports while parsing the body (long before DOMContentLoaded).
             window.addEventListener('error', function(e) {
-                console.error('Uncaught Error:', e.message, 'at', e.filename, ':', e.lineno);
+                var where = e.filename ? ' at ' + e.filename + ':' + e.lineno + (e.colno ? ':' + e.colno : '') : '';
+                console.error('Uncaught Error: ' + e.message + where);
+            });
+            // Async note code (fetch(), openDatabase() wrappers, ...) fails
+            // via rejected promises, not the error event - capture those too.
+            window.addEventListener('unhandledrejection', function(e) {
+                var reason = e.reason;
+                var msg = (reason && reason.stack) ? reason.stack : String(reason);
+                console.error('Unhandled Promise Rejection: ' + msg);
             });
 })();
 
@@ -242,26 +262,31 @@ if (typeof currentNote === 'undefined') {
 
         let currentMode = 'view';
 
-        // Global Drag & Drop for URLs (Bookmarks)
-        document.body.addEventListener('dragover', e => {
-            if (!e.target.closest('#editor')) e.preventDefault();
-        });
-        document.body.addEventListener('drop', e => {
-            if (e.target.closest('#editor')) return;
-            const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                e.preventDefault();
-                document.getElementById('bmUrl').value = url;
-                document.getElementById('bmTitle').value = '';
-                const html = e.dataTransfer.getData('text/html');
-                if (html) {
-                    const match = html.match(/<a[^>]*>(.*?)<\/a>/i);
-                    if (match && match[1]) {
-                        document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
+        // Global Drag & Drop for URLs (Bookmarks). Registered on
+        // DOMContentLoaded: this file now runs in <head>, where
+        // document.body is still null - touching it directly here would
+        // throw and kill the rest of this script.
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.addEventListener('dragover', e => {
+                if (!e.target.closest('#editor')) e.preventDefault();
+            });
+            document.body.addEventListener('drop', e => {
+                if (e.target.closest('#editor')) return;
+                const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                    e.preventDefault();
+                    document.getElementById('bmUrl').value = url;
+                    document.getElementById('bmTitle').value = '';
+                    const html = e.dataTransfer.getData('text/html');
+                    if (html) {
+                        const match = html.match(/<a[^>]*>(.*?)<\/a>/i);
+                        if (match && match[1]) {
+                            document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
+                        }
                     }
+                    document.getElementById('bmPanel').classList.remove('hidden');
                 }
-                document.getElementById('bmPanel').classList.remove('hidden');
-            }
+            });
         });
 
         function checkRole() {
@@ -332,7 +357,12 @@ window.updateArrow = function() {
     }
 };
 
-window.onload = () => {
+// addEventListener, NOT "window.onload = ...": classic OMN notes routinely
+// assign window.onload themselves (e.g. "window.onload=createTOC();").
+// When this file used the assignment form it silently overwrote (or was
+// overwritten by) the note's handler depending on load order; with a
+// listener both this handler and any note-assigned window.onload run.
+window.addEventListener('load', () => {
             checkSession();
 
             const params = new URLSearchParams(window.location.search);
@@ -362,7 +392,7 @@ window.onload = () => {
                 let el = document.getElementById(hash.substring(1));
                 if (el) el.scrollIntoView();
             }
-        };
+        });
 
 document.addEventListener("DOMContentLoaded", () => {
             const footer = document.getElementById('omn-go-version-footer');

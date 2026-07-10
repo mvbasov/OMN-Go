@@ -7,14 +7,25 @@
     <link rel="stylesheet" href="/css/omn-go-core.css">
     <link rel="stylesheet" href="/css/highlight.default.min.css">
     <link rel="stylesheet" href="/css/katex.min.css">
-    <script src="/js/omn-go-core.js" defer></script>
-    <script src="/js/omn-go-sse.js" defer></script>
+    <!-- Loaded synchronously (no defer), like functions.js in classic OMN:
+         the console interceptor, error handlers and helper globals must all
+         exist BEFORE any classic <script> embedded in the note body executes
+         during HTML parsing. With defer these ran after note scripts, so
+         classic scripts saw no helpers and their console output/errors were
+         silently lost (only type="module" scripts, which are always deferred
+         by the browser, ran late enough to work). -->
+    <script src="/js/omn-go-core.js"></script>
+    <script src="/js/omn-go-sse.js"></script>
 %%META_TAGS%%
     <script>
       var PackageName = '%%PACKAGE_JS%%';
       var PageName = '%%PAGE_NAME_JS%%';
       var Title = '%%TITLE_JS%%';
       var PAGE_EXT = '%%PAGE_EXT_JS%%';
+      // Declared here in <head> (not at the end of <body>) so classic
+      // note scripts that run during parsing already see it, matching how
+      // classic OMN exposed its page variables.
+      var currentNote = '%%PAGE_NAME_JS%%';
     </script>
 %%COND_SCRIPTS%%
     <meta id="omn-go-runtime-vars-marker">
@@ -108,9 +119,8 @@
         </div>
     </div>
 
-    <script>
-        let currentNote = "%%PAGE_NAME_JS%%";
-    </script>
+    <!-- currentNote is declared in <head> together with the other page
+         variables so parse-time note scripts can use it. -->
 
     <!-- Code & Math Formatting Assets -->
     <script src="/js/highlight.min.js"></script>
