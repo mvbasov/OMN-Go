@@ -40,6 +40,11 @@
             padding: 4px 8px; line-height: 1;
         }
         .omn-editor-bar button:hover { background: var(--bg-hover); }
+        .omn-editor-bar button.active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .omn-editor-bar button:disabled { opacity: 0.4; cursor: default; }
+        .omn-editor-bar button:disabled:hover { background: var(--bg-surface); }
         .omn-editor-bar .material-icons { font-size: 20px; }
         .omn-editor-tools { display: inline-flex; gap: 4px; align-items: center; }
         .omn-editor-tools::after {
@@ -48,22 +53,59 @@
         }
         #editorSave { border-color: var(--accent); color: var(--accent); font-weight: 600; }
         #editorSave:hover { background: var(--accent); color: #fff; }
+        /* Editing area: a horizontal row of [line-number gutter][textarea].
+           The gutter shows only when line numbers are on AND word wrap is
+           off (body.ln-on) - under wrapping the two can't stay aligned, so
+           the toggle is forced off while wrapping. The gutter's font-size,
+           line-height and top padding must match the textarea's exactly or
+           the numbers drift. */
+        .omn-editor-main { display: flex; flex: 1 1 auto; min-height: 0; }
+        .omn-editor-gutter {
+            display: none; flex: 0 0 auto;
+            box-sizing: border-box; overflow: hidden;
+            padding: 12px 8px 12px 10px; margin: 0;
+            text-align: right; white-space: pre;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 14px; line-height: 1.5;
+            color: var(--text-dim); background: var(--bg-band);
+            border-right: 1px solid var(--border);
+            user-select: none; -webkit-user-select: none;
+        }
+        body.ln-on .omn-editor-gutter { display: block; }
         .omn-editor #editor {
-            display: block; flex: 1 1 auto; width: 100%;
+            display: block; flex: 1 1 auto; min-width: 0;
             box-sizing: border-box; border: none; outline: none;
             padding: 12px 14px; margin: 0; resize: none;
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             font-size: 14px; line-height: 1.5; tab-size: 4;
+            white-space: pre-wrap; overflow-x: hidden;
             background: var(--bg-surface); color: var(--text);
         }
+        /* Word wrap off: don't wrap, scroll horizontally instead. */
+        .omn-editor #editor.nowrap { white-space: pre; overflow-x: auto; }
         .omn-editor-status {
+            display: flex; align-items: center; gap: 8px;
             padding: 4px 12px; font-size: 12px;
             background: var(--bg-band); border-top: 1px solid var(--border);
             color: var(--text-faint); min-height: 1.2em;
         }
-        .omn-editor-status.editor-status-error { color: #ff5555; }
-        .omn-editor-status.editor-status-ok    { color: #3fb950; }
-        .omn-editor-status.editor-status-dirty { color: var(--text-heading); }
+        /* File name (left), shown persistently; transient Loading/Saving/
+           error text reuses this span. Unsaved state is the dot, not text. */
+        #editorStatus {
+            flex: 1 1 auto; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .editor-status-error { color: #ff5555; }
+        .editor-status-ok    { color: #3fb950; }
+        /* State dot at the right: green = saved, red = unsaved changes.
+           Pure CSS circle (border-radius:50%), no image asset. */
+        .omn-editor-dot {
+            flex: 0 0 auto; width: 10px; height: 10px;
+            border-radius: 50%; background: var(--text-dim);
+        }
+        .omn-editor-dot.clean   { background: #3fb950; }
+        .omn-editor-dot.dirty   { background: #ff5555; }
+        .omn-editor-dot.loading { background: var(--text-dim); }
     </style>
 </head>
 <body class="omn-editor">
@@ -77,8 +119,14 @@
         <button id="editorSave" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
         <button id="editorCancel" type="button" title="Cancel"><i class="material-icons">close</i></button>
     </div>
-    <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-    <div class="omn-editor-status" id="editorStatus">Loading…</div>
+    <div class="omn-editor-main">
+        <div id="editorGutter" class="omn-editor-gutter" aria-hidden="true"></div>
+        <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    </div>
+    <div class="omn-editor-status">
+        <span id="editorStatus">Loading…</span>
+        <span id="editorDot" class="omn-editor-dot loading" title="Save state"></span>
+    </div>
 
     <script src="/js/omn-go-editor.js"></script>
 </body>

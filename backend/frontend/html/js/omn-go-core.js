@@ -130,10 +130,58 @@ if (typeof currentNote === 'undefined') {
                 var target = document.querySelector('.header-actions'); if (target) { target.appendChild(consoleBtn); } else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
-            function appendLog(type, args) {
-                logs.push({type, args});
+            // computeJump decides whether an uncaught error can be opened in
+            // the editor, and how. Only same-origin editable sources qualify:
+            //   - the current note itself: the reported line is a line in the
+            //     COMPILED html, so we later map it back to the markdown by
+            //     content (kind 'note').
+            //   - a served asset under /js /css /json (a verbatim file): its
+            //     lines map 1:1, so we jump by number (kind 'asset').
+            // Errors from OMN-Go's own bundled scripts, or cross-origin, get
+            // no jump.
+            function computeJump(filename, line) {
+                if (!filename || !line) return null;
+                try {
+                    const u = new URL(filename, window.location.href);
+                    if (u.origin !== window.location.origin) return null;
+                    const path = u.pathname;
+                    if (path === window.location.pathname) return { kind: 'note', path: path, line: line };
+                    if (/^\/(js|css|json|user_json)\//.test(path)) {
+                        // Skip OMN-Go's own bundled scripts and minified
+                        // libraries - jumping to "edit" those from an error is
+                        // never what the user wants.
+                        if (/\.min\.(js|css)$/.test(path) || /\/omn-go-[^/]*\.js$/.test(path)) return null;
+                        return { kind: 'asset', path: path, line: line };
+                    }
+                    return null;
+                } catch (e) { return null; }
+            }
+
+            // jumpToEditor opens the editor positioned on the error's line.
+            // For a note it fetches the served page, reads the exact source
+            // line text at the error line, and hands it to the editor to
+            // locate by CONTENT - avoiding the markdown<->HTML line-number
+            // arithmetic entirely.
+            async function jumpToEditor(jump) {
+                if (jump.kind === 'asset') {
+                    window.location.href = jump.path + '?edit=true&line=' + jump.line;
+                    return;
+                }
+                let url = jump.path + '?edit=true';
+                try {
+                    const res = await fetch(jump.path, { cache: 'no-store' });
+                    const lines = (await res.text()).split('\n');
+                    const lineText = (lines[jump.line - 1] || '').trim();
+                    if (lineText) url += '&find=' + encodeURIComponent(lineText.slice(0, 300));
+                    else url += '&line=' + jump.line;
+                } catch (e) { /* fall back to just opening the editor */ }
+                window.location.href = url;
+            }
+
+            function appendLog(type, args, jump) {
+                logs.push({type, args, jump});
                 if (!document.body) {
-                    window.addEventListener('DOMContentLoaded', () => appendLog(type, args));
+                    window.addEventListener('DOMContentLoaded', () => appendLog(type, args, jump));
                     return;
                 }
                 if (!consoleBtn) initConsoleUI();
@@ -153,6 +201,13 @@ if (typeof currentNote === 'undefined') {
                     }).join(' ');
 
                     msg.textContent = `[${type.toUpperCase()}] ${text}`;
+                    if (jump) {
+                        // Make the entry a tappable "open in editor" link.
+                        msg.style.cursor = 'pointer';
+                        msg.style.textDecoration = 'underline';
+                        msg.title = 'Open in editor at this line';
+                        msg.addEventListener('click', function () { jumpToEditor(jump); });
+                    }
                     logsContainer.appendChild(msg);
                     logsContainer.scrollTop = logsContainer.scrollHeight;
                 }
@@ -191,7 +246,15 @@ if (typeof currentNote === 'undefined') {
             // reports while parsing the body (long before DOMContentLoaded).
             window.addEventListener('error', function(e) {
                 var where = e.filename ? ' at ' + e.filename + ':' + e.lineno + (e.colno ? ':' + e.colno : '') : '';
-                console.error('Uncaught Error: ' + e.message + where);
+                var msg = 'Uncaught Error: ' + e.message + where;
+                // Print to the real console and add a clickable, jump-enabled
+                // entry to the in-app console (when the error points at an
+                // editable source on this page). We call originalError +
+                // appendLog directly rather than the wrapped console.error so
+                // the jump metadata survives.
+                try { originalError.call(console, msg); } catch (_) { }
+                appendLog('error', [msg], computeJump(e.filename, e.lineno));
+                return;
             });
             // Async note code (fetch(), openDatabase() wrappers, ...) fails
             // via rejected promises, not the error event - capture those too.

@@ -20,21 +20,41 @@
     var NAME = (typeof OMN_EDIT_NAME !== 'undefined') ? OMN_EDIT_NAME : 'Welcome';
     var VIEW = (typeof OMN_EDIT_VIEW !== 'undefined' && OMN_EDIT_VIEW) ? OMN_EDIT_VIEW : '/';
 
+    // Optional jump target, set when arriving from a clicked console error
+    // (see omn-go-core.js). "find" matches by line CONTENT - robust across
+    // the markdown -> compiled-HTML line shift, since a note's <script> body
+    // is passed through verbatim - while "line" is a direct 1-based number,
+    // used for verbatim assets (.js/.css/.json) where lines map 1:1.
+    var JUMP_FIND = null, JUMP_LINE = 0;
+    try {
+        var _q = new URLSearchParams(window.location.search);
+        JUMP_FIND = _q.get('find');
+        JUMP_LINE = parseInt(_q.get('line') || '0', 10) || 0;
+    } catch (e) { /* no URLSearchParams / weird URL - just skip the jump */ }
+
     var ta = null;         // the <textarea>
-    var statusEl = null;   // status line
+    var statusEl = null;   // footer text (file name / transient status)
+    var dotEl = null;      // footer state dot (green saved / red unsaved)
+    var gutterEl = null;   // line-number gutter
+    var wrapBtn = null, lnBtn = null; // the two toggle buttons
     var loaded = false;    // has the initial content arrived?
     var dirty = false;     // unsaved changes?
+    var wrapOn = true;     // word wrap (default on, like a plain textarea)
+    var lnOn = false;      // line numbers requested by the user
 
     // ------------------------------------------------------------------
     // Toolbar tool registry. Each entry becomes a button, left to right.
-    // To add a tool later: append one { icon, title, action } object.
+    // To add a tool later: append one { icon, title, action } object
     //   icon   - a Material Icons ligature name
     //   title  - tooltip / accessibility label
     //   action - function(textarea) invoked on click
+    //   id     - optional element id, for stateful (toggle) buttons
     // ------------------------------------------------------------------
     var TOOLS = [
         { icon: 'code', title: 'Expand Emmet abbreviation (Tab)', action: function () { expandEmmetAtCursor(); } },
-        { icon: 'format_line_spacing', title: 'Select current line', action: function () { selectCurrentLine(); } }
+        { icon: 'format_line_spacing', title: 'Select current line', action: function () { selectCurrentLine(); } },
+        { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
+        { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } }
         // Future tools go here, e.g.:
         // { icon: 'format_bold', title: 'Bold selection', action: wrapBold },
     ];
@@ -436,21 +456,28 @@
     // ==================================================================
     // Load / save
     // ==================================================================
+    // The footer shows the file NAME persistently on the left; setStatus is
+    // reused for the transient Loading/Saving/error messages. The unsaved
+    // state is conveyed by the dot at the right (setDot), never by
+    // overwriting the name.
     function setStatus(msg, kind) {
         if (!statusEl) return;
         statusEl.textContent = msg || '';
-        statusEl.className = 'editor-status' + (kind ? ' editor-status-' + kind : '');
+        statusEl.className = kind ? 'editor-status-' + kind : '';
+    }
+
+    function setDot(state) {
+        if (!dotEl) return;
+        dotEl.className = 'omn-editor-dot' + (state ? ' ' + state : '');
     }
 
     function markDirty() {
-        if (!dirty) {
-            dirty = true;
-            setStatus('Unsaved changes', 'dirty');
-        }
+        if (!dirty) { dirty = true; setDot('dirty'); }
     }
 
     async function loadContent() {
         setStatus('Loading…');
+        setDot('loading');
         try {
             var res = await fetch('/api/note?name=' + encodeURIComponent(NAME), { cache: 'no-store' });
             if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -461,11 +488,16 @@
         }
         loaded = true;
         dirty = false;
-        setStatus('Editing ' + NAME);
-        ta.focus();
-        // Caret at end so typing continues the note.
-        var len = ta.value.length;
-        ta.setSelectionRange(len, len);
+        setStatus(NAME);          // just the name - no "Editing" prefix
+        setDot('clean');
+        renderGutter();
+        // Land on the error line if we arrived from a console error,
+        // otherwise put the caret at the end to continue the note.
+        if (!jumpToTarget()) {
+            ta.focus();
+            var len = ta.value.length;
+            ta.setSelectionRange(len, len);
+        }
     }
 
     async function save(thenView) {
@@ -482,10 +514,11 @@
             }
             if (!res.ok) throw new Error('HTTP ' + res.status);
             dirty = false;
+            setDot('clean');
             if (thenView) {
                 window.location.href = VIEW;
             } else {
-                setStatus('Saved ' + NAME, 'ok');
+                setStatus(NAME);
             }
         } catch (e) {
             setStatus('Save failed: ' + e.message, 'error');
@@ -498,6 +531,120 @@
     }
 
     // ==================================================================
+    // Jump to a line (arriving from a clicked console error)
+    // ==================================================================
+    function lineHeightPx() {
+        var cs = window.getComputedStyle(ta);
+        var lh = parseFloat(cs.lineHeight);
+        if (!isFinite(lh)) lh = (parseFloat(cs.fontSize) || 14) * 1.5;
+        return lh;
+    }
+
+    function scrollToOffset(off) {
+        var before = ta.value.substring(0, off);
+        var lineNo = (before.match(/\n/g) || []).length;
+        // Keep a few lines of context above the target.
+        ta.scrollTop = Math.max(0, (lineNo - 3) * lineHeightPx());
+        syncGutter();
+    }
+
+    // Move the caret to the jump target, selecting the whole line. Returns
+    // true if a target was found and applied.
+    function jumpToTarget() {
+        var val = ta.value, idx = -1;
+        if (JUMP_FIND) {
+            idx = val.indexOf(JUMP_FIND);
+            if (idx === -1) {
+                // Line-by-line fallback (e.g. leading indent differs).
+                var lines = val.split('\n'), off = 0;
+                for (var i = 0; i < lines.length; i++) {
+                    if (lines[i].indexOf(JUMP_FIND) !== -1) { idx = off; break; }
+                    off += lines[i].length + 1;
+                }
+            }
+        } else if (JUMP_LINE > 0) {
+            var ls = val.split('\n'), o = 0;
+            for (var j = 0; j < JUMP_LINE - 1 && j < ls.length; j++) o += ls[j].length + 1;
+            idx = o;
+        }
+        if (idx < 0) return false;
+        var b = lineBounds(val, idx);
+        ta.focus();
+        ta.setSelectionRange(b.start, b.end);
+        scrollToOffset(b.start);
+        return true;
+    }
+
+    // ==================================================================
+    // Line numbers + word wrap (persisted per-device in localStorage)
+    // ==================================================================
+    function loadPrefs() {
+        try {
+            var w = window.localStorage.getItem('omngo_editor_wrap');
+            var l = window.localStorage.getItem('omngo_editor_ln');
+            if (w !== null) wrapOn = w === '1';
+            if (l !== null) lnOn = l === '1';
+        } catch (e) { /* storage unavailable - use defaults */ }
+    }
+    function savePrefs() {
+        try {
+            window.localStorage.setItem('omngo_editor_wrap', wrapOn ? '1' : '0');
+            window.localStorage.setItem('omngo_editor_ln', lnOn ? '1' : '0');
+        } catch (e) { /* ignore */ }
+    }
+
+    // Line numbers are only shown when requested AND not wrapping.
+    function lineNumbersActive() { return lnOn && !wrapOn; }
+
+    function renderGutter() {
+        if (!gutterEl) return;
+        if (!lineNumbersActive()) { gutterEl.textContent = ''; gutterEl._n = -1; return; }
+        var n = ta.value.split('\n').length;
+        if (gutterEl._n === n) { syncGutter(); return; } // count unchanged
+        gutterEl._n = n;
+        var s = '';
+        for (var i = 1; i <= n; i++) s += (i > 1 ? '\n' : '') + i;
+        gutterEl.textContent = s;
+        syncGutter();
+    }
+    function syncGutter() {
+        if (gutterEl && lineNumbersActive()) gutterEl.scrollTop = ta.scrollTop;
+    }
+
+    function applyState() {
+        // Word wrap.
+        if (wrapOn) {
+            ta.classList.remove('nowrap');
+            ta.setAttribute('wrap', 'soft');
+        } else {
+            ta.classList.add('nowrap');
+            ta.setAttribute('wrap', 'off');
+        }
+        // Line numbers (forced off while wrapping).
+        document.body.classList.toggle('ln-on', lineNumbersActive());
+        renderGutter();
+        updateToggleButtons();
+    }
+    function updateToggleButtons() {
+        if (wrapBtn) wrapBtn.classList.toggle('active', wrapOn);
+        if (lnBtn) {
+            lnBtn.classList.toggle('active', lineNumbersActive());
+            lnBtn.disabled = wrapOn; // numbers make no sense while wrapping
+        }
+    }
+    function toggleWrap() {
+        wrapOn = !wrapOn;
+        savePrefs();
+        applyState();
+    }
+    function toggleLineNumbers() {
+        if (wrapOn) return; // disabled while wrapping
+        lnOn = !lnOn;
+        savePrefs();
+        applyState();
+    }
+
+    // ==================================================================
     // Wiring
     // ==================================================================
     function buildToolbar() {
@@ -507,6 +654,7 @@
             var b = document.createElement('button');
             b.type = 'button';
             b.className = 'editor-tool';
+            if (tool.id) b.id = tool.id;
             b.title = tool.title;
             b.setAttribute('aria-label', tool.title);
             b.innerHTML = '<i class="material-icons">' + tool.icon + '</i>';
@@ -560,10 +708,16 @@
     function init() {
         ta = document.getElementById('editor');
         statusEl = document.getElementById('editorStatus');
+        dotEl = document.getElementById('editorDot');
+        gutterEl = document.getElementById('editorGutter');
         if (!ta) return;
         buildToolbar();
+        wrapBtn = document.getElementById('toolWrap');
+        lnBtn = document.getElementById('toolLn');
+
         ta.addEventListener('keydown', onKeyDown);
-        ta.addEventListener('input', markDirty);
+        ta.addEventListener('input', function () { markDirty(); renderGutter(); });
+        ta.addEventListener('scroll', syncGutter);
         setupDragDrop();
 
         var saveBtn = document.getElementById('editorSave');
@@ -575,6 +729,8 @@
             if (dirty) { e.preventDefault(); e.returnValue = ''; }
         });
 
+        loadPrefs();
+        applyState();   // apply wrap/line-number prefs before content loads
         loadContent();
     }
 
