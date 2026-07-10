@@ -98,7 +98,10 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, `var PageName = 'Weird\'Page\"Name';`) {
 		t.Error("PageName not JS-escaped in inline script")
 	}
-	if !strings.Contains(out, `let currentNote = "Weird\'Page\"Name";`) {
+	// currentNote moved from an end-of-body script into the <head> page
+	// variables block (declared with var, single-quoted like its siblings)
+	// so classic note scripts that execute during body parsing can see it.
+	if !strings.Contains(out, `var currentNote = 'Weird\'Page\"Name';`) {
 		t.Error("currentNote not JS-escaped in inline script")
 	}
 	// Conditional markdown script present, edit-mode script absent. (Note:

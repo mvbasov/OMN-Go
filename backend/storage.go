@@ -42,6 +42,12 @@ func (a *App) initStorage() {
 		}
 	}
 
+	// Bring previously-extracted embedded assets (html/js, html/css, ...)
+	// up to date with this build. Runs synchronously so no request is ever
+	// served a stale asset; a no-op unless APP_VERSION changed since the
+	// last start (see assets.go).
+	a.refreshEmbeddedAssets()
+
 	// 2. Init Config
 	a.loadConfig(a.StorageDir)
 

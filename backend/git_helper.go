@@ -134,6 +134,8 @@ config.json
 /md/local/
 /db/
 /html/db_json/local-*
+/asset_backups/
+/assets_version
 `
 	content, err := os.ReadFile(gitignorePath)
 	if os.IsNotExist(err) {
@@ -150,7 +152,10 @@ config.json
 	// must never be committed - would silently stay unignored on every
 	// existing installation.
 	appended := false
-	for _, entry := range []string{"/db/", "/html/db_json/local-*"} {
+	// /asset_backups/ and /assets_version belong to the version-stamped
+	// asset refresh (assets.go): both are per-installation state, never
+	// content to sync.
+	for _, entry := range []string{"/db/", "/html/db_json/local-*", "/asset_backups/", "/assets_version"} {
 		if !strings.Contains(string(content), entry) {
 			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
