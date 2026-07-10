@@ -18,6 +18,7 @@ edit mode (pencil button) to see how any example on it is written.
 - [The interface](#the-interface)
 - [Creating a new page](#creating-a-new-page)
 - [Editing pages](#editing-pages)
+- [The editor and Emmet](Editor)
 - [Page format: the header block](#page-format-the-header-block)
 - [Markdown in a nutshell](#markdown-in-a-nutshell)
 - [Links: absolute, relative, external](#links-absolute-relative-external)
@@ -60,7 +61,7 @@ Inside it:
 
 On first start OMN-Go creates the directory, a default `config.json`, and
 a few starter pages ([Welcome](Welcome), [QuickNotes](QuickNotes),
-[Bookmarks](Bookmarks), [ScriptRules](ScriptRules)).
+[Bookmarks](Bookmarks), [ScriptRules](ScriptRules), [Editor](Editor)).
 
 ## Login and roles
 
@@ -116,9 +117,13 @@ A link to the new page is appended to the page you started from.
 
 ## Editing pages
 
-Press <i class="material-icons">edit</i> to switch to the editor, make your
+Press <i class="material-icons">edit</i> to open the editor, make your
 changes, press <i class="material-icons">save</i>. Saving updates the
-`Modified:` header line automatically and recompiles the page.
+`Modified:` header line automatically and recompiles the page. The editor is
+a page of its own that loads the note's source when it opens — it has a small
+toolbar with an Emmet-style HTML expander and a select-current-line button.
+See [The editor and Emmet](Editor) for the toolbar and the abbreviation
+syntax.
 
 **Internal vs. external editor.** With *Use Internal Editor* disabled on
 the [Config](Config) page, the edit button instead hands the file to an

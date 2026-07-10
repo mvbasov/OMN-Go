@@ -195,9 +195,9 @@ func renderEditorPage(v editorPageView) string {
 		"TITLE_HTML":  escapeHTML(v.Title),
 		"NAME_JS":     escapeJS(v.Name),
 		"PAGE_EXT_JS": escapeJS(v.PageExt),
+		// Only consumed by JS (OMN_EDIT_VIEW) now that the redundant back
+		// link is gone; the × button navigates here via omn-go-editor.js.
 		"VIEW_URL_JS": escapeJS(v.ViewURL),
-		// ViewURL also appears as a plain href on the "back" link.
-		"VIEW_URL_ATTR": escapeHTML(v.ViewURL),
 	})
 }
 

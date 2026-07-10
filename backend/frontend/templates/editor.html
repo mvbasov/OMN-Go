@@ -31,11 +31,6 @@
             border-bottom: 1px solid var(--border);
             flex-wrap: wrap;
         }
-        .omn-editor-name {
-            font-weight: 600; color: var(--text-strong);
-            margin-right: 8px; white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis; max-width: 40vw;
-        }
         .omn-editor-spacer { flex: 1 1 auto; }
         .omn-editor-bar button {
             display: inline-flex; align-items: center; justify-content: center;
@@ -72,9 +67,11 @@
     </style>
 </head>
 <body class="omn-editor">
+    <!-- The note name is shown in the status bar at the bottom ("Editing
+         <name>"), so it is deliberately not repeated here. There is a single
+         exit control (the × cancel button, which prompts on unsaved changes);
+         a separate back arrow would duplicate it. -->
     <div class="omn-editor-bar">
-        <a href="%%VIEW_URL_ATTR%%" title="Back to view" style="text-decoration:none;color:inherit;display:inline-flex;align-items:center;"><i class="material-icons">arrow_back</i></a>
-        <span class="omn-editor-name">%%TITLE_HTML%%</span>
         <span class="omn-editor-tools" id="editorTools"><!-- tool buttons injected by omn-go-editor.js --></span>
         <span class="omn-editor-spacer"></span>
         <button id="editorSave" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
