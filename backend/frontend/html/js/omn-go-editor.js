@@ -696,10 +696,20 @@
         ta.addEventListener('drop', async function (e) {
             if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
             e.preventDefault();
+            var file = e.dataTransfer.files[0];
+            // .json files go through the dedicated JSON upload endpoint,
+            // which lands them in user_json/ (not images/) and returns a
+            // plain "[name](/user_json/name)" link, not an image embed.
+            // Checked by extension as well as MIME type since some OS
+            // file managers hand the browser an empty/generic type for a
+            // dragged file.
+            var isJSON = /\.json$/i.test(file.name) || file.type === 'application/json';
+            var uploadURL = isJSON ? '/api/upload_json' : '/api/upload';
+            var fieldName = isJSON ? 'file' : 'image';
             var fd = new FormData();
-            fd.append('image', e.dataTransfer.files[0]);
+            fd.append(fieldName, file);
             try {
-                var res = await fetch('/api/upload', { method: 'POST', body: fd });
+                var res = await fetch(uploadURL, { method: 'POST', body: fd });
                 if (res.ok) { insertAtCaret(await res.text()); }
             } catch (_) { /* ignore */ }
         });
