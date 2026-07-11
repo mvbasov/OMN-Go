@@ -12,14 +12,24 @@ public class MainActivity extends Activity {
     private WebView webView;
     private String currentEditingName;
 
-    // Same on-disk root the Go server uses on Android (see StorageDir in
-    // backend/storage.go) and the same hardcoded loopback base URL used
-    // everywhere else in this file (e.g. the omngo://edit and
-    // onActivityResult handling below) - not read from config.json's
-    // server_port, matching that existing simplification rather than
-    // fixing it as part of this change.
-    private static final String STORAGE_DIR = "/storage/emulated/0/Android/media/net.basov.omngo";
-    private static final String SERVER_BASE = "http://127.0.0.1:8080";
+    // Storage dir and server port both used to be hardcoded here
+    // ("net.basov.omngo" and "8080"), which broke on the fdroid flavor
+    // (different applicationId -> different external media directory,
+    // see build.gradle's productFlavors) and on any install where the
+    // Config page's Server Port was changed away from the default. Both
+    // are now resolved live instead: storageDir() defers to
+    // ServerService.storageDir(), the same helper Backend.startServer()
+    // itself is started with (see ServerService.onStartCommand), and
+    // serverBase() reads the actual configured port via
+    // ServerService.serverPort() rather than assuming 8080.
+
+    private String storageDir() {
+        return ServerService.storageDir(this);
+    }
+
+    private String serverBase() {
+        return "http://127.0.0.1:" + ServerService.serverPort(this);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -152,12 +162,17 @@ public class MainActivity extends Activity {
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
                         android.os.StrictMode.setVmPolicy(builder.build());
 
-                        // Determine correct subdirectory and extension
+                        // Determine correct subdirectory and extension.
+                        // MainActivity.this (not a bare storageDir() call)
+                        // because this whole block is inside the anonymous
+                        // WebViewClient below, where "this" means the
+                        // WebViewClient itself.
                         java.io.File file;
+                        String editStorageDir = MainActivity.this.storageDir();
                         if (name.endsWith(".md")) {
-                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/md/" + name);
+                            file = new java.io.File(editStorageDir + "/md/" + name);
                         } else {
-                            file = new java.io.File("/storage/emulated/0/Android/media/net.basov.omngo/html/" + name);
+                            file = new java.io.File(editStorageDir + "/html/" + name);
                         }
                         if (!file.exists()) {
                             file.getParentFile().mkdirs();
@@ -227,7 +242,7 @@ public class MainActivity extends Activity {
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                String startUrl = "http://127.0.0.1:8080/Welcome.html";
+                String startUrl = MainActivity.this.serverBase() + "/Welcome.html";
                 android.content.Intent intent = getIntent();
                 if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
@@ -265,7 +280,7 @@ public class MainActivity extends Activity {
                 if (dotIdx > 0) {
                     baseName = baseName.substring(0, dotIdx);
                 }
-                webView.loadUrl("http://127.0.0.1:8080/" + android.net.Uri.encode(baseName) + ".html");
+                webView.loadUrl(serverBase() + "/" + android.net.Uri.encode(baseName) + ".html");
                 currentEditingName = null;
             } else {
                 webView.reload(); // Refresh view when returning from external editor
@@ -326,7 +341,7 @@ public class MainActivity extends Activity {
     // So this is handled entirely natively, independent of whatever the
     // WebView is doing:
     //   1. Validate + copy the shared file straight onto the same on-disk
-    //      tree the Go server serves from (STORAGE_DIR/html/images or
+    //      tree the Go server serves from (storageDir()/html/images or
     //      .../user_json), enforcing the same extension whitelist and
     //      max-size limit (read from config.json's max_upload_size_mb)
     //      that saveUploadedFile enforces server-side for the editor's
@@ -375,7 +390,7 @@ public class MainActivity extends Activity {
                     long maxBytes = (long) readMaxUploadSizeMB() * 1024 * 1024;
 
                     String subDir = isJson ? "user_json" : "images";
-                    java.io.File destDir = new java.io.File(STORAGE_DIR + "/html/" + subDir);
+                    java.io.File destDir = new java.io.File(storageDir() + "/html/" + subDir);
                     destDir.mkdirs();
                     java.io.File destFile = new java.io.File(destDir, filename);
 
@@ -443,7 +458,7 @@ public class MainActivity extends Activity {
     // missing or unreadable.
     private int readMaxUploadSizeMB() {
         try {
-            java.io.File cfgFile = new java.io.File(STORAGE_DIR, "config.json");
+            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
             if (!cfgFile.exists()) return 3;
             java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
@@ -512,7 +527,7 @@ public class MainActivity extends Activity {
     // POSTs note (already-built markdown) to /api/quick, appending it to
     // QuickNotes.md - see handleQuickNote in backend/handlers.go.
     private void postQuickNote(String note) throws java.io.IOException {
-        java.net.URL url = new java.net.URL(SERVER_BASE + "/api/quick");
+        java.net.URL url = new java.net.URL(serverBase() + "/api/quick");
         java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
         try {
             conn.setRequestMethod("POST");

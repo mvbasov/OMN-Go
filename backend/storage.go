@@ -8,8 +8,19 @@ import (
 	"strings"
 )
 
-func (a *App) initStorage() {
-	if runtime.GOOS == "android" {
+// initStorage computes a.StorageDir and prepares its layout. overrideDir,
+// when non-empty, is used as-is (see StartServer's doc comment for why
+// Android needs this instead of the runtime.GOOS branch below - its
+// applicationId, and therefore its external media directory, differs
+// between the standard and fdroid product flavors, which this package
+// cannot know on its own).
+func (a *App) initStorage(overrideDir string) {
+	if overrideDir != "" {
+		a.StorageDir = overrideDir
+	} else if runtime.GOOS == "android" {
+		// Fallback only: reached if a future Android caller ever starts
+		// the server without passing its own directory. Matches the
+		// standard flavor's applicationId, not fdroid's.
 		a.StorageDir = "/storage/emulated/0/Android/media/net.basov.omngo"
 	} else {
 		a.StorageDir = "./data"
@@ -131,4 +142,3 @@ func (a *App) precompileAllPages() {
 		return nil
 	})
 }
-

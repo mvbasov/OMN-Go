@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"sync"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -11,9 +10,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
-
 
 // App encapsulates the global state for the backend
 type App struct {
@@ -68,17 +67,21 @@ var staticFS embed.FS
 //go:embed frontend/templates
 var templatesFS embed.FS
 
-
-
-func StartServer() *App {
+// StartServer boots the Go backend. storageDir, when non-empty, overrides
+// the runtime.GOOS-based default initStorage would otherwise compute (see
+// backend/storage.go) - Android passes its actual per-flavor external
+// media directory here (see ServerService.storageDir in
+// android/.../ServerService.java), since the Go runtime has no way to
+// learn the running app's applicationId (net.basov.omngo vs
+// net.basov.omngo.fdroid) on its own. Every other caller (desktop's
+// main_desktop.go) passes "" and gets the existing default unchanged.
+func StartServer(storageDir string) *App {
 	a := &App{
 		Router: http.NewServeMux(),
 		ready:  make(chan struct{}),
 	}
 
-
-
-	a.initStorage() // Execute synchronously to ensure config is loaded instantly
+	a.initStorage(storageDir) // Execute synchronously to ensure config is loaded instantly
 
 	// Fallback MIME types for minimal Docker containers
 	mime.AddExtensionType(".svg", "image/svg+xml")
@@ -229,4 +232,3 @@ func StartServer() *App {
 func (a *App) GetServerPort() int {
 	return a.GetConfig().ServerPort
 }
-

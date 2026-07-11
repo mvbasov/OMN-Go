@@ -5,14 +5,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"net.basov.omngo/backend"
 	"os"
 	"os/exec"
 	"runtime"
-	"net.basov.omngo/backend"
 )
 
 func main() {
-	app := backend.StartServer()
+	app := backend.StartServer("") // desktop always uses initStorage's OS-appropriate default
 
 	// Block until the listener has actually bound, instead of guessing
 	// with a fixed time.Sleep(500ms) that could fire too early on a slow
@@ -38,10 +38,10 @@ func main() {
 	case "darwin":
 		err = exec.Command("open", url).Start()
 	}
-	
+
 	if err != nil {
 		log.Printf("Could not auto-launch browser. Please visit %s manually.", url)
 	}
-	
+
 	select {} // Block main thread
 }

@@ -64,17 +64,36 @@ public class ServerService extends Service {
     // ---------------------------------------------------------------
 
     /**
+     * The Go backend's storage root on this device. getExternalMediaDirs()
+     * is Android's own answer to "this app's external media directory",
+     * which already resolves per the ACTUALLY RUNNING applicationId
+     * (net.basov.omngo vs net.basov.omngo.fdroid - see the productFlavors
+     * block in build.gradle) with no need to know the package name up
+     * front. Passed into Backend.startServer() below so the Go side (see
+     * initStorage's overrideDir in backend/storage.go) uses the same
+     * directory instead of a hardcoded "net.basov.omngo" literal that was
+     * wrong for the fdroid flavor. Falls back to building the same path
+     * from getPackageName() if the media-dirs API returns nothing (should
+     * be rare in practice), which - unlike the old literal - is still
+     * correct for whichever flavor is actually running.
+     */
+    public static String storageDir(Context ctx) {
+        java.io.File[] dirs = ctx.getExternalMediaDirs();
+        if (dirs != null && dirs.length > 0 && dirs[0] != null) {
+            return dirs[0].getAbsolutePath();
+        }
+        return "/storage/emulated/0/Android/media/" + ctx.getPackageName();
+    }
+
+    /**
      * Reads config.json from the same scoped-storage directory the Go
-     * backend uses (getExternalMediaDirs()[0] is exactly
-     * /storage/emulated/0/Android/media/net.basov.omngo). Returns null if
-     * the file doesn't exist yet (first launch) or can't be parsed - both
-     * treated as "sharing off, defaults" by the callers.
+     * backend uses. Returns null if the file doesn't exist yet (first
+     * launch) or can't be parsed - both treated as "sharing off, defaults"
+     * by the callers.
      */
     private static org.json.JSONObject readConfig(Context ctx) {
         try {
-            java.io.File[] dirs = ctx.getExternalMediaDirs();
-            if (dirs == null || dirs.length == 0 || dirs[0] == null) return null;
-            java.io.File cfg = new java.io.File(dirs[0], "config.json");
+            java.io.File cfg = new java.io.File(storageDir(ctx), "config.json");
             if (!cfg.exists()) return null;
             byte[] buf = new byte[(int) cfg.length()];
             java.io.FileInputStream in = new java.io.FileInputStream(cfg);
@@ -212,7 +231,11 @@ public class ServerService extends Service {
         }
 
         if (!backendStarted) {
-            Backend.startServer();
+            // storageDir(this) is resolved from the actually-running
+            // applicationId (see the field comment on storageDir above),
+            // not a hardcoded literal - correct for both the standard and
+            // fdroid flavors.
+            Backend.startServer(storageDir(this));
             backendStarted = true;
         }
 
