@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -194,7 +195,7 @@ func TestSaveUploadedFile(t *testing.T) {
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 
 	destDir := filepath.Join(a.StorageDir, "html", "images")
-	name, err := a.saveUploadedFile(req, "image", destDir)
+	name, err := a.saveUploadedFile(req, "image", destDir, imageUploadExtensions, 10<<20)
 	if err != nil {
 		t.Fatalf("saveUploadedFile: %v", err)
 	}
@@ -222,8 +223,58 @@ func TestSaveUploadedFileWrongField(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/upload", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 
-	if _, err := a.saveUploadedFile(req, "image", t.TempDir()); err == nil {
+	if _, err := a.saveUploadedFile(req, "image", t.TempDir(), nil, 0); err == nil {
 		t.Error("expected error for missing form field, got nil")
+	}
+}
+
+func TestSaveUploadedFileRejectsDisallowedExtension(t *testing.T) {
+	a := newTestApp(t)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", "notes.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Write([]byte("not json"))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/upload_json", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	if _, err := a.saveUploadedFile(req, "file", t.TempDir(), jsonUploadExtensions, 10<<20); err == nil {
+		t.Error("expected error for disallowed extension, got nil")
+	} else {
+		var rejected *uploadRejected
+		if !errors.As(err, &rejected) {
+			t.Errorf("expected *uploadRejected, got %T: %v", err, err)
+		}
+	}
+}
+
+func TestSaveUploadedFileRejectsTooLarge(t *testing.T) {
+	a := newTestApp(t)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("image", "big.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Write(bytes.Repeat([]byte{0}, 2048))
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/upload", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	if _, err := a.saveUploadedFile(req, "image", t.TempDir(), imageUploadExtensions, 1024); err == nil {
+		t.Error("expected error for oversized file, got nil")
+	} else {
+		var rejected *uploadRejected
+		if !errors.As(err, &rejected) {
+			t.Errorf("expected *uploadRejected, got %T: %v", err, err)
+		}
 	}
 }
 
@@ -297,5 +348,36 @@ func TestHandleConfigSavesShareLAN(t *testing.T) {
 	}
 	if a.GetConfig().ShareLAN {
 		t.Error("absent share_lan field did not clear the option")
+	}
+}
+
+func TestHandleConfigSavesMaxUploadSizeMB(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.MaxUploadSizeMB = defaultMaxUploadSizeMB
+
+	rec := postConfig(t, a, url.Values{"max_upload_size_mb": {"10"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body.String())
+	}
+	if got := a.GetConfig().MaxUploadSizeMB; got != 10 {
+		t.Errorf("MaxUploadSizeMB = %d, want 10", got)
+	}
+	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
+	if err != nil {
+		t.Fatalf("config.json not written: %v", err)
+	}
+	if !strings.Contains(string(data), `"max_upload_size_mb": 10`) {
+		t.Errorf("config.json missing persisted max_upload_size_mb:\n%s", data)
+	}
+
+	// Same "parse, only apply if positive" shape as server_port: a blank
+	// or zero submission must not silently zero out the limit (which
+	// would reject every upload).
+	rec = postConfig(t, a, url.Values{"max_upload_size_mb": {"0"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if got := a.GetConfig().MaxUploadSizeMB; got != 10 {
+		t.Errorf("MaxUploadSizeMB changed to %d on a zero submission, want unchanged 10", got)
 	}
 }

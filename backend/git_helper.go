@@ -130,6 +130,9 @@ assets_version
 *.html
 *.woff2
 *.woff
+/html/images/**
+!/html/images/**/
+!/html/images/**/*.svg
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
 /html/js/omn-go-sse.js

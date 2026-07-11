@@ -2,6 +2,7 @@ package backend
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,14 +27,15 @@ func (a *App) getConfigPageBody() string {
 	}
 
 	view := configPageView{
-		ServerPort:    cfg.ServerPort,
-		AdminPassword: cfg.AdminPassword,
-		GuestPassword: cfg.GuestPassword,
-		Author:        cfg.Author,
-		UseInternalEd: cfg.UseInternalEd,
-		DesktopExtCmd: cfg.DesktopExtCmd,
-		Theme:         cfg.Theme,
-		ShareLAN:      cfg.ShareLAN,
+		ServerPort:      cfg.ServerPort,
+		AdminPassword:   cfg.AdminPassword,
+		GuestPassword:   cfg.GuestPassword,
+		Author:          cfg.Author,
+		UseInternalEd:   cfg.UseInternalEd,
+		DesktopExtCmd:   cfg.DesktopExtCmd,
+		Theme:           cfg.Theme,
+		ShareLAN:        cfg.ShareLAN,
+		MaxUploadSizeMB: cfg.MaxUploadSizeMB,
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -86,6 +88,18 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			c.Author = r.FormValue("author")
 			c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
 			c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+			// Same "parse, only apply if positive" shape as server_port
+			// above: a blank/invalid/zero submission leaves the previous
+			// (or default) limit in place rather than silently zeroing out
+			// - and 0 would otherwise reject every upload, since
+			// saveUploadedFile treats maxBytes <= 0 as "unset" too.
+			if mbStr := r.FormValue("max_upload_size_mb"); mbStr != "" {
+				var mb int
+				fmt.Sscanf(mbStr, "%d", &mb)
+				if mb > 0 {
+					c.MaxUploadSizeMB = mb
+				}
+			}
 			// Whitelisted via normalizeTheme: anything but light/dark
 			// (including a missing field) becomes auto.
 			c.Theme = normalizeTheme(r.FormValue("theme"))
@@ -399,15 +413,41 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 // writeTreeFromDir recursively creates a sorted git tree object from the given directory.
 // It skips .git and .gitignore, and ensures entries are sorted by name.
 
+// imageUploadExtensions / jsonUploadExtensions whitelist what
+// saveUploadedFile will accept for handleUpload and handleUploadJSON
+// respectively - "only images and JSON accepted". Android's native
+// share-to-QuickNote handoff (MainActivity.java) enforces the same two
+// lists independently, since that path writes straight to disk rather
+// than going through these HTTP handlers; keep both in sync by hand if
+// either changes.
+var (
+	imageUploadExtensions = []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+	jsonUploadExtensions  = []string{".json"}
+)
+
+// uploadRejected marks a saveUploadedFile failure as caused by the
+// uploaded file itself (wrong type, too large) rather than a server-side
+// I/O problem, so handleUpload/handleUploadJSON can answer 400 instead of
+// 500 - the client sent something we won't accept, not something broke.
+type uploadRejected struct{ msg string }
+
+func (e *uploadRejected) Error() string { return e.msg }
+
 // saveUploadedFile does the shared work behind handleUpload and
 // handleUploadJSON: parse the multipart form, pull out the named file
-// field, and copy it into destDir/<original filename>. Every step that can
-// fail now actually reports failure to the caller instead of the previous
+// field, check it against allowedExt and maxBytes, and copy it into
+// destDir/<original filename>. Every step that can fail now actually
+// reports failure to the caller instead of the previous
 // os.Create(...)/io.Copy(...) with errors discarded via "_" - a full disk
 // or a permissions problem used to look identical to a successful upload
 // from the browser's point of view.
-func (a *App) saveUploadedFile(r *http.Request, formField, destDir string) (filename string, err error) {
-	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB
+//
+// allowedExt is matched case-insensitively against the uploaded file's
+// extension; an empty allowedExt skips the type check entirely. maxBytes
+// <= 0 skips the size check (used by tests that don't care about it -
+// real callers always pass a.maxUploadBytes(), which is never <= 0).
+func (a *App) saveUploadedFile(r *http.Request, formField, destDir string, allowedExt []string, maxBytes int64) (filename string, err error) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB in-memory threshold before spilling to temp files; NOT the size cap (see maxBytes below)
 		return "", fmt.Errorf("parse form: %w", err)
 	}
 	file, header, err := r.FormFile(formField)
@@ -415,6 +455,23 @@ func (a *App) saveUploadedFile(r *http.Request, formField, destDir string) (file
 		return "", fmt.Errorf("read upload: %w", err)
 	}
 	defer file.Close()
+
+	if len(allowedExt) > 0 {
+		ext := strings.ToLower(filepath.Ext(header.Filename))
+		allowed := false
+		for _, e := range allowedExt {
+			if ext == e {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return "", &uploadRejected{msg: fmt.Sprintf("file type %q is not allowed (allowed: %s)", ext, strings.Join(allowedExt, ", "))}
+		}
+	}
+	if maxBytes > 0 && header.Size > maxBytes {
+		return "", &uploadRejected{msg: fmt.Sprintf("file too large (%.2f MB, limit is %.2f MB)", float64(header.Size)/(1<<20), float64(maxBytes)/(1<<20))}
+	}
 
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return "", fmt.Errorf("create upload dir: %w", err)
@@ -433,12 +490,38 @@ func (a *App) saveUploadedFile(r *http.Request, formField, destDir string) (file
 	return header.Filename, nil
 }
 
+// maxUploadBytes converts the configured Config.MaxUploadSizeMB into
+// bytes for saveUploadedFile. Defensive fallback only: loadConfig always
+// normalizes MaxUploadSizeMB to defaultMaxUploadSizeMB or higher, so the
+// <= 0 branch below should never actually trigger in practice.
+func (a *App) maxUploadBytes() int64 {
+	mb := a.GetConfig().MaxUploadSizeMB
+	if mb <= 0 {
+		mb = defaultMaxUploadSizeMB
+	}
+	return int64(mb) * 1024 * 1024
+}
+
+// writeUploadError answers a saveUploadedFile failure with the right
+// status code: 400 (with the specific reason) for an uploadRejected -
+// bad type or too large, the client's fault - and a generic 500 for
+// anything else (disk full, permissions, ...), matching how the rest of
+// this file avoids leaking internal error detail to the response body.
+func writeUploadError(w http.ResponseWriter, logPrefix string, err error) {
+	var rejected *uploadRejected
+	if errors.As(err, &rejected) {
+		http.Error(w, rejected.msg, http.StatusBadRequest)
+		return
+	}
+	log.Printf("%s: %v", logPrefix, err)
+	http.Error(w, "Upload failed", http.StatusInternalServerError)
+}
+
 func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	imgDir := filepath.Join(a.StorageDir, "html", "images")
-	filename, err := a.saveUploadedFile(r, "image", imgDir)
+	filename, err := a.saveUploadedFile(r, "image", imgDir, imageUploadExtensions, a.maxUploadBytes())
 	if err != nil {
-		log.Printf("handleUpload: %v", err)
-		http.Error(w, "Upload failed", http.StatusInternalServerError)
+		writeUploadError(w, "handleUpload", err)
 		return
 	}
 	w.Write(fmt.Appendf(nil, "![%s](/images/%s)", filename, filename))
@@ -446,10 +529,9 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	jsonDir := filepath.Join(a.StorageDir, "html", "user_json")
-	filename, err := a.saveUploadedFile(r, "file", jsonDir)
+	filename, err := a.saveUploadedFile(r, "file", jsonDir, jsonUploadExtensions, a.maxUploadBytes())
 	if err != nil {
-		log.Printf("handleUploadJSON: %v", err)
-		http.Error(w, "Upload failed", http.StatusInternalServerError)
+		writeUploadError(w, "handleUploadJSON", err)
 		return
 	}
 	w.Write(fmt.Appendf(nil, "[%s](/user_json/%s)", filename, filename))
@@ -843,4 +925,3 @@ func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path stri
 
 	http.NotFound(w, r)
 }
-

@@ -40,6 +40,11 @@
             <label class="config-label">Desktop External Cmd</label>
             <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
         </div>
+        <div class="config-field">
+            <label class="config-label">Max Upload Size (MB)</label>
+            <input type="number" id="cfgMaxUploadMB" name="max_upload_size_mb" value="%%MAX_UPLOAD_MB%%" class="config-input" min="1" step="1" required />
+            <span class="config-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
+        </div>
 
         <h3>Git Servers</h3>
 %%GIT_SERVERS%%

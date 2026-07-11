@@ -46,24 +46,39 @@ type GitServerConfig struct {
 	Password   string `json:"password"`
 }
 
+// defaultMaxUploadSizeMB is the out-of-the-box cap on how large an
+// uploaded image or JSON file may be, in megabytes - enforced by
+// saveUploadedFile (backend/handlers.go) for both the editor's
+// drag-and-drop upload and Android's "share to OMN-Go" file handoff
+// (android/.../MainActivity.java, which reads this same value out of
+// config.json natively since that path never goes through the Go HTTP
+// server for the file write itself). Overridable per-install via the
+// Config page; see Config.MaxUploadSizeMB below.
+const defaultMaxUploadSizeMB = 3
+
 type Config struct {
-	ForcePullOneTime bool              `json:"force_pull_one_time"`
-	ServerPort       int               `json:"server_port"`
-	AdminPassword    string            `json:"admin_password"`
-	GuestPassword    string            `json:"guest_password"`
-	Author           string            `json:"author"`
-	UseInternalEd    bool              `json:"use_internal_editor"`
-	DesktopExtCmd    string            `json:"desktop_ext_cmd"`
-	Theme            string            `json:"theme"` // "auto" | "light" | "dark", see normalizeTheme
+	ForcePullOneTime bool   `json:"force_pull_one_time"`
+	ServerPort       int    `json:"server_port"`
+	AdminPassword    string `json:"admin_password"`
+	GuestPassword    string `json:"guest_password"`
+	Author           string `json:"author"`
+	UseInternalEd    bool   `json:"use_internal_editor"`
+	DesktopExtCmd    string `json:"desktop_ext_cmd"`
+	Theme            string `json:"theme"` // "auto" | "light" | "dark", see normalizeTheme
 	// ShareLAN controls the listen address: false (default) binds
 	// 127.0.0.1 so only this device can reach the server; true binds
 	// 0.0.0.0 so other devices on the network can connect (protected by
 	// the admin/guest passwords via authMiddleware). Changing it takes
 	// effect on the next application start - the socket is bound once.
-	ShareLAN         bool              `json:"share_lan"`
-	MimeTypes        map[string]string `json:"mime_types"`
-	ActiveGitIndex   int               `json:"active_git_index"`
-	GitServers       []GitServerConfig `json:"git_servers"`
+	ShareLAN       bool              `json:"share_lan"`
+	MimeTypes      map[string]string `json:"mime_types"`
+	ActiveGitIndex int               `json:"active_git_index"`
+	GitServers     []GitServerConfig `json:"git_servers"`
+	// MaxUploadSizeMB caps uploaded image/JSON file size (megabytes).
+	// Enforced in saveUploadedFile; see defaultMaxUploadSizeMB above for
+	// where the default and the Android-native duplicate of this value
+	// come from.
+	MaxUploadSizeMB int `json:"max_upload_size_mb"`
 }
 
 func (a *App) loadConfig(storageDir string) {
@@ -73,13 +88,14 @@ func (a *App) loadConfig(storageDir string) {
 	configPath := filepath.Join(a.StorageDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		a.Config = Config{
-			ServerPort:    8080,
-			AdminPassword: "admin_secret_changeme",
-			GuestPassword: "guest_secret_changeme",
-			Author:        "Anonymous",
-			UseInternalEd: true,
-			DesktopExtCmd: "subl",
-			Theme:         ThemeAuto,
+			ServerPort:      8080,
+			AdminPassword:   "admin_secret_changeme",
+			GuestPassword:   "guest_secret_changeme",
+			Author:          "Anonymous",
+			UseInternalEd:   true,
+			DesktopExtCmd:   "subl",
+			Theme:           ThemeAuto,
+			MaxUploadSizeMB: defaultMaxUploadSizeMB,
 			MimeTypes: map[string]string{
 				".css":   "text/css",
 				".js":    "application/javascript",
@@ -122,6 +138,14 @@ func (a *App) loadConfig(storageDir string) {
 	if a.Config.ServerPort == 0 {
 		a.Config.ServerPort = 8080
 	}
+	// Configs written before max_upload_size_mb existed (or one explicitly
+	// saved as 0/negative, which isn't a sane limit) fall back to the
+	// default here - same reasoning as the ServerPort fixup just above.
+	// Not persisted immediately: it'll be written out next time config.json
+	// is saved for any other reason, same as the theme normalization below.
+	if a.Config.MaxUploadSizeMB <= 0 {
+		a.Config.MaxUploadSizeMB = defaultMaxUploadSizeMB
+	}
 	// Configs written before the theme field existed carry "" here;
 	// normalize once at load so the rest of the code never sees an
 	// invalid value.
@@ -147,4 +171,3 @@ func (a *App) loadConfig(storageDir string) {
 	}
 
 }
-

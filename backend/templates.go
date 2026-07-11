@@ -214,15 +214,16 @@ type gitServerView struct {
 }
 
 type configPageView struct {
-	ServerPort    int
-	AdminPassword string
-	GuestPassword string
-	Author        string
-	UseInternalEd bool
-	DesktopExtCmd string
-	Theme         string // "auto" | "light" | "dark" (normalized)
-	ShareLAN      bool
-	GitServers    []gitServerView
+	ServerPort      int
+	AdminPassword   string
+	GuestPassword   string
+	Author          string
+	UseInternalEd   bool
+	DesktopExtCmd   string
+	Theme           string // "auto" | "light" | "dark" (normalized)
+	ShareLAN        bool
+	MaxUploadSizeMB int
+	GitServers      []gitServerView
 }
 
 func renderConfigPage(v configPageView) string {
@@ -279,6 +280,7 @@ func renderConfigPage(v configPageView) string {
 		"THEME_AUTO_SEL":      themeSel["THEME_AUTO_SEL"],
 		"THEME_LIGHT_SEL":     themeSel["THEME_LIGHT_SEL"],
 		"THEME_DARK_SEL":      themeSel["THEME_DARK_SEL"],
+		"MAX_UPLOAD_MB":       fmt.Sprintf("%d", v.MaxUploadSizeMB),
 		"GIT_SERVERS":         cards.String(),
 	})
 }

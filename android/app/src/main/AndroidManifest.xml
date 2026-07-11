@@ -89,6 +89,26 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!--
+              Shared images/JSON land in Quick Notes, not the editor - see
+              the block comment above MainActivity.handleSharedFile() for
+              why. Two filters (Android matches SEND by declared mime type,
+              not actual content) rather than one combined filter, mirroring
+              the text/plain filter above; only image/* and
+              application/json are advertised, matching the "only images
+              and JSON accepted" whitelist saveUploadedFile enforces
+              server-side (backend/handlers.go).
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
         </activity>
 
         <!--
