@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -123,6 +124,23 @@ func (fi *stableFileInfo) ModTime() time.Time {
 func (a *App) ensureGitignore() {
 	gitignorePath := filepath.Join(a.StorageDir, ".gitignore")
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
+	//
+	// NOTE: no "!/html/images/" or "!/html/images/icons/" re-inclusion
+	// line here (an earlier revision had them). Those would be needed
+	// with the real `git` CLI, whose directory-ignore pruning stops it
+	// from ever looking inside an ignored directory - the negation
+	// re-opens the door so the *.svg exception below still gets seen.
+	// This app never uses the `git` binary though: commitLocalChanges /
+	// syncPush check every individual file path from wTree.Status()
+	// directly against the gitignore matcher, so that traversal problem
+	// doesn't apply here. Verified against go-git's
+	// plumbing/format/gitignore matcher: a bare "!/html/images/"
+	// pattern's globMatch doesn't require the whole path to be consumed
+	// for a directory-only pattern unless the path stops exactly there,
+	// so it ends up matching (and re-including) every file anywhere
+	// under html/images/, not just the directory entry itself - silently
+	// undoing "/html/images/*" for every file in it, including a plain
+	// test PNG dropped there. Same issue applies to the icons/ subtree.
 	gitignoreBase := `# OMN-Go sync ignore
 config.json
 assets_version
@@ -131,10 +149,8 @@ assets_version
 *.woff2
 *.woff
 /html/images/*
-!/html/images/
 !/html/images/*.svg
 /html/images/icons/*
-!/html/images/icons/
 !/html/images/icons/*.svg
 /html/css/omn-go-core.css
 /html/js/omn-go-core.js
@@ -153,6 +169,28 @@ assets_version
 	if err != nil {
 		return
 	}
+
+	// Strip the two buggy directory re-inclusion lines from any
+	// .gitignore that already has them (fresh installs that got the
+	// buggy gitignoreBase, or existing ones patched by a previous
+	// version of the backfill loop below). These can't be handled by
+	// the "append what's missing" loop below - they're already PRESENT,
+	// just actively harmful - so they need to be filtered out and the
+	// file rewritten instead of appended to.
+	rewritten := false
+	if bytes.Contains(content, []byte("!/html/images/\n")) || bytes.Contains(content, []byte("!/html/images/icons/\n")) {
+		var kept []string
+		for _, line := range strings.Split(string(content), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "!/html/images/" || trimmed == "!/html/images/icons/" {
+				continue
+			}
+			kept = append(kept, line)
+		}
+		content = []byte(strings.Join(kept, "\n"))
+		rewritten = true
+	}
+
 	// The file already exists (every install predating a given entry):
 	// append entries that are missing rather than only handling the
 	// file-absent case. Without this, /db/ - binary SQLite files that
@@ -168,25 +206,27 @@ assets_version
 	// it has to be backfilled here too. Without it, any image dropped
 	// into html/images/ on a pre-existing install (e.g. a test PNG
 	// drag-and-dropped into the app) stays untracked-but-not-ignored and
-	// gets swept into the next commit instead of being skipped.
+	// gets swept into the next commit instead of being skipped. The
+	// "!/html/images/" / "!/html/images/icons/" lines are deliberately
+	// NOT in this list - see the buggy-line-stripping block above and
+	// the comment on gitignoreBase for why they must never be added back.
 	for _, entry := range []string{
 		"/db/", "/html/db_json/local-*", "/asset_backups/", "/assets_version",
-		"/html/images/*", "!/html/images/", "!/html/images/*.svg",
-		"/html/images/icons/*", "!/html/images/icons/", "!/html/images/icons/*.svg",
+		"/html/images/*", "!/html/images/*.svg",
+		"/html/images/icons/*", "!/html/images/icons/*.svg",
 	} {
 		if !strings.Contains(string(content), entry) {
-			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
-			if err != nil {
-				log.Printf("[sync] cannot update .gitignore: %v", err)
-				return
-			}
-			f.WriteString("\n" + entry + "\n")
-			f.Close()
+			content = append(content, []byte("\n"+entry+"\n")...)
 			appended = true
 		}
 	}
-	if appended {
-		log.Printf("[sync] Updated .gitignore with new entries")
+
+	if rewritten || appended {
+		if err := os.WriteFile(gitignorePath, content, 0644); err != nil {
+			log.Printf("[sync] cannot update .gitignore: %v", err)
+			return
+		}
+		log.Printf("[sync] Updated .gitignore (rewritten=%v, appended=%v)", rewritten, appended)
 	}
 }
 
