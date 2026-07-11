@@ -1,8 +1,28 @@
 /**
  * Version: 0.17a 2025-07-01 15:12:26
 **/
+/* This <link> is embedded directly in Bookmarks.md's rendered content
+   (see backend/frontend/md/Bookmarks.md), but a <link> still applies
+   globally once parsed, so "body" here means the whole app's <body> -
+   not just the bookmark widget. The light-mode "ivory" tint below used
+   to apply unconditionally, which left the page stuck on a near-white
+   background under data-theme="dark" (or "auto" with a dark OS/browser)
+   while #preview's text still switched to the light --text color from
+   omn-go-core.css - i.e. light text on a light background. The overrides
+   below mirror the exact dark/auto selector pattern omn-go-core.css uses
+   for its own tokens, so this follows the same theme instead of fighting
+   it. */
 body {
   background-color: ivory;
+}
+:root[data-theme="dark"] body {
+  background-color: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) body,
+  :root[data-theme="auto"] body {
+    background-color: var(--bg);
+  }
 }
 div#searchBox {
   width: 95%;
@@ -47,7 +67,7 @@ div#preview button.details {
 }
 span#counter {
   cursor:pointer;
-  color:blue;
+  color: var(--accent, blue);
   text-decoration:underline;
 }
 span.spanDate {
