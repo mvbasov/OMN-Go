@@ -162,7 +162,18 @@ assets_version
 	// /asset_backups/ and /assets_version belong to the version-stamped
 	// asset refresh (assets.go): both are per-installation state, never
 	// content to sync.
-	for _, entry := range []string{"/db/", "/html/db_json/local-*", "/asset_backups/", "/assets_version"} {
+	//
+	// The /html/images/* block was added after gitignoreBase already
+	// shipped to existing installs, so - same reasoning as /db/ above -
+	// it has to be backfilled here too. Without it, any image dropped
+	// into html/images/ on a pre-existing install (e.g. a test PNG
+	// drag-and-dropped into the app) stays untracked-but-not-ignored and
+	// gets swept into the next commit instead of being skipped.
+	for _, entry := range []string{
+		"/db/", "/html/db_json/local-*", "/asset_backups/", "/assets_version",
+		"/html/images/*", "!/html/images/", "!/html/images/*.svg",
+		"/html/images/icons/*", "!/html/images/icons/", "!/html/images/icons/*.svg",
+	} {
 		if !strings.Contains(string(content), entry) {
 			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
@@ -207,6 +218,14 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 		log.Printf("[sync] Repo initialized")
 	} else {
 		log.Printf("[sync] Repo opened successfully")
+		// Backfill any .gitignore entries added to gitignoreBase after this
+		// repo was first created (see the appended-entries loop in
+		// ensureGitignore). Previously this only ran again on Android, via
+		// syncPullForce - every other platform's already-existing repos
+		// never got new patterns like /html/images/* applied, so files
+		// meant to be ignored (e.g. a test image dropped into the app)
+		// kept getting swept into commits on desktop installs.
+		a.ensureGitignore()
 	}
 
 	// Remote setup/selection happens separately, in
