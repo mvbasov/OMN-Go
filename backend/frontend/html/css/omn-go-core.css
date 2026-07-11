@@ -515,6 +515,42 @@ a.taglink {
     border: 1px solid var(--border);
 }
 
+/* -- Bookmark "Tags" autocomplete (see initBookmarkTagAutocomplete in
+   omn-go-core.js). The wrapper takes over the margin-bottom that
+   ".panel input" normally provides, so #bmTags itself is zeroed out -
+   otherwise the gap would be doubled. -- */
+.panel .tag-input-wrap {
+    position: relative;
+    margin-bottom: 10px;
+}
+.panel .tag-input-wrap input {
+    margin-bottom: 0;
+}
+.tag-suggestions {
+    position: absolute;
+    left: 0; right: 0; top: 100%;
+    margin: 2px 0 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    box-shadow: 0 4px 6px var(--shadow);
+    z-index: 60;
+}
+.tag-suggestion-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 13px;
+}
+.tag-suggestion-item:hover,
+.tag-suggestion-item.active {
+    background: var(--bg-hover);
+}
+
 /* -- Header action button accents --
    Semantic colors stay identical in both themes; !important preserved
    from the pre-token version to keep specificity behavior unchanged. */

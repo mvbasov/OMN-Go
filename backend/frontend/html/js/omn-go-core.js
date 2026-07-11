@@ -374,7 +374,7 @@ if (typeof currentNote === 'undefined') {
                             document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
                         }
                     }
-                    document.getElementById('bmPanel').classList.remove('hidden');
+                    window.showBookmarkPanel();
                 }
             });
         });
@@ -412,7 +412,7 @@ if (typeof currentNote === 'undefined') {
                 if (!title) title = "Shared Link";
 
                 document.getElementById('bmTitle').value = title;
-                document.getElementById('bmPanel').classList.remove('hidden');
+                window.showBookmarkPanel();
                 document.getElementById('quickPanel').classList.add('hidden');
             } else {
                 // No URL -> Route to Quick Note Panel
@@ -523,6 +523,185 @@ document.addEventListener("DOMContentLoaded", () => {
         panel.innerHTML = metaHtml;
     }
 });
+
+// --- Bookmark "Tags" autocomplete ---
+// Suggests existing tags while typing into the Ingest Bookmark modal's
+// #bmTags field. Tags are typed comma-separated ("work, recipe, ita|" -
+// the "|" marks the caret); suggestions are computed against only the
+// fragment after the last comma, and are only shown once that fragment
+// reaches #bmTags's minChars attribute (default 2, set in index.html).
+// Picking a suggestion completes the fragment and appends ", " so the
+// next tag can be typed right away.
+//
+// This is plain same-origin UI sugar, not a "server extension" - unlike
+// the sync/login/etc. calls in omn-go-sse.js it doesn't need a protocol
+// guard: a failed fetch (e.g. the page opened offline) is treated as "no
+// suggestions" rather than an error, so the field still works as a plain
+// comma-separated text input either way.
+//
+// Both the DOM wiring and the tag-list fetch are deliberately lazy: they
+// only run the first time the Ingest Bookmark modal is actually opened,
+// not on every page load (most page views never touch this panel).
+// window.showBookmarkPanel()/toggleBookmarkPanel() below are the only
+// places that reveal #bmPanel - the header's "add bookmark" button, the
+// URL drag-and-drop handler, and window.handleShare all go through one of
+// them now instead of poking #bmPanel's classList directly - so "the
+// modal is opening" is caught in exactly one place.
+(function () {
+    var tagsCache = null;    // null until prepared; array once loaded (even if empty)
+    var tagsPromise = null;  // in-flight fetch, if any
+    var wired = false;       // #bmTags/#bmTagsSuggestions listeners attached only once
+
+    // Fetches /json/bookmarker-tags.json at most once per page. Safe to
+    // call every time the modal opens: if the list is already prepared
+    // (tagsCache set) or already loading (tagsPromise set) this reuses
+    // that instead of firing a second request.
+    function ensureTagsLoaded() {
+        if (tagsCache) return Promise.resolve(tagsCache);
+        if (tagsPromise) return tagsPromise;
+        tagsPromise = fetch('/json/bookmarker-tags.json', { cache: 'no-store' })
+            .then(function (res) { return res.ok ? res.json() : []; })
+            .then(function (data) { return (tagsCache = Array.isArray(data) ? data : []); })
+            .catch(function () { return (tagsCache = []); });
+        return tagsPromise;
+    }
+
+    // "foo, bar, ba" -> { done: ["foo", "bar"], fragment: "ba" }
+    function splitTags(value) {
+        var parts = value.split(',');
+        var fragment = parts.pop();
+        var done = parts.map(function (s) { return s.trim(); }).filter(Boolean);
+        return { done: done, fragment: fragment.replace(/^\s+/, '') };
+    }
+
+    // Attaches the input/keydown/click listeners to #bmTags exactly once.
+    // Called from showBookmarkPanel()/toggleBookmarkPanel() every time the
+    // modal opens; the `wired` guard makes repeat calls no-ops so reopening
+    // the panel never double-attaches listeners.
+    function wireBookmarkTagAutocomplete() {
+        if (wired) return;
+        var input = document.getElementById('bmTags');
+        var list = document.getElementById('bmTagsSuggestions');
+        if (!input || !list) return;
+        wired = true;
+
+        var minChars = parseInt(input.getAttribute('minChars'), 10);
+        if (!minChars || minChars < 1) minChars = 2;
+
+        var activeIndex = -1;
+
+        function hide() {
+            list.innerHTML = '';
+            list.classList.add('hidden');
+            activeIndex = -1;
+        }
+
+        function setActive(idx) {
+            var items = list.querySelectorAll('.tag-suggestion-item');
+            items.forEach(function (it, i) { it.classList.toggle('active', i === idx); });
+            activeIndex = idx;
+        }
+
+        function pick(tag) {
+            var split = splitTags(input.value);
+            var used = split.done.concat([tag]);
+            // Rebuilding from scratch (rather than splicing) keeps this
+            // correct even if the fragment was picked mid-string; the
+            // trailing ", " primes the field for the next tag.
+            input.value = used.join(', ') + ', ';
+            hide();
+            input.focus();
+            var end = input.value.length;
+            input.setSelectionRange(end, end);
+        }
+
+        function render(matches) {
+            list.innerHTML = '';
+            if (!matches.length) { hide(); return; }
+            matches.forEach(function (tag) {
+                var li = document.createElement('li');
+                li.textContent = tag;
+                li.className = 'tag-suggestion-item';
+                // mousedown (not click) fires before #bmTags's blur, so
+                // the pick survives the input losing focus.
+                li.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    pick(tag);
+                });
+                list.appendChild(li);
+            });
+            activeIndex = -1;
+            list.classList.remove('hidden');
+        }
+
+        function update() {
+            var split = splitTags(input.value);
+            var fragment = split.fragment;
+            if (fragment.length < minChars) { hide(); return; }
+            ensureTagsLoaded().then(function (tags) {
+                // The field may have moved on while this fetch/cache
+                // lookup was pending - drop a stale response.
+                if (splitTags(input.value).fragment !== fragment) return;
+                var lower = fragment.toLowerCase();
+                var used = split.done.map(function (t) { return t.toLowerCase(); });
+                var matches = tags.filter(function (t) {
+                    return typeof t === 'string' &&
+                        t.toLowerCase().indexOf(lower) === 0 &&
+                        used.indexOf(t.toLowerCase()) === -1;
+                }).slice(0, 20);
+                render(matches);
+            });
+        }
+
+        input.addEventListener('input', update);
+        input.addEventListener('focus', update);
+
+        input.addEventListener('keydown', function (e) {
+            var items = list.querySelectorAll('.tag-suggestion-item');
+            if (list.classList.contains('hidden') || !items.length) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActive((activeIndex + 1) % items.length);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActive((activeIndex - 1 + items.length) % items.length);
+            } else if (e.key === 'Enter' && activeIndex >= 0) {
+                e.preventDefault();
+                pick(items[activeIndex].textContent);
+            } else if (e.key === 'Escape') {
+                hide();
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            if (e.target !== input && !list.contains(e.target)) hide();
+        });
+    }
+
+    // Unconditionally shows #bmPanel (used by drag-and-drop and
+    // handleShare, which only ever want it open, never toggled).
+    window.showBookmarkPanel = function () {
+        var panel = document.getElementById('bmPanel');
+        if (!panel) return;
+        panel.classList.remove('hidden');
+        wireBookmarkTagAutocomplete();
+        ensureTagsLoaded();
+    };
+
+    // Toggles #bmPanel (used by the header's "add bookmark" button, which
+    // both opens and closes it). Only prepares the autocomplete on the
+    // transition into "visible" - closing the panel does nothing extra.
+    window.toggleBookmarkPanel = function () {
+        var panel = document.getElementById('bmPanel');
+        if (!panel) return;
+        var opening = panel.classList.contains('hidden');
+        panel.classList.toggle('hidden');
+        if (opening) {
+            wireBookmarkTagAutocomplete();
+            ensureTagsLoaded();
+        }
+    };
+})();
 
 window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
