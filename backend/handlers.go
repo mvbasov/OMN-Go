@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"mime"
@@ -524,7 +525,15 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeUploadError(w, "handleUpload", err)
 		return
 	}
-	w.Write(fmt.Appendf(nil, "![%s](/images/%s)", filename, filename))
+	// HTML rather than markdown image syntax: the goldmark renderer runs
+	// with html.WithUnsafe() (see markdown.go), so raw HTML passes through
+	// untouched, and only this form lets us attach a class - plain markdown
+	// image syntax has no attribute syntax in the GFM-only dialect this app
+	// renders with. .omn-imported-image (omn-go-core.css) is what actually
+	// gives dropped images a sane default width instead of rendering at
+	// full native resolution.
+	escaped := html.EscapeString(filename)
+	w.Write(fmt.Appendf(nil, `\n<img src="/images/%s" alt="%s" class="omn-imported-image" />\n`, escaped, escaped))
 }
 
 func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
@@ -534,7 +543,7 @@ func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 		writeUploadError(w, "handleUploadJSON", err)
 		return
 	}
-	w.Write(fmt.Appendf(nil, "[%s](/user_json/%s)", filename, filename))
+	w.Write(fmt.Appendf(nil, "\n[%s](/user_json/%s)\n", filename, filename))
 }
 
 func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {

@@ -882,6 +882,12 @@ a.taglink {
     margin: 0 3px;
 }
 
+/* -- Imported/dropped images -- */
+.omn-imported-image {
+    max-width: 85vw;
+    padding-left: 5vw;
+}
+
 /* ==========================================================================
    11. Utilities & legacy compatibility
    ========================================================================== */
