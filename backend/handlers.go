@@ -532,8 +532,13 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// renders with. .omn-imported-image (omn-go-core.css) is what actually
 	// gives dropped images a sane default width instead of rendering at
 	// full native resolution.
+	// NOTE: this must be a normal double-quoted string, not a backtick raw
+	// string - backticks don't interpret \n as an escape at all, so it was
+	// literally inserting the two characters "\" and "n" into the note
+	// instead of a newline (compare handleUploadJSON right below, which
+	// already gets this right).
 	escaped := html.EscapeString(filename)
-	w.Write(fmt.Appendf(nil, `\n<img src="/images/%s" alt="%s" class="omn-imported-image" />\n`, escaped, escaped))
+	w.Write(fmt.Appendf(nil, "\n<img src=\"/images/%s\" alt=\"%s\" class=\"omn-imported-image\" />\n", escaped, escaped))
 }
 
 func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {

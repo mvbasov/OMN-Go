@@ -244,7 +244,8 @@ public class MainActivity extends Activity {
             public void run() {
                 String startUrl = MainActivity.this.serverBase() + "/Welcome.html";
                 android.content.Intent intent = getIntent();
-                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
+                        && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
                     String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
                     startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") +
@@ -292,7 +293,8 @@ public class MainActivity extends Activity {
     protected void onNewIntent(android.content.Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
+                && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
             String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
             String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
             if (webView != null) {
@@ -361,10 +363,44 @@ public class MainActivity extends Activity {
     // ACTION_SEND_MULTIPLE) - matching the scope of the existing
     // text/plain share handling above.
 
+    // JSON extensions this app accepts via share - kept in sync with
+    // jsonUploadExtensions in backend/handlers.go (there's only one, but
+    // written as a set for parallelism with the image list below and in
+    // case that ever changes).
+    private static final java.util.Set<String> SHARED_JSON_EXT =
+        new java.util.HashSet<>(java.util.Arrays.asList(".json"));
+    private static final java.util.Set<String> SHARED_IMAGE_EXT =
+        new java.util.HashSet<>(java.util.Arrays.asList(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"));
+
     private boolean isSharedFileIntent(android.content.Intent intent) {
         if (!android.content.Intent.ACTION_SEND.equals(intent.getAction())) return false;
+        android.net.Uri stream = intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM);
+        if (stream == null) return false;
         String type = intent.getType();
-        return type != null && (type.startsWith("image/") || "application/json".equals(type));
+        if (type != null && (type.startsWith("image/") || "application/json".equals(type))) {
+            return true;
+        }
+        // Many senders (file managers, chat apps, "Files") hand a JSON (or
+        // occasionally an image) share over with a generic/wrong MIME type
+        // - application/octet-stream, text/plain, or no type at all -
+        // rather than "application/json" or "image/*". That's exactly why
+        // JSON sharing "did nothing" in practice: the type check above
+        // never matched, so isSharedFileIntent returned false and the
+        // whole share was silently dropped, even though the file itself
+        // was perfectly fine. Fall back to sniffing the shared file's own
+        // display name/extension instead of trusting the declared type.
+        String name = queryDisplayName(stream);
+        if (name != null) {
+            String lower = name.toLowerCase(java.util.Locale.ROOT);
+            int dot = lower.lastIndexOf('.');
+            if (dot >= 0) {
+                String ext = lower.substring(dot);
+                if (SHARED_JSON_EXT.contains(ext) || SHARED_IMAGE_EXT.contains(ext)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void handleSharedFile(final android.net.Uri uri, final String mimeType) {
