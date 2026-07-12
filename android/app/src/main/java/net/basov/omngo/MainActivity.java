@@ -350,9 +350,10 @@ public class MainActivity extends Activity {
     //      own drag-and-drop upload (see backend/handlers.go). Keep the
     //      whitelist here in sync with imageUploadExtensions /
     //      jsonUploadExtensions there if either changes.
-    //   2. Build the same markdown snippet format those Go handlers
-    //      return (![name](/images/name) for images, [name](/user_json/name)
-    //      for JSON) and POST it as a Quick Note via the existing
+    //   2. Build the same snippet format those Go handlers return (an
+    //      HTML <img class="omn-imported-image"> tag for images,
+    //      [name](/user_json/name) markdown link syntax for JSON) and
+    //      POST it as a Quick Note via the existing
     //      /api/quick endpoint - reusing the server's QuickNotes.md
     //      append/compile logic (handleQuickNote) rather than duplicating
     //      it here. Loopback requests bypass authMiddleware entirely (see
@@ -437,11 +438,29 @@ public class MainActivity extends Activity {
                         return;
                     }
 
-                    // Same markdown format as handleUpload/handleUploadJSON
-                    // in backend/handlers.go.
-                    String snippet = isJson
-                        ? "[" + filename + "](/user_json/" + filename + ")"
-                        : "![" + filename + "](/images/" + filename + ")";
+                    // Same format handleUpload/handleUploadJSON in
+                    // backend/handlers.go produce - keep these in sync by
+                    // hand if either changes. Images went from markdown
+                    // image syntax to an HTML <img> tag (with the
+                    // .omn-imported-image class - see omn-go-core.css) so
+                    // dropped images get a sane default size instead of
+                    // rendering at full native resolution; this native
+                    // share path builds its own snippet independently of
+                    // the Go server (see the block comment above) and was
+                    // still emitting the old markdown form here, so images
+                    // shared into a fresh Android install rendered without
+                    // the class desktop drag-and-drop already got. JSON
+                    // stays markdown link syntax, now with the same
+                    // leading/trailing newline handleUploadJSON already
+                    // wraps it in, so a shared file lands on its own line.
+                    String snippet;
+                    if (isJson) {
+                        snippet = "\n[" + filename + "](/user_json/" + filename + ")\n";
+                    } else {
+                        String escapedName = android.text.Html.escapeHtml(filename);
+                        snippet = "\n<img src=\"/images/" + escapedName + "\" alt=\"" + escapedName
+                            + "\" class=\"omn-imported-image\" />\n";
+                    }
 
                     postQuickNoteWithRetry(snippet);
                     showToast(isJson ? "JSON file added to Quick Notes" : "Image added to Quick Notes");
