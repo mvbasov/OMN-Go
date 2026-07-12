@@ -492,12 +492,30 @@
         setDot('clean');
         renderGutter();
         // Land on the error line if we arrived from a console error,
-        // otherwise put the caret at the end to continue the note.
+        // otherwise put the caret right after the Pelican-style header
+        // (Title:/Date:/... - see ensureHeaderModified in
+        // backend/markdown.go, which every note gets) so opening a note
+        // drops you straight into its body instead of scrolled all the
+        // way down to the end of the file.
         if (!jumpToTarget()) {
             ta.focus();
-            var len = ta.value.length;
-            ta.setSelectionRange(len, len);
+            var pos = firstLineAfterHeader(ta.value);
+            ta.setSelectionRange(pos, pos);
+            scrollToOffset(pos);
         }
+    }
+
+    // Returns the character offset of the first line after the note's
+    // Pelican-style metadata header, i.e. right after the header's
+    // terminating blank line - same "first blank line" rule
+    // handleQuickNote (backend/handlers.go) and ensureHeaderModified
+    // (backend/markdown.go) both use to find the end of that header.
+    // Falls back to the end of the file when no blank line exists at all
+    // (e.g. a one-line file with no header), matching the previous
+    // "caret at end" behavior for that edge case.
+    function firstLineAfterHeader(text) {
+        var m = /\r?\n\r?\n/.exec(text);
+        return m ? m.index + m[0].length : text.length;
     }
 
     async function save(thenView) {
