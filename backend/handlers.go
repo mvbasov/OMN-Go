@@ -215,6 +215,31 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+// resolveAndroidEditName computes the name handed to the omngo://edit
+// intent that MainActivity.shouldOverrideUrlLoading intercepts on Android.
+// That Java code picks md/ vs html/ purely by checking whether the name it
+// receives ends in ".md" - but the incoming name here is whatever URL the
+// user was viewing (e.g. "Welcome.html" for a markdown-backed page's
+// rendered view), not necessarily the actual editable source file. Passing
+// that raw name through used to make Android fall into the html/ branch
+// for every ordinary note and open the compiled HTML cache instead of the
+// markdown source. Normalize it here instead: baseName + ".md" for a real
+// page, or the original name unchanged for a genuine non-page asset
+// (isPage is false there, and baseName is just name itself - see
+// resolvePageName). Desktop's handleEditExternal never had this bug
+// because it already resolves isPage/baseName before picking filePath;
+// this is exactly that same resolution, reused for Android's redirect.
+//
+// Extracted as its own pure function (no runtime.GOOS check inside) so it
+// can be unit-tested directly - runtime.GOOS is a compile-time constant
+// and can't be faked in a test running on a non-Android build.
+func resolveAndroidEditName(name, baseName string, isPage bool) string {
+	if isPage {
+		return baseName + ".md"
+	}
+	return name
+}
+
 func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -229,24 +254,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if runtime.GOOS == "android" {
-		// The incoming name is whatever URL the user was viewing (e.g.
-		// "Welcome.html" for a markdown-backed page's rendered view), not
-		// necessarily the actual editable source file. MainActivity's
-		// shouldOverrideUrlLoading, which intercepts this omngo://edit
-		// redirect, picks md/ vs html/ purely by checking whether the name
-		// it's given ends in ".md" - so passing the raw, unresolved name
-		// through here made it fall into the html/ branch for every
-		// ordinary note and open the compiled HTML cache instead of the
-		// markdown source (desktop never had this bug because the code
-		// below already resolves isPage/baseName before picking filePath).
-		// Send the same resolved name normalized here instead: baseName +
-		// ".md" for a real page, or the original name unchanged for a
-		// genuine non-page asset (isPage is false there, and baseName is
-		// just name itself - see resolvePageName).
-		editName := name
-		if isPage {
-			editName = baseName + ".md"
-		}
+		editName := resolveAndroidEditName(name, baseName, isPage)
 		w.Header().Set("Location", "omngo://edit?name="+url.QueryEscape(editName))
 		w.WriteHeader(http.StatusSeeOther)
 		return

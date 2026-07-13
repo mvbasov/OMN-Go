@@ -381,3 +381,65 @@ func TestHandleConfigSavesMaxUploadSizeMB(t *testing.T) {
 		t.Errorf("MaxUploadSizeMB changed to %d on a zero submission, want unchanged 10", got)
 	}
 }
+
+// TestResolveAndroidEditName covers the bug where Android's external-editor
+// handoff opened the compiled .html cache instead of the .md source: it
+// picked md/ vs html/ purely by checking whether the name it was handed
+// ended in ".md", but the name reaching handleEditExternal is whatever URL
+// was being viewed (often "Name.html"), not necessarily the real source
+// file. resolveAndroidEditName is the fix, normalizing that name before
+// it's ever sent to the Android client.
+func TestResolveAndroidEditName(t *testing.T) {
+	tests := []struct {
+		name         string
+		reqName      string // what handleEditExternal received as ?name=
+		baseName     string // resolvePageName's baseName for reqName
+		isPage       bool   // resolvePageName's isPage for reqName
+		wantEditName string
+	}{
+		{"page requested via its rendered view URL", "Welcome.html", "Welcome", true, "Welcome.md"},
+		{"page requested by bare name", "Welcome", "Welcome", true, "Welcome.md"},
+		{"page already given as .md", "Welcome.md", "Welcome", true, "Welcome.md"},
+		{"nested page via view URL", "dir/Note.html", "dir/Note", true, "dir/Note.md"},
+		{"non-page asset is left untouched", "omn-go-editor.js", "omn-go-editor.js", false, "omn-go-editor.js"},
+		{"non-page asset in a subdirectory", "css/omn-go-core.css", "css/omn-go-core.css", false, "css/omn-go-core.css"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveAndroidEditName(tt.reqName, tt.baseName, tt.isPage)
+			if got != tt.wantEditName {
+				t.Errorf("resolveAndroidEditName(%q, %q, %v) = %q, want %q",
+					tt.reqName, tt.baseName, tt.isPage, got, tt.wantEditName)
+			}
+		})
+	}
+}
+
+// TestResolveAndroidEditNameAgreesWithResolvePageName drives
+// resolveAndroidEditName off the SAME a.resolvePageName call
+// handleEditExternal itself makes, rather than hand-picked baseName/isPage
+// values - so it exercises the actual integration, not just the pure
+// function in isolation. All three spellings a real request could arrive
+// with ("Welcome", "Welcome.md", "Welcome.html" - see
+// TestResolvePageNameEquivalence in paths_test.go) must normalize to the
+// one correct Android edit name, "Welcome.md".
+func TestResolveAndroidEditNameAgreesWithResolvePageName(t *testing.T) {
+	a := &App{StorageDir: "/store"}
+
+	for _, spelling := range []string{"Welcome", "Welcome.md", "Welcome.html"} {
+		t.Run(spelling, func(t *testing.T) {
+			_, _, baseName, isPage := a.resolvePageName(spelling)
+			got := resolveAndroidEditName(spelling, baseName, isPage)
+			if got != "Welcome.md" {
+				t.Errorf("resolveAndroidEditName for %q = %q, want %q", spelling, got, "Welcome.md")
+			}
+		})
+	}
+
+	// A genuine static asset must come back unchanged, not have ".md"
+	// appended - it was never a markdown-backed page to begin with.
+	_, _, baseName, isPage := a.resolvePageName("omn-go-editor.js")
+	if got := resolveAndroidEditName("omn-go-editor.js", baseName, isPage); got != "omn-go-editor.js" {
+		t.Errorf("resolveAndroidEditName for static asset = %q, want unchanged %q", got, "omn-go-editor.js")
+	}
+}
