@@ -397,10 +397,16 @@ if (typeof currentNote === 'undefined') {
         // the omngo://edit precedent) to pin a home-screen shortcut to the
         // current note. Only reachable via the .android-only button, which
         // applyPlatformUI() only reveals when running inside the Android
-        // app - there is no equivalent on desktop.
+        // app - there is no equivalent on desktop. "name" (the on-disk page
+        // name) is what MainActivity needs to reopen the right note; "title"
+        // (the note's Title: header, already exposed as the global `Title`
+        // var - see index.html) is only for the shortcut's on-screen label,
+        // so a shortcut reads e.g. "Grocery List" instead of "note-42".
         window.createNoteShortcut = function() {
             if (typeof currentNote === 'undefined' || !currentNote) return;
-            window.location.href = 'omngo://shortcut?name=' + encodeURIComponent(currentNote);
+            var label = (typeof Title !== 'undefined' && Title) ? Title : currentNote;
+            window.location.href = 'omngo://shortcut?name=' + encodeURIComponent(currentNote) +
+                '&title=' + encodeURIComponent(label);
         };
 
         function checkRole() {

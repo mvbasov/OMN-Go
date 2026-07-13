@@ -157,12 +157,21 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url != null && url.startsWith("omngo://shortcut")) {
                     try {
-                        String name = url.substring(url.indexOf("?name=") + 6);
-                        if (name.contains("&")) {
-                            name = name.split("&")[0];
+                        String query = url.substring(url.indexOf('?') + 1);
+                        String name = null;
+                        String title = null;
+                        for (String param : query.split("&")) {
+                            int eq = param.indexOf('=');
+                            if (eq < 0) continue;
+                            String key = param.substring(0, eq);
+                            String value = android.net.Uri.decode(param.substring(eq + 1));
+                            if ("name".equals(key)) {
+                                name = value;
+                            } else if ("title".equals(key)) {
+                                title = value;
+                            }
                         }
-                        name = android.net.Uri.decode(name);
-                        MainActivity.this.createNoteShortcut(name);
+                        MainActivity.this.createNoteShortcut(name, title);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -654,16 +663,18 @@ public class MainActivity extends Activity {
     // https://stackoverflow.com/a/16873257) - covers API 24-25, where
     // ShortcutManager.requestPinShortcut doesn't exist yet.
     //
-    // ic_launcher_shortcut_foreground.xml (res/drawable) is a self-contained
-    // adaptive-icon-style vector - it already draws its own white "card"
-    // background plus the note glyph, unlike the app's own
-    // ic_launcher_foreground/background pair which rely on the OS to
-    // composite two separate layers - so it's rendered to a single bitmap
-    // and handed to the launcher as one icon.
-    private void createNoteShortcut(final String name) {
+    // The shortcut icon is composited the same way the app's own launcher
+    // icon is (see res/mipmap-anydpi-v26/ic_launcher.xml): the shared
+    // ic_launcher_background painted first, then ic_launcher_shortcut_foreground
+    // drawn on top - rather than the shortcut foreground alone, which left
+    // pinned shortcuts looking like a plain white card instead of matching
+    // the app's actual icon.
+    private void createNoteShortcut(final String name, final String title) {
         if (name == null || name.isEmpty()) return;
+        String label = (title != null && !title.isEmpty()) ? title : name;
 
-        android.graphics.Bitmap icon = renderDrawableToBitmap(R.drawable.ic_launcher_shortcut_foreground);
+        android.graphics.Bitmap icon = renderDrawableToBitmap(
+            R.drawable.ic_launcher_background, R.drawable.ic_launcher_shortcut_foreground);
 
         android.content.Intent shortcutIntent = new android.content.Intent(this, MainActivity.class);
         shortcutIntent.setAction(android.content.Intent.ACTION_VIEW);
@@ -693,8 +704,8 @@ public class MainActivity extends Activity {
             String shortcutId = "note_" + name;
             android.content.pm.ShortcutInfo shortcut =
                 new android.content.pm.ShortcutInfo.Builder(this, shortcutId)
-                    .setShortLabel(name)
-                    .setLongLabel("Open \"" + name + "\" in OMN-Go")
+                    .setShortLabel(label)
+                    .setLongLabel("Open \"" + label + "\" in OMN-Go")
                     .setIcon(shortcutIcon)
                     .setIntent(shortcutIntent)
                     .build();
@@ -708,7 +719,7 @@ public class MainActivity extends Activity {
             // launchers that don't check it.
             android.content.Intent installIntent = new android.content.Intent();
             installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
-            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_NAME, name);
+            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_NAME, label);
             if (icon != null) {
                 installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON, icon);
             } else {
@@ -721,21 +732,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Rasterizes a drawable resource (vector or otherwise) to a square
-    // bitmap sized for an adaptive icon (108dp, matching
-    // ic_launcher_shortcut_foreground.xml's declared width/height).
+    // Rasterizes one or more drawable resources (vector or otherwise) onto a
+    // single square bitmap sized for an adaptive icon (108dp, matching both
+    // ic_launcher_background.xml and ic_launcher_shortcut_foreground.xml's
+    // declared width/height), painting them in the given order so later
+    // resIds layer on top of earlier ones - same layering the OS itself does
+    // for the app's own launcher icon (background then foreground). Returns
+    // null (falls back to the plain app icon) if any layer fails to resolve,
+    // rather than pinning a shortcut with only some of its layers drawn.
     // getDrawable(int) is a plain Context method (API 21+) - no compat
     // library needed to resolve a vector drawable resource.
-    private android.graphics.Bitmap renderDrawableToBitmap(int resId) {
+    private android.graphics.Bitmap renderDrawableToBitmap(int... resIds) {
         try {
-            android.graphics.drawable.Drawable drawable = getDrawable(resId);
-            if (drawable == null) return null;
             int size = Math.round(108 * getResources().getDisplayMetrics().density);
             android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
                 size, size, android.graphics.Bitmap.Config.ARGB_8888);
             android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            drawable.draw(canvas);
+            for (int resId : resIds) {
+                android.graphics.drawable.Drawable drawable = getDrawable(resId);
+                if (drawable == null) return null;
+                drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                drawable.draw(canvas);
+            }
             return bitmap;
         } catch (Exception e) {
             e.printStackTrace();
