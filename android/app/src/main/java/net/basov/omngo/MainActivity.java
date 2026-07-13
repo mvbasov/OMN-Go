@@ -47,6 +47,18 @@ public class MainActivity extends Activity {
     private static final String EXTRA_SHORTCUT_PINNED_LABEL = "label";
     private android.content.BroadcastReceiver shortcutPinnedReceiver;
 
+    // True when intent was launched via the QuickNoteAlias activity-alias
+    // (the second "OMN-Go Quick Note" app-drawer icon - see the manifest)
+    // rather than the normal MainActivity launcher entry. Android resolves
+    // the alias to MainActivity to actually run it, but leaves the
+    // ORIGINAL alias component name on the Intent the activity receives -
+    // it does not rewrite getComponent() to MainActivity's own name - which
+    // is what makes the two entry points distinguishable here at all.
+    private boolean isQuickNoteAliasLaunch(android.content.Intent intent) {
+        return intent != null && intent.getComponent() != null
+            && intent.getComponent().getClassName().endsWith(".QuickNoteAlias");
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -302,6 +314,15 @@ public class MainActivity extends Activity {
                     // Tapped a pinned shortcut (see createNoteShortcut()) -
                     // go straight to that note instead of Welcome.html.
                     startUrl = MainActivity.this.serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html";
+                } else if (isQuickNoteAliasLaunch(intent)) {
+                    // Tapped the second "OMN-Go Quick Note" app-drawer icon
+                    // (see the QuickNoteAlias activity-alias in the
+                    // manifest) - still loads Welcome.html so the app has a
+                    // normal page underneath, but with a query flag
+                    // omn-go-core.js's load handler uses to pop the Quick
+                    // Note panel open immediately, same as the share_text/
+                    // share_subject flags below do for shared text.
+                    startUrl += "?quicknote=1";
                 } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                         && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
@@ -357,6 +378,21 @@ public class MainActivity extends Activity {
             // was tapped - jump the existing WebView straight to that note.
             if (webView != null) {
                 webView.loadUrl(serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html");
+            }
+        } else if (isQuickNoteAliasLaunch(intent)) {
+            // App was already running and the Quick Note app-drawer icon
+            // was tapped. Unlike the cold-start case (onCreate, which
+            // reloads Welcome.html with ?quicknote=1), this just pops the
+            // panel open on whatever page is already showing - reloading
+            // here would throw away the current page the same way the
+            // shared-text branch below avoids doing for a warm start. A
+            // silent no-op (via the `p &&` guard) if the current page
+            // doesn't have #quickPanel at all (e.g. mid-edit on
+            // editor.html) mirrors the same caveat noted for window.handleShare.
+            if (webView != null) {
+                webView.evaluateJavascript(
+                    "javascript:(function(){ var p=document.getElementById('quickPanel'); if(p) p.classList.remove('hidden'); })();",
+                    null);
             }
         } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                 && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {

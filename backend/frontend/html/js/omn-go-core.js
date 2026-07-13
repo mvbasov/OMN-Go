@@ -491,6 +491,18 @@ window.addEventListener('load', () => {
                 window.handleShare(params.get('share_text'), params.get('share_subject'));
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             }
+            // Cold start via the "OMN-Go Quick Note" app-drawer icon (the
+            // QuickNoteAlias activity-alias - see MainActivity), which
+            // always lands on Welcome.html?quicknote=1 (see the omission
+            // check MainActivity.isQuickNoteAliasLaunch runs). A warm start
+            // (app already running) instead pops the panel directly via
+            // evaluateJavascript in MainActivity.onNewIntent - this only
+            // covers the cold-start case.
+            if (params.has('quicknote')) {
+                const qp = document.getElementById('quickPanel');
+                if (qp) qp.classList.remove('hidden');
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            }
             if (window.hljs) {
                 document.querySelectorAll('#preview pre code').forEach((block) => {
                     hljs.highlightElement(block);

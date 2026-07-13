@@ -122,6 +122,35 @@
         </activity>
 
         <!--
+          Second, always-visible launcher entry for jumping straight into
+          Quick Note, for launchers (e.g. KISS) that don't support the
+          long-press "app shortcuts" menu an ordinary dynamic/static
+          shortcut would otherwise rely on. An activity-alias is a distinct
+          app-drawer icon with its own icon/label that still runs
+          MainActivity - no separate Activity subclass, no second copy of
+          the WebView/server setup.
+          MainActivity tells this apart from a normal launch by checking
+          getIntent().getComponent()'s class name in onCreate/onNewIntent:
+          Android resolves the alias to MainActivity for actually running
+          it, but leaves the ORIGINAL alias component name on the Intent
+          the activity receives, rather than rewriting it to MainActivity's
+          own name.
+        -->
+        <activity-alias
+            android:name=".QuickNoteAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_quicknote"
+            android:roundIcon="@mipmap/ic_launcher_quicknote"
+            android:label="OMN-Go Quick Note">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!--
           Owns the Go HTTP server (see ServerService.java). stopWithTask=
           "false" keeps the server answering even after the user swipes
           the app out of recents - the notification's Stop button is the

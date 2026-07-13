@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="664.93506"
+    android:viewportHeight="664.93506">
+  <!-- Same white "card" + centered glyph family as ic_launcher_shortcut_foreground.xml
+       (same card path/canvas), so the two launcher icons read as a matched pair. The
+       glyph itself is the "comment" icon from the mvbasov/OMN project's QuickNote
+       dynamic shortcut (drawable/ic_baseline_comment_24px.xml there), authored in its
+       original 24x24 viewport and scaled/centered into this card's interior via the
+       group transform below rather than hand-converted path coordinates. -->
+  <group android:translateX="192.23088"
+      android:translateY="198.38768">
+    <path
+        android:pathData="M80,78.104l155.9,0l0,155.896l-155.9,0z"
+        android:strokeWidth="12"
+        android:fillColor="#ffffff"
+        android:strokeColor="#a0a0a0"
+        android:fillType="evenOdd"/>
+    <group
+        android:scaleX="4"
+        android:scaleY="4"
+        android:translateX="109.95"
+        android:translateY="108.052">
+      <path
+          android:fillColor="#3760e2"
+          android:pathData="M21.99,4c0,-1.1 -0.89,-2 -1.99,-2L4,2c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h14l4,4 -0.01,-18zM18,14L6,14v-2h12v2zM18,11L6,11L6,9h12v2zM18,8L6,8L6,6h12v2z"/>
+    </group>
+  </group>
+</vector>
