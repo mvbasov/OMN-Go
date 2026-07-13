@@ -222,16 +222,34 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if runtime.GOOS == "android" {
-		w.Header().Set("Location", "omngo://edit?name="+name)
-		w.WriteHeader(http.StatusSeeOther)
-		return
-	}
-
 	mdPath, htmlPath, baseName, isPage := a.resolvePageName(name)
 	filePath := htmlPath
 	if isPage {
 		filePath = mdPath
+	}
+
+	if runtime.GOOS == "android" {
+		// The incoming name is whatever URL the user was viewing (e.g.
+		// "Welcome.html" for a markdown-backed page's rendered view), not
+		// necessarily the actual editable source file. MainActivity's
+		// shouldOverrideUrlLoading, which intercepts this omngo://edit
+		// redirect, picks md/ vs html/ purely by checking whether the name
+		// it's given ends in ".md" - so passing the raw, unresolved name
+		// through here made it fall into the html/ branch for every
+		// ordinary note and open the compiled HTML cache instead of the
+		// markdown source (desktop never had this bug because the code
+		// below already resolves isPage/baseName before picking filePath).
+		// Send the same resolved name normalized here instead: baseName +
+		// ".md" for a real page, or the original name unchanged for a
+		// genuine non-page asset (isPage is false there, and baseName is
+		// just name itself - see resolvePageName).
+		editName := name
+		if isPage {
+			editName = baseName + ".md"
+		}
+		w.Header().Set("Location", "omngo://edit?name="+url.QueryEscape(editName))
+		w.WriteHeader(http.StatusSeeOther)
+		return
 	}
 
 	var cmd *exec.Cmd
