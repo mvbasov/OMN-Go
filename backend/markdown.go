@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -322,6 +323,7 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		PageName:    name,
 		PageExt:     pageExt,
 		IsMarkdown:  isMarkdown,
+		IsAndroid:   runtime.GOOS == "android",
 		MetaTags:    metaTags,
 		Tags:        tags,
 		PreviewHTML: renderedBody,

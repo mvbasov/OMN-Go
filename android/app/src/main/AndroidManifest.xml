@@ -20,6 +20,16 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!--
+      Pre-Oreo (API 24-25) home-screen shortcut fallback - see
+      MainActivity.createNoteShortcut(). ShortcutManager.requestPinShortcut
+      (used on API 26+) needs no permission, but the classic
+      ACTION_INSTALL_SHORTCUT broadcast some older launchers still expect
+      was historically gated on this permission. Harmless to declare even
+      where the launcher doesn't check it.
+    -->
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+
+    <!--
       Android 11+ (API 30+) hides other apps' components by default
       (package visibility). MainActivity's shouldOverrideUrlLoading hands
       off non-http(s) links (tel:, geo:, mailto:, sms:, market:, intent://,

@@ -379,6 +379,30 @@ if (typeof currentNote === 'undefined') {
             });
         });
 
+        // Reveals .android-only controls (hidden by default in CSS - see
+        // omn-go-core.css) when the page was served with IS_ANDROID set
+        // (COND_SCRIPTS in templates.go, mirroring the IS_MARKDOWN
+        // precedent). Runs unconditionally on load, not gated on
+        // login/session state like checkRole(), since there's no
+        // guest/admin distinction for "can this device pin a shortcut".
+        function applyPlatformUI() {
+            if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
+                document.querySelectorAll('.android-only').forEach(el => {
+                    el.style.display = '';
+                });
+            }
+        }
+
+        // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
+        // the omngo://edit precedent) to pin a home-screen shortcut to the
+        // current note. Only reachable via the .android-only button, which
+        // applyPlatformUI() only reveals when running inside the Android
+        // app - there is no equivalent on desktop.
+        window.createNoteShortcut = function() {
+            if (typeof currentNote === 'undefined' || !currentNote) return;
+            window.location.href = 'omngo://shortcut?name=' + encodeURIComponent(currentNote);
+        };
+
         function checkRole() {
             if(document.cookie.includes('session_role=guest')) {
                 document.querySelectorAll('.admin-only').forEach(el => {
@@ -454,6 +478,7 @@ window.updateArrow = function() {
 // listener both this handler and any note-assigned window.onload run.
 window.addEventListener('load', () => {
             checkSession();
+            applyPlatformUI();
 
             const params = new URLSearchParams(window.location.search);
             if (params.has('share_text') || params.has('share_subject')) {

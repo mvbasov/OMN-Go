@@ -556,7 +556,8 @@ a.taglink {
    from the pre-token version to keep specificity behavior unchanged. */
 .btn-create-page,
 .btn-quick-note,
-.btn-add-bookmark {
+.btn-add-bookmark,
+.btn-add-shortcut {
     background: var(--info) !important;
     border-color: var(--info) !important;
     color: white !important;
@@ -566,6 +567,16 @@ a.taglink {
     background: var(--secondary) !important;
     border-color: var(--secondary) !important;
     color: white !important;
+}
+
+/* -- Android-only controls (e.g. "add to home screen" shortcut) --
+   Hidden by default, unlike .admin-only (which defaults visible and is
+   hidden by JS for guests): there's no native shortcut API to call on
+   desktop, so these stay hidden until omn-go-core.js's applyPlatformUI()
+   (gated on the server-injected IS_ANDROID flag, see templates.go) reveals
+   them. */
+.android-only {
+    display: none;
 }
 
 /* -- Editing controls -- */

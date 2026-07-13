@@ -31,6 +31,12 @@ public class MainActivity extends Activity {
         return "http://127.0.0.1:" + ServerService.serverPort(this);
     }
 
+    // Intent extra carrying the note name a pinned home-screen shortcut
+    // should open (see createNoteShortcut() and the omngo://shortcut
+    // interception below). Read back in onCreate/onNewIntent to send the
+    // WebView straight to that note instead of the usual Welcome.html.
+    private static final String EXTRA_SHORTCUT_NOTE = "omngo_shortcut_note";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -149,6 +155,20 @@ public class MainActivity extends Activity {
             }
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && url.startsWith("omngo://shortcut")) {
+                    try {
+                        String name = url.substring(url.indexOf("?name=") + 6);
+                        if (name.contains("&")) {
+                            name = name.split("&")[0];
+                        }
+                        name = android.net.Uri.decode(name);
+                        MainActivity.this.createNoteShortcut(name);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return true;
+                }
+
                 if (url != null && url.startsWith("omngo://edit")) {
                     try {
                         String name = url.substring(url.indexOf("?name=") + 6);
@@ -244,7 +264,12 @@ public class MainActivity extends Activity {
             public void run() {
                 String startUrl = MainActivity.this.serverBase() + "/Welcome.html";
                 android.content.Intent intent = getIntent();
-                if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
+                String shortcutNote = intent.getStringExtra(EXTRA_SHORTCUT_NOTE);
+                if (shortcutNote != null && !shortcutNote.isEmpty()) {
+                    // Tapped a pinned shortcut (see createNoteShortcut()) -
+                    // go straight to that note instead of Welcome.html.
+                    startUrl = MainActivity.this.serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html";
+                } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                         && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
                     String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
@@ -293,7 +318,14 @@ public class MainActivity extends Activity {
     protected void onNewIntent(android.content.Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
+        String shortcutNote = intent.getStringExtra(EXTRA_SHORTCUT_NOTE);
+        if (shortcutNote != null && !shortcutNote.isEmpty()) {
+            // App was already running (singleTask) and a pinned shortcut
+            // was tapped - jump the existing WebView straight to that note.
+            if (webView != null) {
+                webView.loadUrl(serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html");
+            }
+        } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                 && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
             String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
             String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
@@ -600,6 +632,114 @@ public class MainActivity extends Activity {
             }
         } finally {
             conn.disconnect();
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // Home-screen shortcuts ("add to home screen" for the current note)
+    // ----------------------------------------------------------------------
+    //
+    // Triggered by the .android-only button in index.html (createNoteShortcut()
+    // in omn-go-core.js), which navigates to omngo://shortcut?name=... -
+    // intercepted in shouldOverrideUrlLoading above, same pattern as
+    // omngo://edit.
+    //
+    // Deliberately built on the plain platform SDK only - no androidx.core/
+    // appcompat - matching this project's size-conscious approach (see the
+    // empty libs/ fileTree in build.gradle): android.content.pm.ShortcutManager
+    // + android.graphics.drawable.Icon (both first-party android.jar classes,
+    // no extra dependency) cover API 26+, and the classic
+    // "com.android.launcher.action.INSTALL_SHORTCUT" broadcast - the same
+    // approach this project used pre-OMN-Go (see
+    // https://stackoverflow.com/a/16873257) - covers API 24-25, where
+    // ShortcutManager.requestPinShortcut doesn't exist yet.
+    //
+    // ic_launcher_shortcut_foreground.xml (res/drawable) is a self-contained
+    // adaptive-icon-style vector - it already draws its own white "card"
+    // background plus the note glyph, unlike the app's own
+    // ic_launcher_foreground/background pair which rely on the OS to
+    // composite two separate layers - so it's rendered to a single bitmap
+    // and handed to the launcher as one icon.
+    private void createNoteShortcut(final String name) {
+        if (name == null || name.isEmpty()) return;
+
+        android.graphics.Bitmap icon = renderDrawableToBitmap(R.drawable.ic_launcher_shortcut_foreground);
+
+        android.content.Intent shortcutIntent = new android.content.Intent(this, MainActivity.class);
+        shortcutIntent.setAction(android.content.Intent.ACTION_VIEW);
+        shortcutIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        shortcutIntent.putExtra(EXTRA_SHORTCUT_NOTE, name);
+        // Gives each per-note shortcut intent distinct Uri data so the OS
+        // never mistakes two different notes' shortcuts for the same
+        // intent (data itself is otherwise ignored - EXTRA_SHORTCUT_NOTE
+        // above is what onCreate/onNewIntent actually read).
+        shortcutIntent.setData(android.net.Uri.parse("omngo-shortcut://note/" + android.net.Uri.encode(name)));
+
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            android.content.pm.ShortcutManager shortcutManager =
+                (android.content.pm.ShortcutManager) getSystemService(android.content.Context.SHORTCUT_SERVICE);
+            if (shortcutManager == null || !shortcutManager.isRequestPinShortcutSupported()) {
+                showToast("Your home screen doesn't support pinned shortcuts.");
+                return;
+            }
+
+            android.graphics.drawable.Icon shortcutIcon = icon != null
+                ? android.graphics.drawable.Icon.createWithAdaptiveBitmap(icon)
+                : android.graphics.drawable.Icon.createWithResource(this, R.mipmap.ic_launcher);
+
+            // Shortcut id is per-note (not random), so re-adding a shortcut
+            // for the same note updates/re-pins the existing one instead of
+            // piling up duplicates.
+            String shortcutId = "note_" + name;
+            android.content.pm.ShortcutInfo shortcut =
+                new android.content.pm.ShortcutInfo.Builder(this, shortcutId)
+                    .setShortLabel(name)
+                    .setLongLabel("Open \"" + name + "\" in OMN-Go")
+                    .setIcon(shortcutIcon)
+                    .setIntent(shortcutIntent)
+                    .build();
+
+            shortcutManager.requestPinShortcut(shortcut, null);
+        } else {
+            // Pre-Oreo (API 24-25): ShortcutManager doesn't exist yet, so
+            // fall back to the classic launcher broadcast. Most launchers
+            // from this era honor it without any permission prompt; the
+            // manifest permission declared alongside is a no-op on
+            // launchers that don't check it.
+            android.content.Intent installIntent = new android.content.Intent();
+            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_NAME, name);
+            if (icon != null) {
+                installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON, icon);
+            } else {
+                installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON_RESOURCE,
+                    android.content.Intent.ShortcutIconResource.fromContext(this, R.mipmap.ic_launcher));
+            }
+            installIntent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
+            sendBroadcast(installIntent);
+            showToast("Shortcut requested - check your home screen.");
+        }
+    }
+
+    // Rasterizes a drawable resource (vector or otherwise) to a square
+    // bitmap sized for an adaptive icon (108dp, matching
+    // ic_launcher_shortcut_foreground.xml's declared width/height).
+    // getDrawable(int) is a plain Context method (API 21+) - no compat
+    // library needed to resolve a vector drawable resource.
+    private android.graphics.Bitmap renderDrawableToBitmap(int resId) {
+        try {
+            android.graphics.drawable.Drawable drawable = getDrawable(resId);
+            if (drawable == null) return null;
+            int size = Math.round(108 * getResources().getDisplayMetrics().density);
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
+                size, size, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            return bitmap;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 

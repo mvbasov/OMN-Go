@@ -141,6 +141,7 @@ type indexPageView struct {
 	PageName    string
 	PageExt     string
 	IsMarkdown  bool
+	IsAndroid   bool
 	MetaTags    []metaTagView
 	Tags        []string
 	PreviewHTML string
@@ -156,6 +157,9 @@ func renderIndexPage(v indexPageView) string {
 	condScripts := ""
 	if v.IsMarkdown {
 		condScripts += "    <script>var IS_MARKDOWN = true;</script>\n"
+	}
+	if v.IsAndroid {
+		condScripts += "    <script>var IS_ANDROID = true;</script>\n"
 	}
 
 	var tags strings.Builder
