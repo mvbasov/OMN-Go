@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 10917
-        versionName "1.9.17"
+        versionCode 10918
+        versionName "1.9.18"
     }
 
     // Two distribution channels, same source. "fdroid" gets its own

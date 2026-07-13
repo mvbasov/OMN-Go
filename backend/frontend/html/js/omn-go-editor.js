@@ -592,7 +592,14 @@
             dirty = false;
             setDot('clean');
             if (thenView) {
-                window.location.href = VIEW;
+                // .replace(), not .href = - swaps the editor's own history
+                // entry for VIEW instead of pushing a new one on top of it.
+                // With .href, the editor page stayed in the back-stack: on
+                // Android especially, pressing Back after a save landed you
+                // right back in the editor instead of wherever you were
+                // before opening it. .replace() drops the editor entry
+                // entirely, so Back skips over it.
+                window.location.replace(VIEW);
             } else {
                 setStatus(NAME);
             }
@@ -603,7 +610,10 @@
 
     function cancel() {
         if (dirty && !window.confirm('Discard unsaved changes?')) return;
-        window.location.href = VIEW;
+        // Same reasoning as the save(true) branch above - leaving the
+        // editor (without saving) shouldn't leave it in the back-stack
+        // either.
+        window.location.replace(VIEW);
     }
 
     // ==================================================================
