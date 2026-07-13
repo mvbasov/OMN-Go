@@ -10,7 +10,10 @@ with `?edit=true`, see the
 [User Manual](UserManual#edit-links-for-non-page-files)) opens the built-in
 editor. It is a page of its own: it loads the note's Markdown source when it
 opens and writes it back when you save, so a rendered note never carries a
-hidden second copy of its own text.
+hidden second copy of its own text. Unless you arrived from a clicked console
+error (which lands the cursor on the offending line instead), the cursor
+starts right after the note's `Title:`/`Date:`/… header, so you drop straight
+into the body instead of scrolled to the end of the file.
 
 ## The toolbar
 
@@ -19,16 +22,26 @@ Left to right:
 - <i class="material-icons">code</i> **Expand Emmet abbreviation** — expand
   the abbreviation on the current line into HTML (same as pressing **Tab**;
   see below).
-- <i class="material-icons">format_line_spacing</i> **Select current line** —
-  select the whole line the cursor is on, ready to cut, copy or replace.
+- <i class="material-icons">format_line_spacing</i> **Select line** — clicking
+  cycles through three selections, restarting from the top if you click a
+  fourth time:
+  1. the current line;
+  2. from the current line to the end of the file;
+  3. from the current line to the header (whichever of the two comes first
+     in the file becomes the start of the selection, so this also works if
+     the cursor is inside the header itself).
+
+  Moving the cursor or selecting something else resets the cycle, so the next
+  click always starts back at "select the current line".
 - <i class="material-icons">save</i> **Save** — write the note and return to
   the rendered view. Keyboard shortcut: **Ctrl/Cmd + S**.
 - <i class="material-icons">close</i> **Cancel** — leave without saving. If
   you have unsaved changes it asks first.
 
 The note's name is shown at the bottom of the editor ("Editing …"). Drag an
-image file onto the text area to upload it and insert a Markdown image
-reference at the cursor.
+image file onto the text area to upload it and insert an `<img>` tag (with
+the `omn-imported-image` class, which caps its width so it doesn't render at
+full native resolution) at the cursor.
 
 ## Tab and Emmet
 

@@ -42,6 +42,12 @@
     var wrapOn = true;     // word wrap (default on, like a plain textarea)
     var lnOn = false;      // line numbers requested by the user
 
+    // "Select current line" button cycle state - see selectCurrentLine.
+    var lineCycleStage = 0;          // 0 = idle; 1/2/3 = which stage was last applied
+    var lineCycleAnchor = -1;        // char offset: start of the line the cycle is anchored to
+    var lineCycleAppliedStart = -1;  // selection this tool itself last set, to
+    var lineCycleAppliedEnd = -1;    // detect "still cycling" vs. a fresh click
+
     // ------------------------------------------------------------------
     // Toolbar tool registry. Each entry becomes a button, left to right.
     // To add a tool later: append one { icon, title, action } object
@@ -52,7 +58,7 @@
     // ------------------------------------------------------------------
     var TOOLS = [
         { icon: 'code', title: 'Expand Emmet abbreviation (Tab)', action: function () { expandEmmetAtCursor(); } },
-        { icon: 'format_line_spacing', title: 'Select current line', action: function () { selectCurrentLine(); } },
+        { icon: 'format_line_spacing', title: 'Select line (click again: to end of file, then to after header, then repeats)', action: function () { selectCurrentLine(); } },
         { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
         { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } }
         // Future tools go here, e.g.:
@@ -410,11 +416,63 @@
         return { start: start, end: end };
     }
 
+    // Cycles through three selection scopes each time the toolbar button
+    // is clicked:
+    //   1. the current line
+    //   2. from the current line to the end of the file
+    //   3. from the current line to the first line after the Pelican-style
+    //      header (see firstLineAfterHeader) - whichever of the two is
+    //      earlier in the file becomes the selection start, so this also
+    //      works sensibly when the caret is inside the header itself.
+    // A fourth click starts the cycle over at stage 1.
+    //
+    // "Continuing the cycle" is detected by comparing the textarea's
+    // current selection to the one this function itself set last time: if
+    // they still match, the user clicked the button again without
+    // touching the selection in between, so advance to the next stage.
+    // Anything else (a different line, a manual selection, a fresh click
+    // after moving the caret) resets the cycle to stage 1, anchored on
+    // whatever line the caret is on/selection starts at now.
     function selectCurrentLine() {
         if (!ta) return;
-        var b = lineBounds(ta.value, ta.selectionStart);
+        var selStart = ta.selectionStart, selEnd = ta.selectionEnd;
+        var continuing = lineCycleStage > 0 &&
+            selStart === lineCycleAppliedStart && selEnd === lineCycleAppliedEnd;
+
+        if (!continuing) {
+            lineCycleAnchor = lineBounds(ta.value, selStart).start;
+            lineCycleStage = 0;
+        }
+        lineCycleStage = (lineCycleStage % 3) + 1;
+
+        var b = lineBounds(ta.value, lineCycleAnchor);
+        var start, end;
+        if (lineCycleStage === 1) {
+            start = b.start; end = b.end;                    // current line only
+        } else if (lineCycleStage === 2) {
+            start = b.start; end = ta.value.length;           // line -> end of file
+        } else {
+            // line -> after header. The current line is always fully
+            // included: below the header, select from the header boundary
+            // through the END of the current line (mirroring stage 2's
+            // "line -> end of file"); at or inside the header itself,
+            // select from the START of the current line through the
+            // header boundary. Using Math.min/max on the two raw offsets
+            // instead would exclude the current line's own text on the
+            // "below the header" side (b.start to b.end never entering
+            // the range at all) - this branch avoids that.
+            var headerEnd = firstLineAfterHeader(ta.value);
+            if (b.start >= headerEnd) {
+                start = headerEnd; end = b.end;
+            } else {
+                start = b.start; end = headerEnd;
+            }
+        }
+
         ta.focus();
-        ta.setSelectionRange(b.start, b.end);
+        ta.setSelectionRange(start, end);
+        lineCycleAppliedStart = start;
+        lineCycleAppliedEnd = end;
     }
 
     // Expand the abbreviation on the current line (from first non-space to
