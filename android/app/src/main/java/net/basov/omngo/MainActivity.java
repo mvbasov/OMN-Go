@@ -708,12 +708,12 @@ public class MainActivity extends Activity {
     // the app's actual icon.
     private void createNoteShortcut(final String name, final String title) {
         if (name == null || name.isEmpty()) return;
-        String label = (title != null && !title.isEmpty()) ? title : name;
+        final String label = (title != null && !title.isEmpty()) ? title : name;
 
-        android.graphics.Bitmap icon = renderDrawableToBitmap(
+        final android.graphics.Bitmap icon = renderDrawableToBitmap(
             R.drawable.ic_launcher_background, R.drawable.ic_launcher_shortcut_foreground);
 
-        android.content.Intent shortcutIntent = new android.content.Intent(this, MainActivity.class);
+        final android.content.Intent shortcutIntent = new android.content.Intent(this, MainActivity.class);
         shortcutIntent.setAction(android.content.Intent.ACTION_VIEW);
         shortcutIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
         shortcutIntent.putExtra(EXTRA_SHORTCUT_NOTE, name);
@@ -724,71 +724,102 @@ public class MainActivity extends Activity {
         shortcutIntent.setData(android.net.Uri.parse("omngo-shortcut://note/" + android.net.Uri.encode(name)));
 
         if (android.os.Build.VERSION.SDK_INT >= 26) {
-            android.content.pm.ShortcutManager shortcutManager =
-                (android.content.pm.ShortcutManager) getSystemService(android.content.Context.SHORTCUT_SERVICE);
-            if (shortcutManager == null || !shortcutManager.isRequestPinShortcutSupported()) {
-                showToast("Your home screen doesn't support pinned shortcuts.");
-                return;
-            }
-
-            android.graphics.drawable.Icon shortcutIcon = icon != null
-                ? android.graphics.drawable.Icon.createWithAdaptiveBitmap(icon)
-                : android.graphics.drawable.Icon.createWithResource(this, R.mipmap.ic_launcher);
-
-            // Shortcut id is per-note (not random), so re-adding a shortcut
-            // for the same note updates/re-pins the existing one instead of
-            // piling up duplicates.
-            String shortcutId = "note_" + name;
-            android.content.pm.ShortcutInfo shortcut =
-                new android.content.pm.ShortcutInfo.Builder(this, shortcutId)
-                    .setShortLabel(label)
-                    .setLongLabel("Open \"" + label + "\" in OMN-Go")
-                    .setIcon(shortcutIcon)
-                    .setIntent(shortcutIntent)
-                    .build();
-
-            // requestPinShortcut hands off to the LAUNCHER's own "Add to Home
-            // screen?" confirmation UI - a separate app/process the OS
-            // deliberately puts in front of us (so no app can silently plant
-            // shortcuts), and most launchers then drop the user on the home
-            // screen to show where the new icon landed. That hand-off can't
-            // be suppressed from here - it's the launcher's screen, not
-            // ours - but OMN-Go itself is only backgrounded (paused/stopped),
-            // never finished or killed: switching back via Recents or the
-            // app icon (not the new shortcut) returns to this exact page.
-            // The toast below makes that expected detour explicit instead of
-            // it looking like the app just vanished; the pinned-callback
-            // toast (via shortcutPinnedReceiver) confirms once the launcher
-            // actually finishes adding it.
-            showToast("Confirm \"" + label + "\" on your Home screen - OMN-Go stays open in the background.");
-
-            android.content.Intent callbackIntent = new android.content.Intent(ACTION_SHORTCUT_PINNED);
-            callbackIntent.setPackage(getPackageName());
-            callbackIntent.putExtra(EXTRA_SHORTCUT_PINNED_LABEL, label);
-            android.app.PendingIntent callback = android.app.PendingIntent.getBroadcast(
-                this, shortcutId.hashCode(), callbackIntent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
-
-            shortcutManager.requestPinShortcut(shortcut, callback.getIntentSender());
+            // Two ways to place a shortcut on API 26+, with a real
+            // trade-off between them (see the per-method comments below) -
+            // there's no single answer that's best for everyone, so ask
+            // each time rather than hardcoding one. Below API 26,
+            // ShortcutManager doesn't exist, so there's nothing to choose:
+            // the legacy broadcast is the only option (see the else branch).
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Add \"" + label + "\" to Home screen")
+                .setMessage("Reliable always works, but takes you to your Home screen to confirm.\n\n"
+                    + "Quick tries to add it without leaving OMN-Go, but some launchers ignore it silently - "
+                    + "if nothing appears on your Home screen, use Reliable instead.")
+                .setPositiveButton("Reliable", (d, w) ->
+                    pinShortcutViaShortcutManager(shortcutIntent, icon, label, name))
+                .setNegativeButton("Quick", (d, w) ->
+                    pinShortcutViaLegacyBroadcast(shortcutIntent, icon, label))
+                .setNeutralButton("Cancel", null)
+                .show();
         } else {
             // Pre-Oreo (API 24-25): ShortcutManager doesn't exist yet, so
-            // fall back to the classic launcher broadcast. Most launchers
-            // from this era honor it without any permission prompt; the
-            // manifest permission declared alongside is a no-op on
-            // launchers that don't check it.
-            android.content.Intent installIntent = new android.content.Intent();
-            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
-            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_NAME, label);
-            if (icon != null) {
-                installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON, icon);
-            } else {
-                installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON_RESOURCE,
-                    android.content.Intent.ShortcutIconResource.fromContext(this, R.mipmap.ic_launcher));
-            }
-            installIntent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
-            sendBroadcast(installIntent);
-            showToast("Shortcut requested - check your home screen.");
+            // the legacy broadcast is the only option - nothing to ask.
+            pinShortcutViaLegacyBroadcast(shortcutIntent, icon, label);
         }
+    }
+
+    // "Reliable": the official ShortcutManager API (API 26+). Always works
+    // on modern launchers, but requestPinShortcut hands off to the
+    // LAUNCHER's own "Add to Home screen?" confirmation UI - a separate
+    // app/process the OS deliberately puts in front of us (so no app can
+    // silently plant shortcuts) - and most launchers then drop the user on
+    // the Home screen to show where the new icon landed. That hand-off
+    // can't be suppressed from here - it's the launcher's screen, not
+    // ours - but OMN-Go itself is only backgrounded (paused/stopped), never
+    // finished or killed: switching back via Recents or the app icon (not
+    // the new shortcut) returns to this exact page. The toast below makes
+    // that expected detour explicit instead of it looking like the app just
+    // vanished; the pinned-callback toast (via shortcutPinnedReceiver)
+    // confirms once the launcher actually finishes adding it.
+    private void pinShortcutViaShortcutManager(android.content.Intent shortcutIntent,
+            android.graphics.Bitmap icon, String label, String name) {
+        android.content.pm.ShortcutManager shortcutManager =
+            (android.content.pm.ShortcutManager) getSystemService(android.content.Context.SHORTCUT_SERVICE);
+        if (shortcutManager == null || !shortcutManager.isRequestPinShortcutSupported()) {
+            showToast("Your home screen doesn't support pinned shortcuts.");
+            return;
+        }
+
+        android.graphics.drawable.Icon shortcutIcon = icon != null
+            ? android.graphics.drawable.Icon.createWithAdaptiveBitmap(icon)
+            : android.graphics.drawable.Icon.createWithResource(this, R.mipmap.ic_launcher);
+
+        // Shortcut id is per-note (not random), so re-adding a shortcut for
+        // the same note updates/re-pins the existing one instead of piling
+        // up duplicates.
+        String shortcutId = "note_" + name;
+        android.content.pm.ShortcutInfo shortcut =
+            new android.content.pm.ShortcutInfo.Builder(this, shortcutId)
+                .setShortLabel(label)
+                .setLongLabel("Open \"" + label + "\" in OMN-Go")
+                .setIcon(shortcutIcon)
+                .setIntent(shortcutIntent)
+                .build();
+
+        showToast("Confirm \"" + label + "\" on your Home screen - OMN-Go stays open in the background.");
+
+        android.content.Intent callbackIntent = new android.content.Intent(ACTION_SHORTCUT_PINNED);
+        callbackIntent.setPackage(getPackageName());
+        callbackIntent.putExtra(EXTRA_SHORTCUT_PINNED_LABEL, label);
+        android.app.PendingIntent callback = android.app.PendingIntent.getBroadcast(
+            this, shortcutId.hashCode(), callbackIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+
+        shortcutManager.requestPinShortcut(shortcut, callback.getIntentSender());
+    }
+
+    // "Quick": the pre-Oreo launcher broadcast (still the only option below
+    // API 26 - see the else branch in createNoteShortcut()). Some launchers
+    // add the icon straight away with no confirmation UI and no Home-screen
+    // jump; many current ones (stock Pixel launcher, recent Nova, etc.) have
+    // simply stopped listening for it since migrating to ShortcutManager, so
+    // it can silently do nothing there - there's no broadcast result to
+    // check, so we can't detect that and warn. The manifest permission
+    // declared alongside is a no-op on launchers that don't check it.
+    private void pinShortcutViaLegacyBroadcast(android.content.Intent shortcutIntent,
+            android.graphics.Bitmap icon, String label) {
+        android.content.Intent installIntent = new android.content.Intent();
+        installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+        installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_NAME, label);
+        if (icon != null) {
+            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON, icon);
+        } else {
+            installIntent.putExtra(android.content.Intent.EXTRA_SHORTCUT_ICON_RESOURCE,
+                android.content.Intent.ShortcutIconResource.fromContext(this, R.mipmap.ic_launcher));
+        }
+        installIntent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
+        sendBroadcast(installIntent);
+        showToast("Shortcut requested - check your Home screen (some launchers ignore this silently).");
     }
 
     // Rasterizes one or more drawable resources (vector or otherwise) onto a
