@@ -37,9 +37,33 @@ public class MainActivity extends Activity {
     // WebView straight to that note instead of the usual Welcome.html.
     private static final String EXTRA_SHORTCUT_NOTE = "omngo_shortcut_note";
 
+    // Own-package broadcast createNoteShortcut() asks ShortcutManager to
+    // fire once the launcher actually finishes pinning a shortcut (as
+    // opposed to the user dismissing the confirmation), so we can toast a
+    // clear "done" instead of leaving the detour to the home screen
+    // unconfirmed. See the comment in createNoteShortcut() for why that
+    // detour happens at all and can't be skipped.
+    private static final String ACTION_SHORTCUT_PINNED = "net.basov.omngo.SHORTCUT_PINNED";
+    private static final String EXTRA_SHORTCUT_PINNED_LABEL = "label";
+    private android.content.BroadcastReceiver shortcutPinnedReceiver;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        shortcutPinnedReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, android.content.Intent intent) {
+                String label = intent.getStringExtra(EXTRA_SHORTCUT_PINNED_LABEL);
+                showToast("\"" + (label != null ? label : "Shortcut") + "\" added to your Home screen.");
+            }
+        };
+        android.content.IntentFilter shortcutPinnedFilter = new android.content.IntentFilter(ACTION_SHORTCUT_PINNED);
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(shortcutPinnedReceiver, shortcutPinnedFilter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(shortcutPinnedReceiver, shortcutPinnedFilter);
+        }
 
         // The Go server (plus storage-dir setup) is owned by ServerService.
         // It is started with plain startService() - NOT
@@ -364,6 +388,19 @@ public class MainActivity extends Activity {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (shortcutPinnedReceiver != null) {
+            try {
+                unregisterReceiver(shortcutPinnedReceiver);
+            } catch (Exception e) {
+                // Already unregistered, or never successfully registered -
+                // either way there's nothing left to clean up.
+            }
         }
     }
 
@@ -710,7 +747,29 @@ public class MainActivity extends Activity {
                     .setIntent(shortcutIntent)
                     .build();
 
-            shortcutManager.requestPinShortcut(shortcut, null);
+            // requestPinShortcut hands off to the LAUNCHER's own "Add to Home
+            // screen?" confirmation UI - a separate app/process the OS
+            // deliberately puts in front of us (so no app can silently plant
+            // shortcuts), and most launchers then drop the user on the home
+            // screen to show where the new icon landed. That hand-off can't
+            // be suppressed from here - it's the launcher's screen, not
+            // ours - but OMN-Go itself is only backgrounded (paused/stopped),
+            // never finished or killed: switching back via Recents or the
+            // app icon (not the new shortcut) returns to this exact page.
+            // The toast below makes that expected detour explicit instead of
+            // it looking like the app just vanished; the pinned-callback
+            // toast (via shortcutPinnedReceiver) confirms once the launcher
+            // actually finishes adding it.
+            showToast("Confirm \"" + label + "\" on your Home screen - OMN-Go stays open in the background.");
+
+            android.content.Intent callbackIntent = new android.content.Intent(ACTION_SHORTCUT_PINNED);
+            callbackIntent.setPackage(getPackageName());
+            callbackIntent.putExtra(EXTRA_SHORTCUT_PINNED_LABEL, label);
+            android.app.PendingIntent callback = android.app.PendingIntent.getBroadcast(
+                this, shortcutId.hashCode(), callbackIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+
+            shortcutManager.requestPinShortcut(shortcut, callback.getIntentSender());
         } else {
             // Pre-Oreo (API 24-25): ShortcutManager doesn't exist yet, so
             // fall back to the classic launcher broadcast. Most launchers
