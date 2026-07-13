@@ -732,9 +732,12 @@ public class MainActivity extends Activity {
             // the legacy broadcast is the only option (see the else branch).
             new android.app.AlertDialog.Builder(this)
                 .setTitle("Add \"" + label + "\" to Home screen")
-                .setMessage("Reliable always works, but takes you to your Home screen to confirm.\n\n"
-                    + "Quick tries to add it without leaving OMN-Go, but some launchers ignore it silently - "
-                    + "if nothing appears on your Home screen, use Reliable instead.")
+                .setMessage("Reliable always works with the correct OMN-Go icon, but takes you to your "
+                    + "Home screen to confirm.\n\n"
+                    + "Quick tries to add it without leaving OMN-Go, but on Android 8+ it often shows a "
+                    + "generic icon instead of OMN-Go's, and on some launchers it may silently do nothing at "
+                    + "all - if the icon looks wrong or nothing appears on your Home screen, use Reliable "
+                    + "instead.")
                 .setPositiveButton("Reliable", (d, w) ->
                     pinShortcutViaShortcutManager(shortcutIntent, icon, label, name))
                 .setNegativeButton("Quick", (d, w) ->
@@ -799,13 +802,24 @@ public class MainActivity extends Activity {
     }
 
     // "Quick": the pre-Oreo launcher broadcast (still the only option below
-    // API 26 - see the else branch in createNoteShortcut()). Some launchers
-    // add the icon straight away with no confirmation UI and no Home-screen
-    // jump; many current ones (stock Pixel launcher, recent Nova, etc.) have
-    // simply stopped listening for it since migrating to ShortcutManager, so
-    // it can silently do nothing there - there's no broadcast result to
-    // check, so we can't detect that and warn. The manifest permission
-    // declared alongside is a no-op on launchers that don't check it.
+    // API 26 - see the else branch in createNoteShortcut()). No confirmation
+    // UI and no Home-screen jump, but two separate deprecation effects on
+    // API 26+ (confirmed on a real Android 14 device), not just one:
+    //   - many current launchers (stock Pixel launcher, recent Nova, etc.)
+    //     have stopped listening for this broadcast entirely since migrating
+    //     to ShortcutManager, so it can silently do nothing - there's no
+    //     broadcast result to check, so we can't detect that and warn.
+    //   - even where a launcher still honors the broadcast enough to create
+    //     a shortcut, EXTRA_SHORTCUT_ICON/_RESOURCE are frequently ignored by
+    //     the OS's own compatibility handling for this frozen API, so the
+    //     shortcut lands with a generic default icon instead of the one
+    //     built here - that's an OS-level restriction on the deprecated
+    //     broadcast itself, not something fixable by changing what we pass
+    //     it (a larger/differently-formatted bitmap makes no difference).
+    //     ShortcutManager ("Reliable") is the only path that reliably
+    //     carries a custom icon on modern Android.
+    // The manifest permission declared alongside is a no-op on launchers
+    // that don't check it.
     private void pinShortcutViaLegacyBroadcast(android.content.Intent shortcutIntent,
             android.graphics.Bitmap icon, String label) {
         android.content.Intent installIntent = new android.content.Intent();
@@ -819,7 +833,7 @@ public class MainActivity extends Activity {
         }
         installIntent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
         sendBroadcast(installIntent);
-        showToast("Shortcut requested - check your Home screen (some launchers ignore this silently).");
+        showToast("Shortcut requested - check your Home screen (icon and behavior vary by launcher).");
     }
 
     // Rasterizes one or more drawable resources (vector or otherwise) onto a
