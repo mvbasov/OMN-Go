@@ -747,7 +747,7 @@ var dbBackupsPageTmpl = loadTemplate("db_backups.html")
 // from GET /api/db/backups client-side, so the template needs no fill().
 func (a *App) serveDBBackupsPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	compiled := a.compilePageWithBody("DB_Backups", []byte("Title: Database Backups\nCategory: Settings\n\n"), dbBackupsPageTmpl, false)
+	compiled := a.compilePageWithBody("DB_Backups", []byte("Title: Database Backups\nCategory: Settings\n\n"), dbBackupsPageTmpl)
 	w.Write(a.injectRuntimeVars(compiled))
 }
 
