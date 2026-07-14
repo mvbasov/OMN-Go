@@ -128,6 +128,7 @@
 
     function render(data) {
         lastData = data;
+        (data.databases || []).forEach(function(db) { if (!db.backups) db.backups = []; });
         var out = ['<div class="dbb-meta" style="padding:0.3em 0.2em;">This device: <b>' +
                    esc(data.hostname) + '</b> · keeping newest ' + data.prune_depth +
                    ' backup(s) per database (Config page)</div>'];

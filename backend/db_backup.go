@@ -919,6 +919,13 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 			}
 			v.Backups = append(v.Backups, bv)
 		}
+		if v.Backups == nil {
+			// A database with zero backups (fresh install: pages created
+			// their databases, nothing backed up yet) must serialize as
+			// "backups":[] - a nil slice marshals as JSON null, which the
+			// page JS then trips over reading .length.
+			v.Backups = []backupFileView{}
+		}
 
 		switch {
 		case len(files) == 0:

@@ -284,6 +284,9 @@ func TestDBBackupEndpoints(t *testing.T) {
 	a := dbbApp(t)
 	dbbExec(t, a, "t1", `CREATE TABLE x(a)`)
 	dbbExec(t, a, "t1", `INSERT INTO x VALUES (7)`)
+	// A second database that never gets a backup: it must still list
+	// cleanly (fresh-install case - see the "backups":null regression).
+	dbbExec(t, a, "nobak", `CREATE TABLE y(b)`)
 
 	// POST /api/db/backup?db=t1
 	rec := httptest.NewRecorder()
@@ -335,6 +338,23 @@ func TestDBBackupEndpoints(t *testing.T) {
 	}
 	if file == "" {
 		t.Fatalf("database t1 missing from list: %s", rec.Body.String())
+	}
+	// The backup-less database serializes an empty ARRAY, never null -
+	// the page JS reads .backups.length unconditionally.
+	if strings.Contains(rec.Body.String(), `"backups":null`) {
+		t.Fatalf("zero-backup database serialized backups as null: %s", rec.Body.String())
+	}
+	foundNobak := false
+	for _, d := range listed.Databases {
+		if d.Name == "nobak" {
+			foundNobak = true
+			if d.State != "none" {
+				t.Fatalf("backup-less database state = %q, want none", d.State)
+			}
+		}
+	}
+	if !foundNobak {
+		t.Fatalf("backup-less database missing from list: %s", rec.Body.String())
 	}
 
 	// Change data, then POST /api/db/restore?db=t1&file=...
