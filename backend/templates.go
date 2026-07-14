@@ -226,6 +226,8 @@ type configPageView struct {
 	DesktopExtCmd   string
 	Theme           string // "auto" | "light" | "dark" (normalized)
 	ShareLAN        bool
+	Hostname        string
+	PruneDepth      int
 	MaxUploadSizeMB int
 	GitServers      []gitServerView
 }
@@ -281,6 +283,8 @@ func renderConfigPage(v configPageView) string {
 		"INTERNAL_ED_CHECKED": internalEdChecked,
 		"SHARE_LAN_CHECKED":   shareLanChecked,
 		"DESKTOP_EXT_CMD":     escapeHTML(v.DesktopExtCmd),
+		"HOSTNAME":            escapeHTML(displayHostname(v.Hostname)),
+		"BACKUP_PRUNE_DEPTH":  fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
 		"THEME_AUTO_SEL":      themeSel["THEME_AUTO_SEL"],
 		"THEME_LIGHT_SEL":     themeSel["THEME_LIGHT_SEL"],
 		"THEME_DARK_SEL":      themeSel["THEME_DARK_SEL"],

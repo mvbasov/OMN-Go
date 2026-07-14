@@ -46,9 +46,9 @@ import (
 //     filename, so this is the path-traversal guard.
 //   - request body capped at 1 MB, max 500 statements per batch.
 //
-// Git-tracked JSON backup/restore for these databases (export at push
-// time, lazy restore on next open, plus manual /api/db/export|restore
-// endpoints) lives in sqlite_backup.go.
+// Whole-database JSONL backup/restore for these databases (manual, via
+// the /db_backups page and the /api/db/backup|backups|restore endpoints,
+// plus the fresh-device bootstrap restore) lives in db_backup.go.
 
 // dbNameRe is the whitelist for user database names (used as filenames).
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -59,28 +59,32 @@ const (
 )
 
 // openUserDB returns the handle for a named user database, opening (and
-// creating) it on first use, then - now that the lock is free - checks
-// whether a git-tracked JSON backup is newer than the on-disk .sqlite
-// file (e.g. a pull just brought in updated data) and restores from it
-// first if so. This mirrors the existing .md -> .html staleness check
-// (serveHTMLPage), just with the source/cache roles swapped: JSON is the
-// tracked source, .sqlite is the regenerable cache. See sqlite_backup.go.
+// creating) it on first use, then - now that the lock is free - runs the
+// one automatic restore this app still has: bootstrapping a database
+// that has backups but no .sqlite file at all (fresh device after a
+// pull). Every other restore is manual, from the /db_backups page. See
+// db_backup.go.
 func (a *App) openUserDB(name string) (*sql.DB, error) {
 	db, err := a.openUserDBLocked(name)
 	if err != nil {
 		return nil, err
 	}
-	if err := a.restoreIfStale(db, name); err != nil {
-		// Serving slightly-stale data beats failing every query in this
-		// database because of an unrelated backup-file problem.
-		log.Printf("[db-restore] %s: %v", name, err)
+	if reopened, err := a.bootstrapIfMissing(name); err != nil {
+		// A failed bootstrap must not take the database down: the note
+		// script simply sees (and creates) an empty database, and the
+		// backup file stays untouched for a later manual restore.
+		log.Printf("[db-bootstrap] %s: %v", name, err)
+	} else if reopened != nil {
+		// The bootstrap restore swapped the database file and evicted
+		// the handle opened above; hand out the fresh one.
+		return reopened, nil
 	}
 	return db, nil
 }
 
 // openUserDBLocked does the actual open-or-return-cached work under
 // a.sqlMu. Split out from openUserDB so the lock is never held while
-// restoreIfStale (which may run a whole restore transaction) executes.
+// bootstrapIfMissing (which may run a whole restore) executes.
 func (a *App) openUserDBLocked(name string) (*sql.DB, error) {
 	if !dbNameRe.MatchString(name) {
 		return nil, fmt.Errorf("invalid database name %q (allowed: letters, digits, '_', '-', max 64 chars)", name)

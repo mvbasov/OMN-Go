@@ -36,6 +36,8 @@ func (a *App) getConfigPageBody() string {
 		DesktopExtCmd:   cfg.DesktopExtCmd,
 		Theme:           cfg.Theme,
 		ShareLAN:        cfg.ShareLAN,
+		Hostname:        cfg.Hostname,
+		PruneDepth:      cfg.BackupPruneDepth,
 		MaxUploadSizeMB: cfg.MaxUploadSizeMB,
 	}
 	for i, gs := range cfg.GitServers {

@@ -1,5 +1,8 @@
 <div class="config-panel">
     <h2 class="config-title">Configuration Dashboard</h2>
+    <div class="config-field config-save-row">
+        <a href="/db_backups" class="config-save-btn" style="display:inline-block;text-decoration:none;text-align:center;">Database Backups</a>
+    </div>
     <form id="configForm" class="config-form">
         <div class="config-field">
             <label class="config-label">Server Port</label>
@@ -39,6 +42,16 @@
         <div class="config-field">
             <label class="config-label">Desktop External Cmd</label>
             <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
+        </div>
+        <div class="config-field">
+            <label class="config-label">Hostname (device label)</label>
+            <input type="text" id="cfgHostname" name="hostname" value="%%HOSTNAME%%" class="config-input" />
+            <span class="config-hint">Identifies this device in database backup filenames (e.g. pixel7, desktop). Letters, digits, '_' and '-' only; anything else is replaced. Clearing the field resets it to the OS hostname.</span>
+        </div>
+        <div class="config-field">
+            <label class="config-label">Backup Prune Depth</label>
+            <input type="number" id="cfgBackupPruneDepth" name="backup_prune_depth" value="%%BACKUP_PRUNE_DEPTH%%" class="config-input" min="1" step="1" />
+            <span class="config-hint">How many backups to keep per database on the Database Backups page; creating a new backup deletes the oldest beyond this count. Default 3.</span>
         </div>
         <div class="config-field">
             <label class="config-label">Max Upload Size (MB)</label>

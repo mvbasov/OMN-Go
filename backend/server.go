@@ -26,6 +26,11 @@ type App struct {
 	sqlMu  sync.Mutex         // guards sqlDBs (see sqlite.go)
 	sqlDBs map[string]*sql.DB // lazily-opened user SQLite handles, by name
 
+	// serializes database restore/swap operations (manual restores and
+	// the fresh-device bootstrap; see db_backup.go). Never taken while
+	// sqlMu is held.
+	dbRestoreMu sync.Mutex
+
 	ready chan struct{} // closed once the HTTP listener is actually serving
 }
 
@@ -165,11 +170,13 @@ func StartServer(storageDir string) *App {
 		a.Router.HandleFunc("/api/note", a.handleGetNote)
 		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
 		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
-		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
+		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfigExt, true))
 		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
 		a.Router.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
-		a.Router.HandleFunc("/api/db/export", a.authMiddleware(a.handleDBExport, true))
+		a.Router.HandleFunc("/api/db/backup", a.authMiddleware(a.handleDBBackupCreate, true))
+		a.Router.HandleFunc("/api/db/backups", a.authMiddleware(a.handleDBBackupList, true))
 		a.Router.HandleFunc("/api/db/restore", a.authMiddleware(a.handleDBRestore, true))
+		a.Router.HandleFunc("/db_backups", a.authMiddleware(a.serveDBBackupsPage, true))
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))

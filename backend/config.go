@@ -70,10 +70,12 @@ type Config struct {
 	// 0.0.0.0 so other devices on the network can connect (protected by
 	// the admin/guest passwords via authMiddleware). Changing it takes
 	// effect on the next application start - the socket is bound once.
-	ShareLAN       bool              `json:"share_lan"`
-	MimeTypes      map[string]string `json:"mime_types"`
-	ActiveGitIndex int               `json:"active_git_index"`
-	GitServers     []GitServerConfig `json:"git_servers"`
+	ShareLAN         bool              `json:"share_lan"`
+	Hostname         string            `json:"hostname"`
+	BackupPruneDepth int               `json:"backup_prune_depth"`
+	MimeTypes        map[string]string `json:"mime_types"`
+	ActiveGitIndex   int               `json:"active_git_index"`
+	GitServers       []GitServerConfig `json:"git_servers"`
 	// MaxUploadSizeMB caps uploaded image/JSON file size (megabytes).
 	// Enforced in saveUploadedFile; see defaultMaxUploadSizeMB above for
 	// where the default and the Android-native duplicate of this value
@@ -96,6 +98,13 @@ func (a *App) loadConfig(storageDir string) {
 			DesktopExtCmd:   "subl",
 			Theme:           ThemeAuto,
 			MaxUploadSizeMB: defaultMaxUploadSizeMB,
+
+			// Hostname labels this device in database backup filenames
+			// (see db_backup.go); BackupPruneDepth is how many backups
+			// to keep per database before the oldest is pruned.
+			Hostname:         defaultHostname(),
+			BackupPruneDepth: 3,
+
 			MimeTypes: map[string]string{
 				".css":   "text/css",
 				".js":    "application/javascript",
