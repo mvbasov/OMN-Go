@@ -877,10 +877,17 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 	dbs := make([]backupDBView, 0, len(sorted))
 	for _, name := range sorted {
 		v := backupDBView{Name: name}
+		// Keep the raw mtime for the state comparison below: the RFC3339
+		// string in v.MTime is second-precision, and comparing a re-parsed
+		// (truncated) value against the backup file's nanosecond mtime
+		// would misreport "backup newer" right after a backup, where
+		// createDBBackup made the two mtimes exactly equal.
+		var dbMTime time.Time
 		if info, err := os.Stat(a.userDBPath(name)); err == nil && info.Size() > 0 {
 			v.SQLiteExists = true
 			v.Size = info.Size()
-			v.MTime = info.ModTime().UTC().Format(time.RFC3339)
+			dbMTime = info.ModTime()
+			v.MTime = dbMTime.UTC().Format(time.RFC3339)
 		}
 
 		files, _ := a.listBackupFiles(name)
@@ -921,7 +928,6 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 		case !v.SQLiteExists:
 			v.State = "missing"
 		default:
-			dbMTime, _ := time.Parse(time.RFC3339, v.MTime)
 			switch {
 			case newestMTime.After(dbMTime):
 				v.State = "backup_newer"
