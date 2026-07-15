@@ -33,6 +33,7 @@ edit mode (pencil button) to see how any example on it is written.
 
 - [Configuration reference](#configuration-reference)
 - [Git synchronization](#git-synchronization)
+- [Database backups](#database-backups)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
 - [Troubleshooting](#troubleshooting)
@@ -340,6 +341,8 @@ The [Config](Config) page edits `config.json`. Fields:
 | Use Internal Editor | Off = hand files to an external editor instead. |
 | Desktop External Cmd | Editor command used on desktop (e.g. `subl`, `code`). |
 | Share on LAN | Serve other devices, see [Sharing on the LAN](#sharing-on-the-lan). Changing it restarts the application. |
+| Hostname | Device label added to database backup filenames (see [Database backups](#database-backups)). Defaults to the OS hostname; on Android set a short name like `phone`. |
+| Backup Prune Depth | How many backups to keep per database (default `3`); creating a new backup deletes the oldest beyond this. |
 | Git Servers | Up to five remote slots, see [Git synchronization](#git-synchronization). |
 
 Two settings exist only in the file itself: `mime_types` (extension →
@@ -384,6 +387,36 @@ a dialog offers three choices:
 forced (a forced pull behaves like Force Pull above; a forced push
 overwrites remote history). It always asks for confirmation and disarms
 itself after one use. Treat it as the emergency lever it is.
+
+## Database backups
+
+A note's `<script>` can store data in a real SQL database (see the
+[Database](Database) page for the API). Those databases live outside git
+and are **not** synchronized with your notes automatically; to move a
+database's contents between devices, or just to keep a safety copy, you
+take a **backup**.
+
+Open the [Config](Config) page and press **Database Backups** at the top.
+For each database you can:
+
+- **Backup now** — write a snapshot file under `html/db_backup/`. Because
+  it lives beside your notes it is committed and pushed by the normal
+  <i class="material-icons">cloud_upload</i> Upload, so it reaches your
+  other devices on their next pull.
+- **Restore** — replace a database wholesale with a chosen backup (a
+  confirmation dialog shows what you are about to overwrite).
+
+A coloured dot shows each database's state (in sync, not backed up, backup
+newer, no backups, ...). A brand-new device with no database file yet
+restores its newest backup automatically the first time a note opens it.
+Two related settings live on the [Config](Config) page: **Hostname**
+(labels this device in backup filenames) and **Backup Prune Depth** (how
+many backups to keep per database). A database whose name starts with
+`local-` is backed up on-device but kept out of git.
+
+To load data from an existing SQL dump (a `sqlite3 .dump`, or old
+`websqldump.js` output), use the [SQL Import](SQLImport) note, then press
+**Backup now**. See the [Database](Database) page for the full reference.
 
 ## Sharing on the LAN
 

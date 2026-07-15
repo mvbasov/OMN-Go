@@ -1,14 +1,16 @@
-Title: Databases in Notes
-Date: 2026-07-07 14:00:00
+Title: Databases
+Date: 2026-07-15 12:00:00
 Category: System
-Tags: database, sqlite, advanced
+Tags: Database, Backup, SQL
 
 # Databases in Notes
 
 OMN-Go gives a note's own `<script>` block access to a real SQL database,
 server-side, replacing the browsers' now-removed WebSQL API
 (`window.openDatabase`). This page shows both the modern API and a
-drop-in shim for old WebSQL-style code, with runnable examples.
+drop-in shim for old WebSQL-style code, then explains how to back up,
+move and restore a database with the [Database Backups](#database-backups)
+page.
 
 ## Where the data lives — read this first
 
@@ -20,15 +22,13 @@ device's storage directory, created the first time a note uses that name.
   phone and laptop both connected to one device via
   [LAN sharing](UserManual#sharing-on-the-lan), all see the same rows
   immediately.
-- **The live `.sqlite` file itself is not synced** between separate
-  installs — `db/` is deliberately excluded from git (it's in
+- **The live `.sqlite` file itself is never synced** between separate
+  installs — `db/` is deliberately excluded from git (it is in
   `.gitignore`), the same way `config.json` is, so your Android app's own
   server and your desktop app's own server each keep their own `db/`
-  folder. Its *content* still travels with your notes through git, just
-  via an automatically-maintained JSON mirror rather than the binary file
-  itself — see
-  [Backing up, syncing, and restoring a database via git](#backing-up-syncing-and-restoring-a-database-via-git)
-  below.
+  folder. To move a database's *content* between devices you take a
+  **backup** and let it travel with your notes through git — see
+  [Database Backups](#database-backups) below.
 - **Admin-only.** A guest connected over LAN cannot call the database API,
   even though they can read pages.
 
@@ -197,117 +197,130 @@ for other globals available to note scripts) — using it as the primary
 key means every page can share one `page_counters` database instead of
 each page needing its own.
 
-## Backing up, syncing, and restoring a database via git
+## Database Backups
 
-`db/*.sqlite` files themselves are never synced (as above), but OMN-Go
-maintains a **git-trackable JSON mirror** of every database's schema and
-data, so a database's *content* can travel with your notes through the
-same git sync you already use for pages — no manual file copying needed
-for the common case.
+Because the live `.sqlite` file is never synced, moving a database's
+content between devices — or simply keeping a safety copy — is done with
+**manual backups**. A backup is a single self-contained snapshot file you
+create when you want one; it then travels with your notes through the same
+git sync you already use for pages.
 
-### How it works automatically
+### The Database Backups page
 
-- **Backup happens right before every push.** Whenever you press
-  <i class="material-icons">cloud_upload</i> Upload, OMN-Go refreshes the
-  JSON mirror for every database that changed since the last push, then
-  includes those files in the commit — the same "regenerate the cache
-  right before it's needed" timing used for compiling `.md` to `.html`.
-  You don't need to remember to export anything.
-- **If you cancel the commit dialog, nothing was written.** The commit
-  preview computes what *would* change without touching any file, so
-  canceling leaves your JSON backups exactly as they were.
-- **Restore happens automatically too**, the next time a note opens that
-  database after a pull brought in newer JSON than the local `.sqlite`
-  file — you don't need to do anything after pulling for the data to
-  catch up.
-- The mirror lives at `html/db_json/<db>_<table>_sch.json` (schema) and
-  `..._data.json` (data, one compact JSON row per line so a git diff on a
-  single changed row stays a single-line diff) — one pair per table, plus
-  a schema-only file for each view and trigger.
+Open the [Config](Config) page and press the **Database Backups** button
+at the top. (There is no header button for it — database management is an
+occasional task, so it lives one click inside Config.)
 
-### `local-` databases: backed up, never synced
+The page lists every database that has either a live `.sqlite` file or at
+least one backup. Each row shows a coloured status dot:
+
+- 🟢 **in sync** — the database matches its newest backup.
+- 🟡 **not backed up** — the database has changes newer than any backup.
+  Press **Backup now** to capture them.
+- 🔵 **backup newer** — the newest backup is newer than the database
+  (typically it was just pulled from another device). Consider **Restore**.
+- 🔵 **no database** — backups exist but no `.sqlite` file does yet (a
+  fresh device right after a pull). It is restored automatically the first
+  time a note opens it, or you can restore it here by hand.
+- ⚪ **no backups** — nothing has been backed up for this database yet.
+- 🔴 **invalid backup** — the newest backup file cannot be parsed (damaged
+  or left with git conflict markers).
+
+The dot is only a hint computed from file timestamps; it never triggers
+any action on its own.
+
+Expand a row (**Details**) to see each backup's creation time, the device
+(hostname) that made it, its object and row counts and size, with a
+**Restore** button and a plain **download** link per backup.
+
+### Making a backup
+
+Press **Backup now** on a database's row. OMN-Go writes one snapshot file
+to `html/db_backup/<db>/<timestamp>_<hostname>.jsonl` and refreshes the
+status dot to green. Because that file lives under `html/`, it is a normal
+tracked file: your next <i class="material-icons">cloud_upload</i> Upload
+commits and pushes it like any note. On another device, pull as usual and
+the backup appears on that device's Database Backups page, ready to
+restore.
+
+A backup captures the **whole database** in one internally-consistent
+file — every table, index, view and trigger, the `AUTOINCREMENT`
+counters, and every row (including `BLOB` columns, and large integers,
+which are all preserved exactly). Unlike the earlier per-table export,
+nothing about the schema is silently dropped.
+
+### Restoring
+
+Press **Restore** on the backup you want. Restore **fully replaces** the
+database: it rebuilds the whole thing from the snapshot in one atomic
+step, so the current contents are lost. A confirmation dialog shows what
+you are replacing versus what the backup contains; you can always press
+**Backup now** first to keep the current state. There is no row-level
+merge — an honest full replace beats a silent, ambiguous partial one (the
+same trade-off [Force Pull](UserManual#git-synchronization) makes for
+notes). If a backup file is damaged (for example a git conflict marker got
+written into it), the restore is refused whole and the live database is
+left untouched.
+
+### Fresh devices restore themselves
+
+The one thing that happens automatically: if a database has backups but no
+`.sqlite` file at all — exactly the state of a brand-new device right after
+it clones or pulls your notes — then the first time a note opens that
+database, OMN-Go restores its newest backup for you. There is nothing to
+lose in this case (no local data exists yet), so no confirmation is asked.
+Every other restore is manual.
+
+### How many backups are kept
+
+Each database keeps its most recent **Backup Prune Depth** backups
+(default **3**, changeable on the [Config](Config) page). Creating a new
+backup beyond that count deletes the oldest one; the page warns you before
+a backup would prune. For a synced database the pruned file still exists in
+git history, so it is recoverable; for a `local-` database (below) it is
+not.
+
+### `local-` databases: on-device only
 
 Give a database a name starting with **`local-`** (e.g.
-`local-scratchpad`) and its JSON mirror is still written to disk on every
-push — so you still have a backup — but is excluded from git entirely, the
-same way `/md/local/` pages are. Use this for per-device data (drafts,
-device-specific caches) you don't want traveling to other devices.
+`local-scratchpad`) and its backups are written to disk normally — so you
+still have a safety copy — but are excluded from git, the same way
+`/md/local/` pages are. Use this for per-device data (drafts,
+device-specific caches) you don't want travelling to other devices. Note
+that pruning a `local-` backup is final, since nothing is in git history
+behind it.
 
-### Restore always fully replaces — it never merges
+### Naming your devices
 
-Restoring drops and recreates each table (and its data) from the JSON
-files. There is no row-level merge: any local writes made since the last
-export that never made it into the JSON are lost when you restore. This
-is the same risk profile [Force Pull](UserManual#git-synchronization)
-already has for notes — an honest full replace beats a silent, ambiguous
-partial merge (not every table has a clean way to match old rows to new
-ones).
+Each backup filename ends with this device's **Hostname**, set on the
+[Config](Config) page, so backups from different devices never collide and
+you can tell at a glance which machine made one. The default is the
+operating system's hostname; on Android that is usually unhelpful, so set
+a short label like `phone` or `tablet` once per device.
 
-Restoring a whole database recreates, in order: all tables, then all
-views, then all tables' data, then all triggers — triggers deliberately
-last, so bulk-loading a table's saved rows doesn't fire its own `AFTER
-INSERT` triggers as if they were new activity.
+### Importing an existing SQL dump
 
-### Forcing it manually
+To load data from somewhere else — a `sqlite3 .dump`, or the output of the
+old `websqldump.js` WebSQL exporter — use the [SQL Import](SQLImport) note.
+It executes the dump into a database of your choosing (creating it if
+needed) via the same `/api/sql` interface note scripts use, then you press
+**Backup now** on the Database Backups page to snapshot the result.
 
-Both directions are also available on demand — from a note's own script,
-or from any HTTP client:
+### For scripting
 
-```js
-const db = omnGoOpenDatabase('todo');
+The page's actions are plain admin-only HTTP endpoints, if you'd rather
+drive them from `curl` or another tool:
 
-await db.exportBackup();          // export every table/view/trigger now
-await db.exportBackup('items');   // export just the "items" table
-
-await db.restoreBackup();         // restore the whole database from JSON
-await db.restoreBackup('items');  // restore ONLY "items" - strict: its
-                                   // triggers are not re-created by this;
-                                   // omit the argument to restore everything
-```
-
-Add a button to a page for either action:
-
-```html
-<button onclick="omnGoOpenDatabase('todo').exportBackup()
-    .then(f => alert('Backed up: ' + f.length + ' file(s) changed'))
-    .catch(e => alert('Backup failed: ' + e.message))">
-  <i class="material-icons">save</i> Backup now
-</button>
-
-<button onclick="if (confirm('Replace current data with the last backup?'))
-    omnGoOpenDatabase('todo').restoreBackup()
-        .then(() => alert('Restored - reload to see it'))
-        .catch(e => alert('Restore failed: ' + e.message))">
-  <i class="material-icons">restore</i> Restore from backup
-</button>
-```
-
-These map directly to `POST /api/db/export?db=<name>[&table=<name>]` and
-`POST /api/db/restore?db=<name>[&table=<name>]`, both admin-only, if you'd
-rather call them from `curl` or another tool.
-
-### What isn't backed up this way
-
-Tables and views make the trip; **BLOB columns do not** — the JSON export
-skips (and logs an error for) any table containing one, since JSON has no
-binary type. If a note needs binary data backed up, base64-encode it in
-JavaScript before storing it in a `TEXT` column — the JSON mirror handles
-that natively, since it's already plain text as far as SQLite and this
-export are concerned:
-
-```js
-const bytes = new Uint8Array([1, 2, 3]);
-const b64 = btoa(String.fromCharCode(...bytes));
-await db.exec('INSERT INTO files(name, content) VALUES (?, ?)', ['x.bin', b64]);
-// content is a normal TEXT column - now included in the JSON backup
-```
+- `POST /api/db/backup?db=<name>` — create a backup.
+- `GET  /api/db/backups` — list every database and its backups (JSON).
+- `POST /api/db/restore?db=<name>&file=<backup-file>` — restore that backup.
 
 ## Limits and errors
 
-- Requests are capped at **1 MB** of JSON body and **500 statements** per
-  call — comfortably enough for interactive note scripts; if a script
-  needs more, split the work across a few calls rather than one giant
-  batch.
+- Requests to the SQL API are capped at **1 MB** of JSON body and **500
+  statements** per call — comfortably enough for interactive note scripts;
+  if a script needs more, split the work across a few calls rather than one
+  giant batch.
 - A rejected batch reports which statement failed:
 
   ```js
@@ -324,6 +337,7 @@ await db.exec('INSERT INTO files(name, content) VALUES (?, ?)', ['x.bin', b64]);
 
 ## See also
 
+- [SQL Import](SQLImport) — load an existing SQL dump into a database.
 - [User Manual](UserManual) — general page authoring, links, and the
   other globals (`PageName`, `PAGE_EXT`, ...) available to note scripts.
 - [Raw HTML and JavaScript in pages](UserManual#raw-html-and-javascript-in-pages)
