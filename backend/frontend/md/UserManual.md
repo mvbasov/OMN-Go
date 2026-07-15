@@ -86,7 +86,7 @@ right:
 
 - <i class="material-icons">home</i> — go to the [Welcome](Welcome) page
 - <i class="material-icons">note_add</i> — create a new page
-- <i class="material-icons">bolt</i> — add a quick note
+- <i class="material-icons">insert_comment</i> — add a quick note
 - <i class="material-icons">bookmark_add</i> — add a bookmark
 - <i class="material-icons">bookmarks</i> — open the [Bookmarks](Bookmarks) page
 - <i class="material-icons">refresh</i> — force-recompile the current page
@@ -282,7 +282,7 @@ page, so you can place your own buttons anywhere in a note:
 </button>
 
 <button onclick="document.getElementById('quickPanel').classList.remove('hidden')">
-  <i class="material-icons">bolt</i> Add quick note
+  <i class="material-icons">insert_comment</i> Add quick note
 </button>
 ```
 
@@ -298,7 +298,7 @@ Or dress a link up as a button:
 
 ```
 <a href="/QuickNotes.html"><button>
-  <i class="material-icons">bolt</i> Quick notes
+  <i class="material-icons">insert_comment</i> Quick notes
 </button></a>
 ```
 
@@ -306,7 +306,7 @@ Try it: [Quick notes](/QuickNotes) · [Bookmarks](/Bookmarks)
 
 ## Quick Notes and Bookmarks
 
-- <i class="material-icons">bolt</i> **Quick note** opens a small text box;
+- <i class="material-icons">insert_comment</i> **Quick note** opens a small text box;
   what you type is appended, with a timestamp, to the
   [QuickNotes](QuickNotes) page. Use it for capture-first-sort-later notes.
 - <i class="material-icons">bookmark_add</i> **Add bookmark** asks for a
