@@ -9,9 +9,9 @@ if (window.location.protocol !== 'file:') {
         // {status, message} response — the backend previously only read
         // "action" from the URL query string while this file posted it in
         // the body, so the action was silently ignored and every request
-        // fell back to a plain "pull". Both this file and the inline
-        // conflict-modal script in index.html now go through this one
-        // function so the two can't drift out of sync with each other.
+        // fell back to a plain "pull". Both syncAction and the conflict
+        // modal handler (performSync below) go through this one function
+        // so the two can't drift out of sync with each other.
         window.runSync = async function(action, opts) {
             opts = opts || {};
             const fd = new URLSearchParams();
@@ -51,6 +51,30 @@ if (window.location.protocol !== 'file:') {
                 default:
                     alert('Sync failed: ' + (data.message || 'unknown error'));
                     return data;
+            }
+        };
+
+        // performSync handles the three buttons on the conflict modal in
+        // index.html (moved here from an inline <script> in that file so
+        // all sync UI logic lives together). It goes through window.runSync
+        // above, so the modal and the header sync buttons can't disagree
+        // about the wire format or response handling.
+        window.performSync = async function(action) {
+            const modal = document.getElementById('conflict-modal');
+            if (action === 'abort') {
+                // A plain "pull" never mutates local state before reporting a
+                // conflict, so aborting here is purely a UI cancel — there is
+                // nothing on the server to undo.
+                if (modal) modal.classList.add('hidden');
+                return;
+            }
+            if (modal) modal.classList.add('hidden');
+
+            const data = await window.runSync(action);
+            if (data && data.status === 'success') {
+                // pull_force / pull_mark both change what's on disk under this
+                // page, so reload to show it.
+                location.reload();
             }
         };
 

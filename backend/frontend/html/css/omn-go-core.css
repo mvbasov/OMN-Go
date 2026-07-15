@@ -452,6 +452,13 @@ a.taglink {
     z-index: 50;
 }
 
+/* Sync conflict modal (index.html): unlike the other overlays, which JS
+   shows by setting style.display, its visibility is driven purely by the
+   .hidden class (window.runSync / window.performSync in omn-go-sse.js). */
+#conflict-modal:not(.hidden) {
+    display: flex;
+}
+
 .modal {
     background: var(--bg-surface);
     padding: 20px;
