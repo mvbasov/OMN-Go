@@ -8,22 +8,33 @@ import (
 	"testing"
 )
 
-// refreshEmbeddedAssets must (a) replace an extracted asset that no longer
-// matches this build's embedded content, (b) preserve the old copy in
-// asset_backups/<prev>/..., (c) leave never-extracted files alone, and
-// (d) become a no-op - protecting user edits - once the version stamp
-// matches APP_VERSION.
+// refreshEmbeddedAssets must, once per APP_VERSION change:
+//
+//	(a) replace a version-dependent asset whose on-disk copy no longer
+//	    matches this build's embedded content,
+//	(b) preserve the old copy under asset_backups/<prev>/<rel>,
+//	(c) INSTALL a version-dependent file that is absent (this is how a note
+//	    added in a new release, e.g. md/SQLImport.md, reaches existing
+//	    installs),
+//	(d) never create a USER-OWNED file (anything not on the version list -
+//	    md/Welcome.md, html/json/bookmarker-tags.json, ...): those are
+//	    lazily cached only when absent, never by a version refresh,
+//	(e) be a no-op once the version stamp matches APP_VERSION, so user
+//	    edits survive between upgrades, and
+//	(f) on the next version change, back up a user-edited version-dependent
+//	    file and replace it.
 func TestRefreshEmbeddedAssets(t *testing.T) {
 	dir := t.TempDir()
 	a := &App{StorageDir: dir}
 
-	const relJS = "js/omn-go-core.js"
-	embedData, err := staticFS.ReadFile("frontend/html/" + relJS)
+	// A version-dependent html/ asset, seeded with a stale copy on disk.
+	const rel = "html/js/omn-go-core.js"
+	embedData, err := staticFS.ReadFile("frontend/" + rel)
 	if err != nil {
-		t.Fatalf("embedded %s missing from staticFS: %v", relJS, err)
+		t.Fatalf("embedded %s missing from staticFS: %v", rel, err)
 	}
 
-	target := filepath.Join(dir, "html", filepath.FromSlash(relJS))
+	target := filepath.Join(dir, filepath.FromSlash(rel))
 	os.MkdirAll(filepath.Dir(target), 0755)
 	stale := []byte("// stale copy extracted by an older version\n")
 	if err := os.WriteFile(target, stale, 0644); err != nil {
@@ -37,14 +48,27 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 	if err != nil || !bytes.Equal(got, embedData) {
 		t.Error("stale extracted asset was not refreshed to embedded content")
 	}
-	// (b) previous copy preserved (no stamp existed, so label "unknown")
-	bak, err := os.ReadFile(filepath.Join(dir, "asset_backups", "unknown", filepath.FromSlash(relJS)))
+	// (b) previous copy preserved (no stamp existed, so label "unknown");
+	//     the backup mirrors the StorageDir-relative path, html/ prefix included
+	bak, err := os.ReadFile(filepath.Join(dir, "asset_backups", "unknown", filepath.FromSlash(rel)))
 	if err != nil || !bytes.Equal(bak, stale) {
 		t.Error("previous asset copy was not preserved in asset_backups")
 	}
-	// (c) files that were never extracted must not appear on disk
-	if _, err := os.Stat(filepath.Join(dir, "html", "css", "omn-go-core.css")); !os.IsNotExist(err) {
-		t.Error("refresh extracted a file that was never on disk")
+	// (c) a version-dependent file that was ABSENT is installed from embed
+	if instEmbed, embErr := staticFS.ReadFile("frontend/md/UserManual.md"); embErr == nil {
+		got, err := os.ReadFile(filepath.Join(dir, "md", "UserManual.md"))
+		if err != nil || !bytes.Equal(got, instEmbed) {
+			t.Error("absent version-dependent file was not installed from embed")
+		}
+	}
+	// (d) user-owned embedded files must NOT be created by a refresh
+	for _, userOwned := range []string{
+		filepath.Join(dir, "md", "Welcome.md"),
+		filepath.Join(dir, "html", "json", "bookmarker-tags.json"),
+	} {
+		if _, err := os.Stat(userOwned); !os.IsNotExist(err) {
+			t.Errorf("refresh created a user-owned file that must stay lazy-only: %s", userOwned)
+		}
 	}
 	// version stamp written
 	stamp, err := os.ReadFile(filepath.Join(dir, assetsVersionFilename))
@@ -52,7 +76,7 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 		t.Errorf("version stamp not written correctly: %q, %v", stamp, err)
 	}
 
-	// (d) same version: a user edit must survive untouched
+	// (e) same version: a user edit to a version-dependent file survives
 	edited := []byte("// user customization\n")
 	if err := os.WriteFile(target, edited, 0644); err != nil {
 		t.Fatal(err)
@@ -63,7 +87,7 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 		t.Error("asset overwritten although APP_VERSION did not change")
 	}
 
-	// Version change with a user-edited file: edit backed up under the
+	// (f) version change with a user-edited file: edit backed up under the
 	// previous version's label, then replaced by the embedded content.
 	if err := os.WriteFile(filepath.Join(dir, assetsVersionFilename), []byte("0.0.1\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -73,7 +97,7 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 	if !bytes.Equal(got, embedData) {
 		t.Error("edited asset not refreshed after version change")
 	}
-	bak, err = os.ReadFile(filepath.Join(dir, "asset_backups", "0.0.1", filepath.FromSlash(relJS)))
+	bak, err = os.ReadFile(filepath.Join(dir, "asset_backups", "0.0.1", filepath.FromSlash(rel)))
 	if err != nil || !bytes.Equal(bak, edited) {
 		t.Error("user edit not preserved in version-labeled backup")
 	}
