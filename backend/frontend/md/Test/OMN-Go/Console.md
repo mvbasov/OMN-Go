@@ -1,6 +1,6 @@
 Title: Console
 Date: 2026-06-23 00:21:00
-Modified: 2026-06-23 02:21:55
+Modified: 2026-07-05 08:12:53
 Category: Test
 Author: Mihail Basov
 Tags: Test
@@ -41,5 +41,11 @@ function app() {
 }
 app();
 console.log('--- Tie from console.time():');
-console.timeEnd('Label');
+consoole.timeEnd('Label');
 </script>
+
+
+- - -
+
+<span id="local_counter">...</span>.
+<script type="module" src="/js/local_counter.js"></script>

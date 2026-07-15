@@ -2,7 +2,7 @@ Title: Test/OMNGo/Fetch
 Date: 2026-06-23 00:29:26
 Category: Test
 Author: Mikhail Basov
-Modified: 2026-06-23 02:27:28
+Modified: 2026-07-09 21:59:56
 Tags: Test
 
 ### `fetch()` test
@@ -23,4 +23,10 @@ async function loadJSON() {
 }
 loadJSON();;
 </script>
+
+- - -
+
+<span id="local_counter">...</span>.
+<script type="module" src="/js/local_counter.js"></script>
+
 

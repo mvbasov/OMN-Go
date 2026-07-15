@@ -3,7 +3,7 @@ Date: 2026-06-24 14:37:29
 Category: Test
 Author: Mikhail Basov
 Tags: Test
-Modified: 2026-06-24 15:09:56
+Modified: 2026-07-09 22:01:54
 
 **see the status at the bottom of the page**
 
@@ -23,3 +23,9 @@ Modified: 2026-06-24 15:09:56
   d.classList.add('small-circle');
   s.insertBefore(d, s.firstChild);
 </script>
+
+- - -
+
+<span id="local_counter">...</span>.
+<script type="module" src="/js/local_counter.js"></script>
+
