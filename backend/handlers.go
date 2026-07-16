@@ -7,7 +7,6 @@ import (
 	"html"
 	"io"
 	"log"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -927,37 +926,11 @@ func (a *App) renderInternalEditor(w http.ResponseWriter, relPath string) {
 	w.Write(a.injectRuntimeVars([]byte(page)))
 }
 
+// serveStaticAsset is the root catch-all for embedded assets that are not
+// markdown pages and not under the /js|/css|/json prefixes (e.g.
+// favicon.ico, robots.txt). It shares serveEmbeddableAsset (serving.go) with
+// those prefix trees, so the lazy embed-extraction and MIME resolution live
+// in exactly one place.
 func (a *App) serveStaticAsset(w http.ResponseWriter, r *http.Request, path string) {
-	ext := strings.ToLower(filepath.Ext(path))
-	mimeType, exists := a.GetConfig().MimeTypes[ext]
-	if !exists {
-		mimeType = mime.TypeByExtension(ext)
-	}
-	if mimeType != "" {
-		w.Header().Set("Content-Type", mimeType)
-	}
-
-	filePath := filepath.Join(a.StorageDir, "html", filepath.Clean(path))
-	if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
-		http.ServeFile(w, r, filePath)
-		return
-	}
-
-	// Embed path must match the //go:embed directive's root (server.go:
-	// "frontend/html frontend/md"), i.e. frontend/html/<path> - NOT
-	// frontend/<path>. This used to be missing the "html" segment, so any
-	// asset served only through this catch-all handler and not yet
-	// extracted to disk (e.g. favicon.ico, robots.txt: not under /js/,
-	// /css/, /json/, so never touched by serveLazyEmbed's extraction, and
-	// not a .html page) always missed staticFS and fell through to a 404,
-	// even though the file was genuinely embedded in the binary.
-	embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(path))
-	if data, err := staticFS.ReadFile(embedPath); err == nil {
-		os.MkdirAll(filepath.Dir(filePath), 0755)
-		os.WriteFile(filePath, data, 0644)
-		w.Write(data)
-		return
-	}
-
-	http.NotFound(w, r)
+	a.serveEmbeddableAsset(w, r, path)
 }

@@ -5,11 +5,8 @@ import (
 	"embed"
 	"fmt"
 	"log"
-	"mime"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -88,17 +85,9 @@ func StartServer(storageDir string) *App {
 
 	a.initStorage(storageDir) // Execute synchronously to ensure config is loaded instantly
 
-	// Fallback MIME types for minimal Docker containers
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".png", "image/png")
-	mime.AddExtensionType(".jpg", "image/jpeg")
-	mime.AddExtensionType(".jpeg", "image/jpeg")
-	mime.AddExtensionType(".gif", "image/gif")
-	mime.AddExtensionType(".json", "application/json")
-	mime.AddExtensionType(".woff", "font/woff")
-	mime.AddExtensionType(".woff2", "font/woff2")
-	mime.AddExtensionType(".ttf", "font/ttf")
+	// Content-type resolution now lives in one place, resolveContentType
+	// (serving.go), which carries the canonical table these startup
+	// mime.AddExtensionType(...) calls used to seed - so they are gone.
 
 	go func() {
 		defer func() {
@@ -111,56 +100,22 @@ func StartServer(storageDir string) *App {
 		a.InitLoggerAndRoute()
 		a.Router.HandleFunc("/", a.serveFrontend)
 
-		serveLazyEmbed := func() http.Handler {
-			physicalDir := filepath.Join(a.StorageDir, "html")
-			fsHandler := http.FileServer(http.Dir(physicalDir))
+		// The /js|/css|/json trees are embedded assets, lazily extracted and
+		// served (and ?edit-able) by the one shared asset handler in
+		// serving.go; the root catch-all (serveFrontend -> serveStaticAsset)
+		// funnels into the same serveEmbeddableAsset.
+		assetTree := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			a.serveEmbeddableAsset(w, r, r.URL.Path)
+		})
+		a.Router.Handle("/js/", assetTree)
+		a.Router.Handle("/css/", assetTree)
+		a.Router.Handle("/json/", assetTree)
 
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// Calculate physical path
-				physPath := filepath.Join(physicalDir, filepath.Clean(r.URL.Path))
-
-				// Lazy Extraction: Check if file exists on disk, if not, pull from embedFS
-				if _, err := os.Stat(physPath); os.IsNotExist(err) {
-					embedPath := "frontend/html" + filepath.ToSlash(filepath.Clean(r.URL.Path))
-					if data, err := staticFS.ReadFile(embedPath); err == nil {
-						os.MkdirAll(filepath.Dir(physPath), 0755)
-						os.WriteFile(physPath, data, 0644)
-					}
-				}
-
-				// Edit intent: hand off to the one dedicated editor page
-				// (which also honours the external-editor preference).
-				// Editing a .js/.css/.json asset uses the exact same editor
-				// as a markdown note; the content is fetched via /api/note.
-				if r.URL.Query().Get("edit") == "true" {
-					a.serveEditor(w, r, r.URL.Path)
-					return
-				}
-
-				// Serve the file dynamically from the physical directory
-				fsHandler.ServeHTTP(w, r)
-			})
-		}
-
-		a.Router.Handle("/js/", serveLazyEmbed())
-		a.Router.Handle("/css/", serveLazyEmbed())
-		a.Router.Handle("/json/", serveLazyEmbed())
-
-		// Config for files handling Content-type by served directories
-		serveStorageDir := func(subDir, cType string) http.Handler {
-			dirPath := filepath.Join(a.StorageDir, "html", subDir)
-			os.MkdirAll(dirPath, 0755)
-			fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if cType != "" {
-					w.Header().Set("Content-Type", cType)
-				}
-				fsHandler.ServeHTTP(w, r)
-			})
-		}
-
-		a.Router.Handle("/images/", serveStorageDir("images", ""))
-		a.Router.Handle("/user_json/", serveStorageDir("user_json", "application/json"))
+		// /images and /user_json are pure user content (never embedded),
+		// served straight from their storage subdirectory. /user_json is
+		// pinned to application/json; /images resolves per file.
+		a.Router.Handle("/images/", a.serveStorageSubdir("images", ""))
+		a.Router.Handle("/user_json/", a.serveStorageSubdir("user_json", "application/json"))
 
 		a.Router.HandleFunc("/login", a.handleLogin)
 		a.Router.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
