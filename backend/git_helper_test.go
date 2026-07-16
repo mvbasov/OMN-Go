@@ -3,6 +3,7 @@ package backend
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -205,6 +206,9 @@ func buildFlatTree(t *testing.T, repo *git.Repository, files map[string]string) 
 		}
 		entries = append(entries, object.TreeEntry{Name: name, Mode: filemode.Regular, Hash: h})
 	}
+	// go-git requires a tree's entries to be sorted by name; map iteration
+	// above is unordered, so sort before encoding or decoding rejects it.
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	tree := &object.Tree{Entries: entries}
 	enc := repo.Storer.NewEncodedObject()
 	if err := tree.Encode(enc); err != nil {
