@@ -390,6 +390,8 @@ if (window.location.protocol !== 'file:') {
     document.addEventListener('DOMContentLoaded', () => {
         try {
             const logSource = new EventSource('/api/logs');
+	    // stream is released before the document is cached
+	    window.addEventListener('pagehide', () => logSource.close());
             logSource.onmessage = function(event) {
                 let msg = event.data.trim();
                 if(msg) {
