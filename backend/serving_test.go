@@ -122,3 +122,49 @@ func TestServeEmbeddableAssetMissing(t *testing.T) {
 		t.Errorf("status %d, want 404", rec.Code)
 	}
 }
+
+// TestServeStorageSubdir covers the /images and /user_json handler (added in
+// Phase 4 to close the Phase 3 test gap): /user_json is pinned to
+// application/json regardless of file extension, while /images resolves the
+// content-type per file through resolveContentType.
+func TestServeStorageSubdir(t *testing.T) {
+	a := newTestApp(t)
+
+	// /user_json - forced content-type.
+	ujDir := filepath.Join(a.StorageDir, "html", "user_json")
+	if err := os.MkdirAll(ujDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ujDir, "data.json"), []byte(`{"a":1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	uj := a.serveStorageSubdir("user_json", "application/json")
+	req := httptest.NewRequest(http.MethodGet, "/user_json/data.json", nil)
+	rec := httptest.NewRecorder()
+	uj.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("user_json status %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("user_json Content-Type = %q, want application/json", ct)
+	}
+
+	// /images - per-file resolution via resolveContentType.
+	imgDir := filepath.Join(a.StorageDir, "html", "images")
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(imgDir, "p.png"), []byte("\x89PNG\r\n\x1a\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	img := a.serveStorageSubdir("images", "")
+	req2 := httptest.NewRequest(http.MethodGet, "/images/p.png", nil)
+	rec2 := httptest.NewRecorder()
+	img.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("images status %d", rec2.Code)
+	}
+	if ct := rec2.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("images Content-Type = %q, want image/png", ct)
+	}
+}

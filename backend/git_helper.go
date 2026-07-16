@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -774,7 +775,7 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 
 // syncPull fast-forwards local to origin/master when possible. When it is
 // not possible (diverged history, or unstaged local changes in the way) it
-// returns the CONFLICT_DETECTED sentinel so the caller can offer the user a
+// returns ErrSyncConflict so the caller can offer the user a
 // choice between "pull_abort" and "pull_mark" (3-way merge).
 // trackedWorktreeIsDirty reports whether any TRACKED file has a local
 // modification that hasn't been committed. Untracked content (new notes
@@ -827,7 +828,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 	}
 	if dirty {
 		log.Printf("[sync] Pull: local tracked changes present, cannot fast-forward")
-		return fmt.Errorf("CONFLICT_DETECTED")
+		return ErrSyncConflict
 	}
 
 	// Fast-forward only: refuse (same sentinel the caller already handles,
@@ -851,7 +852,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		}
 		if !isAncestor {
 			log.Printf("[sync] Pull: fast-forward not possible (local has unpushed commits)")
-			return fmt.Errorf("CONFLICT_DETECTED")
+			return ErrSyncConflict
 		}
 	}
 
@@ -1251,12 +1252,12 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 //     actual repo.Push attempt against profile 2 isn't. Removed in favor
 //     of always just asking the real remote via the push itself.)
 //   - If there ARE uncommitted local changes, a commit message is
-//     required; without one it returns COMMIT_MESSAGE_REQUIRED.
+//     required; without one it returns ErrCommitMessageRequired.
 //   - A force push always requires a commit message up front (even if
 //     there happen to be no pending changes to commit), since it is a
 //     destructive operation on the remote.
 //   - A non-force push that is rejected as non-fast-forward returns
-//     PUSH_CONFLICT_DETECTED and otherwise does nothing further — per
+//     ErrPushConflict and otherwise does nothing further — per
 //     spec, no auto-pull/auto-merge is attempted.
 //   - A force push always pushes with Force:true, overwriting the remote
 //     to match local regardless of divergence.
@@ -1301,7 +1302,7 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 
 	needsMessage := hasRelevantChanges || force
 	if needsMessage && strings.TrimSpace(message) == "" {
-		return fmt.Errorf("COMMIT_MESSAGE_REQUIRED")
+		return ErrCommitMessageRequired
 	}
 
 	if hasRelevantChanges {
@@ -1324,7 +1325,7 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 	if err != nil {
 		if !force && err == git.ErrNonFastForwardUpdate {
 			log.Printf("[sync] push: rejected as non-fast-forward, leaving local state untouched")
-			return fmt.Errorf("PUSH_CONFLICT_DETECTED")
+			return ErrPushConflict
 		}
 		return fmt.Errorf("push failed: %v", err)
 	}
@@ -1335,20 +1336,49 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 // Dispatcher
 // ---------------------------------------------------------------
 
-// SyncRepo runs a git sync action with no commit message. Kept exported and
-// with its original single-argument signature for backward compatibility
-// with any existing caller. New code — including handleSync below — should
-// call SyncRepoWithMessage, which additionally accepts a commit message for
-// the "push"/"push_force" actions.
-func (a *App) SyncRepo(action string) error {
-	return a.SyncRepoWithMessage(action, "")
+// Sentinel errors for the sync state machine. These are the signals a sync
+// operation raises for conditions the USER must resolve, as opposed to
+// genuine failures. handleSync (via syncErrorStatus) translates each into
+// its wire status using errors.Is, so a producer and a consumer can never
+// drift apart over a bare string the way the previous
+// fmt.Errorf("CONFLICT_DETECTED")-style sentinels could.
+var (
+	// ErrSyncConflict: a plain pull cannot fast-forward - diverged history,
+	// or uncommitted local changes in the way. The user chooses abort or a
+	// 3-way merge.
+	ErrSyncConflict = errors.New("sync: fast-forward not possible")
+	// ErrPushConflict: a non-force push was rejected because the remote has
+	// commits the local branch does not have. The user must pull first.
+	ErrPushConflict = errors.New("sync: push rejected, remote has new commits")
+	// ErrCommitMessageRequired: there are changes to commit (or a force push
+	// was requested) but no commit message was supplied.
+	ErrCommitMessageRequired = errors.New("sync: commit message required")
+)
+
+// syncErrorStatus maps a sync error to the wire {status, message} the
+// frontend understands (see runSync in omn-go-sse.js). ok is false for a nil
+// error or a generic failure, in which case the caller reports a plain
+// "error" with the raw message. Keyed on errors.Is, so it keeps matching
+// even if a sentinel is later wrapped with %w for extra context.
+func syncErrorStatus(err error) (status, message string, ok bool) {
+	switch {
+	case errors.Is(err, ErrSyncConflict):
+		return "conflict", "Fast-forward not possible. Choose abort or 3-way merge.", true
+	case errors.Is(err, ErrPushConflict):
+		return "push_conflict", "Remote has new commits. Pull before pushing.", true
+	case errors.Is(err, ErrCommitMessageRequired):
+		return "needs_commit_message", "Please provide a commit message.", true
+	default:
+		return "", "", false
+	}
 }
 
-// SyncRepoWithMessage implements the four required git operations:
+// SyncRepo implements the git sync operations. message is used only by the
+// "push"/"push_force" actions (empty for the rest):
 //
-//	pull        fast-forward if possible; returns the CONFLICT_DETECTED
-//	            sentinel error if it is not (diverged history, or local
-//	            changes in the way). Aliases: "pull_ff", "download".
+//	pull        fast-forward if possible; returns ErrSyncConflict if it is
+//	            not (diverged history, or local changes in the way).
+//	            Aliases: "pull_ff", "download".
 //	pull_mark   after a "pull" conflict: writes 3-way conflict markers so
 //	            the user can resolve them by hand ("make 3 way diff merge")
 //	pull_abort  after a "pull" conflict: discards it, restoring local state.
@@ -1363,9 +1393,13 @@ func (a *App) SyncRepo(action string) error {
 //	            force-pushes, resetting the remote to local state.
 //	            Alias: "upload_force".
 //
+// Previously this was two methods - SyncRepo(action) and
+// SyncRepoWithMessage(action, message) - kept as a backward-compat pair; the
+// message-taking form is now the only one (nothing calls the old signature).
+//
 // All repo mutation is serialized via a.GitMutex, so this is safe to call
 // from multiple goroutines at once (e.g. concurrent HTTP requests).
-func (a *App) SyncRepoWithMessage(action string, message string) error {
+func (a *App) SyncRepo(action string, message string) error {
 	a.GitMutex.Lock()
 	defer a.GitMutex.Unlock()
 
@@ -1437,7 +1471,7 @@ func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 
 	// The UI's "Force" checkbox is a separate field, not a distinct action
 	// name — translate it into the canonical *_force action here so
-	// SyncRepoWithMessage only has to deal with one vocabulary.
+	// SyncRepo only has to deal with one vocabulary.
 	if force {
 		switch action {
 		case "pull", "pull_ff", "download":
@@ -1447,16 +1481,10 @@ func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := a.SyncRepoWithMessage(action, message)
-	if err != nil {
-		switch err.Error() {
-		case "CONFLICT_DETECTED":
-			writeSyncJSON(w, "conflict", "Fast-forward not possible. Choose abort or 3-way merge.")
-		case "PUSH_CONFLICT_DETECTED":
-			writeSyncJSON(w, "push_conflict", "Remote has new commits. Pull before pushing.")
-		case "COMMIT_MESSAGE_REQUIRED":
-			writeSyncJSON(w, "needs_commit_message", "Please provide a commit message.")
-		default:
+	if err := a.SyncRepo(action, message); err != nil {
+		if status, msg, ok := syncErrorStatus(err); ok {
+			writeSyncJSON(w, status, msg)
+		} else {
 			writeSyncJSON(w, "error", err.Error())
 		}
 		return
