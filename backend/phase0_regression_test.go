@@ -59,45 +59,58 @@ func TestPhase0_FrontMatterClassification_CompilePage(t *testing.T) {
 		t.Errorf("unfilled template placeholder in compiled page:\n%s", out)
 	}
 
-	// QUIRK PINNED: compilePageWithBody classifies a header line purely by
-	// "does it contain a colon". A Markdown heading whose text happens to
-	// contain a colon ("# Head: x") as the very first line is therefore
-	// swallowed as a header line - it becomes a bogus meta tag and vanishes
-	// from the body instead of rendering as <h1>. This is almost certainly
-	// not intended, but it is the CURRENT behavior; Phase 1 must either keep
-	// it deliberately or fix it deliberately, not change it by accident.
+	// PHASE 1 (was a pinned quirk): the Phase 0 net recorded that
+	// compilePageWithBody used to classify a header line purely by "does it
+	// contain a colon", so a Markdown heading whose text happens to contain
+	// a colon ("# Head: x") as the first line was swallowed as a bogus meta
+	// tag and vanished from the body. Phase 1 unified header detection on
+	// splitFrontMatter, whose first-line rule rejects a '#'-prefixed line -
+	// so the heading now renders as <h1> and is NOT treated as metadata.
+	// This is the intentional behavior change the Phase 0 test guarded.
 	out = string(a.compilePage("P", []byte("# Head: x\n\nBody")))
-	if !strings.Contains(out, `name="# head" content="x"`) {
-		t.Errorf("current colon-heading-as-header behavior changed:\n%s", out)
+	if strings.Contains(out, `name="# head"`) {
+		t.Errorf("colon-bearing heading is still wrongly treated as a header line:\n%s", out)
 	}
-	if strings.Contains(out, "<h1") {
-		t.Errorf("expected the colon-bearing heading to be consumed as a header line, but it rendered as <h1>:\n%s", out)
+	if !strings.Contains(out, "<h1") {
+		t.Errorf("colon-bearing heading should now render as <h1> in the body:\n%s", out)
 	}
 	if !strings.Contains(out, "<p>Body</p>") {
-		t.Errorf("body after the swallowed heading not rendered as expected:\n%s", out)
+		t.Errorf("body after the heading not rendered as expected:\n%s", out)
 	}
 }
 
-func TestPhase0_FrontMatterClassification_EnsureHeaderModifiedDisagrees(t *testing.T) {
+func TestPhase0_FrontMatterClassification_UnifiedAcrossFunctions(t *testing.T) {
 	a := &App{}
 
-	// Same input as the quirk above. ensureHeaderModified decides "is this a
-	// header?" from the FIRST LINE ONLY, and a first line starting with '#'
-	// is NOT a header - so it synthesizes a fresh Title/Date/Modified block
-	// and keeps the original text verbatim as body. This is the exact
-	// point where the two implementations diverge: compilePageWithBody
-	// treats "# Head: x" as a header line, ensureHeaderModified treats it as
-	// body. Consolidating these two into one parser is the whole point of
-	// Phase 1; this test makes the divergence explicit and guarded.
-	out := a.ensureHeaderModified("# Head: x\n\nBody", "P")
-	if !strings.Contains(out, "Title: P") {
-		t.Errorf("ensureHeaderModified no longer synthesizes a header for a '#' first line:\n%s", out)
+	// Before Phase 1 the two implementations DISAGREED on "# Head: x":
+	// compilePageWithBody treated it as a header line, ensureHeaderModified
+	// treated it as body. Phase 1 routed both through splitFrontMatter, so
+	// they now agree - the first line is body (a '#'-prefixed line is not a
+	// metadata key line). This test guards that they stay unified.
+
+	// ensureHeaderModified: classifies as body -> synthesizes a fresh header
+	// above the verbatim content.
+	em := a.ensureHeaderModified("# Head: x\n\nBody", "P")
+	if !strings.Contains(em, "Title: P") {
+		t.Errorf("ensureHeaderModified no longer synthesizes a header for a '#' first line:\n%s", em)
 	}
-	if !strings.Contains(out, "# Head: x\n\nBody") {
-		t.Errorf("ensureHeaderModified did not preserve the original body verbatim:\n%s", out)
+	if !strings.Contains(em, "# Head: x\n\nBody") {
+		t.Errorf("ensureHeaderModified did not preserve the original body verbatim:\n%s", em)
 	}
-	if strings.Count(out, "Modified:") != 1 {
-		t.Errorf("expected exactly one Modified line in the synthesized header:\n%s", out)
+	if strings.Count(em, "Modified:") != 1 {
+		t.Errorf("expected exactly one Modified line in the synthesized header:\n%s", em)
+	}
+
+	// compilePageWithBody: also classifies as body -> renders as <h1>, emits
+	// no header-derived meta tag. (The full assertions live in
+	// TestPhase0_FrontMatterClassification_CompilePage; this is the
+	// agreement check.)
+	cp := string(a.compilePage("P", []byte("# Head: x\n\nBody")))
+	if strings.Contains(cp, `name="# head"`) {
+		t.Errorf("compilePageWithBody still disagrees - treats '# Head: x' as a header line:\n%s", cp)
+	}
+	if !strings.Contains(cp, "<h1") {
+		t.Errorf("compilePageWithBody should render '# Head: x' as body <h1>:\n%s", cp)
 	}
 }
 

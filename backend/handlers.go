@@ -688,21 +688,16 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 				linkHref = "/" + target
 			}
 			linkStr := fmt.Sprintf("* [%s](%s)", title, linkHref)
-			parts := strings.SplitN(content, "\n\n", 2)
 
-			isHeader := false
-			if len(parts) > 0 && strings.Contains(parts[0], ":") {
-				firstLine := strings.Split(parts[0], "\n")[0]
-				if strings.Contains(firstLine, ":") && !strings.HasPrefix(firstLine, " ") && !strings.HasPrefix(firstLine, "#") {
-					isHeader = true
-				}
-			}
-
-			if isHeader {
-				if len(parts) > 1 {
-					content = parts[0] + "\n\n" + linkStr + "\n" + parts[1]
+			// Same header decision as everywhere else (see frontmatter.go).
+			// The new link is inserted just below the header block when one
+			// is present, or prepended to a headerless note.
+			fm := splitFrontMatter(content)
+			if fm.HasHeader {
+				if fm.Body != "" {
+					content = fm.Header + "\n\n" + linkStr + "\n" + fm.Body
 				} else {
-					content = parts[0] + "\n\n" + linkStr + "\n"
+					content = fm.Header + "\n\n" + linkStr + "\n"
 				}
 			} else {
 				content = linkStr + "\n\n" + content

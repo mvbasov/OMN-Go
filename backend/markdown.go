@@ -253,32 +253,20 @@ func (a *App) compilePage(name string, mdContent []byte) []byte {
 // dedicated editor page (renderEditorPage), so this function only ever
 // produces read/view shells.
 func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
+	// One front-matter split for the whole backend (see frontmatter.go).
+	// Previously this function had its own line-by-line header scan that
+	// classified any colon-bearing line as header - swallowing e.g. a
+	// "# Head: x" Markdown heading. splitFrontMatter uses the same
+	// first-line rule as ensureHeaderModified and handleNewPage.
+	fm := splitFrontMatter(string(mdContent))
 	var headers []string
-	var bodyLines []string
-	inHeader := true
-
-	lines := strings.SplitSeq(string(mdContent), "\n")
-	for line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if inHeader {
-			if trimmed == "" {
-				inHeader = false
-				continue
-			}
-			if strings.Contains(line, ":") {
-				headers = append(headers, line)
-			} else {
-				inHeader = false
-				bodyLines = append(bodyLines, line)
-			}
-		} else {
-			bodyLines = append(bodyLines, line)
-		}
+	if fm.HasHeader {
+		headers = strings.Split(fm.Header, "\n")
 	}
 
 	renderedBody := customBody
 	if renderedBody == "" {
-		renderedBody = a.renderMarkdownToHTML([]byte(strings.Join(bodyLines, "\n")))
+		renderedBody = a.renderMarkdownToHTML([]byte(fm.Body))
 	}
 
 	title := "OMN-Go - " + name
@@ -334,19 +322,13 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 
 func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
-	parts := strings.SplitN(content, "\n\n", 2)
 	now := time.Now().Format("2006-01-02 15:04:05")
 
-	isHeader := false
-	if len(parts) > 0 && strings.Contains(parts[0], ":") {
-		lines := strings.Split(parts[0], "\n")
-		if len(lines) > 0 && strings.Contains(lines[0], ":") && !strings.HasPrefix(lines[0], " ") && !strings.HasPrefix(lines[0], "#") && !strings.HasPrefix(lines[0], "<") {
-			isHeader = true
-		}
-	}
+	// Same header decision as everywhere else (see frontmatter.go).
+	fm := splitFrontMatter(content)
 
-	if isHeader {
-		headerLines := strings.Split(parts[0], "\n")
+	if fm.HasHeader {
+		headerLines := strings.Split(fm.Header, "\n")
 		modIdx := -1
 		for i, l := range headerLines {
 			if strings.HasPrefix(strings.ToLower(l), "modified:") {
@@ -359,11 +341,9 @@ func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 		} else {
 			headerLines = append(headerLines, fmt.Sprintf("Modified: %s", now))
 		}
-		parts[0] = strings.Join(headerLines, "\n")
-		if len(parts) > 1 {
-			return parts[0] + "\n\n" + parts[1]
-		}
-		return parts[0] + "\n\n"
+		// Body is "" for a header-only note; the trailing "\n\n" preserves
+		// the previous behavior (a header always ends with a blank line).
+		return strings.Join(headerLines, "\n") + "\n\n" + fm.Body
 	}
 
 	authorLine := ""

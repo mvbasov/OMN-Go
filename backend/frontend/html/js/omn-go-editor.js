@@ -563,15 +563,30 @@
         }
     }
 
+    // isHeaderFirstLine is a direct port of the Go isHeaderFirstLine
+    // (backend/frontmatter.go): the FIRST line of a note is a metadata key
+    // line only when it contains ':' and does not start with a space, '#',
+    // or '<'. Keep the two in sync.
+    function isHeaderFirstLine(line) {
+        if (line.charAt(line.length - 1) === '\r') line = line.slice(0, -1);
+        if (line.indexOf(':') === -1) return false;
+        var c = line.charAt(0);
+        return c !== ' ' && c !== '#' && c !== '<';
+    }
+
     // Returns the character offset of the first line after the note's
-    // Pelican-style metadata header, i.e. right after the header's
-    // terminating blank line - same "first blank line" rule
-    // handleQuickNote (backend/handlers.go) and ensureHeaderModified
-    // (backend/markdown.go) both use to find the end of that header.
-    // Falls back to the end of the file when no blank line exists at all
-    // (e.g. a one-line file with no header), matching the previous
-    // "caret at end" behavior for that edge case.
+    // Pelican-style metadata header. This mirrors the backend's
+    // splitFrontMatter (backend/frontmatter.go) so the editor caret and the
+    // server agree on where the header ends: a header exists only when the
+    // first line is a metadata key line (isHeaderFirstLine); the body then
+    // begins right after the header's terminating blank line. With no
+    // header, the body is the whole file, so the caret starts at offset 0.
+    // A header with no terminating blank line (a metadata-only note) puts
+    // the caret at the end of the file.
     function firstLineAfterHeader(text) {
+        var nl = text.indexOf('\n');
+        var firstLine = nl === -1 ? text : text.slice(0, nl);
+        if (!isHeaderFirstLine(firstLine)) return 0;
         var m = /\r?\n\r?\n/.exec(text);
         return m ? m.index + m[0].length : text.length;
     }

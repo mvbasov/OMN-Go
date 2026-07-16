@@ -1,0 +1,116 @@
+package backend
+
+import "strings"
+
+// ----------------------------------------------------------------------
+// The single front-matter ("Pelican header") parser
+// ----------------------------------------------------------------------
+//
+// A note may begin with a block of "Key: Value" metadata lines terminated
+// by a blank line, e.g.:
+//
+//	Title: My Note
+//	Date: 2026-01-01 00:00:00
+//	Category: Notes
+//
+//	Body starts here.
+//
+// The decision "where does the header end and the body begin?" used to be
+// re-implemented, subtly differently, in three Go places
+// (compilePageWithBody, ensureHeaderModified, handleNewPage) and a fourth
+// in the editor's JavaScript (firstLineAfterHeader). Those variants
+// disagreed on edge cases - most visibly, compilePageWithBody treated any
+// first line containing a ':' as a header line, so a Markdown heading like
+// "# Head: subtitle" was swallowed as metadata instead of rendering as a
+// heading. splitFrontMatter is now the ONE authority; every Go caller goes
+// through it, and the editor's firstLineAfterHeader mirrors isHeaderFirstLine
+// exactly (see backend/frontend/html/js/omn-go-editor.js). See CODE_REVIEW.md
+// Phase 1.
+
+// frontMatter is the parsed split of note content into its optional header
+// and its body.
+type frontMatter struct {
+	// HasHeader is true when the content begins with a metadata header
+	// block (see splitFrontMatter for the exact rule).
+	HasHeader bool
+	// Header is the raw header block - the metadata lines joined by "\n",
+	// WITHOUT the terminating blank line. Empty when HasHeader is false.
+	Header string
+	// Body is everything after the header's terminating blank line, or the
+	// entire content when there is no header.
+	Body string
+	// BodyOffset is the byte offset into the ORIGINAL content at which Body
+	// begins (0 when there is no header). This is the authoritative
+	// "first line after the header" position, matched by the editor caret.
+	BodyOffset int
+}
+
+// isHeaderFirstLine reports whether line - the FIRST line of a note -
+// looks like a metadata key line ("Key: Value"). It must contain a ':' and
+// must NOT start with a space, '#', or '<': those three mark a line that is
+// Markdown or raw HTML body which merely happens to contain a colon (a
+// "# Heading: subtitle", an indented continuation, a "<script>let x: 1").
+// A trailing CR is ignored so CRLF files classify the same as LF ones.
+//
+// The editor's isHeaderFirstLine (JS) is a direct port of this rule; keep
+// the two in sync.
+func isHeaderFirstLine(line string) bool {
+	line = strings.TrimSuffix(line, "\r")
+	if !strings.Contains(line, ":") {
+		return false
+	}
+	if strings.HasPrefix(line, " ") ||
+		strings.HasPrefix(line, "#") ||
+		strings.HasPrefix(line, "<") {
+		return false
+	}
+	return true
+}
+
+// splitFrontMatter parses content into its optional metadata header and its
+// body. A header is present only when the FIRST line satisfies
+// isHeaderFirstLine. When present, the header runs from that first line up
+// to (but not including) the first blank line, and the body is everything
+// after that blank line. A header with no terminating blank line (a note
+// that is only metadata) has an empty body. With no header at all, the
+// whole content is the body and BodyOffset is 0.
+func splitFrontMatter(content string) frontMatter {
+	firstLine := content
+	if nl := strings.IndexByte(content, '\n'); nl >= 0 {
+		firstLine = content[:nl]
+	}
+	if !isHeaderFirstLine(firstLine) {
+		return frontMatter{Body: content}
+	}
+
+	// A blank line is one that is empty after trimming a trailing CR, so
+	// both "\n\n" and "\r\n\r\n" terminate the header.
+	lines := strings.Split(content, "\n")
+	headerEnd := -1 // index of the terminating blank line, -1 if none
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSuffix(lines[i], "\r") == "" {
+			headerEnd = i
+			break
+		}
+	}
+
+	if headerEnd == -1 {
+		// Header-only content (no blank line, no body).
+		return frontMatter{HasHeader: true, Header: content, BodyOffset: len(content)}
+	}
+
+	offset := 0
+	for i := 0; i <= headerEnd; i++ {
+		offset += len(lines[i]) + 1 // +1 for the '\n' strings.Split removed
+	}
+	if offset > len(content) {
+		offset = len(content) // degenerate trailing-blank-with-no-newline case
+	}
+
+	return frontMatter{
+		HasHeader:  true,
+		Header:     strings.Join(lines[:headerEnd], "\n"),
+		Body:       strings.Join(lines[headerEnd+1:], "\n"),
+		BodyOffset: offset,
+	}
+}
