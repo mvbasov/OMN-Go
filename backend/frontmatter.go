@@ -69,11 +69,23 @@ func isHeaderFirstLine(line string) bool {
 
 // splitFrontMatter parses content into its optional metadata header and its
 // body. A header is present only when the FIRST line satisfies
-// isHeaderFirstLine. When present, the header runs from that first line up
-// to (but not including) the first blank line, and the body is everything
-// after that blank line. A header with no terminating blank line (a note
-// that is only metadata) has an empty body. With no header at all, the
-// whole content is the body and BodyOffset is 0.
+// isHeaderFirstLine. The header then continues line by line and ends at the
+// FIRST of either:
+//   - a blank line (empty after trimming whitespace - so a "separator" line
+//     that carries stray spaces/tabs still counts, which real notes have);
+//     the blank line is the separator and is dropped, and the body starts
+//     after it, or
+//   - a line that is not itself a "Key: Value" header line (fails
+//     isHeaderFirstLine, e.g. "<style>" or a prose line with no colon); that
+//     line is the first BODY line and is kept.
+//
+// Both conditions matter. Requiring only a blank line (as an earlier version
+// did) let a note whose header was followed immediately by content - a
+// "<style>" block, a prose paragraph, or a whitespace-only separator - run
+// the header on until the first truly-empty line, swallowing CSS
+// "--var: #hex;" lines as bogus metadata. A header with neither a blank line
+// nor a non-header line after it (a note that is only metadata) has an empty
+// body. With no header at all, the whole content is the body.
 func splitFrontMatter(content string) frontMatter {
 	firstLine := content
 	if nl := strings.IndexByte(content, '\n'); nl >= 0 {
@@ -83,34 +95,37 @@ func splitFrontMatter(content string) frontMatter {
 		return frontMatter{Body: content}
 	}
 
-	// A blank line is one that is empty after trimming a trailing CR, so
-	// both "\n\n" and "\r\n\r\n" terminate the header.
 	lines := strings.Split(content, "\n")
-	headerEnd := -1 // index of the terminating blank line, -1 if none
-	for i := 1; i < len(lines); i++ {
-		if strings.TrimSuffix(lines[i], "\r") == "" {
-			headerEnd = i
-			break
+
+	// makeResult builds the split given the body's starting line index and
+	// whether the line before it was a dropped blank separator.
+	makeResult := func(bodyStart int, headerEndExclusive int) frontMatter {
+		offset := 0
+		for i := 0; i < bodyStart; i++ {
+			offset += len(lines[i]) + 1 // +1 for the '\n' strings.Split removed
+		}
+		if offset > len(content) {
+			offset = len(content) // degenerate trailing-line-with-no-newline case
+		}
+		return frontMatter{
+			HasHeader:  true,
+			Header:     strings.Join(lines[:headerEndExclusive], "\n"),
+			Body:       strings.Join(lines[bodyStart:], "\n"),
+			BodyOffset: offset,
 		}
 	}
 
-	if headerEnd == -1 {
-		// Header-only content (no blank line, no body).
-		return frontMatter{HasHeader: true, Header: content, BodyOffset: len(content)}
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "" {
+			// Blank separator line: dropped; body starts on the next line.
+			return makeResult(i+1, i)
+		}
+		if !isHeaderFirstLine(lines[i]) {
+			// Not a header line: this line itself is the start of the body.
+			return makeResult(i, i)
+		}
 	}
 
-	offset := 0
-	for i := 0; i <= headerEnd; i++ {
-		offset += len(lines[i]) + 1 // +1 for the '\n' strings.Split removed
-	}
-	if offset > len(content) {
-		offset = len(content) // degenerate trailing-blank-with-no-newline case
-	}
-
-	return frontMatter{
-		HasHeader:  true,
-		Header:     strings.Join(lines[:headerEnd], "\n"),
-		Body:       strings.Join(lines[headerEnd+1:], "\n"),
-		BodyOffset: offset,
-	}
+	// Every line was a header line (header-only note, no body).
+	return frontMatter{HasHeader: true, Header: content, BodyOffset: len(content)}
 }

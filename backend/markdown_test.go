@@ -247,6 +247,35 @@ func TestEnsureHeaderModifiedSynthesizesHeader(t *testing.T) {
 	}
 }
 
+// TestCompilePageNoSpuriousMetaFromCSSBody is a regression test for the
+// GeminiSvgComponentEditor bug: a note whose header/body separator line
+// carried stray spaces ("    ") caused the front-matter parser to run the
+// header on through the "<style>" block, turning every "--var: #hex;" CSS
+// line into a bogus <meta> tag (which the metadata panel then dumped, and
+// whose leaked SVG markup blew up innerHTML). The header must stop at the
+// whitespace-only separator, so the CSS renders as body and never becomes a
+// meta tag.
+func TestCompilePageNoSpuriousMetaFromCSSBody(t *testing.T) {
+	a := &App{}
+	md := "Title: Editor\nTags: AI\n    \n<style>\n#app { --bg-color: #E2DCD2; }\nhtml, body { margin: 0; }\n</style>\n\nBody."
+	out := string(a.compilePage("AI/Editor", []byte(md)))
+
+	// Legitimate header fields still become meta tags.
+	if !strings.Contains(out, `name="title" content="Editor"`) {
+		t.Errorf("real Title header lost:\n%s", out)
+	}
+	// CSS custom properties must NEVER appear as meta tags.
+	for _, bogus := range []string{`name="--bg-color"`, `name="margin"`, `content="#E2DCD2`} {
+		if strings.Contains(out, bogus) {
+			t.Errorf("CSS leaked into a meta tag (%s):\n%s", bogus, out)
+		}
+	}
+	// The <style> block must survive into the rendered body (html.WithUnsafe).
+	if !strings.Contains(out, "--bg-color: #E2DCD2") {
+		t.Error("the <style> block was dropped from the body")
+	}
+}
+
 // Content starting with markdown or HTML must NOT be mistaken for a
 // key:value header block (a "#" heading or "<script>" can contain ":").
 func TestEnsureHeaderModifiedNonHeaderFirstLine(t *testing.T) {

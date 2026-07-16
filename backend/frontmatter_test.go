@@ -88,6 +88,38 @@ func TestSplitFrontMatter(t *testing.T) {
 			body:       "Body",
 			bodyOffset: 21,
 		},
+		{
+			// Regression: the separator line carries stray spaces (real
+			// notes have this - see GeminiSvgComponentEditor). It must still
+			// terminate the header instead of letting it swallow the
+			// "<style>" block and its "--var: #hex;" lines as metadata.
+			name:       "whitespace-only separator line",
+			in:         "Title: X\nTags: AI\n    \n<style>foo",
+			hasHeader:  true,
+			header:     "Title: X\nTags: AI",
+			body:       "<style>foo",
+			bodyOffset: 23,
+		},
+		{
+			// Regression: header immediately followed by content with no
+			// blank line at all - the first non-"Key: Value" line ("<style>")
+			// is the body, not more header.
+			name:       "no separator, header then non-header line",
+			in:         "Title: X\n<style>foo",
+			hasHeader:  true,
+			header:     "Title: X",
+			body:       "<style>foo",
+			bodyOffset: 9,
+		},
+		{
+			// A prose line (no colon) right after the header starts the body.
+			name:       "header then prose without colon",
+			in:         "Title: X\nJust prose.\n\nmore",
+			hasHeader:  true,
+			header:     "Title: X",
+			body:       "Just prose.\n\nmore",
+			bodyOffset: 9,
+		},
 	}
 
 	for _, tt := range tests {
