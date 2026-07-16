@@ -35,9 +35,12 @@ if (window.location.protocol !== 'file:') {
                     return data;
                 case 'conflict':
                     if (modal) {
+                        populateConflictFiles(data.files);
                         modal.classList.remove('hidden');
                     } else {
-                        const choice = confirm('Conflict! OK to Force Pull (Keep Untracked), Cancel to Mark Files.');
+                        const list = (data.files && data.files.length)
+                            ? '\n\nFiles in contention:\n' + data.files.join('\n') : '';
+                        const choice = confirm('Conflict!' + list + '\n\nOK to Force Pull (Keep Untracked), Cancel to Mark Files.');
                         if (choice) window.runSync('pull_force');
                         else window.runSync('pull_mark');
                     }
@@ -53,6 +56,34 @@ if (window.location.protocol !== 'file:') {
                     return data;
             }
         };
+
+        // populateConflictFiles fills the conflict modal's file list with the
+        // files the backend reported as being in contention (the ones "Mark
+        // Conflicts" would inject markers into). An empty list means the
+        // histories diverged with no per-file overlap (a clean local tree with
+        // its own commits) - Force Pull is then the meaningful choice - so the
+        // modal says so rather than showing an empty box. Built with
+        // textContent, never innerHTML, so a note filename can't inject markup.
+        function populateConflictFiles(files) {
+            const box = document.getElementById('conflict-files');
+            const list = document.getElementById('conflict-file-list');
+            if (!box || !list) return;
+            list.textContent = '';
+            const arr = Array.isArray(files) ? files : [];
+            if (arr.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'conflict-files-none';
+                li.textContent = 'No individual file conflicts — histories diverged; Force Pull is recommended.';
+                list.appendChild(li);
+            } else {
+                arr.forEach(function(name) {
+                    const li = document.createElement('li');
+                    li.textContent = name;
+                    list.appendChild(li);
+                });
+            }
+            box.classList.remove('hidden');
+        }
 
         // performSync handles the three buttons on the conflict modal in
         // index.html (moved here from an inline <script> in that file so

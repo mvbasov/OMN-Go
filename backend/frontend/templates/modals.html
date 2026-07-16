@@ -43,6 +43,10 @@
     <div class="modal">
         <h2>Merge Conflict</h2>
         <p>Local changes conflict with the remote repository. Choose how to resolve this:</p>
+        <div id="conflict-files" class="conflict-files hidden">
+            <p class="conflict-files-title">Files in contention:</p>
+            <ul id="conflict-file-list"></ul>
+        </div>
         <button onclick="window.performSync('pull_force')">Force Pull (Reset to Remote)<br><small>Overwrites tracked files; also deletes local files that are neither tracked nor in .gitignore</small></button>
         <button onclick="window.performSync('pull_mark')">Mark Conflicts in Files<br><small>Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; conflict markers for manual fixing</small></button>
         <button onclick="window.performSync('abort')" class="btn-cancel">Abort Operation</button>

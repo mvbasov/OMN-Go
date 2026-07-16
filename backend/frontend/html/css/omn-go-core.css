@@ -459,6 +459,41 @@ a.taglink {
     display: flex;
 }
 
+/* Conflict modal file list: the files in contention (populated by
+   populateConflictFiles in omn-go-sse.js) - exactly what "Mark Conflicts"
+   would inject markers into. Scrolls when there are many. */
+.conflict-files {
+    text-align: left;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-inset);
+    max-height: 160px;
+    overflow-y: auto;
+}
+.conflict-files-title {
+    margin: 0 0 6px;
+    font-weight: bold;
+    color: var(--text-heading);
+}
+#conflict-file-list {
+    margin: 0;
+    padding-left: 18px;
+    font-family: monospace;
+    word-break: break-all;
+}
+#conflict-file-list li {
+    margin: 2px 0;
+}
+.conflict-files-none {
+    list-style: none;
+    margin-left: -18px;
+    font-family: inherit;
+    font-style: italic;
+    color: var(--text-muted);
+}
+
 .modal {
     background: var(--bg-surface);
     padding: 20px;

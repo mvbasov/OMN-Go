@@ -1,8 +1,10 @@
 package backend
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -41,6 +43,68 @@ func TestSyncErrorStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSyncConflictErrorWrapsSentinel pins that the file-carrying conflict
+// error still reads as ErrSyncConflict everywhere the state machine looks
+// (errors.Is / syncErrorStatus), while its file list is retrievable with
+// errors.As - and that the list survives being wrapped with %w.
+func TestSyncConflictErrorWrapsSentinel(t *testing.T) {
+	ce := &syncConflictError{Files: []string{"md/A.md", "md/B.md"}}
+
+	if !errors.Is(ce, ErrSyncConflict) {
+		t.Error("syncConflictError does not unwrap to ErrSyncConflict")
+	}
+	if status, _, ok := syncErrorStatus(ce); !ok || status != "conflict" {
+		t.Errorf("syncErrorStatus(syncConflictError) = (%q, %v), want (conflict, true)", status, ok)
+	}
+
+	wrapped := fmt.Errorf("pull: %w", error(ce))
+	var got *syncConflictError
+	if !errors.As(wrapped, &got) {
+		t.Fatal("errors.As could not recover syncConflictError through a %w wrap")
+	}
+	if len(got.Files) != 2 || got.Files[0] != "md/A.md" || got.Files[1] != "md/B.md" {
+		t.Errorf("recovered Files = %v, want [md/A.md md/B.md]", got.Files)
+	}
+}
+
+// TestWriteSyncConflictJSON pins the wire shape the conflict modal consumes:
+// status "conflict", the message, and a files array that is ALWAYS present -
+// [] rather than null even when there are no per-file conflicts - so the
+// frontend can iterate it without a nil guard.
+func TestWriteSyncConflictJSON(t *testing.T) {
+	// With files.
+	rec := httptest.NewRecorder()
+	writeSyncConflictJSON(rec, "Fast-forward not possible.", []string{"md/A.md"})
+	var body struct {
+		Status  string   `json:"status"`
+		Message string   `json:"message"`
+		Files   []string `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if body.Status != "conflict" || body.Message == "" || len(body.Files) != 1 || body.Files[0] != "md/A.md" {
+		t.Errorf("unexpected body: %+v", body)
+	}
+
+	// Nil files must serialize as [] (never null) and never omit the key.
+	rec2 := httptest.NewRecorder()
+	writeSyncConflictJSON(rec2, "diverged", nil)
+	raw := rec2.Body.String()
+	if !contains(raw, `"files":[]`) {
+		t.Errorf("nil files did not serialize as []: %s", raw)
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
 
 // TestSyncSentinelsAreDistinct guards that the three sentinels are not

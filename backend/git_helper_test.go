@@ -9,6 +9,7 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -179,6 +180,101 @@ func TestEnsureGitignoreNoRewriteWhenComplete(t *testing.T) {
 	}
 	if string(before) != string(after) {
 		t.Errorf("second ensureGitignore rewrote a complete file:\nbefore %q\nafter  %q", before, after)
+	}
+}
+
+// buildFlatTree stores each name->content as a blob and assembles a single
+// root-level tree object, returning it loaded (storer-backed) so *object.Tree
+// .File() works. Used to stand in for a fetched remote tree without a network
+// remote. Keeps files at the repo root so no nested subtrees are needed.
+func buildFlatTree(t *testing.T, repo *git.Repository, files map[string]string) *object.Tree {
+	t.Helper()
+	var entries []object.TreeEntry
+	for name, content := range files {
+		obj := repo.Storer.NewEncodedObject()
+		obj.SetType(plumbing.BlobObject)
+		w, err := obj.Writer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(content))
+		w.Close()
+		h, err := repo.Storer.SetEncodedObject(obj)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries = append(entries, object.TreeEntry{Name: name, Mode: filemode.Regular, Hash: h})
+	}
+	tree := &object.Tree{Entries: entries}
+	enc := repo.Storer.NewEncodedObject()
+	if err := tree.Encode(enc); err != nil {
+		t.Fatal(err)
+	}
+	th, err := repo.Storer.SetEncodedObject(enc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := object.GetTree(repo.Storer, th)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+// conflictingPaths is the single source of truth for both the conflict-modal
+// file list and syncPullMerge's marker-writing loop, so its selection must be
+// exactly: a tracked file with an uncommitted local modification whose content
+// also differs from the remote copy. Everything else - identical-to-remote
+// edits, files the remote lacks, and unmodified files - must be excluded.
+func TestConflictingPaths(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+	writeAndAdd(t, a, wt, "A.md", "base A")
+	writeAndAdd(t, a, wt, "B.md", "base B")
+	writeAndAdd(t, a, wt, "C.md", "base C")
+	writeAndAdd(t, a, wt, "D.md", "base D")
+	writeAndAdd(t, a, wt, "E.md", "base E")
+	testCommit(t, wt, "initial")
+
+	// Remote (upstream) tree: A and B changed, C unchanged, D and E absent.
+	remoteTree := buildFlatTree(t, repo, map[string]string{
+		"A.md": "remote A",
+		"B.md": "remote B",
+		"C.md": "base C",
+	})
+
+	// Local uncommitted edits:
+	//   A.md: local != remote                 -> CONFLICT
+	//   B.md: edited to EXACTLY remote content -> not a conflict
+	//   C.md: edited locally, remote==base,
+	//         local != remote                  -> CONFLICT
+	//   D.md: edited locally, remote lacks it   -> not a conflict
+	//   E.md: NOT edited (clean)                -> never considered
+	overwrite(t, a, "A.md", "local A")
+	overwrite(t, a, "B.md", "remote B")
+	overwrite(t, a, "C.md", "local C")
+	overwrite(t, a, "D.md", "local D")
+
+	got, err := conflictingPaths(wt, remoteTree)
+	if err != nil {
+		t.Fatalf("conflictingPaths: %v", err)
+	}
+	want := []string{"A.md", "C.md"} // sorted
+	if len(got) != len(want) {
+		t.Fatalf("conflictingPaths = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("conflictingPaths = %v, want %v", got, want)
+		}
+	}
+}
+
+// overwrite writes a file WITHOUT staging it, so it shows up as a worktree
+// modification (git.Modified) - the state conflictingPaths keys on.
+func overwrite(t *testing.T, a *App, rel, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(a.StorageDir, rel), []byte(content), 0644); err != nil {
+		t.Fatal(err)
 	}
 }
 

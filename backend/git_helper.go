@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -840,7 +841,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 	}
 	if dirty {
 		log.Printf("[sync] Pull: local tracked changes present, cannot fast-forward")
-		return ErrSyncConflict
+		return a.newSyncConflict(repo, wTree, remoteRef)
 	}
 
 	// Fast-forward only: refuse (same sentinel the caller already handles,
@@ -864,7 +865,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		}
 		if !isAncestor {
 			log.Printf("[sync] Pull: fast-forward not possible (local has unpushed commits)")
-			return ErrSyncConflict
+			return a.newSyncConflict(repo, wTree, remoteRef)
 		}
 	}
 
@@ -972,16 +973,16 @@ func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth tran
 		}
 	}
 
-	status, err := wTree.Status()
+	// Same set of files the conflict modal previewed (see conflictingPaths):
+	// tracked, locally modified, and differing from the remote copy. Sharing
+	// this helper is what guarantees the marked files match what the user was
+	// shown.
+	paths, err := conflictingPaths(wTree, remoteTree)
 	if err != nil {
 		return fmt.Errorf("status error: %v", err)
 	}
 
-	for path, fileStatus := range status {
-		if fileStatus.Worktree != git.Modified && fileStatus.Staging != git.Modified {
-			continue
-		}
-
+	for _, path := range paths {
 		file, err := wTree.Filesystem.Open(path)
 		if err != nil {
 			continue
@@ -989,14 +990,14 @@ func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth tran
 		localContent, _ := io.ReadAll(file)
 		file.Close()
 
+		// conflictingPaths already established that the remote has this file
+		// and its content differs from local; re-read the remote copy here
+		// only to build the marker body.
 		remoteFile, err := remoteTree.File(path)
 		if err != nil {
-			continue // remote doesn't have this file — nothing to reconcile
-		}
-		remoteContentStr, _ := remoteFile.Contents()
-		if string(localContent) == remoteContentStr {
 			continue
 		}
+		remoteContentStr, _ := remoteFile.Contents()
 
 		baseSection := ""
 		if baseTree != nil {
@@ -1367,6 +1368,81 @@ var (
 	ErrCommitMessageRequired = errors.New("sync: commit message required")
 )
 
+// syncConflictError wraps ErrSyncConflict with the list of files in
+// contention, so handleSync can surface them in the conflict modal. It
+// unwraps to ErrSyncConflict, so errors.Is(err, ErrSyncConflict) - and
+// therefore syncErrorStatus - keeps matching it exactly as before; callers
+// that only care about the status are unaffected, while handleSync can pull
+// the file list out with errors.As.
+type syncConflictError struct {
+	Files []string
+}
+
+func (e *syncConflictError) Error() string { return ErrSyncConflict.Error() }
+func (e *syncConflictError) Unwrap() error { return ErrSyncConflict }
+
+// conflictingPaths returns the sorted list of worktree paths a 3-way "Mark
+// Conflicts" merge (syncPullMerge) would inject conflict markers into: tracked
+// files with uncommitted local modifications whose content also differs from
+// the incoming remote copy. This is the single source of truth shared by the
+// conflict PREVIEW (the file list shown in the conflict modal, threaded out of
+// syncPull via syncConflictError) and syncPullMerge's actual marker-writing
+// loop, so the list the user sees can never disagree with the files that later
+// get markers. A file the remote does not have, or one whose local content
+// already equals the remote's, is not a conflict and is left out - matching
+// syncPullMerge's own skips exactly.
+func conflictingPaths(wTree *git.Worktree, remoteTree *object.Tree) ([]string, error) {
+	status, err := wTree.Status()
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for path, fileStatus := range status {
+		if fileStatus.Worktree != git.Modified && fileStatus.Staging != git.Modified {
+			continue
+		}
+		file, err := wTree.Filesystem.Open(path)
+		if err != nil {
+			continue
+		}
+		localContent, _ := io.ReadAll(file)
+		file.Close()
+
+		remoteFile, err := remoteTree.File(path)
+		if err != nil {
+			continue // remote doesn't have this file - nothing to reconcile
+		}
+		remoteContentStr, _ := remoteFile.Contents()
+		if string(localContent) == remoteContentStr {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// newSyncConflict builds the ErrSyncConflict-wrapping error carrying the list
+// of files in contention with the fetched remote tip. Any failure while
+// computing that list degrades gracefully to the bare ErrSyncConflict sentinel
+// - the conflict is still reported, just without the file breakdown - so this
+// can never turn a conflict into a hard error.
+func (a *App) newSyncConflict(repo *git.Repository, wTree *git.Worktree, remoteRef *plumbing.Reference) error {
+	remoteCommit, err := repo.CommitObject(remoteRef.Hash())
+	if err != nil {
+		return ErrSyncConflict
+	}
+	remoteTree, err := remoteCommit.Tree()
+	if err != nil {
+		return ErrSyncConflict
+	}
+	files, err := conflictingPaths(wTree, remoteTree)
+	if err != nil {
+		return ErrSyncConflict
+	}
+	return &syncConflictError{Files: files}
+}
+
 // syncErrorStatus maps a sync error to the wire {status, message} the
 // frontend understands (see runSync in omn-go-sse.js). ok is false for a nil
 // error or a generic failure, in which case the caller reports a plain
@@ -1462,6 +1538,22 @@ func writeSyncJSON(w http.ResponseWriter, status, message string) {
 	json.NewEncoder(w).Encode(map[string]string{"status": status, "message": message})
 }
 
+// writeSyncConflictJSON is writeSyncJSON's conflict variant: it adds the list
+// of files in contention under "files" so the conflict modal can list them.
+// files is always an array (never null) in the JSON, so the frontend can map
+// over it without a guard.
+func writeSyncConflictJSON(w http.ResponseWriter, message string, files []string) {
+	if files == nil {
+		files = []string{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "conflict",
+		"message": message,
+		"files":   files,
+	})
+}
+
 func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 	// r.FormValue reads from both the URL query string and a POST body
 	// (application/x-www-form-urlencoded or multipart). The frontend uses
@@ -1495,7 +1587,17 @@ func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 
 	if err := a.SyncRepo(action, message); err != nil {
 		if status, msg, ok := syncErrorStatus(err); ok {
-			writeSyncJSON(w, status, msg)
+			// A conflict carries the list of files in contention (see
+			// syncConflictError); surface it so the modal can show which
+			// files "Mark Conflicts" would touch. Any other status - or a
+			// bare ErrSyncConflict with no file list attached - falls back
+			// to the plain {status, message} body.
+			var ce *syncConflictError
+			if status == "conflict" && errors.As(err, &ce) {
+				writeSyncConflictJSON(w, msg, ce.Files)
+			} else {
+				writeSyncJSON(w, status, msg)
+			}
 		} else {
 			writeSyncJSON(w, "error", err.Error())
 		}
