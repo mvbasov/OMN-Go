@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>%%TITLE_HTML%%</title>
-    <link rel="stylesheet" href="/css/omn-go-core.css">
-    <link rel="stylesheet" href="/css/highlight.default.min.css">
-    <link rel="stylesheet" href="/css/katex.min.css">
+    <link rel="stylesheet" href="%%ASSET_PREFIX%%css/omn-go-core.css">
+    <link rel="stylesheet" href="%%ASSET_PREFIX%%css/highlight.default.min.css">
+    <link rel="stylesheet" href="%%ASSET_PREFIX%%css/katex.min.css">
     <!-- Loaded synchronously (no defer), like functions.js in classic OMN:
          the console interceptor, error handlers and helper globals must all
          exist BEFORE any classic <script> embedded in the note body executes
@@ -14,8 +14,8 @@
          classic scripts saw no helpers and their console output/errors were
          silently lost (only type="module" scripts, which are always deferred
          by the browser, ran late enough to work). -->
-    <script src="/js/omn-go-core.js"></script>
-    <script src="/js/omn-go-sse.js"></script>
+    <script src="%%ASSET_PREFIX%%js/omn-go-core.js"></script>
+    <script src="%%ASSET_PREFIX%%js/omn-go-sse.js"></script>
 %%META_TAGS%%
     <script>
       var PackageName = '%%PACKAGE_JS%%';
@@ -47,23 +47,23 @@
             <div id="hidable_header" class="collapsible-header hidden">
                 <!-- Actions row: navigation + editing + admin -->
                 <div class="header-actions">
-                    <a href="/Welcome.html"><i class="material-icons">home</i></a>
-                    <button onclick="createNewPage()" class="admin-only btn-create-page"><i class="material-icons">note_add</i></button>
-                    <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only btn-quick-note"><i class="material-icons">insert_comment</i></button>
-                    <button onclick="toggleBookmarkPanel()" class="admin-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
+                    <a href="%%ASSET_PREFIX%%Welcome.html"><i class="material-icons">home</i></a>
+                    <button onclick="createNewPage()" class="admin-only server-only btn-create-page"><i class="material-icons">note_add</i></button>
+                    <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only server-only btn-quick-note"><i class="material-icons">insert_comment</i></button>
+                    <button onclick="toggleBookmarkPanel()" class="admin-only server-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
                     <button onclick="createNoteShortcut()" class="android-only btn-add-shortcut" title="Add to home screen"><i class="material-icons">add_to_home_screen</i></button>
-                    <button onclick="window.location.href = window.location.pathname + '?refresh=1'" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
-                    <label class="admin-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
-                    <button onclick="syncAction('download')" class="admin-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
-                    <button onclick="syncAction('upload')" class="admin-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
-                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings"><i class="material-icons">settings</i></a>
+                    <button onclick="refreshPage()" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
+                    <label class="admin-only server-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
+                    <button onclick="syncAction('download')" class="admin-only server-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
+                    <button onclick="syncAction('upload')" class="admin-only server-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
+                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings server-only"><i class="material-icons">settings</i></a>
                     <!-- Editing controls -->
                     <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
                     <!-- Editing is a separate page now: this navigates to the
                          dedicated editor, which fetches the source itself.
                          The rendered page no longer carries a hidden copy of
                          its own markdown. -->
-                    <button id="toggleBtn" onclick="window.location.href = window.location.pathname + '?edit=true'" class="admin-only" title="Edit"><i class="material-icons">edit</i></button>
+                    <button id="toggleBtn" onclick="window.location.href = window.location.pathname + '?edit=true'" class="admin-only server-only" title="Edit"><i class="material-icons">edit</i></button>
                 </div>
                 <!-- Tag pills -->
                 <div id="headerTags">%%TAGS_HTML%%</div>
@@ -157,9 +157,9 @@
          variables so parse-time note scripts can use it. -->
 
     <!-- Code & Math Formatting Assets -->
-    <script src="/js/highlight.min.js"></script>
-    <script src="/js/katex.min.js"></script>
-    <script src="/js/auto-render.min.js"></script>
+    <script src="%%ASSET_PREFIX%%js/highlight.min.js"></script>
+    <script src="%%ASSET_PREFIX%%js/katex.min.js"></script>
+    <script src="%%ASSET_PREFIX%%js/auto-render.min.js"></script>
 
     <!-- Small Version Footer -->
     <!-- version footer now inline in #status -->

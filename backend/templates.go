@@ -142,6 +142,7 @@ type indexPageView struct {
 	PageExt     string
 	IsMarkdown  bool
 	IsAndroid   bool
+	AssetPrefix string // "", "../", "../../", … or "/" — see compilePageWithBody
 	MetaTags    []metaTagView
 	Tags        []string
 	PreviewHTML string
@@ -174,6 +175,9 @@ func renderIndexPage(v indexPageView) string {
 		"PACKAGE_JS":   escapeJS(v.PackageName),
 		"PAGE_NAME_JS": escapeJS(v.PageName),
 		"PAGE_EXT_JS":  escapeJS(v.PageExt),
+		// Server-computed path prefix ("", "../", "/"), spliced into href/src
+		// attributes; contains only "./" characters, no escaping needed.
+		"ASSET_PREFIX": v.AssetPrefix,
 		"META_TAGS":    metaTags.String(),
 		"COND_SCRIPTS": condScripts,
 		"TAGS_HTML":    tags.String(),

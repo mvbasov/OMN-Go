@@ -366,6 +366,32 @@ if (typeof currentNote === 'undefined') {
             }
         }
 
+        // Standalone/offline mode: when the compiled page is opened directly
+        // from disk (file://) there is no server, so hide the header controls
+        // that can only work against the backend (create / quick-note /
+        // bookmark, sync, settings, edit - all marked .server-only in
+        // index.html). Home, the metadata toggle and Refresh stay: they work
+        // offline (Refresh falls back to a plain reload - see refreshPage).
+        // Runs on load; the header is collapsed by default so nothing flashes.
+        function applyOfflineUI() {
+            if (window.location.protocol === 'file:') {
+                document.querySelectorAll('.server-only').forEach(function (el) {
+                    el.style.display = 'none';
+                });
+            }
+        }
+
+        // Refresh: online, ask the server to recompile the page via
+        // ?refresh=1; offline there is no server to recompile, so just reload
+        // the file. Wired to the header's refresh button (onclick).
+        window.refreshPage = function () {
+            if (window.location.protocol === 'file:') {
+                window.location.reload();
+            } else {
+                window.location.href = window.location.pathname + '?refresh=1';
+            }
+        };
+
         // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
         // the omngo://edit precedent) to pin a home-screen shortcut to the
         // current note. Only reachable via the .android-only button, which
@@ -411,6 +437,7 @@ window.updateArrow = function() {
 window.addEventListener('load', () => {
             checkSession();
             applyPlatformUI();
+            applyOfflineUI();
 
             const params = new URLSearchParams(window.location.search);
             if (params.has('share_text') || params.has('share_subject')) {

@@ -305,6 +305,19 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 	}
 	isMarkdown := pageExt == ".md" || pageExt == ""
 
+	// Chrome-asset (CSS/JS/Home) path prefix. A normal markdown note
+	// (customBody == "") is cached to html/<name>.html and may be opened
+	// directly from disk (file://), where an absolute "/js/..." path doesn't
+	// resolve - so use a prefix relative to the page's own directory depth
+	// (see relPrefix), which resolves correctly both offline and online.
+	// Custom-body pages (Config, DB backups, the external-edit wait page) are
+	// dynamic, served at URLs whose depth doesn't track the page name and
+	// never opened from disk, so they keep absolute "/" paths.
+	assetPrefix := "/"
+	if customBody == "" {
+		assetPrefix = relPrefix(name)
+	}
+
 	view := indexPageView{
 		Title:       title,
 		PackageName: "net.basov.omngo",
@@ -312,12 +325,22 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		PageExt:     pageExt,
 		IsMarkdown:  isMarkdown,
 		IsAndroid:   runtime.GOOS == "android",
+		AssetPrefix: assetPrefix,
 		MetaTags:    metaTags,
 		Tags:        tags,
 		PreviewHTML: renderedBody,
 	}
 
 	return []byte(renderIndexPage(view))
+}
+
+// relPrefix returns the "../"-per-directory-level prefix that makes a cached
+// page's chrome-asset URLs (CSS/JS/Home) resolve to the storage root both
+// when served over HTTP and when the compiled .html is opened directly from
+// disk (file://). A root-level page yields "", a page one directory deep
+// "../", two deep "../../", and so on.
+func relPrefix(name string) string {
+	return strings.Repeat("../", strings.Count(name, "/"))
 }
 
 func (a *App) ensureHeaderModified(content string, defaultTitle string) string {

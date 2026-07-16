@@ -186,6 +186,57 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	}
 }
 
+func TestRelPrefix(t *testing.T) {
+	cases := map[string]string{
+		"Welcome":                     "",
+		"QuickNotes":                  "",
+		"local/Note":                  "../",
+		"AI/GeminiSvgComponentEditor": "../",
+		"a/b/c":                       "../../",
+	}
+	for name, want := range cases {
+		if got := relPrefix(name); got != want {
+			t.Errorf("relPrefix(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+// TestCompilePageAssetPrefix pins Phase 5b: a cached markdown page gets
+// depth-relative chrome-asset paths (so it loads when opened directly from
+// disk as well as over HTTP), while a dynamic custom-body page keeps
+// absolute paths (it is only ever served online, at a URL whose depth does
+// not track the page name).
+func TestCompilePageAssetPrefix(t *testing.T) {
+	a := &App{}
+
+	// Root markdown page -> bare relative paths, no leading slash.
+	root := string(a.compilePage("Welcome", []byte("Title: W\n\nBody")))
+	for _, want := range []string{`href="css/omn-go-core.css"`, `src="js/omn-go-core.js"`, `href="Welcome.html"`} {
+		if !strings.Contains(root, want) {
+			t.Errorf("root page missing %q", want)
+		}
+	}
+	if strings.Contains(root, `href="/css/`) || strings.Contains(root, `src="/js/`) {
+		t.Errorf("root page still carries absolute asset paths:\n%s", root)
+	}
+
+	// Two-deep markdown page -> "../../" prefix.
+	nested := string(a.compilePage("a/b/Note", []byte("Title: N\n\nBody")))
+	for _, want := range []string{`href="../../css/omn-go-core.css"`, `src="../../js/omn-go-core.js"`, `href="../../Welcome.html"`} {
+		if !strings.Contains(nested, want) {
+			t.Errorf("nested page missing %q", want)
+		}
+	}
+
+	// Dynamic custom-body page -> absolute paths.
+	dyn := string(a.compilePageWithBody("Config", []byte("Title: Config\n\n"), "<p>dashboard</p>"))
+	for _, want := range []string{`href="/css/omn-go-core.css"`, `src="/js/omn-go-core.js"`, `href="/Welcome.html"`} {
+		if !strings.Contains(dyn, want) {
+			t.Errorf("custom-body page missing absolute %q:\n%s", want, dyn)
+		}
+	}
+}
+
 func TestCompilePageWithBodyCustomBody(t *testing.T) {
 	a := &App{}
 	raw := []byte("console.log('x');")
