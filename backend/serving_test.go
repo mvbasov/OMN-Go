@@ -123,14 +123,15 @@ func TestServeEmbeddableAssetMissing(t *testing.T) {
 	}
 }
 
-// TestServeStorageSubdir covers the /images and /user_json handler (added in
-// Phase 4 to close the Phase 3 test gap): /user_json is pinned to
-// application/json regardless of file extension, while /images resolves the
-// content-type per file through resolveContentType.
+// TestServeStorageSubdir covers the /images and /user_json handler: both now
+// resolve the content-type per file through resolveContentType (forcedType
+// == ""). /user_json therefore serves .json as application/json AND .jsonl as
+// application/jsonl - the Phase 6 change that lets JSON Lines uploads be
+// served with their own type instead of being forced to application/json.
 func TestServeStorageSubdir(t *testing.T) {
 	a := newTestApp(t)
 
-	// /user_json - forced content-type.
+	// /user_json - per-file content-type resolution (forcedType "").
 	ujDir := filepath.Join(a.StorageDir, "html", "user_json")
 	if err := os.MkdirAll(ujDir, 0755); err != nil {
 		t.Fatal(err)
@@ -138,15 +139,23 @@ func TestServeStorageSubdir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ujDir, "data.json"), []byte(`{"a":1}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	uj := a.serveStorageSubdir("user_json", "application/json")
-	req := httptest.NewRequest(http.MethodGet, "/user_json/data.json", nil)
-	rec := httptest.NewRecorder()
-	uj.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("user_json status %d", rec.Code)
+	if err := os.WriteFile(filepath.Join(ujDir, "data.jsonl"), []byte("{\"a\":1}\n{\"b\":2}\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("user_json Content-Type = %q, want application/json", ct)
+	uj := a.serveStorageSubdir("user_json", "")
+	for name, wantCT := range map[string]string{
+		"data.json":  "application/json",
+		"data.jsonl": "application/jsonl",
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/user_json/"+name, nil)
+		rec := httptest.NewRecorder()
+		uj.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("user_json/%s status %d", name, rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != wantCT {
+			t.Errorf("user_json/%s Content-Type = %q, want %q", name, ct, wantCT)
+		}
 	}
 
 	// /images - per-file resolution via resolveContentType.

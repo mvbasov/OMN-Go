@@ -112,10 +112,11 @@ func StartServer(storageDir string) *App {
 		a.Router.Handle("/json/", assetTree)
 
 		// /images and /user_json are pure user content (never embedded),
-		// served straight from their storage subdirectory. /user_json is
-		// pinned to application/json; /images resolves per file.
+		// served straight from their storage subdirectory. Both resolve the
+		// content-type per file so /user_json serves .json as application/json
+		// and .jsonl as application/jsonl (see resolveContentType).
 		a.Router.Handle("/images/", a.serveStorageSubdir("images", ""))
-		a.Router.Handle("/user_json/", a.serveStorageSubdir("user_json", "application/json"))
+		a.Router.Handle("/user_json/", a.serveStorageSubdir("user_json", ""))
 
 		a.Router.HandleFunc("/login", a.handleLogin)
 		a.Router.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))

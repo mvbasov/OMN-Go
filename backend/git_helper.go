@@ -122,6 +122,37 @@ func (fi *stableFileInfo) ModTime() time.Time {
 // Repository initialisation
 // ---------------------------------------------------------------
 
+// gitignorePatterns is the single source of truth for the sync .gitignore.
+// Both the initial file (gitignoreBase in ensureGitignore) and the backfill
+// that updates existing installs are built from this one list, so adding a
+// pattern here is all it takes - the two can no longer drift.
+//
+// Order matters: a "!negation" must follow the pattern it re-includes
+// (e.g. "/html/images/*" before "!/html/images/*.svg"). The bare
+// "!/html/images/" / "!/html/images/icons/" negations are deliberately NOT
+// here: with go-git's matcher a directory-only negation re-includes every
+// file under the directory, silently undoing "/html/images/*". ensureGitignore
+// actively strips those buggy lines from any file that still has them.
+var gitignorePatterns = []string{
+	"config.json",
+	"assets_version",
+	"/asset_backups/",
+	"*.html",
+	"*.woff2",
+	"*.woff",
+	"/html/images/*",
+	"!/html/images/*.svg",
+	"/html/images/icons/*",
+	"!/html/images/icons/*.svg",
+	"/html/css/omn-go-core.css",
+	"/html/js/omn-go-core.js",
+	"/html/js/omn-go-sse.js",
+	"/html/js/omn-go-editor.js",
+	"/md/local/",
+	"/db/",
+	"/html/db_backup/local-*/",
+}
+
 func (a *App) ensureGitignore() {
 	gitignorePath := filepath.Join(a.StorageDir, ".gitignore")
 	//gitignoreBase := "# OMN-Go sync ignore\nconfig.json\n*.html\n/md/local/\n"
@@ -142,25 +173,7 @@ func (a *App) ensureGitignore() {
 	// under html/images/, not just the directory entry itself - silently
 	// undoing "/html/images/*" for every file in it, including a plain
 	// test PNG dropped there. Same issue applies to the icons/ subtree.
-	gitignoreBase := `# OMN-Go sync ignore
-config.json
-assets_version
-/asset_backups/
-*.html
-*.woff2
-*.woff
-/html/images/*
-!/html/images/*.svg
-/html/images/icons/*
-!/html/images/icons/*.svg
-/html/css/omn-go-core.css
-/html/js/omn-go-core.js
-/html/js/omn-go-sse.js
-/html/js/omn-go-editor.js
-/md/local/
-/db/
-/html/db_backup/local-*/
-`
+	gitignoreBase := "# OMN-Go sync ignore\n" + strings.Join(gitignorePatterns, "\n") + "\n"
 	content, err := os.ReadFile(gitignorePath)
 	if os.IsNotExist(err) {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
@@ -197,29 +210,28 @@ assets_version
 	// file-absent case. Without this, /db/ - binary SQLite files that
 	// must never be committed - would silently stay unignored on every
 	// existing installation.
-	appended := false
-	// /asset_backups/ and /assets_version belong to the version-stamped
-	// asset refresh (assets.go): both are per-installation state, never
-	// content to sync.
-	//
-	// The /html/images/* block was added after gitignoreBase already
-	// shipped to existing installs, so - same reasoning as /db/ above -
-	// it has to be backfilled here too. Without it, any image dropped
-	// into html/images/ on a pre-existing install (e.g. a test PNG
-	// drag-and-dropped into the app) stays untracked-but-not-ignored and
-	// gets swept into the next commit instead of being skipped. The
-	// "!/html/images/" / "!/html/images/icons/" lines are deliberately
-	// NOT in this list - see the buggy-line-stripping block above and
-	// the comment on gitignoreBase for why they must never be added back.
-	for _, entry := range []string{
-		"/db/", "/html/db_backup/local-*/", "/asset_backups/", "/assets_version",
-		"/html/images/*", "!/html/images/*.svg",
-		"/html/images/icons/*", "!/html/images/icons/*.svg",
-	} {
-		if !strings.Contains(string(content), entry) {
-			content = append(content, []byte("\n"+entry+"\n")...)
-			appended = true
+	// Append any pattern from gitignorePatterns not already present as an
+	// EXACT line - a whole-line match, not a substring: "*.woff" is a
+	// substring of "*.woff2", which strings.Contains would wrongly treat as
+	// already present. Existing installs thus pick up patterns added to the
+	// list after their .gitignore was first written.
+	present := map[string]bool{}
+	for _, line := range strings.Split(string(content), "\n") {
+		present[strings.TrimSpace(line)] = true
+	}
+	var missing []string
+	for _, patt := range gitignorePatterns {
+		if !present[patt] {
+			missing = append(missing, patt)
 		}
+	}
+	appended := len(missing) > 0
+	if appended {
+		text := string(content)
+		if text != "" && !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+		content = []byte(text + strings.Join(missing, "\n") + "\n")
 	}
 
 	if rewritten || appended {

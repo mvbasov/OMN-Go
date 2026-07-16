@@ -3,6 +3,7 @@ package backend
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,118 @@ func headTree(t *testing.T, repo *git.Repository) *object.Tree {
 		t.Fatalf("Tree: %v", err)
 	}
 	return tree
+}
+
+// gitignoreLines returns the set of trimmed, non-empty lines of the sync
+// .gitignore currently on disk.
+func gitignoreLines(t *testing.T, a *App) map[string]int {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	counts := map[string]int{}
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		counts[trimmed]++
+	}
+	return counts
+}
+
+// A fresh install writes the .gitignore straight from gitignorePatterns. This
+// pins the exact bytes so an accidental edit to gitignorePatterns (reordering,
+// a dropped/added entry) is caught, and proves the single-source join produces
+// the same file the old hand-written literal did.
+func TestEnsureGitignoreFreshInstall(t *testing.T) {
+	a := &App{StorageDir: t.TempDir()}
+	a.ensureGitignore()
+
+	want := "# OMN-Go sync ignore\n" +
+		"config.json\n" +
+		"assets_version\n" +
+		"/asset_backups/\n" +
+		"*.html\n" +
+		"*.woff2\n" +
+		"*.woff\n" +
+		"/html/images/*\n" +
+		"!/html/images/*.svg\n" +
+		"/html/images/icons/*\n" +
+		"!/html/images/icons/*.svg\n" +
+		"/html/css/omn-go-core.css\n" +
+		"/html/js/omn-go-core.js\n" +
+		"/html/js/omn-go-sse.js\n" +
+		"/html/js/omn-go-editor.js\n" +
+		"/md/local/\n" +
+		"/db/\n" +
+		"/html/db_backup/local-*/\n"
+
+	got, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if string(got) != want {
+		t.Errorf("fresh .gitignore mismatch:\n got %q\nwant %q", got, want)
+	}
+}
+
+// The backfill must add every gitignorePatterns entry missing from an existing
+// install, matching whole lines - not substrings. The regression it guards:
+// "*.woff" is a substring of "*.woff2", so a strings.Contains check would see
+// an install that already has "*.woff2" and wrongly conclude "*.woff" is
+// present, leaving raw .woff fonts committable. It must also NOT duplicate a
+// pattern that is already there.
+func TestEnsureGitignoreBackfillLineExact(t *testing.T) {
+	a := &App{StorageDir: t.TempDir()}
+	// An old install that predates most of the current list: it has *.woff2
+	// (the substring trap) but not *.woff, and is missing /db/ etc.
+	existing := "# OMN-Go sync ignore\nconfig.json\n*.html\n*.woff2\n/md/local/\n"
+	if err := os.WriteFile(filepath.Join(a.StorageDir, ".gitignore"), []byte(existing), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	a.ensureGitignore()
+
+	counts := gitignoreLines(t, a)
+	// The substring case: *.woff must be added even though *.woff2 is present.
+	if counts["*.woff"] != 1 {
+		t.Errorf("*.woff appears %d time(s), want exactly 1 (substring-of-*.woff2 backfill)", counts["*.woff"])
+	}
+	// Already-present patterns are not duplicated.
+	if counts["*.woff2"] != 1 {
+		t.Errorf("*.woff2 appears %d time(s), want exactly 1 (no duplicate)", counts["*.woff2"])
+	}
+	if counts["config.json"] != 1 {
+		t.Errorf("config.json appears %d time(s), want exactly 1", counts["config.json"])
+	}
+	// Every pattern from the single source ends up present exactly once.
+	for _, patt := range gitignorePatterns {
+		if counts[patt] != 1 {
+			t.Errorf("pattern %q appears %d time(s), want exactly 1", patt, counts[patt])
+		}
+	}
+}
+
+// An already-complete .gitignore must be left byte-for-byte untouched: the
+// backfill finds nothing missing, so it must not rewrite (and in particular
+// must not append a duplicate trailing block).
+func TestEnsureGitignoreNoRewriteWhenComplete(t *testing.T) {
+	a := &App{StorageDir: t.TempDir()}
+	a.ensureGitignore() // write the canonical file
+	before, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ensureGitignore() // second pass must be a no-op
+	after, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Errorf("second ensureGitignore rewrote a complete file:\nbefore %q\nafter  %q", before, after)
+	}
 }
 
 // Fresh install: no commit exists yet. oldTrackedPaths must report an

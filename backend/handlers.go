@@ -453,7 +453,7 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 // either changes.
 var (
 	imageUploadExtensions = []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
-	jsonUploadExtensions  = []string{".json"}
+	jsonUploadExtensions  = []string{".json", ".jsonl"}
 )
 
 // uploadRejected marks a saveUploadedFile failure as caused by the

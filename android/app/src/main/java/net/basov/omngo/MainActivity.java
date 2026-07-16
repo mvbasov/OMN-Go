@@ -478,12 +478,13 @@ public class MainActivity extends Activity {
     // ACTION_SEND_MULTIPLE) - matching the scope of the existing
     // text/plain share handling above.
 
-    // JSON extensions this app accepts via share - kept in sync with
-    // jsonUploadExtensions in backend/handlers.go (there's only one, but
-    // written as a set for parallelism with the image list below and in
-    // case that ever changes).
+    // JSON and image extensions this app accepts via share - kept in sync
+    // with jsonUploadExtensions / imageUploadExtensions in
+    // backend/handlers.go. These two sets are the single source within this
+    // file: both isSharedFileIntent and handleSharedFile use them, so the
+    // lists are never re-typed inline.
     private static final java.util.Set<String> SHARED_JSON_EXT =
-        new java.util.HashSet<>(java.util.Arrays.asList(".json"));
+        new java.util.HashSet<>(java.util.Arrays.asList(".json", ".jsonl"));
     private static final java.util.Set<String> SHARED_IMAGE_EXT =
         new java.util.HashSet<>(java.util.Arrays.asList(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"));
 
@@ -524,17 +525,16 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     String displayName = queryDisplayName(uri);
-                    boolean isJson = "application/json".equals(mimeType)
-                        || (displayName != null && displayName.toLowerCase(java.util.Locale.ROOT).endsWith(".json"));
+                    String lowerName = displayName == null ? "" : displayName.toLowerCase(java.util.Locale.ROOT);
+                    boolean isJson = "application/json".equals(mimeType) || "application/jsonl".equals(mimeType)
+                        || lowerName.endsWith(".json") || lowerName.endsWith(".jsonl");
 
-                    java.util.Set<String> allowedExt = new java.util.HashSet<>(isJson
-                        ? java.util.Arrays.asList(".json")
-                        : java.util.Arrays.asList(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"));
+                    java.util.Set<String> allowedExt = isJson ? SHARED_JSON_EXT : SHARED_IMAGE_EXT;
 
                     String filename = sanitizeSharedFilename(displayName, isJson);
                     String ext = filename.substring(filename.lastIndexOf('.')).toLowerCase(java.util.Locale.ROOT);
                     if (!allowedExt.contains(ext)) {
-                        showToast("Not saved: only images or .json files can be shared into OMN-Go.");
+                        showToast("Not saved: only images, .json or .jsonl files can be shared into OMN-Go.");
                         return;
                     }
 
