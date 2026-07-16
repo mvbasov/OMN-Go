@@ -1,0 +1,50 @@
+<div id="loginOverlay" class="overlay">
+    <div class="modal">
+        <h2>OMN-Go Login</h2>
+        <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
+        <button onclick="login()">Enter</button>
+    </div>
+</div>
+<div id="quickPanel" class="panel hidden">
+    <h3>Quick Note</h3>
+    <textarea id="quickText" rows="4"></textarea>
+    <div class="modal-buttons-row">
+        <button onclick="submitQuickNote()">Save</button>
+        <button onclick="document.getElementById('quickPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
+    </div>
+</div>
+<div id="bmPanel" class="panel hidden">
+    <h3>Ingest Bookmark</h3>
+    <input id="bmUrl" placeholder="URL">
+    <input id="bmTitle" placeholder="Title">
+    <div class="tag-input-wrap">
+        <input id="bmTags" placeholder="Tags (comma separated)" autocomplete="off" minChars="2">
+        <ul id="bmTagsSuggestions" class="tag-suggestions hidden"></ul>
+    </div>
+    <textarea id="bmNotes" rows="2" placeholder="Notes"></textarea>
+    <div class="modal-buttons-row">
+        <button onclick="submitBookmark()">Save</button>
+        <button onclick="document.getElementById('bmPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
+    </div>
+</div>
+<div id="commitModal" class="overlay" style="display:none;">
+    <div class="modal" style="width:500px; max-height:80vh; overflow-y:auto;">
+        <h2>Commit Changes</h2>
+        <p>Files to be committed:</p>
+        <pre id="commitFileList" style="background: var(--bg-inset); color: var(--text); border: 1px solid var(--border); padding:10px; max-height:200px; overflow-y:auto; white-space:pre-wrap;"></pre>
+        <textarea id="commitMessage" placeholder="Enter commit message..." style="width:100%; height:80px; margin-top:10px;"></textarea>
+        <div class="modal-buttons-row" style="margin-top:10px;">
+            <button onclick="commitAndUpload()" class="admin-only">Commit &amp; Push</button>
+            <button onclick="hideCommitModal()" class="btn-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="conflict-modal" class="overlay hidden">
+    <div class="modal">
+        <h2>Merge Conflict</h2>
+        <p>Local changes conflict with the remote repository. Choose how to resolve this:</p>
+        <button onclick="window.performSync('pull_force')">Force Pull (Reset to Remote)<br><small>Overwrites tracked files; also deletes local files that are neither tracked nor in .gitignore</small></button>
+        <button onclick="window.performSync('pull_mark')">Mark Conflicts in Files<br><small>Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; conflict markers for manual fixing</small></button>
+        <button onclick="window.performSync('abort')" class="btn-cancel">Abort Operation</button>
+    </div>
+</div>

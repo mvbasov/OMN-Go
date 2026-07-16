@@ -108,6 +108,12 @@ var (
 	gitServerCardTmpl = loadTemplate("git_server_card.html")
 	externalEditTmpl  = loadTemplate("external_edit.html")
 	editorPageTmpl    = loadTemplate("editor.html")
+	// modalsHTML is the block of server-only modals (login, quick note,
+	// bookmark, commit, conflict). It is kept OUT of the cached/exported
+	// page (index.html carries only the modalsMarker slot) and spliced in by
+	// injectRuntimeVars at serve time, so an offline/exported page - which
+	// has no backend and no use for these server features - stays small.
+	modalsHTML = loadTemplate("modals.html")
 )
 
 // fill replaces %%NAME%% placeholders in tmpl. Every value passed in MUST
@@ -323,6 +329,12 @@ func renderExternalEditPage(v externalEditView) string {
 // cached on disk.
 const runtimeVarsMarker = `<meta id="omn-go-runtime-vars-marker">`
 
+// modalsMarker is the empty slot index.html emits where the server-only
+// modals go. injectRuntimeVars replaces it with modalsHTML when the backend
+// serves the page; on an exported/offline page (no backend) it stays as an
+// empty div, so those modals simply don't exist there.
+const modalsMarker = `<div id="omn-go-modals-slot"></div>`
+
 // injectRuntimeVars splices the globals that must reflect the *currently
 // running* server - not whatever was true when a page was last compiled
 // to the on-disk HTML cache - into a rendered page's runtimeVarsMarker.
@@ -349,5 +361,9 @@ func (a *App) injectRuntimeVars(page []byte) []byte {
 	script := fmt.Sprintf(
 		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
 		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme))
-	return bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
+	page = bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
+	// Splice the server-only modals into the slot (a no-op on templates that
+	// don't carry it, e.g. the standalone editor page).
+	page = bytes.Replace(page, []byte(modalsMarker), []byte(modalsHTML), 1)
+	return page
 }

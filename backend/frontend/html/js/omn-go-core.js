@@ -392,6 +392,15 @@ if (typeof currentNote === 'undefined') {
             }
         };
 
+        // Null-safe toggle for the quick-note panel. #quickPanel is a
+        // server-injected modal (see injectRuntimeVars), so it is absent on an
+        // exported/offline page - guard against that instead of throwing.
+        // Wired to the header's quick-note button (onclick).
+        window.toggleQuickPanel = function () {
+            var p = document.getElementById('quickPanel');
+            if (p) p.classList.toggle('hidden');
+        };
+
         // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
         // the omngo://edit precedent) to pin a home-screen shortcut to the
         // current note. Only reachable via the .android-only button, which

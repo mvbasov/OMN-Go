@@ -186,6 +186,33 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	}
 }
 
+// TestModalsInjectedAtServeTime pins Phase 5c: the server-only modals are
+// NOT baked into the cached/exported page (which carries only the empty
+// slot), and injectRuntimeVars splices them in when the backend serves it.
+func TestModalsInjectedAtServeTime(t *testing.T) {
+	a := &App{}
+
+	compiled := string(a.compilePage("Welcome", []byte("Title: W\n\nBody")))
+	if !strings.Contains(compiled, `<div id="omn-go-modals-slot"></div>`) {
+		t.Fatalf("compiled/cached page missing the modals slot marker:\n%s", compiled)
+	}
+	for _, modal := range []string{`id="loginOverlay"`, `id="quickPanel"`, `id="conflict-modal"`} {
+		if strings.Contains(compiled, modal) {
+			t.Errorf("modal %s was baked into the cached page (should be serve-time only)", modal)
+		}
+	}
+
+	served := string(a.injectRuntimeVars([]byte(compiled)))
+	if strings.Contains(served, `<div id="omn-go-modals-slot"></div>`) {
+		t.Error("modals slot was not replaced at serve time")
+	}
+	for _, want := range []string{`id="loginOverlay"`, `id="quickPanel"`, `id="bmPanel"`, `id="commitModal"`, `id="conflict-modal"`} {
+		if !strings.Contains(served, want) {
+			t.Errorf("served page missing injected modal %s", want)
+		}
+	}
+}
+
 func TestRelPrefix(t *testing.T) {
 	cases := map[string]string{
 		"Welcome":                     "",

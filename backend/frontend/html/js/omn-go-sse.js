@@ -625,20 +625,27 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.checkSession = async function() {
+        // #loginOverlay is a server-injected modal (see injectRuntimeVars); an
+        // exported/offline page has no login gate, so if it isn't present just
+        // leave the already-visible content alone rather than dereferencing
+        // null. #mainUI stays in the page, but guard it too for safety.
+        const overlay = document.getElementById('loginOverlay');
+        const main = document.getElementById('mainUI');
+        if (!overlay || !main) return;
         // Unhide UI if role cookies exist
         if (document.cookie.includes('session_role=')) {
-            document.getElementById('loginOverlay').style.display = 'none';
-            document.getElementById('mainUI').style.display = 'flex';
+            overlay.style.display = 'none';
+            main.style.display = 'flex';
             checkRole();
         } else {
             // Check if server is configured with public role or check backend
             const test = await fetch('/api/config');
             if (test.status === 401) {
-                document.getElementById('loginOverlay').style.display = 'flex';
-                document.getElementById('mainUI').style.display = 'none';
+                overlay.style.display = 'flex';
+                main.style.display = 'none';
             } else {
-                document.getElementById('loginOverlay').style.display = 'none';
-                document.getElementById('mainUI').style.display = 'flex';
+                overlay.style.display = 'none';
+                main.style.display = 'flex';
             }
         }
     };

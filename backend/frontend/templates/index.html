@@ -7,13 +7,6 @@
     <link rel="stylesheet" href="%%ASSET_PREFIX%%css/omn-go-core.css">
     <link rel="stylesheet" href="%%ASSET_PREFIX%%css/highlight.default.min.css">
     <link rel="stylesheet" href="%%ASSET_PREFIX%%css/katex.min.css">
-    <!-- Loaded synchronously (no defer), like functions.js in classic OMN:
-         the console interceptor, error handlers and helper globals must all
-         exist BEFORE any classic <script> embedded in the note body executes
-         during HTML parsing. With defer these ran after note scripts, so
-         classic scripts saw no helpers and their console output/errors were
-         silently lost (only type="module" scripts, which are always deferred
-         by the browser, ran late enough to work). -->
     <script src="%%ASSET_PREFIX%%js/omn-go-core.js"></script>
     <script src="%%ASSET_PREFIX%%js/omn-go-sse.js"></script>
 %%META_TAGS%%
@@ -22,34 +15,19 @@
       var PageName = '%%PAGE_NAME_JS%%';
       var Title = '%%TITLE_JS%%';
       var PAGE_EXT = '%%PAGE_EXT_JS%%';
-      // Declared here in <head> (not at the end of <body>) so classic
-      // note scripts that run during parsing already see it, matching how
-      // classic OMN exposed its page variables.
       var currentNote = '%%PAGE_NAME_JS%%';
     </script>
 %%COND_SCRIPTS%%
     <meta id="omn-go-runtime-vars-marker">
 </head>
 <body>
-    
-    <!-- Login Overlay -->
-    <div id="loginOverlay" class="overlay">
-        <div class="modal">
-            <h2>OMN-Go Login</h2>
-            <input type="password" id="pwdInput" placeholder="Admin or Guest Password">
-            <button onclick="login()">Enter</button>
-        </div>
-    </div>
-
-    <!-- Main UI -->
     <div id="mainUI" class="page_container">
         <div id="ptitle" class="page-header">
             <div id="hidable_header" class="collapsible-header hidden">
-                <!-- Actions row: navigation + editing + admin -->
                 <div class="header-actions">
                     <a href="%%ASSET_PREFIX%%Welcome.html"><i class="material-icons">home</i></a>
                     <button onclick="createNewPage()" class="admin-only server-only btn-create-page"><i class="material-icons">note_add</i></button>
-                    <button onclick="document.getElementById('quickPanel').classList.toggle('hidden')" class="admin-only server-only btn-quick-note"><i class="material-icons">insert_comment</i></button>
+                    <button onclick="toggleQuickPanel()" class="admin-only server-only btn-quick-note"><i class="material-icons">insert_comment</i></button>
                     <button onclick="toggleBookmarkPanel()" class="admin-only server-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
                     <button onclick="createNoteShortcut()" class="android-only btn-add-shortcut" title="Add to home screen"><i class="material-icons">add_to_home_screen</i></button>
                     <button onclick="refreshPage()" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
@@ -57,15 +35,9 @@
                     <button onclick="syncAction('download')" class="admin-only server-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
                     <button onclick="syncAction('upload')" class="admin-only server-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
                     <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings server-only"><i class="material-icons">settings</i></a>
-                    <!-- Editing controls -->
                     <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
-                    <!-- Editing is a separate page now: this navigates to the
-                         dedicated editor, which fetches the source itself.
-                         The rendered page no longer carries a hidden copy of
-                         its own markdown. -->
                     <button id="toggleBtn" onclick="window.location.href = window.location.pathname + '?edit=true'" class="admin-only server-only" title="Edit"><i class="material-icons">edit</i></button>
                 </div>
-                <!-- Tag pills -->
                 <div id="headerTags">%%TAGS_HTML%%</div>
             </div>
             <h4 id="pageTitle" class="page-title" onclick="toggleHeader()">
@@ -76,92 +48,19 @@
 
         <div id="content" class="page-content">
             <div id="metadataPanel" class="hidden metadata-panel"></div>
-            <!-- No editor textarea here anymore: editing happens on the
-                 dedicated /...?edit=true page, so the note source is not
-                 duplicated into every rendered view. -->
             <div id="preview">%%PREVIEW_BODY%%</div>
         </div>
     </div>
 
     <div id="status" class="page-footer">
         <span class="version-footer-inline" id="omn-go-version-footer"></span>
-        <!-- Orange dot mirrors the JS-console button (which lives in the
-             header, hidden while the header is folded): shown when the
-             console has captured messages, so their existence is noticeable
-             without unfolding the header. Tapping it opens the console. -->
         <span id="omn-go-console-footer-dot" title="JS console has messages — tap to open" style="display:none; width:10px; height:10px; border-radius:50%; background:#ff9800; cursor:pointer; flex:0 0 auto; margin-left:8px;"></span>
     </div>
 
-    <!-- Quick Note Modal -->
-    <div id="quickPanel" class="panel hidden">
-        <h3>Quick Note</h3>
-        <textarea id="quickText" rows="4"></textarea>
-        <div class="modal-buttons-row">
-            <button onclick="submitQuickNote()">Save</button>
-            <button onclick="document.getElementById('quickPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
-        </div>
-    </div>
+    <div id="omn-go-modals-slot"></div>
 
-    <!-- Bookmark Modal -->
-    <div id="bmPanel" class="panel hidden">
-        <h3>Ingest Bookmark</h3>
-        <input id="bmUrl" placeholder="URL">
-        <input id="bmTitle" placeholder="Title">
-        <!-- Tag autocomplete: suggestions are loaded from
-             /json/bookmarker-tags.json (see omn-go-core.js -
-             wireBookmarkTagAutocomplete/ensureTagsLoaded, lazily run by
-             showBookmarkPanel/toggleBookmarkPanel when this modal opens,
-             not at page load). minChars gates how many characters of the
-             tag currently being typed are required before suggestions are
-             shown; picking a suggestion appends ", " so the next tag can
-             be typed immediately. -->
-        <div class="tag-input-wrap">
-            <input id="bmTags" placeholder="Tags (comma separated)" autocomplete="off" minChars="2">
-            <ul id="bmTagsSuggestions" class="tag-suggestions hidden"></ul>
-        </div>
-        <textarea id="bmNotes" rows="2" placeholder="Notes"></textarea>
-        <div class="modal-buttons-row">
-            <button onclick="submitBookmark()">Save</button>
-            <button onclick="document.getElementById('bmPanel').classList.add('hidden')" class="btn-cancel">Cancel</button>
-        </div>
-    </div>
-
-    <!-- Commit Message Modal -->
-    <div id="commitModal" class="overlay" style="display:none;">
-        <div class="modal" style="width:500px; max-height:80vh; overflow-y:auto;">
-            <h2>Commit Changes</h2>
-            <p>Files to be committed:</p>
-            <pre id="commitFileList" style="background: var(--bg-inset); color: var(--text); border: 1px solid var(--border); padding:10px; max-height:200px; overflow-y:auto; white-space:pre-wrap;"></pre>
-            <textarea id="commitMessage" placeholder="Enter commit message..." style="width:100%; height:80px; margin-top:10px;"></textarea>
-            <div class="modal-buttons-row" style="margin-top:10px;">
-                <button onclick="commitAndUpload()" class="admin-only">Commit & Push</button>
-                <button onclick="hideCommitModal()" class="btn-cancel">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sync Conflict Modal: visibility is driven by the .hidden class,
-         toggled by window.runSync / window.performSync in omn-go-sse.js
-         (see the #conflict-modal rule in omn-go-core.css). -->
-    <div id="conflict-modal" class="overlay hidden">
-        <div class="modal">
-            <h2>Merge Conflict</h2>
-            <p>Local changes conflict with the remote repository. Choose how to resolve this:</p>
-            <button onclick="window.performSync('pull_force')">Force Pull (Reset to Remote)<br><small>Overwrites tracked files; also deletes local files that are neither tracked nor in .gitignore</small></button>
-            <button onclick="window.performSync('pull_mark')">Mark Conflicts in Files<br><small>Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; conflict markers for manual fixing</small></button>
-            <button onclick="window.performSync('abort')" class="btn-cancel">Abort Operation</button>
-        </div>
-    </div>
-
-    <!-- currentNote is declared in <head> together with the other page
-         variables so parse-time note scripts can use it. -->
-
-    <!-- Code & Math Formatting Assets -->
     <script src="%%ASSET_PREFIX%%js/highlight.min.js"></script>
     <script src="%%ASSET_PREFIX%%js/katex.min.js"></script>
     <script src="%%ASSET_PREFIX%%js/auto-render.min.js"></script>
-
-    <!-- Small Version Footer -->
-    <!-- version footer now inline in #status -->
 </body>
 </html>
