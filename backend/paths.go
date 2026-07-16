@@ -43,7 +43,9 @@ func (a *App) resolvePageName(name string) (mdPath, htmlPath, baseName string, i
 		return "", filepath.Join(a.StorageDir, "html", filepath.Clean(name)), name, false
 	}
 
+	// pageHTMLPath (render_cache.go) is the single formula for a page's
+	// compiled-HTML path; use it here so the two never drift apart.
 	mdPath = filepath.Join(a.StorageDir, "md", filepath.Clean(baseName+".md"))
-	htmlPath = filepath.Join(a.StorageDir, "html", filepath.Clean(baseName+".html"))
+	htmlPath = a.pageHTMLPath(baseName)
 	return mdPath, htmlPath, baseName, true
 }

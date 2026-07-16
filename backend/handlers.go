@@ -385,9 +385,11 @@ func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	fullMarkdown = a.ensureHeaderModified(fullMarkdown, "Quick Notes")
 	os.WriteFile(path, []byte(fullMarkdown), 0644)
 
-	// Update Dynamic Precompile instantly
-	compiled := a.compilePage("QuickNotes", []byte(fullMarkdown))
-	os.WriteFile(filepath.Join(a.StorageDir, "html", "QuickNotes.html"), compiled, 0644)
+	// Update the compiled cache instantly (see the cache contract in
+	// render_cache.go - renderAndCache is the only writer of html/*.html).
+	if _, err := a.renderAndCache("QuickNotes", []byte(fullMarkdown)); err != nil {
+		log.Printf("handleQuickNote: %v", err)
+	}
 
 	w.Write([]byte("Saved"))
 }
@@ -431,9 +433,10 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
 			newContent = a.ensureHeaderModified(newContent, "Incoming bookmarks")
 			os.WriteFile(path, []byte(newContent), 0644)
-			// Update Dynamic Precompile instantly
-			compiled := a.compilePage("Bookmarks", []byte(newContent))
-			os.WriteFile(filepath.Join(a.StorageDir, "html", "Bookmarks.html"), compiled, 0644)
+			// Update the compiled cache instantly (see render_cache.go).
+			if _, err := a.renderAndCache("Bookmarks", []byte(newContent)); err != nil {
+				log.Printf("handleBookmark: %v", err)
+			}
 		}
 	}
 	w.Write([]byte("Saved"))
@@ -706,11 +709,11 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			content = a.ensureHeaderModified(content, source)
 			os.WriteFile(sourceMdPath, []byte(content), 0644)
 
-			// Recompile Source HTML immediately to prevent caching delays
-			htmlPath := filepath.Join(a.StorageDir, "html", source+".html")
-			compiled := a.compilePage(source, []byte(content))
-			os.MkdirAll(filepath.Dir(htmlPath), 0755)
-			os.WriteFile(htmlPath, compiled, 0644)
+			// Recompile the source page's cache immediately to prevent
+			// caching delays (see render_cache.go).
+			if _, err := a.renderAndCache(source, []byte(content)); err != nil {
+				log.Printf("handleNewPage: %v", err)
+			}
 		}
 	}
 
@@ -765,14 +768,10 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	// successfully - if this part fails, the note itself is still safe on
 	// disk, so log it and let the next page load recompile it (serveHTMLPage
 	// already recompiles whenever the .md is newer than the .html) rather
-	// than reporting the save itself as failed.
-	if err := os.MkdirAll(filepath.Dir(htmlPath), 0755); err != nil {
-		log.Printf("handleSaveNote: mkdir failed for compiled html of %q: %v", baseName, err)
-	} else {
-		compiled := a.compilePage(baseName, []byte(content))
-		if err := os.WriteFile(htmlPath, compiled, 0644); err != nil {
-			log.Printf("handleSaveNote: failed to write compiled html for %q: %v", baseName, err)
-		}
+	// than reporting the save itself as failed. renderAndCache is the single
+	// cache writer (see render_cache.go).
+	if _, err := a.renderAndCache(baseName, []byte(content)); err != nil {
+		log.Printf("handleSaveNote: %v", err)
 	}
 
 	w.Write([]byte("Saved"))
@@ -824,7 +823,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 
 	forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
 	if forceRefresh || os.IsNotExist(errHtml) || (errHtml == nil && errMd == nil && mdStat.ModTime().After(htmlStat.ModTime())) {
-		a.recompileMarkdownPage(name, mdPath, htmlPath, errMd)
+		a.recompileMarkdownPage(name, mdPath, errMd)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -836,7 +835,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 	}
 }
 
-func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) {
+func (a *App) recompileMarkdownPage(name, mdPath string, errMd error) {
 	if os.IsNotExist(errMd) {
 		embedData, err := staticFS.ReadFile("frontend/md/" + name + ".md")
 		if err == nil {
@@ -866,9 +865,9 @@ func (a *App) recompileMarkdownPage(name, mdPath, htmlPath string, errMd error) 
 		// Modified timestamp on every plain view that happened to need a
 		// cache rebuild, which is exactly the bug this comment guards
 		// against reintroducing.
-		compiled := a.compilePage(name, mdContent)
-		os.MkdirAll(filepath.Dir(htmlPath), 0755)
-		os.WriteFile(htmlPath, compiled, 0644)
+		if _, err := a.renderAndCache(name, mdContent); err != nil {
+			log.Printf("recompileMarkdownPage: %v", err)
+		}
 	}
 }
 

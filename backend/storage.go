@@ -133,10 +133,10 @@ func (a *App) precompileAllPages() {
 			if err == nil {
 				relPath, _ := filepath.Rel(mdDir, f)
 				name := strings.TrimSuffix(filepath.ToSlash(relPath), ".md")
-				compiled := a.compilePage(name, content)
-				htmlPath := filepath.Join(htmlDir, filepath.Clean(name+".html"))
-				os.MkdirAll(filepath.Dir(htmlPath), 0755)
-				os.WriteFile(htmlPath, compiled, 0644)
+				// renderAndCache is the single cache writer (render_cache.go).
+				if _, err := a.renderAndCache(name, content); err != nil {
+					log.Printf("precompileAllPages: %v", err)
+				}
 			}
 		}
 		return nil
