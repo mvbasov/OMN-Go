@@ -73,6 +73,7 @@ var versionDependentAssets = []string{
 	"html/css/highlight.default.min.css",
 	"html/css/katex.min.css",
 	"html/css/markdown.css",
+	"md/AndroidIntents.md",
 	"md/Database.md",
 	"md/Editor.md",
 	"md/ScriptRules.md",

@@ -102,3 +102,17 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 		t.Error("user edit not preserved in version-labeled backup")
 	}
 }
+
+// Every version-dependent asset must actually be embedded, otherwise
+// refreshEmbeddedAssets silently logs "not embedded" and the file never
+// reaches an install - exactly the failure mode of listing a new doc note
+// (e.g. md/AndroidIntents.md) but forgetting to ship it. This guards the
+// whole list, so any future addition is caught at test time rather than in
+// the field.
+func TestVersionDependentAssetsAllEmbedded(t *testing.T) {
+	for _, rel := range versionDependentAssets {
+		if _, err := staticFS.ReadFile("frontend/" + rel); err != nil {
+			t.Errorf("version-dependent asset %q is not embedded in staticFS: %v", rel, err)
+		}
+	}
+}
