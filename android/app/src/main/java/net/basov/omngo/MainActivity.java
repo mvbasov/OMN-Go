@@ -255,6 +255,23 @@ public class MainActivity extends Activity {
                     return true;
                 }
 
+                if (url != null && url.startsWith("intent:")) {
+                    // Android intent-URI links authored in notes - both the
+                    // bare "intent:#Intent;...;end" form and the
+                    // "intent://host/...#Intent;...;end" form (both share the
+                    // "intent:" prefix). Gated behind the enable_intent_uri
+                    // config toggle (default off), read live from config.json
+                    // so a Settings change applies without an app restart -
+                    // the same native-read pattern readMaxUploadSizeMB() uses.
+                    // The Termux RUN_COMMAND convention (a note running a
+                    // shell command) is additionally gated and confirmed; see
+                    // handleIntentUri() and the block comment above it. This
+                    // is why the generic "any other scheme" branch below no
+                    // longer needs its own intent:// special-case.
+                    handleIntentUri(url);
+                    return true;
+                }
+
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
                     if (!url.contains("localhost") && !url.contains("127.0.0.1")) {
                         view.getContext().startActivity(
@@ -268,22 +285,17 @@ public class MainActivity extends Activity {
 
                 if (url != null) {
                     // Any other scheme (tel:, mailto:, geo:, sms:, market:,
-                    // intent://, whatsapp:, etc.) is something the WebView
-                    // has no renderer for - it fails with
-                    // ERR_UNKNOWN_URL_SCHEME if we don't intercept it here.
-                    // Hand it off to the OS so the matching app (Dialer,
-                    // Maps, Email, Messaging...) can handle it instead.
+                    // whatsapp:, etc.) is something the WebView has no
+                    // renderer for - it fails with ERR_UNKNOWN_URL_SCHEME if
+                    // we don't intercept it here. Hand it off to the OS so
+                    // the matching app (Dialer, Maps, Email, Messaging...)
+                    // can handle it instead. The "intent:" scheme (both the
+                    // bare "intent:#Intent;...;end" and "intent://..." forms)
+                    // is fully handled in its own branch above via
+                    // handleIntentUri(), so it never reaches here.
                     try {
-                        android.content.Intent intent;
-                        if (url.startsWith("intent://")) {
-                            // "intent:" links pack extra info (target
-                            // package, fallback URL, etc.) into a special
-                            // URI format that needs Intent.parseUri rather
-                            // than a plain Uri.parse + ACTION_VIEW.
-                            intent = android.content.Intent.parseUri(url, android.content.Intent.URI_INTENT_SCHEME);
-                        } else {
-                            intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
-                        }
+                        android.content.Intent intent = new android.content.Intent(
+                            android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
                         if (intent.resolveActivity(view.getContext().getPackageManager()) != null) {
                             view.getContext().startActivity(intent);
                         }
@@ -714,6 +726,216 @@ public class MainActivity extends Activity {
             }
         } finally {
             conn.disconnect();
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // Android intent-URI links (incl. Termux RUN_COMMAND integration)
+    // ----------------------------------------------------------------------
+    //
+    // Reached from shouldOverrideUrlLoading when a note link's URL starts with
+    // "intent:". Reproduces the behavior of the pre-OMN-Go app (mvbasov/OMN),
+    // including its Termux argument-packing convention, so intent: links in
+    // notes authored for that app keep working here unchanged.
+    //
+    // Two independent config toggles gate this, both default off and read live
+    // from config.json at tap time (readConfigFlag), so a Settings change
+    // applies on the next tap without an app restart:
+    //   - enable_intent_uri   : master switch. Off => no intent link launches.
+    //   - enable_termux_intent : additionally allows the Termux RUN_COMMAND
+    //                            path (a note starting a shell command via
+    //                            com.termux/.app.RunCommandService).
+    //
+    // The Termux path is deliberately hardened beyond old OMN with FOUR
+    // independent consents before a note can run a shell command: the master
+    // toggle on, the Termux toggle on, the RUN_COMMAND permission granted, and
+    // a per-tap confirmation dialog. That is because OMN-Go notes are not
+    // necessarily self-authored - git sync and (when LAN sharing is on) other
+    // devices editing over the network can put third-party content in front of
+    // this WebView, and a single tap must never silently run a shell command.
+
+    private static final int REQ_TERMUX_PERMISSION = 1003;
+    private static final String TERMUX_PACKAGE = "com.termux";
+    private static final String TERMUX_PERMISSION = "com.termux.permission.RUN_COMMAND";
+    private static final String TERMUX_RUN_COMMAND_PATH = "com.termux.RUN_COMMAND_PATH";
+    private static final String TERMUX_RUN_COMMAND_ARGS = "com.termux.RUN_COMMAND_ARGUMENTS";
+    private static final String TERMUX_RUN_COMMAND_LABEL = "com.termux.RUN_COMMAND_LABEL";
+
+    private void handleIntentUri(final String url) {
+        if (!readConfigFlag("enable_intent_uri")) {
+            showToast("Intent links are turned off. Enable them in Settings.");
+            return;
+        }
+
+        final android.content.Intent intentApp;
+        try {
+            // parseUri handles both the bare "intent:#Intent;...;end" and the
+            // "intent://...#Intent;...;end" forms, and percent-decodes string
+            // extra values (so "%20" inside a packed Termux arg becomes a
+            // space here, which the packing convention below relies on).
+            intentApp = android.content.Intent.parseUri(url, android.content.Intent.URI_INTENT_SCHEME);
+        } catch (Exception e) {
+            e.printStackTrace();
+            showToast("This intent link is malformed.");
+            return;
+        }
+
+        // Presence of the RUN_COMMAND_PATH extra is what marks this as a
+        // Termux "run a shell command" intent rather than an ordinary one.
+        if (intentApp.hasExtra(TERMUX_RUN_COMMAND_PATH)) {
+            launchTermuxIntent(intentApp);
+        } else {
+            launchGenericIntent(intentApp);
+        }
+    }
+
+    // Ordinary (non-Termux) intent: hand to the OS as an activity - e.g. an
+    // android.settings.* screen, or a third-party app deep link.
+    // resolveActivity() is deliberately NOT used as a pre-check here: under
+    // API 30+ package visibility it can return null even for actions the
+    // system itself would handle (some android.settings.* screens included),
+    // so a try/catch around startActivity is the reliable form. Honors the
+    // standard S.browser_fallback_url extra (loaded in the WebView) when no
+    // installed app can handle the intent.
+    private void launchGenericIntent(final android.content.Intent intentApp) {
+        String fallbackUrl = intentApp.getStringExtra("browser_fallback_url");
+        // Don't leave the fallback URL sitting in the launched intent's extras
+        // where the target activity might misread it.
+        intentApp.removeExtra("browser_fallback_url");
+        try {
+            startActivity(intentApp);
+        } catch (android.content.ActivityNotFoundException e) {
+            if (fallbackUrl != null
+                    && (fallbackUrl.startsWith("http://") || fallbackUrl.startsWith("https://"))) {
+                if (webView != null) {
+                    webView.loadUrl(fallbackUrl);
+                }
+            } else {
+                showToast("No app can handle this link.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showToast("Couldn't open this link.");
+        }
+    }
+
+    // Termux RUN_COMMAND path. Enforces the second toggle + Termux installed +
+    // permission granted, applies old OMN's argument-packing convention, then
+    // asks for explicit confirmation before starting the service.
+    private void launchTermuxIntent(final android.content.Intent intentApp) {
+        if (!readConfigFlag("enable_termux_intent")) {
+            showToast("Termux commands are turned off. Enable them in Settings.");
+            return;
+        }
+        if (!isPackageInstalled(TERMUX_PACKAGE)) {
+            showToast("Termux is not installed.");
+            return;
+        }
+        if (checkSelfPermission(TERMUX_PERMISSION)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // Ask now; the user grants it and taps the link again. Kept as a
+            // re-tap (rather than an auto-retry via onRequestPermissionsResult)
+            // so there's no cross-callback state to hold for this rare path.
+            requestPermissions(new String[]{ TERMUX_PERMISSION }, REQ_TERMUX_PERMISSION);
+            showToast("Grant Termux the RUN_COMMAND permission, then tap the link again.");
+            return;
+        }
+
+        // Old OMN packing convention: an intent URI can't carry a String[]
+        // extra, so arguments are packed into RUN_COMMAND_PATH as
+        // "path?arg1&arg2&..." (with %20 for a space inside an argument,
+        // already decoded by parseUri above). Unpack into the real
+        // RUN_COMMAND_PATH + RUN_COMMAND_ARGUMENTS[] Termux expects. The
+        // path/args boundary is split on only the FIRST '?' (limit 2), a safe
+        // superset of old OMN's unlimited split: every note that worked there
+        // had no '?' inside an argument (or it was already broken), so results
+        // are identical for existing notes and additionally correct when an
+        // argument itself contains '?'. Arguments are still separated on every
+        // '&', matching old OMN (an argument therefore cannot contain a
+        // literal '&' - a documented limitation of the packing).
+        String cmdPath = intentApp.getStringExtra(TERMUX_RUN_COMMAND_PATH);
+        if (cmdPath != null && cmdPath.contains("?")) {
+            String[] cmdParts = cmdPath.split("\\?", 2);
+            intentApp.putExtra(TERMUX_RUN_COMMAND_PATH, cmdParts[0].trim());
+            if (cmdParts.length > 1 && !cmdParts[1].isEmpty()) {
+                intentApp.putExtra(TERMUX_RUN_COMMAND_ARGS, cmdParts[1].split("&"));
+            }
+        }
+
+        // Human-readable summary for the confirmation dialog: the note's
+        // RUN_COMMAND_LABEL if present, then the resolved command line.
+        String label = intentApp.getStringExtra(TERMUX_RUN_COMMAND_LABEL);
+        String path = intentApp.getStringExtra(TERMUX_RUN_COMMAND_PATH);
+        String[] args = intentApp.getStringArrayExtra(TERMUX_RUN_COMMAND_ARGS);
+        StringBuilder summary = new StringBuilder();
+        if (label != null && !label.isEmpty()) {
+            summary.append(label).append("\n\n");
+        }
+        summary.append(path != null ? path : "");
+        if (args != null) {
+            for (String arg : args) {
+                summary.append(' ').append(arg);
+            }
+        }
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Run Termux command?")
+            .setMessage(summary.toString().trim())
+            .setPositiveButton("Run", (d, w) -> startTermuxService(intentApp))
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    // Starts com.termux/.app.RunCommandService. On API 26+ the service must be
+    // started with startForegroundService() - RunCommandService promotes
+    // itself to the foreground with a notification, and a plain startService()
+    // there can throw once Termux calls startForeground late. Below 26,
+    // startService(). A SecurityException here almost always means Termux's
+    // allow-external-apps is not set, so the message points the user at it.
+    private void startTermuxService(final android.content.Intent intentApp) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(intentApp);
+            } else {
+                startService(intentApp);
+            }
+        } catch (SecurityException e) {
+            showToast("Termux refused the command. In Termux, set allow-external-apps=true "
+                + "in ~/.termux/termux.properties and run termux-reload-settings.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            showToast("Couldn't start the Termux command.");
+        }
+    }
+
+    private boolean isPackageInstalled(String pkg) {
+        try {
+            getPackageManager().getPackageInfo(pkg, 0);
+            return true;
+        } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    // Reads a boolean flag out of config.json (default false when the file or
+    // key is missing/unreadable). Same native-read approach as
+    // readMaxUploadSizeMB(): these Android-consumed toggles never go through
+    // the Go HTTP server, and reading fresh on each call means a Settings
+    // change applies on the next tap without an app restart.
+    private boolean readConfigFlag(String key) {
+        try {
+            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
+            if (!cfgFile.exists()) return false;
+            java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = fis.read(buf)) != -1) bos.write(buf, 0, n);
+            fis.close();
+            org.json.JSONObject cfg = new org.json.JSONObject(bos.toString("UTF-8"));
+            return cfg.optBoolean(key, false);
+        } catch (Exception e) {
+            return false;
         }
     }
 

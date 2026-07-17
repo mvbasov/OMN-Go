@@ -30,17 +30,33 @@
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
 
     <!--
+      Termux RUN_COMMAND integration (see MainActivity.launchTermuxIntent).
+      A note may launch an "intent:" link targeting
+      com.termux/.app.RunCommandService to run a shell command; this dangerous
+      permission (declared by Termux itself) is what lets that service accept
+      our request. Harmless when Termux is absent - the whole feature is gated
+      behind the enable_intent_uri / enable_termux_intent config toggles (both
+      default off) and additionally requires this permission to be granted at
+      runtime and a per-tap confirmation before anything runs.
+    -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <!--
       Android 11+ (API 30+) hides other apps' components by default
       (package visibility). MainActivity's shouldOverrideUrlLoading hands
-      off non-http(s) links (tel:, geo:, mailto:, sms:, market:, intent://,
-      ...) to the OS via an implicit ACTION_VIEW intent (or
-      Intent.parseUri for intent:// links). Without declaring those schemes
-      here, resolveActivity()/startActivity() silently find nothing even
-      when a matching app (Dialer, Maps, Email, Play Store...) is
-      installed, which is what produced ERR_UNKNOWN_URL_SCHEME. Each entry
-      below matches a scheme the WebView can actually hand off.
+      off non-http(s) links (tel:, geo:, mailto:, sms:, market:, intent:,
+      ...) to the OS via an implicit ACTION_VIEW intent (or, for the
+      "intent:" scheme, Intent.parseUri - see handleIntentUri). Without
+      declaring those schemes here, resolveActivity()/startActivity()
+      silently find nothing even when a matching app (Dialer, Maps, Email,
+      Play Store...) is installed, which is what produced
+      ERR_UNKNOWN_URL_SCHEME. Each entry below matches a scheme the WebView
+      can actually hand off; the <package> entry makes the Termux app itself
+      visible so an intent: link can resolve and start its RunCommandService
+      (and so isPackageInstalled("com.termux") works) on API 30+.
     -->
     <queries>
+        <package android:name="com.termux" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="tel" />
