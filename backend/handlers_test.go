@@ -382,6 +382,49 @@ func TestHandleConfigSavesMaxUploadSizeMB(t *testing.T) {
 	}
 }
 
+func TestHandleConfigSavesAndroidIntentToggles(t *testing.T) {
+	a := newTestApp(t)
+
+	// Both boxes checked -> both true, both persisted. (The Termux/master
+	// dependency is enforced Android-side at tap time, not here; the config
+	// layer just stores whatever was submitted.)
+	rec := postConfig(t, a, url.Values{
+		"enable_intent_uri":    {"true"},
+		"enable_termux_intent": {"true"},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body.String())
+	}
+	if !a.GetConfig().EnableIntentURI {
+		t.Error("enable_intent_uri=true not stored")
+	}
+	if !a.GetConfig().EnableTermuxIntent {
+		t.Error("enable_termux_intent=true not stored")
+	}
+	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
+	if err != nil {
+		t.Fatalf("config.json not written: %v", err)
+	}
+	for _, want := range []string{`"enable_intent_uri": true`, `"enable_termux_intent": true`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("config.json missing persisted %s:\n%s", want, data)
+		}
+	}
+
+	// Unchecked checkboxes = fields absent from the form -> both clear back
+	// to false (same absent-means-false shape as share_lan).
+	rec = postConfig(t, a, url.Values{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if a.GetConfig().EnableIntentURI {
+		t.Error("absent enable_intent_uri field did not clear the option")
+	}
+	if a.GetConfig().EnableTermuxIntent {
+		t.Error("absent enable_termux_intent field did not clear the option")
+	}
+}
+
 // TestResolveAndroidEditName covers the bug where Android's external-editor
 // handoff opened the compiled .html cache instead of the .md source: it
 // picked md/ vs html/ purely by checking whether the name it was handed

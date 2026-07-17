@@ -81,6 +81,25 @@ type Config struct {
 	// where the default and the Android-native duplicate of this value
 	// come from.
 	MaxUploadSizeMB int `json:"max_upload_size_mb"`
+	// EnableIntentURI is the master switch for launching Android "intent:"
+	// URIs (e.g. [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;))
+	// from taps inside the WebView. Default false. When false,
+	// MainActivity.shouldOverrideUrlLoading refuses to dispatch intent
+	// URIs at all. Like MaxUploadSizeMB, the Android layer reads this value
+	// straight out of config.json at tap time (see MainActivity), not
+	// through the Go HTTP server, so a change applies without an app
+	// restart. Purely an Android-client concern: the desktop/LAN server
+	// ignores it (an intent link is dead in a normal browser regardless).
+	EnableIntentURI bool `json:"enable_intent_uri"`
+	// EnableTermuxIntent additionally permits the Termux RUN_COMMAND path
+	// (a note running a shell command on the device via
+	// com.termux/.app.RunCommandService). Default false, and gated behind
+	// EnableIntentURI as well - both must be true, mirroring old OMN's
+	// pk_enable_intent_uri + pk_enable_termux_intent pair - plus Termux
+	// installed, its RUN_COMMAND permission granted, and a per-tap
+	// confirmation (all enforced Android-side). Also read natively from
+	// config.json at tap time.
+	EnableTermuxIntent bool `json:"enable_termux_intent"`
 }
 
 func (a *App) loadConfig(storageDir string) {

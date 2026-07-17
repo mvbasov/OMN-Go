@@ -27,17 +27,19 @@ func (a *App) getConfigPageBody() string {
 	}
 
 	view := configPageView{
-		ServerPort:      cfg.ServerPort,
-		AdminPassword:   cfg.AdminPassword,
-		GuestPassword:   cfg.GuestPassword,
-		Author:          cfg.Author,
-		UseInternalEd:   cfg.UseInternalEd,
-		DesktopExtCmd:   cfg.DesktopExtCmd,
-		Theme:           cfg.Theme,
-		ShareLAN:        cfg.ShareLAN,
-		Hostname:        cfg.Hostname,
-		PruneDepth:      cfg.BackupPruneDepth,
-		MaxUploadSizeMB: cfg.MaxUploadSizeMB,
+		ServerPort:         cfg.ServerPort,
+		AdminPassword:      cfg.AdminPassword,
+		GuestPassword:      cfg.GuestPassword,
+		Author:             cfg.Author,
+		UseInternalEd:      cfg.UseInternalEd,
+		DesktopExtCmd:      cfg.DesktopExtCmd,
+		Theme:              cfg.Theme,
+		ShareLAN:           cfg.ShareLAN,
+		Hostname:           cfg.Hostname,
+		PruneDepth:         cfg.BackupPruneDepth,
+		MaxUploadSizeMB:    cfg.MaxUploadSizeMB,
+		EnableIntentURI:    cfg.EnableIntentURI,
+		EnableTermuxIntent: cfg.EnableTermuxIntent,
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -109,6 +111,12 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			// this correctly reads as false when the box is cleared.
 			// Takes effect on next start (see server.go bind logic).
 			c.ShareLAN = r.FormValue("share_lan") == "true"
+			// Android intent-URI toggles - same absent-means-false checkbox
+			// shape as ShareLAN above. Consumed natively by MainActivity out
+			// of config.json (not via the Go server), so no restart needed;
+			// the desktop/LAN server itself never acts on either.
+			c.EnableIntentURI = r.FormValue("enable_intent_uri") == "true"
+			c.EnableTermuxIntent = r.FormValue("enable_termux_intent") == "true"
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int

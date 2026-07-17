@@ -198,6 +198,30 @@ func TestRenderConfigPage(t *testing.T) {
 	}
 }
 
+func TestRenderConfigPageAndroidToggles(t *testing.T) {
+	// Off (zero value): neither Android checkbox is checked, but both
+	// placeholders are still filled (no leftover %%...%%).
+	off := renderConfigPage(configPageView{})
+	if strings.Contains(off, "%%INTENT_URI_CHECKED%%") || strings.Contains(off, "%%TERMUX_INTENT_CHECKED%%") {
+		t.Fatalf("Android toggle placeholder left unfilled:\n%s", off)
+	}
+	if strings.Contains(off, `name="enable_intent_uri" value="true" checked`) {
+		t.Error("enable_intent_uri wrongly checked when EnableIntentURI is false")
+	}
+	if strings.Contains(off, `name="enable_termux_intent" value="true" checked`) {
+		t.Error("enable_termux_intent wrongly checked when EnableTermuxIntent is false")
+	}
+
+	// On: both checkboxes render checked.
+	on := renderConfigPage(configPageView{EnableIntentURI: true, EnableTermuxIntent: true})
+	if !strings.Contains(on, `name="enable_intent_uri" value="true" checked`) {
+		t.Error("enable_intent_uri checkbox not checked when EnableIntentURI is true")
+	}
+	if !strings.Contains(on, `name="enable_termux_intent" value="true" checked`) {
+		t.Error("enable_termux_intent checkbox not checked when EnableTermuxIntent is true")
+	}
+}
+
 func TestRenderExternalEditPage(t *testing.T) {
 	v := externalEditView{
 		Cmd:      "subl",

@@ -59,6 +59,22 @@
             <span class="config-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
         </div>
 
+        <h3>Android Integration</h3>
+        <div class="config-field">
+            <div class="config-checkbox-row">
+                <input type="checkbox" id="cfgEnableIntentUri" name="enable_intent_uri" value="true" %%INTENT_URI_CHECKED%% />
+                <label class="config-label">Enable intent: links</label>
+            </div>
+            <span class="config-hint">Lets a note launch Android "intent:" URIs when tapped in the app - e.g. opening a Settings screen with [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;). Off by default. Android only; ignored on desktop and in LAN browsers.</span>
+        </div>
+        <div class="config-field">
+            <div class="config-checkbox-row">
+                <input type="checkbox" id="cfgEnableTermuxIntent" name="enable_termux_intent" value="true" %%TERMUX_INTENT_CHECKED%% />
+                <label class="config-label">Enable Termux commands</label>
+            </div>
+            <span class="config-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
+        </div>
+
         <h3>Git Servers</h3>
 %%GIT_SERVERS%%
 

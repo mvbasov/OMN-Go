@@ -228,18 +228,20 @@ type gitServerView struct {
 }
 
 type configPageView struct {
-	ServerPort      int
-	AdminPassword   string
-	GuestPassword   string
-	Author          string
-	UseInternalEd   bool
-	DesktopExtCmd   string
-	Theme           string // "auto" | "light" | "dark" (normalized)
-	ShareLAN        bool
-	Hostname        string
-	PruneDepth      int
-	MaxUploadSizeMB int
-	GitServers      []gitServerView
+	ServerPort         int
+	AdminPassword      string
+	GuestPassword      string
+	Author             string
+	UseInternalEd      bool
+	DesktopExtCmd      string
+	Theme              string // "auto" | "light" | "dark" (normalized)
+	ShareLAN           bool
+	Hostname           string
+	PruneDepth         int
+	MaxUploadSizeMB    int
+	EnableIntentURI    bool
+	EnableTermuxIntent bool
+	GitServers         []gitServerView
 }
 
 func renderConfigPage(v configPageView) string {
@@ -268,6 +270,14 @@ func renderConfigPage(v configPageView) string {
 	if v.ShareLAN {
 		shareLanChecked = "checked"
 	}
+	intentUriChecked := ""
+	if v.EnableIntentURI {
+		intentUriChecked = "checked"
+	}
+	termuxIntentChecked := ""
+	if v.EnableTermuxIntent {
+		termuxIntentChecked = "checked"
+	}
 
 	// Exactly one option is marked selected; normalizeTheme guarantees
 	// the value is one of the three, with unknown/empty mapping to auto.
@@ -286,20 +296,22 @@ func renderConfigPage(v configPageView) string {
 	}
 
 	return fill(configPageTmpl, map[string]string{
-		"SERVER_PORT":         fmt.Sprintf("%d", v.ServerPort),
-		"ADMIN_PWD":           escapeHTML(v.AdminPassword),
-		"GUEST_PWD":           escapeHTML(v.GuestPassword),
-		"AUTHOR":              escapeHTML(v.Author),
-		"INTERNAL_ED_CHECKED": internalEdChecked,
-		"SHARE_LAN_CHECKED":   shareLanChecked,
-		"DESKTOP_EXT_CMD":     escapeHTML(v.DesktopExtCmd),
-		"HOSTNAME":            escapeHTML(displayHostname(v.Hostname)),
-		"BACKUP_PRUNE_DEPTH":  fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
-		"THEME_AUTO_SEL":      themeSel["THEME_AUTO_SEL"],
-		"THEME_LIGHT_SEL":     themeSel["THEME_LIGHT_SEL"],
-		"THEME_DARK_SEL":      themeSel["THEME_DARK_SEL"],
-		"MAX_UPLOAD_MB":       fmt.Sprintf("%d", v.MaxUploadSizeMB),
-		"GIT_SERVERS":         cards.String(),
+		"SERVER_PORT":           fmt.Sprintf("%d", v.ServerPort),
+		"ADMIN_PWD":             escapeHTML(v.AdminPassword),
+		"GUEST_PWD":             escapeHTML(v.GuestPassword),
+		"AUTHOR":                escapeHTML(v.Author),
+		"INTERNAL_ED_CHECKED":   internalEdChecked,
+		"SHARE_LAN_CHECKED":     shareLanChecked,
+		"INTENT_URI_CHECKED":    intentUriChecked,
+		"TERMUX_INTENT_CHECKED": termuxIntentChecked,
+		"DESKTOP_EXT_CMD":       escapeHTML(v.DesktopExtCmd),
+		"HOSTNAME":              escapeHTML(displayHostname(v.Hostname)),
+		"BACKUP_PRUNE_DEPTH":    fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
+		"THEME_AUTO_SEL":        themeSel["THEME_AUTO_SEL"],
+		"THEME_LIGHT_SEL":       themeSel["THEME_LIGHT_SEL"],
+		"THEME_DARK_SEL":        themeSel["THEME_DARK_SEL"],
+		"MAX_UPLOAD_MB":         fmt.Sprintf("%d", v.MaxUploadSizeMB),
+		"GIT_SERVERS":           cards.String(),
 	})
 }
 
