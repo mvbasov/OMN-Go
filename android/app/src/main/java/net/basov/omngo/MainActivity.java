@@ -86,6 +86,25 @@ public class MainActivity extends Activity {
             registerReceiver(shortcutPinnedReceiver, shortcutPinnedFilter);
         }
 
+        // Receiver for Termux command results (see launchTermuxIntent's capture
+        // path). Same self-package, NOT_EXPORTED pattern as shortcutPinnedReceiver
+        // above. Dynamic (activity-scoped): if the OS kills this process while a
+        // long command is still running, the result can't be delivered - the
+        // command still runs, only the paste-back dialog is lost. Accepted for
+        // v1; typical captured commands finish in well under a second.
+        termuxResultReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, android.content.Intent intent) {
+                handleTermuxResult(intent);
+            }
+        };
+        android.content.IntentFilter termuxResultFilter = new android.content.IntentFilter(ACTION_TERMUX_RESULT);
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(termuxResultReceiver, termuxResultFilter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(termuxResultReceiver, termuxResultFilter);
+        }
+
         // The Go server (plus storage-dir setup) is owned by ServerService.
         // It is started with plain startService() - NOT
         // startForegroundService() - on purpose: the service itself decides
@@ -477,6 +496,13 @@ public class MainActivity extends Activity {
                 // either way there's nothing left to clean up.
             }
         }
+        if (termuxResultReceiver != null) {
+            try {
+                unregisterReceiver(termuxResultReceiver);
+            } catch (Exception e) {
+                // As above - nothing left to clean up.
+            }
+        }
     }
 
     // ----------------------------------------------------------------------
@@ -801,6 +827,32 @@ public class MainActivity extends Activity {
     private static final String STATE_PENDING_CAPTURE_EXTRA = "omngo_pending_capture_extra";
     private String pendingCaptureExtra;
 
+    // Termux command-output capture (a note's shell command whose stdout/stderr
+    // is pasted back into a review dialog). Opt-in per note via
+    // OMNGO_CAPTURE_OUTPUT, whose value names the stream(s): "stdout" (default),
+    // "stderr", or "both". Termux returns the result asynchronously through a
+    // PendingIntent we supply (RUN_COMMAND_PENDING_INTENT), NOT via an activity
+    // result - hence a broadcast receiver rather than onActivityResult. The
+    // TERMUX_RESULT_* keys are the literal values from Termux's TermuxConstants
+    // (verified against termux-app master): the result Bundle lives under the
+    // "result" extra and carries stdout/stderr/exitCode/errmsg. OMNGO_STREAM /
+    // OMNGO_LABEL ride on our own PendingIntent's base intent so the receiver
+    // gets them back alongside Termux's bundle - no cross-call state to hold.
+    private static final String OMNGO_CAPTURE_OUTPUT = "omngo_capture_output";
+    private static final String TERMUX_RUN_COMMAND_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND";
+    private static final String TERMUX_RUN_COMMAND_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT";
+    private static final String TERMUX_RESULT_BUNDLE = "result";
+    private static final String TERMUX_RESULT_STDOUT = "stdout";
+    private static final String TERMUX_RESULT_STDERR = "stderr";
+    private static final String TERMUX_RESULT_EXIT_CODE = "exitCode";
+    private static final String ACTION_TERMUX_RESULT = "net.basov.omngo.TERMUX_RESULT";
+    private static final String OMNGO_STREAM = "omngo_stream";
+    private static final String OMNGO_LABEL = "omngo_label";
+    private android.content.BroadcastReceiver termuxResultReceiver;
+    // Distinct request codes per capture launch so concurrent commands' result
+    // PendingIntents don't collide under FLAG_UPDATE_CURRENT.
+    private int termuxResultRequestCounter = 5000;
+
     private void handleIntentUri(final String url) {
         if (!readConfigFlag("enable_intent_uri")) {
             showToast("Intent links are turned off. Enable them in Settings.");
@@ -907,8 +959,8 @@ public class MainActivity extends Activity {
     // requested extra absent) is handled gracefully - Android delivers this
     // callback even when the launched activity set no result at all
     // (resultCode == RESULT_CANCELED, data == null), so there's nothing to
-    // crash on. On success the text is appended to Quick Notes via the same
-    // /api/quick path shared-file handling already uses.
+    // crash on. On success the text is handed to insertCapturedText, which
+    // shows it in a pre-filled review dialog rather than saving it silently.
     private void handleCaptureResult(int resultCode, android.content.Intent data) {
         final String extraName = pendingCaptureExtra;
         pendingCaptureExtra = null; // consume it either way
@@ -929,34 +981,8 @@ public class MainActivity extends Activity {
             showToast("No \"" + extraName + "\" result was returned.");
             return;
         }
-        // Off the UI thread: this makes a loopback HTTP call to /api/quick.
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // Surrounding newlines so the result lands on its own line,
-                    // matching the shared-file snippet format.
-                    postQuickNoteWithRetry("\n" + value + "\n");
-                    showToast("Result added to Quick Notes");
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            // If Quick Notes is the page on screen, refresh so
-                            // the pasted result shows immediately.
-                            if (webView != null) {
-                                String cur = webView.getUrl();
-                                if (cur != null && cur.contains("QuickNotes")) {
-                                    webView.reload();
-                                }
-                            }
-                        }
-                    });
-                } catch (java.io.IOException e) {
-                    e.printStackTrace();
-                    showToast("Couldn't save the result to Quick Notes.");
-                }
-            }
-        }).start();
+        // No label for a scan - just the decoded text, for the user to review.
+        insertCapturedText(value, null);
     }
 
     // Reads the named result extra out of a returned Intent. A barcode scan
@@ -978,6 +1004,141 @@ public class MainActivity extends Activity {
             return sb.toString();
         }
         return null;
+    }
+
+    // Receives a Termux command's result (see launchTermuxIntent's capture
+    // path). intent carries our own OMNGO_STREAM / OMNGO_LABEL (from the
+    // PendingIntent's base intent) plus Termux's result Bundle. Extracts the
+    // requested stream(s) and hands the text to the same review dialog the
+    // barcode path uses.
+    private void handleTermuxResult(android.content.Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        String stream = intent.getStringExtra(OMNGO_STREAM);
+        String label = intent.getStringExtra(OMNGO_LABEL);
+        android.os.Bundle result = intent.getBundleExtra(TERMUX_RESULT_BUNDLE);
+        if (result == null) {
+            showToast("Termux returned no result.");
+            return;
+        }
+        String stdout = result.getString(TERMUX_RESULT_STDOUT);
+        String stderr = result.getString(TERMUX_RESULT_STDERR);
+        int exitCode = result.getInt(TERMUX_RESULT_EXIT_CODE, 0);
+        String text = buildCaptureText(stream, stdout, stderr, exitCode);
+        if (text == null || text.isEmpty()) {
+            showToast("Command produced no output.");
+            return;
+        }
+        insertCapturedText(text, (label != null && !label.isEmpty()) ? label : null);
+    }
+
+    // Assembles the text to paste from a Termux result according to the
+    // requested stream ("stdout" default / "stderr" / "both"). An exit-code
+    // line is appended only when the command failed (non-zero), so a normal
+    // success stays clean.
+    private String buildCaptureText(String stream, String stdout, String stderr, int exitCode) {
+        if (stdout == null) stdout = "";
+        if (stderr == null) stderr = "";
+        StringBuilder sb = new StringBuilder();
+        if ("stderr".equals(stream)) {
+            sb.append(stderr);
+        } else if ("both".equals(stream)) {
+            sb.append(stdout);
+            if (!stderr.isEmpty()) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(stderr);
+            }
+        } else { // "stdout" (default)
+            sb.append(stdout);
+        }
+        if (exitCode != 0) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append("exit code: ").append(exitCode);
+        }
+        return sb.toString().trim();
+    }
+
+    // Shared "paste a captured result" entry point for both the barcode
+    // (onActivityResult) and Termux-output (broadcast) paths. Never silent: it
+    // pre-fills the in-app Quick Note panel (window.omnGoInsertCapture) for the
+    // user to review and save, and if that panel isn't available on the current
+    // page (e.g. mid-edit on editor.html, which doesn't load omn-go-sse.js),
+    // falls back to a native dialog with the text pre-filled and editable.
+    private void insertCapturedText(final String text, final String label) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (webView == null) {
+                    showNativeCaptureDialog(text, label);
+                    return;
+                }
+                // URI-encode the values and decodeURIComponent them in JS - the
+                // same safe transport onNewIntent's share handling uses - so
+                // arbitrary text (quotes, newlines) can't break the JS string.
+                String encText = android.net.Uri.encode(text != null ? text : "");
+                String encLabel = android.net.Uri.encode(label != null ? label : "");
+                String js = "(function(){ try{ return (typeof window.omnGoInsertCapture==='function' && "
+                    + "window.omnGoInsertCapture(decodeURIComponent('" + encText + "'), "
+                    + "decodeURIComponent('" + encLabel + "'))===true); }catch(e){ return false; } })();";
+                webView.evaluateJavascript(js, new android.webkit.ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String value) {
+                        // evaluateJavascript returns the JS value JSON-encoded,
+                        // so a boolean true arrives as the literal "true".
+                        if (!"true".equals(value)) {
+                            showNativeCaptureDialog(text, label);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    // Native fallback review dialog: the captured text pre-filled in an
+    // editable field, saved to Quick Notes only if the user confirms.
+    private void showNativeCaptureDialog(final String text, final String label) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final android.widget.EditText input = new android.widget.EditText(MainActivity.this);
+                String initial = (label != null && !label.isEmpty())
+                    ? (label + "\n\n" + (text != null ? text : ""))
+                    : (text != null ? text : "");
+                input.setText(initial);
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Add to Quick Notes")
+                    .setView(input)
+                    .setPositiveButton("Save", (d, w) -> {
+                        final String note = input.getText().toString();
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    postQuickNoteWithRetry("\n" + note + "\n");
+                                    showToast("Added to Quick Notes");
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (webView != null) {
+                                                String cur = webView.getUrl();
+                                                if (cur != null && cur.contains("QuickNotes")) {
+                                                    webView.reload();
+                                                }
+                                            }
+                                        }
+                                    });
+                                } catch (java.io.IOException e) {
+                                    e.printStackTrace();
+                                    showToast("Couldn't save to Quick Notes.");
+                                }
+                            }
+                        }).start();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            }
+        });
     }
 
     // Termux RUN_COMMAND path. Enforces the second toggle + Termux installed +
@@ -1021,6 +1182,42 @@ public class MainActivity extends Activity {
             if (cmdParts.length > 1 && !cmdParts[1].isEmpty()) {
                 intentApp.putExtra(TERMUX_RUN_COMMAND_ARGS, cmdParts[1].split("&"));
             }
+        }
+
+        // Opt-in output capture: if the note carries omngo_capture_output, wire
+        // up a result PendingIntent so the command's stdout/stderr comes back to
+        // handleTermuxResult and is pasted into the review dialog. Left entirely
+        // alone (fire-and-forget, as before) when the marker is absent.
+        if (intentApp.hasExtra(OMNGO_CAPTURE_OUTPUT)) {
+            String stream = intentApp.getStringExtra(OMNGO_CAPTURE_OUTPUT);
+            if (stream == null || stream.isEmpty()) {
+                stream = "stdout"; // default stream when the value is bare
+            }
+            // Don't leak our private marker to Termux.
+            intentApp.removeExtra(OMNGO_CAPTURE_OUTPUT);
+            // Separate stdout/stderr are only captured in background mode; a
+            // capture URI that doesn't say otherwise defaults to background so
+            // capture "just works". The note can still force a visible terminal
+            // session with B.com.termux.RUN_COMMAND_BACKGROUND=false.
+            if (!intentApp.hasExtra(TERMUX_RUN_COMMAND_BACKGROUND)) {
+                intentApp.putExtra(TERMUX_RUN_COMMAND_BACKGROUND, true);
+            }
+            // Base intent for our own broadcast: carries the stream selection
+            // and label so handleTermuxResult gets them back alongside Termux's
+            // result bundle (which Termux adds into this same intent - hence the
+            // PendingIntent must be mutable on API 31+).
+            android.content.Intent resultIntent = new android.content.Intent(ACTION_TERMUX_RESULT);
+            resultIntent.setPackage(getPackageName());
+            resultIntent.putExtra(OMNGO_STREAM, stream);
+            String capLabel = intentApp.getStringExtra(TERMUX_RUN_COMMAND_LABEL);
+            resultIntent.putExtra(OMNGO_LABEL, capLabel != null ? capLabel : "");
+            int piFlags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                piFlags |= android.app.PendingIntent.FLAG_MUTABLE;
+            }
+            android.app.PendingIntent resultPI = android.app.PendingIntent.getBroadcast(
+                this, termuxResultRequestCounter++, resultIntent, piFlags);
+            intentApp.putExtra(TERMUX_RUN_COMMAND_PENDING_INTENT, resultPI);
         }
 
         // Human-readable summary for the confirmation dialog: the note's

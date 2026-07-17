@@ -332,6 +332,29 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
+    // Called from Android (MainActivity.insertCapturedText) to pre-fill the
+    // Quick Note panel with a captured result - a scanned barcode, or a Termux
+    // command's output - for the user to review and save. Unlike handleShare,
+    // this ALWAYS targets the Quick Note panel (never the bookmark panel), so a
+    // scanned URL still lands in Quick Notes as the user asked, rather than
+    // being re-routed. Returns true only if the panel actually exists on the
+    // current page; the native side uses that to fall back to its own dialog
+    // when the WebView is on a page without the panel (e.g. mid-edit on
+    // editor.html, which doesn't load this file at all).
+    window.omnGoInsertCapture = function(text, label) {
+        var q = document.getElementById('quickText');
+        var p = document.getElementById('quickPanel');
+        if (!q || !p) { return false; }
+        var content = '';
+        if (label) { content += label + "\n\n"; }
+        if (text) { content += text; }
+        q.value = content.trim();
+        p.classList.remove('hidden');
+        var bm = document.getElementById('bmPanel');
+        if (bm) { bm.classList.add('hidden'); }
+        return true;
+    };
+
     // Global Drag & Drop for URLs (Bookmarks). Registered on
     // DOMContentLoaded: this file now runs in <head>, where
     // document.body is still null - touching it directly here would
