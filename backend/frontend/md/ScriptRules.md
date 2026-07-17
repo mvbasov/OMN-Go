@@ -34,3 +34,10 @@ window.doSomething = function() {
     alert("This works safely on reload!");
 };
 ```
+
+### See also
+
+On Android, a raw HTML button can also fire an Android intent — open a Settings
+screen, launch an app, or run a Termux command. See
+[Android Intents & Termux](AndroidIntents).
+

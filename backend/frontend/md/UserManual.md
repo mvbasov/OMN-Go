@@ -26,6 +26,7 @@ edit mode (pencil button) to see how any example on it is written.
 - [Math and code highlighting](#math-and-code-highlighting)
 - [Material icons in notes](#material-icons-in-notes)
 - [Buttons and shortcuts inside a page](#buttons-and-shortcuts-inside-a-page)
+- [Android intents and Termux](AndroidIntents)
 - [Quick Notes and Bookmarks](#quick-notes-and-bookmarks)
 - [Theme](#theme)
 
@@ -304,6 +305,11 @@ Or dress a link up as a button:
 ```
 
 Try it: [Quick notes](/QuickNotes) · [Bookmarks](/Bookmarks)
+
+**Android intents (Android only).** On Android, a link or button can also open a
+system screen, launch another app, run a Termux command, or scan a barcode into
+Quick Notes. It is off by default; see
+[Android Intents & Termux](AndroidIntents).
 
 ## Quick Notes and Bookmarks
 
