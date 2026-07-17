@@ -63,6 +63,15 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Restore the "which result extra were we waiting for" marker as early
+        // as possible (before onActivityResult can fire), in case the process
+        // was killed while a capture activity (e.g. the barcode scanner) was in
+        // the foreground. See launchCaptureIntent / handleCaptureResult and the
+        // onSaveInstanceState override below.
+        if (savedInstanceState != null) {
+            pendingCaptureExtra = savedInstanceState.getString(STATE_PENDING_CAPTURE_EXTRA);
+        }
+
         shortcutPinnedReceiver = new android.content.BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context context, android.content.Intent intent) {
@@ -358,6 +367,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_CAPTURE_RESULT) {
+            // Result from a capture launch (e.g. a barcode scan) - paste it
+            // into Quick Notes. See handleCaptureResult for all the "no
+            // result" cases, which are handled gracefully.
+            handleCaptureResult(resultCode, data);
+            return;
+        }
         if (requestCode == 1001 && webView != null) {
             if (currentEditingName != null && !currentEditingName.isEmpty()) {
                 // currentEditingName already carries its extension (e.g. "Welcome.md"),
@@ -377,6 +393,17 @@ public class MainActivity extends Activity {
             } else {
                 webView.reload(); // Refresh view when returning from external editor
             }
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(android.os.Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Persist which result extra we're waiting for so a capture (e.g. a
+        // barcode scan) still pastes into Quick Notes even if the OS killed
+        // this process while the scanner was foreground. Restored in onCreate.
+        if (pendingCaptureExtra != null) {
+            outState.putString(STATE_PENDING_CAPTURE_EXTRA, pendingCaptureExtra);
         }
     }
 
@@ -761,6 +788,19 @@ public class MainActivity extends Activity {
     private static final String TERMUX_RUN_COMMAND_ARGS = "com.termux.RUN_COMMAND_ARGUMENTS";
     private static final String TERMUX_RUN_COMMAND_LABEL = "com.termux.RUN_COMMAND_LABEL";
 
+    // Activity-result capture (e.g. a barcode scan pasted into Quick Notes).
+    // OMNGO_CAPTURE_EXTRA is OMN-Go's private marker on an intent: URI whose
+    // value names the result extra to read back; REQ_CAPTURE_RESULT tags the
+    // startActivityForResult call so onActivityResult can recognize it.
+    // pendingCaptureExtra holds that result-extra name across the launch, and
+    // is round-tripped through onSaveInstanceState (STATE_PENDING_CAPTURE_EXTRA)
+    // so it survives the process being killed while the launched activity is in
+    // the foreground.
+    private static final int REQ_CAPTURE_RESULT = 1004;
+    private static final String OMNGO_CAPTURE_EXTRA = "omngo_capture_extra";
+    private static final String STATE_PENDING_CAPTURE_EXTRA = "omngo_pending_capture_extra";
+    private String pendingCaptureExtra;
+
     private void handleIntentUri(final String url) {
         if (!readConfigFlag("enable_intent_uri")) {
             showToast("Intent links are turned off. Enable them in Settings.");
@@ -781,9 +821,23 @@ public class MainActivity extends Activity {
         }
 
         // Presence of the RUN_COMMAND_PATH extra is what marks this as a
-        // Termux "run a shell command" intent rather than an ordinary one.
+        // Termux "run a shell command" intent rather than an ordinary one; it
+        // is checked first because a Termux command's output comes back by a
+        // different mechanism than an activity result (a future feature), not
+        // via the omngo_capture_extra path below.
         if (intentApp.hasExtra(TERMUX_RUN_COMMAND_PATH)) {
             launchTermuxIntent(intentApp);
+            return;
+        }
+
+        // OMN-Go's own opt-in marker for "launch this for a result and paste
+        // it into Quick Notes". Its value names the result extra to read back
+        // (e.g. "SCAN_RESULT" for a barcode scan). Only when a note explicitly
+        // carries it do we wait for a result; every other intent stays
+        // fire-and-forget. See launchCaptureIntent / handleCaptureResult.
+        String captureExtra = intentApp.getStringExtra(OMNGO_CAPTURE_EXTRA);
+        if (captureExtra != null && !captureExtra.isEmpty()) {
+            launchCaptureIntent(intentApp, captureExtra);
         } else {
             launchGenericIntent(intentApp);
         }
@@ -817,6 +871,113 @@ public class MainActivity extends Activity {
             e.printStackTrace();
             showToast("Couldn't open this link.");
         }
+    }
+
+    // Capture path: launch the target app FOR A RESULT, remembering which
+    // result extra to read back when it finishes. Only reached when a note
+    // opted in with omngo_capture_extra (see handleIntentUri). No confirmation
+    // dialog: unlike Termux, this launches an ordinary app UI (a scanner) and
+    // only pastes text - it runs nothing on the device.
+    private void launchCaptureIntent(final android.content.Intent intentApp, final String captureExtra) {
+        // FLAG_ACTIVITY_NEW_TASK (and its NEW_DOCUMENT / MULTIPLE_TASK
+        // relatives) start the target in a separate task, which severs the
+        // result chain so onActivityResult would never fire. Clear them so the
+        // result actually comes back to us, whatever flags the parsed URI set.
+        intentApp.setFlags(intentApp.getFlags()
+                & ~android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                & ~android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+                & ~android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        // Don't leak OMN-Go's private marker to the target app.
+        intentApp.removeExtra(OMNGO_CAPTURE_EXTRA);
+        pendingCaptureExtra = captureExtra;
+        try {
+            startActivityForResult(intentApp, REQ_CAPTURE_RESULT);
+        } catch (android.content.ActivityNotFoundException e) {
+            pendingCaptureExtra = null;
+            showToast("No app can handle this link.");
+        } catch (Exception e) {
+            pendingCaptureExtra = null;
+            e.printStackTrace();
+            showToast("Couldn't open this link.");
+        }
+    }
+
+    // Handles the return from a capture launch (REQ_CAPTURE_RESULT). Called
+    // from onActivityResult. Every "no result" path (canceled, no data, or the
+    // requested extra absent) is handled gracefully - Android delivers this
+    // callback even when the launched activity set no result at all
+    // (resultCode == RESULT_CANCELED, data == null), so there's nothing to
+    // crash on. On success the text is appended to Quick Notes via the same
+    // /api/quick path shared-file handling already uses.
+    private void handleCaptureResult(int resultCode, android.content.Intent data) {
+        final String extraName = pendingCaptureExtra;
+        pendingCaptureExtra = null; // consume it either way
+        if (extraName == null) {
+            // A capture callback with no remembered extra name - e.g. the
+            // process was killed and onSaveInstanceState state wasn't restored.
+            // Nothing actionable.
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null) {
+            // User backed out of the scanner, or the activity returned nothing.
+            // Deliberately silent - a canceled scan isn't an error.
+            return;
+        }
+        final String value = extractResultText(data, extraName);
+        if (value == null || value.isEmpty()) {
+            // The app returned OK but not the extra this note asked for.
+            showToast("No \"" + extraName + "\" result was returned.");
+            return;
+        }
+        // Off the UI thread: this makes a loopback HTTP call to /api/quick.
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // Surrounding newlines so the result lands on its own line,
+                    // matching the shared-file snippet format.
+                    postQuickNoteWithRetry("\n" + value + "\n");
+                    showToast("Result added to Quick Notes");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            // If Quick Notes is the page on screen, refresh so
+                            // the pasted result shows immediately.
+                            if (webView != null) {
+                                String cur = webView.getUrl();
+                                if (cur != null && cur.contains("QuickNotes")) {
+                                    webView.reload();
+                                }
+                            }
+                        }
+                    });
+                } catch (java.io.IOException e) {
+                    e.printStackTrace();
+                    showToast("Couldn't save the result to Quick Notes.");
+                }
+            }
+        }).start();
+    }
+
+    // Reads the named result extra out of a returned Intent. A barcode scan
+    // returns a single String (SCAN_RESULT); the reader also accepts a
+    // String-ArrayList extra (joining its entries) so the same path works for
+    // any result-returning app without special-casing, at no extra cost.
+    private String extractResultText(android.content.Intent data, String extraName) {
+        String s = data.getStringExtra(extraName);
+        if (s != null) {
+            return s;
+        }
+        java.util.ArrayList<String> list = data.getStringArrayListExtra(extraName);
+        if (list != null && !list.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < list.size(); i++) {
+                if (i > 0) sb.append('\n');
+                sb.append(list.get(i));
+            }
+            return sb.toString();
+        }
+        return null;
     }
 
     // Termux RUN_COMMAND path. Enforces the second toggle + Termux installed +
