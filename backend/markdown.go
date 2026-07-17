@@ -166,8 +166,18 @@ func restorePlaceholders(s string, store map[string]string) string {
 // page reference's extension: ".md" becomes ".html", and a bare page name
 // with no extension gets ".html" appended. Anything that already has a
 // concrete extension (.html, .js, .css, .png, ...), any external URL
-// (http(s)://, //, mailto:, tel:, javascript:, data:), and any link that is
-// purely an anchor or query string is passed through unchanged.
+// (http(s)://, //, mailto:, tel:, javascript:, data:, intent:), and any link
+// that is purely an anchor or query string is passed through unchanged.
+//
+// "intent:" is the Android intent-URI scheme (both the bare "intent:#Intent;
+// ...;end" form and the "intent://..." form, since both share the "intent:"
+// prefix). MainActivity.shouldOverrideUrlLoading dispatches these to the OS /
+// Termux on Android; here they must survive rewriting byte-identical.
+// Without this case a link like "[x](intent:#Intent;action=...;end)" would be
+// split at its "#", have ".html" appended to the "intent:" path segment, and
+// render as the broken "intent:.html#Intent;...". Note the raw-HTML button
+// form of an intent URI (onclick="window.location='intent:...'") is untouched
+// regardless, since the href-rewrite regex only rewrites href="..." values.
 func (a *App) rewriteInternalLink(href string) string {
 	if href == "" {
 		return href
@@ -182,6 +192,7 @@ func (a *App) rewriteInternalLink(href string) string {
 		strings.HasPrefix(lower, "tel:"),
 		strings.HasPrefix(lower, "javascript:"),
 		strings.HasPrefix(lower, "data:"),
+		strings.HasPrefix(lower, "intent:"),
 		strings.HasPrefix(href, "#"):
 		return href
 	}

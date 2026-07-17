@@ -29,6 +29,14 @@ func TestRewriteInternalLink(t *testing.T) {
 		{"tel:+123", "tel:+123"},
 		{"javascript:void(0)", "javascript:void(0)"},
 		{"data:text/plain,x", "data:text/plain,x"},
+		// Android intent URIs pass through byte-identical - the bare
+		// "intent:#Intent;...;end" form must NOT be split at its "#" and
+		// have ".html" appended to the "intent:" segment (would produce the
+		// broken "intent:.html#Intent;..."), and the "intent://" form is
+		// likewise left alone. See MainActivity.shouldOverrideUrlLoading.
+		{"intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;", "intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;"},
+		{"intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end;", "intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end;"},
+		{"intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end", "intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end"},
 		// pure anchor / query untouched
 		{"#section", "#section"},
 		{"?x=1", "?x=1"},
@@ -136,6 +144,21 @@ func TestRenderMarkdownToHTMLLinkRewrite(t *testing.T) {
 	}
 	if strings.Contains(out, `href="Other.md"`) {
 		t.Error(".md link not rewritten to .html")
+	}
+}
+
+// A markdown-authored Android intent link must reach the WebView unmangled:
+// no ".html" appended, no split at the "#", href byte-identical to source.
+func TestRenderMarkdownToHTMLIntentLinkUntouched(t *testing.T) {
+	a := &App{}
+	const intentHref = "intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;"
+	out := a.renderMarkdownToHTML([]byte("[Wi-Fi](" + intentHref + ")"))
+
+	if !strings.Contains(out, `href="`+intentHref+`"`) {
+		t.Errorf("intent link was rewritten; expected href=%q in:\n%s", intentHref, out)
+	}
+	if strings.Contains(out, "intent:.html") {
+		t.Errorf("intent link mangled to intent:.html in:\n%s", out)
 	}
 }
 
