@@ -114,6 +114,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/js/omn-go-core.js\n" +
 		"/html/js/omn-go-sse.js\n" +
 		"/html/js/omn-go-editor.js\n" +
+		"/md/AndroidIntents.md\n" +
 		"/md/local/\n" +
 		"/db/\n" +
 		"/html/db_backup/local-*/\n"
