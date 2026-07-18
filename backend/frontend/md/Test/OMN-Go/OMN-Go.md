@@ -1,15 +1,16 @@
 Title: Test OMN-Go
 Date: 2026-06-22 23:48:01
-Modified: 2026-07-14 19:55:11
+Modified: 2026-07-18 13:49:16
 Category: Notes
 Author: Mikhail Basov
 Tags: Index, Test
 
 * [Link test](LinkTest)
-* [Console](/Test/OMN-Go/Console)
-* [Fetch](/Test/OMN-Go/Fetch)
+* [Console](Console)
+* [Fetch](Fetch)
 * [Edit not .md](EditNot-md)
 * [Set status](SetStatus)
+* [DB test](DBTest)
 * [Test page variables](TestPageVariables)
 
 - - -
