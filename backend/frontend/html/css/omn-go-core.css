@@ -232,6 +232,14 @@ body {
     display: flex;
     flex: 1;
     flex-direction: column;
+    /* Without this, a flex item's implicit min-height:auto keeps #mainUI from
+       shrinking below its content's natural height. On a long page (e.g.
+       UserManual) that let the whole body grow past 100vh and scroll as one -
+       carrying the header off the top and hiding the footer until the very
+       bottom. min-height:0 clamps #mainUI to its flex share so #preview scrolls
+       internally instead, keeping the header and footer always visible. The
+       inner .page-content already sets this; #mainUI was the missing link. */
+    min-height: 0;
 }
 
 .page_container {
