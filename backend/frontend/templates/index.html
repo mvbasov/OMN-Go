@@ -31,10 +31,10 @@
                     <button onclick="toggleBookmarkPanel()" class="admin-only server-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
                     <button onclick="createNoteShortcut()" class="android-only btn-add-shortcut" title="Add to home screen"><i class="material-icons">add_to_home_screen</i></button>
                     <button onclick="refreshPage()" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
-                    <label class="admin-only server-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
+                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings server-only"><i class="material-icons">settings</i></a>
                     <button onclick="syncAction('download')" class="admin-only server-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
                     <button onclick="syncAction('upload')" class="admin-only server-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
-                    <a href="#" onclick="window.location.replace('/Config.html'); return false;" class="btn-settings server-only"><i class="material-icons">settings</i></a>
+                    <label class="admin-only server-only" style="display:flex;align-items:center;font-size:12px;margin-right:2px;cursor:pointer;color:#555;" title="Force next sync action (destructive)"><input type="checkbox" id="forceSyncCb" style="margin:0 2px 0 0;">Force</label>
                     <button id="metaToggleBtn" onclick="var p=document.getElementById('metadataPanel');p.classList.toggle('hidden');" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
                     <button id="toggleBtn" onclick="window.location.href = window.location.pathname + '?edit=true'" class="admin-only server-only" title="Edit"><i class="material-icons">edit</i></button>
                 </div>

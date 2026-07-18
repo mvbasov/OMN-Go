@@ -90,12 +90,10 @@ right:
 - <i class="material-icons">note_add</i> — create a new page
 - <i class="material-icons">insert_comment</i> — add a quick note
 - <i class="material-icons">bookmark_add</i> — add a bookmark
-- <i class="material-icons">bookmarks</i> — open the [Bookmarks](Bookmarks) page
 - <i class="material-icons">refresh</i> — force-recompile the current page
-- **Force** checkbox — arms the next sync action as destructive (see
-  [Git synchronization](#git-synchronization))
-- <i class="material-icons">cloud_download</i> / <i class="material-icons">cloud_upload</i> — git pull / push
 - <i class="material-icons">settings</i> — open the [Config](Config) page
+- <i class="material-icons">cloud_download</i> / <i class="material-icons">cloud_upload</i> — git pull / push
+  - **Force** checkbox — arms the next sync action as destructive (see [Git synchronization](#git-synchronization))
 - <i class="material-icons">info</i> — show the page's metadata
 - <i class="material-icons">save</i> / <i class="material-icons">edit</i> — save / toggle edit mode
 

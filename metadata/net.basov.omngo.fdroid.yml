@@ -1,60 +1,6 @@
-# F-Droid build metadata (fdroiddata recipe) for OMN-Go.
-#
-# WHERE THIS FILE ACTUALLY LIVES: F-Droid's real build recipe is a file in
-# the SEPARATE `fdroiddata` GitLab repository, at
-# metadata/net.basov.omngo.fdroid.yml there - not something F-Droid reads
-# out of THIS repo automatically. This copy is kept here purely as a
-# versioned reference so the recipe evolves alongside the app instead of
-# living only inside a merge request; submitting to F-Droid means copying
-# this content into a merge request against gitlab.com/fdroid/fdroiddata.
-#
-# STATUS: draft, not yet submitted. Items marked TODO below need a real
-# value before this can build - see the accompanying notes for the full
-# list (release-tag commit hash, first CurrentVersionCode confirmation).
-#
-# WHY NO DOCKER: F-Droid's build server runs its own sandboxed environment
-# and executes the Init:/Prebuild:/Build: shell steps directly - it does
-# not accept or run a Dockerfile. Everything Dockerfile.base +
-# Dockerfile.ci did has to be expressed as plain shell here instead. Two
-# things are notably DIFFERENT from the Docker pipeline as a result:
-#   1. F-Droid's buildserver already provides Android SDK/NDK/JDK/Gradle
-#      for Gradle-type builds - Dockerfile.base's SDK cmdline-tools/NDK/
-#      Gradle installation is redundant here and intentionally omitted.
-#      Only the Go toolchain and gomobile are genuinely custom and need
-#      bootstrapping below.
-#   2. There is no BuildKit cache mount equivalent - every build starts
-#      cold. Not fixed here; F-Droid's own build server has its own
-#      caching between builds at the infrastructure level.
-#
-# NOTE ON omngo.aar: earlier drafts of this pipeline assumed the Go
-# backend would be compiled to an .aar in a SEPARATE repository and
-# pulled in here as a srclib (see android/fdroid_prepare_aar.sh's
-# header comment history). That separate repository was never created.
-# This recipe instead builds omngo.aar directly in the prebuild: step
-# below, in-tree, via `gomobile bind` - there is no srclib and
-# android/fdroid_prepare_aar.sh is NOT used by this recipe. That script
-# is kept only as a leftover; see its header for a pointer back here.
-#
-# NOTE ON RELEASE TAGS: the main repo's GitHub Actions release workflow
-# (.github/workflows/android-gomobile-release.yml) tags ordinary releases
-# as `vX.Y.Z` and builds+signs them with the project's own key - those
-# tags are NOT what this recipe should build from, since F-Droid re-signs
-# with its own key regardless and needs a source state that's frozen
-# specifically for its own build, not whatever `master` looked like when
-# a regular release happened to go out. By convention, a separate
-# `vX.Y.Zf` tag (note the trailing "f") is created at the point a given
-# commit is actually submitted/updated for F-Droid - see
-# UpdateCheckMode below, which is scoped to only ever consider tags
-# matching that pattern.
-
 Categories:
   - Writing
   - Development
-  # "Text Editor" and "Note" (as requested) are not, as of this writing,
-  # in F-Droid's standard category list (see fdroiddata/categories.yml) -
-  # Writing and Development already cover a note-taking/editor app well.
-  # Verify the current category list and adjust before submitting; a
-  # reviewer will likely raise this if these two don't map cleanly.
 License: MIT
 AuthorName: Mikhail Basov
 WebSite: https://github.com/mvbasov/OMN-Go
@@ -73,39 +19,11 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.8.8'
-    versionCode: 10808
-    # TODO (verify before relying on this build): F-Droid's own docs
-    # recommend the full commit hash here rather than a tag name, since
-    # tags can be force-moved after the fact and a hash can't - see
-    # https://f-droid.org/docs/Build_Metadata_Reference/ ("Don't use
-    # branch name or tag name. The full commit hash should be used.").
-    # `v1.8.8f` is used here as a placeholder because this recipe was
-    # updated at the same time the test tag was created and the
-    # resulting commit hash hasn't been looked up yet - resolve it with
-    # `git rev-parse v1.8.8f` against the real repo and replace the
-    # line below before actually feeding this to fdroidserver.
-    #
-    # TODO: versionCode 10808 assumes the project's existing
-    # MAJOR*10000 + MINOR*100 + PATCH pattern (1.8.6 -> 10806,
-    # 1.8.7 -> 10807) holds for 1.8.8 too - confirm android/app/build.gradle
-    # at the v1.8.8f commit actually says versionCode 10808 /
-    # versionName "1.8.8" before trusting this entry; fdroidserver will
-    # reject the build if these don't match what Gradle actually produces.
-    commit: v1.8.8f
+  - versionName: '1.11.16'
+    versionCode: 11116
+    commit: v1.11.16f
     subdir: android
-
-    # ---- Go toolchain + gomobile bootstrap, then omngo.aar ----------
-    # Mirrors Dockerfile.base + Dockerfile.ci's stage 1 (Go side only -
-    # see the file-top note on why the Android SDK/NDK/Gradle steps from
-    # those files are dropped here). omngo.aar is built HERE, in-tree -
-    # there is no separate Go-backend repository and no srclib (see the
-    # file-top NOTE ON omngo.aar above).
     prebuild:
-      # Go 1.26.0 linux-amd64, matching go.mod's `go 1.26` directive.
-      # sha256 below confirmed against the actual upstream archive on
-      # 2026-07-09 (`sha256sum go1.26.0.linux-amd64.tar.gz`) - re-verify
-      # against https://go.dev/dl/ if the pinned Go version ever changes.
       - export GOROOT_BOOTSTRAP_DIR=$(pwd)/../go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
       - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
@@ -114,42 +32,17 @@ Builds:
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
       - export GOPATH=$(pwd)/../go-path
       - export PATH=$GOPATH/bin:$PATH
-      # Go/gomobile steps run from the repo root (where go.mod lives),
-      # not from subdir: android - hence the explicit cd.
       - cd ..
-      # ---- Vendored offline third-party frontend assets ---------------
-      # MUST run BEFORE `gomobile bind` below, not after: backend/ embeds
-      # these files at compile time via `//go:embed`, so gomobile bind
-      # reads whatever is on disk the moment it runs. Fetching fresh,
-      # sha256-verified copies AFTER the .aar is already built would
-      # verify the files sitting on disk but have zero effect on what
-      # actually got embedded - the .aar would silently keep whatever was
-      # there before (the ordinarily-committed copies), defeating the
-      # entire point of fetching them. (An earlier draft of this recipe
-      # had this backwards - fetched after `gomobile bind` - which is why
-      # this comment is here instead of just the one line.)
       - sh android/fdroid_fetch_assets.sh
-      # go.mod as committed doesn't yet carry a resolved go.sum or the
-      # golang.org/x/mobile tool entries (see git_helper.go's comments on
-      # why - the same reason Dockerfile.base regenerates these inside
-      # the container every time). Replicated here for the same reason;
-      # this is also the main reproducibility weak point in this recipe -
-      # see the note below the Builds: list for the better long-term fix.
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
       - go mod tidy
       - go install golang.org/x/mobile/cmd/gobind
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      # omngo.aar embeds whatever is under backend/frontend/html/ at this
-      # point - the fetch-and-verify step above has already run, so this
-      # picks up the freshly-verified assets, not the committed ones.
       - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android
 
-    # fdroidserver builds the "fdroid" product flavor's release variant
-    # (./gradlew assembleFdroidRelease) from this - no manual gradle
-    # invocation needed in build:/prebuild: for that part.
     gradle:
       - fdroid
 
@@ -160,21 +53,6 @@ Builds:
     # note UI's code highlighting, math rendering, and icons all work
     # fully offline - a deliberate feature (see UserManual.md), not an
     # oversight.
-    #
-    # For THIS recipe specifically, the prebuild: step above overwrites
-    # those committed files - BEFORE `gomobile bind` runs, since backend/
-    # embeds them via `//go:embed` at compile time - by fetching and
-    # sha256-verifying each one fresh from its own upstream release via
-    # android/fdroid_fetch_assets.sh (all hashes pinned as of 2026-07-09),
-    # rather than trusting the binaries already sitting in the
-    # checked-out source.
-    #
-    # scanignore is still required here, not made redundant by the fetch
-    # step: F-Droid's source scanner runs against the checked-out source
-    # tree, which still contains the ordinarily-committed binaries at
-    # scan time (prebuild: hasn't run yet) - so these paths still need to
-    # be allowlisted even though prebuild: replaces their contents before
-    # gomobile bind (and, in turn, the actual Gradle build) sees them.
     scanignore:
       - backend/frontend/html/js/highlight.min.js
       - backend/frontend/html/js/katex.min.js
@@ -184,28 +62,6 @@ Builds:
       - backend/frontend/html/css/fonts/
 
 AutoUpdateMode: None
-# Scoped to the F-Droid-only "vX.Y.Zf" tags described in the NOTE ON
-# RELEASE TAGS comment at the top of this file - without this pattern,
-# fdroidserver's tag scan would also pick up the main repo's ordinary
-# `vX.Y.Z` release tags, which are not meant for F-Droid to build.
 UpdateCheckMode: Tags .*f$
-CurrentVersion: '1.8.8'
-CurrentVersionCode: 10808
-
-# ---------------------------------------------------------------------
-# Bigger open item, not fully solved by this recipe:
-#
-# The prebuild: step's `go get -tool ...` + `go mod tidy` resolves
-# golang.org/x/mobile's version fresh from the network on every F-Droid
-# build, rather than from a version pinned in a committed go.sum. That
-# matches what Dockerfile.base does today, but it's not ideal for a
-# published build recipe: F-Droid's reproducible-builds effort (and
-# just general good practice) favors every dependency version being
-# fixed by the committed source, not resolved at build time. The clean
-# fix is upstream of this file entirely - generate a real go.sum with
-# the x/mobile tool entries already present (on ANY machine with Go
-# installed, not necessarily the build host) and commit it to the main
-# repo - which would let this recipe drop straight to `go mod download`
-# the way the rest of the CI pipeline already does. Worth doing before
-# first submission, not strictly required to get a first build working.
-# ---------------------------------------------------------------------
+CurrentVersion: '1.11.16'
+CurrentVersionCode: 11116

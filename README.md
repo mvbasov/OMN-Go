@@ -41,7 +41,7 @@ OMN-Go features a highly decoupled architecture:
    * **Android (`android/`):** A minimal Java WebView wrapper that boots the local Go server via `gomobile` and displays the interface natively.
 
 **AI-Assisted Build Process:**
-This project is actively developed using an aggressive, AI-assisted pipeline (via Google Gemini). The entire codebase is strictly manipulated via atomic Python patching scripts rather than manual file editing. This ensures rapid prototyping, guaranteed syntax safety, and zero regression drift.
+This project is actively developed using an aggressive, AI-assisted pipeline (via Google Gemini, Claude, etc.). The entire codebase is strictly manipulated via atomic Python patching scripts rather than manual file editing. This ensures rapid prototyping, guaranteed syntax safety, and zero regression drift.
 
 ## Build Instructions
 
@@ -54,14 +54,7 @@ OMN-Go uses a fully containerized Docker build environment. You do not need to i
 ### Compilation & Extraction
 
 ```
-# Build the Docker image (caches toolchains in Stage 1, packages in Stage 2)
-docker build -t omn-go-builder .
-
-# Extract the compiled Desktop Binary and Android APK to your host
-docker create --name omn-go-extract omn-go-builder
-docker cp omn-go-extract:/app/bin/ ./output-binaries/
-docker rm omn-go-extract
-
+bash local/build.sh
 
 ```
 
@@ -71,7 +64,10 @@ docker rm omn-go-extract
 Simply execute the binary from your extracted outputs:
 
 ```
-./output-binaries/omn-go-desktop
+mkdir ~/OMN-Go
+cp ./output-binaries/omn-go-<VERSION>-desktop-linux-amd64 ~/OMN-Go/omn-go-desktop
+cd ~/OMN-Go
+./omn-go-desktop
 
 
 ```
@@ -80,6 +76,9 @@ Then, open your web browser and navigate to `http://localhost:8080`.
 
 **On Android:**
 Install the generated APK onto your device. Launch the "OMN-Go" app from your launcher. The local server will boot automatically in the background, and the WebView will display your notes.
+
+## Versioning
+Versioning in this project is informal. Numbers do not indicate stability or roadmap progerss.
 
 ## License
 
