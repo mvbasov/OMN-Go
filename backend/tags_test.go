@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTagSlug(t *testing.T) {
@@ -161,5 +162,66 @@ func TestGenerateTagsPage(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("compiled OMNGoTags.html missing %q", want)
 		}
+	}
+}
+
+func TestTagsPageStaleness(t *testing.T) {
+	dir := t.TempDir()
+	a := &App{StorageDir: dir}
+	writeNote(t, dir, "Alpha.md", "Title: A\nTags: X\n\nx")
+	writeNote(t, dir, "sub/Beta.md", "Title: B\nTags: X\n\nx")
+
+	if err := a.generateTagsPage(); err != nil {
+		t.Fatalf("generateTagsPage: %v", err)
+	}
+	htmlPath := a.pageHTMLPath("OMNGoTags")
+
+	past := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)   // notes
+	mid := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)    // html (newer than notes)
+	future := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC) // a later change
+
+	// Explicit mtimes avoid filesystem-granularity flakiness. Set every note
+	// source (files AND their directories) to `past`, the html cache to `mid`.
+	setSources := func(tm time.Time) {
+		for _, rel := range []string{"", "Alpha.md", "sub", "sub/Beta.md", "OMNGoTags.md"} {
+			os.Chtimes(filepath.Join(dir, "md", filepath.FromSlash(rel)), tm, tm)
+		}
+	}
+	setSources(past)
+	os.Chtimes(htmlPath, mid, mid)
+
+	if a.tagsPageStale(false) {
+		t.Error("not stale expected: html is newer than every note source")
+	}
+	if !a.tagsPageStale(true) {
+		t.Error("forceRefresh must report stale")
+	}
+
+	// Editing a note makes it newer than the cache.
+	os.Chtimes(filepath.Join(dir, "md", "Alpha.md"), future, future)
+	if !a.tagsPageStale(false) {
+		t.Error("edited note must report stale")
+	}
+
+	// A dir mtime bump alone (as an add/delete/rename would cause) is detected.
+	setSources(past)
+	os.Chtimes(htmlPath, mid, mid)
+	os.Chtimes(filepath.Join(dir, "md", "sub"), future, future)
+	if !a.tagsPageStale(false) {
+		t.Error("directory mtime bump (add/delete/rename) must report stale")
+	}
+
+	// The derived OMNGoTags.md itself must never drive staleness.
+	setSources(past)
+	os.Chtimes(htmlPath, mid, mid)
+	os.Chtimes(filepath.Join(dir, "md", "OMNGoTags.md"), future, future)
+	if a.tagsPageStale(false) {
+		t.Error("derived OMNGoTags.md must be excluded from the staleness scan")
+	}
+
+	// Missing cache is stale.
+	os.Remove(htmlPath)
+	if !a.tagsPageStale(false) {
+		t.Error("missing html cache must report stale")
 	}
 }

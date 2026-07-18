@@ -141,4 +141,13 @@ func (a *App) precompileAllPages() {
 		}
 		return nil
 	})
+
+	// After every note is compiled, (re)generate the Tags index so
+	// html/OMNGoTags.html exists and is current in the offline artifact even if
+	// it is never viewed (it's reachable only via tag pills). Runs here, at the
+	// end of the background startup precompile, so it never blocks server start.
+	// See tags.go.
+	if err := a.generateTagsPage(); err != nil {
+		log.Printf("precompileAllPages: tags: %v", err)
+	}
 }

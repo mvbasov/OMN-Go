@@ -823,6 +823,14 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 		return
 	}
 
+	// The auto-generated Tags index: regenerated when stale against ALL notes
+	// (not just its own .md), so it can't use the normal one-source mtime path
+	// below. See serveTagsPage / tags.go.
+	if name == "OMNGoTags" {
+		a.serveTagsPage(w, r)
+		return
+	}
+
 	mdPath, htmlPath, name, _ := a.resolvePageName(name)
 
 	htmlStat, errHtml := os.Stat(htmlPath)

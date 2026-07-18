@@ -3,10 +3,13 @@ package backend
 import (
 	"fmt"
 	"io/fs"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -210,4 +213,82 @@ func (a *App) generateTagsPage() error {
 		return fmt.Errorf("tags: cache OMNGoTags.html: %w", err)
 	}
 	return nil
+}
+
+// newestNoteMtime returns the most recent modification time among the note
+// sources the Tags page is built from: every md/**.md file AND its containing
+// directories. Directory mtimes are included on purpose - a file added, deleted
+// or renamed bumps its directory's mtime but not necessarily any surviving
+// file's, so scanning files alone would miss those. The generated OMNGoTags.md
+// (a derived file) and the md/local scratch tree are excluded. Stat-only walk,
+// no parsing. Returns the zero time if md/ can't be walked.
+func (a *App) newestNoteMtime() time.Time {
+	mdRoot := filepath.Join(a.StorageDir, "md")
+	var newest time.Time
+	consider := func(d fs.DirEntry) {
+		if info, err := d.Info(); err == nil && info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
+	}
+	_ = filepath.WalkDir(mdRoot, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if p == filepath.Join(mdRoot, "local") {
+				return fs.SkipDir
+			}
+			consider(d)
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+		rel, err := filepath.Rel(mdRoot, p)
+		if err != nil {
+			return nil
+		}
+		if strings.TrimSuffix(filepath.ToSlash(rel), ".md") == "OMNGoTags" {
+			return nil // never let the derived file drive its own staleness
+		}
+		consider(d)
+		return nil
+	})
+	return newest
+}
+
+// tagsPageStale reports whether html/OMNGoTags.html needs regenerating: forced
+// (?refresh), missing/unreadable, or older than the newest note source. This is
+// the OMNGoTags analogue of serveHTMLPage's single-source mtime check, except
+// its "source" is every note rather than one .md.
+func (a *App) tagsPageStale(forceRefresh bool) bool {
+	if forceRefresh {
+		return true
+	}
+	htmlStat, err := os.Stat(a.pageHTMLPath("OMNGoTags"))
+	if err != nil {
+		return true // missing or unreadable -> (re)generate
+	}
+	return a.newestNoteMtime().After(htmlStat.ModTime())
+}
+
+// serveTagsPage serves the generated Tags page, regenerating it first when
+// stale (lazy + mtime-invalidated). Special-cased from serveHTMLPage so it uses
+// the all-notes staleness above instead of the normal one-source check. Serving
+// itself mirrors serveHTMLPage's tail (injectRuntimeVars over the cached html).
+func (a *App) serveTagsPage(w http.ResponseWriter, r *http.Request) {
+	forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
+	if a.tagsPageStale(forceRefresh) {
+		if err := a.generateTagsPage(); err != nil {
+			log.Printf("serveTagsPage: %v", err)
+		}
+	}
+	htmlPath := a.pageHTMLPath("OMNGoTags")
+	w.Header().Set("Content-Type", "text/html")
+	data, err := os.ReadFile(htmlPath)
+	if err == nil {
+		w.Write(a.injectRuntimeVars(data))
+	} else {
+		http.ServeFile(w, r, htmlPath)
+	}
 }

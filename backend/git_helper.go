@@ -150,6 +150,7 @@ var gitignorePatterns = []string{
 	"/html/js/omn-go-sse.js",
 	"/html/js/omn-go-editor.js",
 	"/md/AndroidIntents.md",
+	"/md/OMNGoTags.md",
 	"/md/local/",
 	"/db/",
 	"/html/db_backup/local-*/",
