@@ -280,9 +280,15 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		renderedBody = a.renderMarkdownToHTML([]byte(fm.Body))
 	}
 
+	// Title and Tags come from the shared extractTitleTags (also used by the
+	// Tags-page generator, so the two parse notes identically). The loop below
+	// only builds metaTags now.
 	title := "OMN-Go - " + name
+	rawTitle, tags := extractTitleTags(string(mdContent))
+	if rawTitle != "" {
+		title = rawTitle
+	}
 	var metaTags []metaTagView
-	var tags []string
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) != 2 {
@@ -293,16 +299,6 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 		// No escaping here - renderIndexPage escapes every meta name/value
 		// for the HTML-attribute context itself.
 		metaTags = append(metaTags, metaTagView{Name: k, Value: v})
-		if k == "title" {
-			title = v
-		}
-		if k == "tags" {
-			for _, tag := range strings.Split(v, ",") {
-				if tag = strings.TrimSpace(tag); tag != "" {
-					tags = append(tags, tag)
-				}
-			}
-		}
 	}
 	metaTags = append(metaTags, metaTagView{Name: "generator", Value: "OMN-Go " + APP_VERSION})
 
