@@ -402,6 +402,17 @@ a.taglink {
     overflow-y: auto;
     box-sizing: border-box;
     line-height: 1.6;
+    /* Layout containment keeps #preview's descendants from affecting the
+       layout OUTSIDE it. Without it, some rendered content - notably KaTeX
+       math output (e.g. on UserManual, which sets OMN_GO_KATEX) - escaped this
+       scroll box and inflated the whole document's height by thousands of px.
+       That phantom height was itself unreachable by mouse wheel (the wheel
+       scrolls #preview), but a touch drag that hit #preview's bottom then
+       chained into it, dragging the entire shell - header and footer included -
+       off screen. contain:layout removes the phantom height entirely (the
+       document stays exactly one viewport tall) while #preview still scrolls
+       its content normally, so there is nothing left to chain into. */
+    contain: layout;
 }
 .page-content #preview {
     border: none;
