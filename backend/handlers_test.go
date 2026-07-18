@@ -486,3 +486,53 @@ func TestResolveAndroidEditNameAgreesWithResolvePageName(t *testing.T) {
 		t.Errorf("resolveAndroidEditName for static asset = %q, want unchanged %q", got, "omn-go-editor.js")
 	}
 }
+
+// handleBookmark must split the notes field into several entries on ';'
+// (trimming, dropping empties), and store them safely — quotes JSON-escaped so
+// the entry embeds cleanly in Bookmarks.md's <script> block.
+func TestHandleBookmarkSplitsNotesBySemicolon(t *testing.T) {
+	a := newTestApp(t)
+	bmPath := filepath.Join(a.StorageDir, "md", "Bookmarks.md")
+	marker := "<!-- Don't edit body below this line -->"
+	if err := os.WriteFile(bmPath,
+		[]byte("Title: Incoming bookmarks\n\n<script>bookmarks = [\n"+marker+"\n];\n</script>"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{
+		"url":   {"https://example.com"},
+		"title": {"Ex"},
+		"tags":  {"a, b"},
+		// three ';'-separated pieces; the trailing blank must be dropped. The
+		// double quotes are mid-note so the empty-note check below can't be
+		// fooled by the "\"\"" a note *ending* in a quote would marshal to.
+		"notes": {` a "b" c ; it's second ; `},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/bookmark", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	a.handleBookmark(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %q", rec.Code, rec.Body.String())
+	}
+
+	got, err := os.ReadFile(bmPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(got)
+
+	// First note: split out, trimmed, and its double quotes JSON-escaped.
+	if !strings.Contains(s, `"a \"b\" c"`) {
+		t.Errorf("first note not split/escaped as expected:\n%s", s)
+	}
+	// Second note: a standalone JSON string (proves the ';' split happened) with
+	// its apostrophe preserved (no bogus JSON escaping of ').
+	if !strings.Contains(s, `"it's second"`) {
+		t.Errorf("second note (apostrophe) missing or not split:\n%s", s)
+	}
+	// The trailing empty piece must not become an empty note.
+	if strings.Contains(s, `""`) {
+		t.Errorf("an empty note leaked from the trailing ';':\n%s", s)
+	}
+}

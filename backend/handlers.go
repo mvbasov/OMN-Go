@@ -416,9 +416,18 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 			tagsList = append(tagsList, trimmed)
 		}
 	}
+	// Notes are split into several entries on ';' - the same shape as tags on
+	// ',' above - matching the old OMN bookmark behavior. Each entry is
+	// trimmed and empties are dropped (so a trailing "; " adds nothing). The
+	// entries are stored via json.MarshalIndent below, which already JSON-encodes
+	// them safely for the <script> block in Bookmarks.md: a double quote is
+	// escaped, and '<' '>' '&' are emitted as \u-escapes so a note can never
+	// break out of the script. A single quote needs no JSON escaping.
 	notesList := []string{}
-	if trimmed := strings.TrimSpace(notes); trimmed != "" {
-		notesList = append(notesList, trimmed)
+	for n := range strings.SplitSeq(notes, ";") {
+		if trimmed := strings.TrimSpace(n); trimmed != "" {
+			notesList = append(notesList, trimmed)
+		}
 	}
 
 	type BM struct {
