@@ -171,8 +171,15 @@ func renderIndexPage(v indexPageView) string {
 
 	var tags strings.Builder
 	for _, t := range v.Tags {
-		e := escapeHTML(t)
-		fmt.Fprintf(&tags, `<a href="Tags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`, e, e)
+		// All pills point at the one generated Tags page (OMNGoTags), reached
+		// relatively via AssetPrefix ("", "../", ...) so the link resolves from
+		// any directory depth both online and offline (file://). The fragment
+		// is tagSlug(t) - the same slug the generated page uses for its section
+		// ids (see tags.go), so both are computed by one Go function and can't
+		// drift. AssetPrefix carries only "./" characters, so it needs no
+		// escaping (mirrors its ASSET_PREFIX use below).
+		fmt.Fprintf(&tags, `<a href="%sOMNGoTags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`,
+			v.AssetPrefix, escapeHTML(tagSlug(t)), escapeHTML(t))
 	}
 
 	return fill(indexPageTmpl, map[string]string{

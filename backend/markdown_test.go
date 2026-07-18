@@ -182,10 +182,11 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	if !strings.Contains(out, `content="OMN-Go `+APP_VERSION+`"`) {
 		t.Error("generator meta tag missing")
 	}
-	// Tag pills for both tags.
+	// Tag pills point at the generated Tags page (OMNGoTags); "TestPage" is a
+	// root page, so no relative prefix. alpha/beta slug to themselves.
 	for _, tag := range []string{"alpha", "beta"} {
-		if !strings.Contains(out, `Tags.html#`+tag) {
-			t.Errorf("tag pill for %q missing", tag)
+		if !strings.Contains(out, `href="OMNGoTags.html#`+tag+`"`) {
+			t.Errorf("tag pill for %q missing or not pointing at OMNGoTags", tag)
 		}
 	}
 	// Markdown body rendered (header block excluded from body).
@@ -206,6 +207,26 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	}
 	if !strings.Contains(out, "<strong>bold</strong>") {
 		t.Error("rendered body missing")
+	}
+}
+
+// Tag pills must reach the single OMNGoTags page relatively (depth-correct via
+// AssetPrefix) and use tagSlug for the fragment, so they resolve offline from
+// any directory depth and match the generated page's section ids.
+func TestTagPillRelativePrefixAndSlug(t *testing.T) {
+	a := &App{}
+	md := "Title: Deep\nTags: 3D Print\n\nbody" // tag with a space -> slug "3D-Print"
+
+	// Two directories deep: prefix "../../".
+	deep := string(a.compilePage("a/b/Deep", []byte(md)))
+	if !strings.Contains(deep, `href="../../OMNGoTags.html#3D-Print"`) {
+		t.Errorf("subdir pill href wrong (want ../../OMNGoTags.html#3D-Print):\n%s", deep)
+	}
+
+	// Root page: no prefix.
+	root := string(a.compilePage("Deep", []byte(md)))
+	if !strings.Contains(root, `href="OMNGoTags.html#3D-Print"`) {
+		t.Errorf("root pill href wrong (want OMNGoTags.html#3D-Print):\n%s", root)
 	}
 }
 
