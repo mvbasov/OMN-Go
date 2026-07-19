@@ -1,6 +1,7 @@
 Categories:
   - Writing
   - Development
+  - Note
 License: MIT
 AuthorName: Mikhail Basov
 WebSite: https://github.com/mvbasov/OMN-Go
@@ -19,10 +20,11 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.11.16'
-    versionCode: 11116
-    commit: v1.11.16f
+  - versionName: '1.11.17'
+    versionCode: 11117
+    commit: v1.11.17f
     subdir: android
+    output: android/app/build/outputs/apk/fdroid/release/omn-go-v1.11.17-fdroid-*.apk
     prebuild:
       - export GOROOT_BOOTSTRAP_DIR=$(pwd)/../go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
@@ -61,7 +63,12 @@ Builds:
       - backend/frontend/html/css/katex.min.css
       - backend/frontend/html/css/fonts/
 
-AutoUpdateMode: None
+AutoUpdateMode: Version
 UpdateCheckMode: Tags .*f$
-CurrentVersion: '1.11.16'
-CurrentVersionCode: 11116
+VercodeOperation:
+  - '%c * 10 + 1'
+  - '%c * 10 + 2'
+  - '%c * 10 + 3'
+  - '%c * 10 + 4'
+CurrentVersion: '1.11.17'
+CurrentVersionCode: 111174

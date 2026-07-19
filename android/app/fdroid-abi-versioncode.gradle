@@ -1,0 +1,64 @@
+// ===================================================================
+// Per-ABI versionCode assignment - F-Droid distribution channel only
+// ===================================================================
+//
+// F-Droid publishes one APK per CPU architecture (not a single fat
+// universal APK), and every APK in a repository must carry a UNIQUE
+// android:versionCode. This file assigns those per-ABI codes, but ONLY
+// for the `fdroid` product flavor. The `standard` flavor (local builds
+// and the GitHub-CI universal APK) is left completely untouched and
+// keeps the plain versionCode declared in defaultConfig (e.g. 11116).
+//
+// Scheme (matches the F-Droid recipe's VercodeOperation exactly):
+//
+//     apkVersionCode = defaultConfig.versionCode * 10 + abiCode
+//
+//     abiCode:  armeabi-v7a = 1
+//               arm64-v8a   = 2
+//               x86         = 3
+//               x86_64      = 4
+//               (universal  = 0 - not consumed by F-Droid)
+//
+// So base 11116 -> 111161 / 111162 / 111163 / 111164. Properties:
+//   * Unique per ABI within one release.
+//   * Monotonic across releases: the base code only ever grows, so a
+//     newer release always outranks an older one for the same ABI.
+//   * 64-bit variants outrank their 32-bit counterparts within a
+//     release (arm64-v8a 2 > armeabi-v7a 1; x86_64 4 > x86 3), so on
+//     64-bit hardware F-Droid's installer prefers the 64-bit APK when
+//     both are compatible.
+//
+// The `fdroid` flavor uses its own applicationId (net.basov.omngo.fdroid)
+// so this larger code magnitude never collides with the standard build's
+// versionCode in any store or on-device.
+//
+// This is intentionally a separate, `apply from:`-d file so the split
+// bookkeeping stays out of the main build.gradle and the standard build
+// path reads exactly as it did before.
+
+import com.android.build.OutputFile
+
+// ABI -> trailing offset digit. Keep in lock-step with the
+// VercodeOperation list in metadata/net.basov.omngo.fdroid.yml.
+ext.fdroidAbiVersionCodeOffset = [
+        'armeabi-v7a': 1,
+        'arm64-v8a'  : 2,
+        'x86'        : 3,
+        'x86_64'     : 4,
+]
+
+android.applicationVariants.all { variant ->
+    // Standard channel keeps the untouched defaultConfig versionCode.
+    if (variant.flavorName != 'fdroid') {
+        return
+    }
+    variant.outputs.each { output ->
+        def abi = output.getFilter(OutputFile.ABI)
+        // null filter == the universal APK -> offset 0. F-Droid does not
+        // consume the universal APK (its VercodeOperation only emits the
+        // four ABI codes), but giving it a deterministic code keeps every
+        // fdroid output in the same numeric band.
+        def offset = (abi == null) ? 0 : (ext.fdroidAbiVersionCodeOffset[abi] ?: 0)
+        output.versionCodeOverride = variant.versionCode * 10 + offset
+    }
+}

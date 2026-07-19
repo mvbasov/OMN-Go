@@ -10,8 +10,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 11116
-        versionName "1.11.16"
+        versionCode 11117
+        versionName "1.11.17"
     }
 
     // Two distribution channels, same source. "fdroid" gets its own
@@ -84,6 +84,11 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+// Per-ABI versionCode assignment for the F-Droid channel. Applies only
+// to the `fdroid` flavor; the standard flavor's versionCode is untouched.
+// Kept in a separate file so this main script stays focused on the build.
+apply from: 'fdroid-abi-versioncode.gradle'
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
