@@ -19,20 +19,35 @@ AntiFeatures:
 RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
+# One Gradle invocation produces per-ABI split APKs (plus an unused
+# universal one), so there is one build entry per ABI, each matching a
+# single APK by its per-ABI versionCode (base*10+N, assigned by
+# android/fdroid-abi-versioncode.gradle) and exact output filename.
+# versionName carries the flavor's "-fdroid" suffix because that is what
+# ends up in the built APK's manifest.
+#
+# NDK 25.2.9519653 (r25c) matches the project's own Docker build so the
+# gomobile-produced native code uses the same toolchain in both flavors.
+#
+# The Go toolchain and GOPATH are kept OUTSIDE the checkout (/tmp): inside
+# it, `go mod tidy` scans the Go distribution's own test fixtures and the
+# read-only module cache breaks fdroid's `git clean` between builds.
+
 Builds:
-  - versionName: '1.11.17'
-    versionCode: 11117
-    commit: v1.11.17f
+  - versionName: '1.11.19-fdroid'
+    versionCode: 111191
+    commit: v1.11.19f
     subdir: android
-    output: android/app/build/outputs/apk/fdroid/release/omn-go-v1.11.17-fdroid-*.apk
+    ndk: 25.2.9519653
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.19-fdroid-fdroid-armeabi-v7a-release.apk
     prebuild:
-      - export GOROOT_BOOTSTRAP_DIR=$(pwd)/../go-toolchain
+      - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
       - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
       - mkdir -p $GOROOT_BOOTSTRAP_DIR
       - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
-      - export GOPATH=$(pwd)/../go-path
+      - export GOPATH=/tmp/omngo-go-path
       - export PATH=$GOPATH/bin:$PATH
       - cd ..
       - sh android/fdroid_fetch_assets.sh
@@ -44,24 +59,111 @@ Builds:
       - mkdir -p android/app/libs
       - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android
-
     gradle:
       - fdroid
-
-    # ---- Vendored offline third-party frontend assets ----------------
-    # backend/frontend/html/{css,js}/ normally carries committed minified
-    # copies of highlight.js (BSD-3-Clause), KaTeX + its auto-render
-    # extension (MIT), and the Material Icons webfont (Apache-2.0) so the
-    # note UI's code highlighting, math rendering, and icons all work
-    # fully offline - a deliberate feature (see UserManual.md), not an
-    # oversight.
+    # omngo.aar / omngo-sources.jar are generated from source by gomobile
+    # during prebuild (not committed blobs); res-drawable.zip is bundled
+    # drawable resources.
     scanignore:
-      - backend/frontend/html/js/highlight.min.js
-      - backend/frontend/html/js/katex.min.js
-      - backend/frontend/html/js/auto-render.min.js
-      - backend/frontend/html/css/highlight.default.min.css
-      - backend/frontend/html/css/katex.min.css
-      - backend/frontend/html/css/fonts/
+      - android/app/libs/omngo.aar
+      - android/app/libs/omngo-sources.jar
+      - local/icons/res-drawable.zip
+
+  - versionName: '1.11.19-fdroid'
+    versionCode: 111192
+    commit: v1.11.19f
+    subdir: android
+    ndk: 25.2.9519653
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.19-fdroid-fdroid-arm64-v8a-release.apk
+    prebuild:
+      - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
+      - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+      - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
+      - mkdir -p $GOROOT_BOOTSTRAP_DIR
+      - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
+      - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
+      - export GOPATH=/tmp/omngo-go-path
+      - export PATH=$GOPATH/bin:$PATH
+      - cd ..
+      - sh android/fdroid_fetch_assets.sh
+      - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
+      - go mod tidy
+      - go install golang.org/x/mobile/cmd/gobind
+      - go install golang.org/x/mobile/cmd/gomobile
+      - gomobile init
+      - mkdir -p android/app/libs
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android
+    gradle:
+      - fdroid
+    scanignore:
+      - android/app/libs/omngo.aar
+      - android/app/libs/omngo-sources.jar
+      - local/icons/res-drawable.zip
+
+  - versionName: '1.11.19-fdroid'
+    versionCode: 111193
+    commit: v1.11.19f
+    subdir: android
+    ndk: 25.2.9519653
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.19-fdroid-fdroid-x86-release.apk
+    prebuild:
+      - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
+      - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+      - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
+      - mkdir -p $GOROOT_BOOTSTRAP_DIR
+      - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
+      - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
+      - export GOPATH=/tmp/omngo-go-path
+      - export PATH=$GOPATH/bin:$PATH
+      - cd ..
+      - sh android/fdroid_fetch_assets.sh
+      - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
+      - go mod tidy
+      - go install golang.org/x/mobile/cmd/gobind
+      - go install golang.org/x/mobile/cmd/gomobile
+      - gomobile init
+      - mkdir -p android/app/libs
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android
+    gradle:
+      - fdroid
+    scanignore:
+      - android/app/libs/omngo.aar
+      - android/app/libs/omngo-sources.jar
+      - local/icons/res-drawable.zip
+
+  - versionName: '1.11.19-fdroid'
+    versionCode: 111194
+    commit: v1.11.19f
+    subdir: android
+    ndk: 25.2.9519653
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.19-fdroid-fdroid-x86_64-release.apk
+    prebuild:
+      - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
+      - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+      - echo "aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235  /tmp/go.tar.gz" | sha256sum -c -
+      - mkdir -p $GOROOT_BOOTSTRAP_DIR
+      - tar -C $GOROOT_BOOTSTRAP_DIR --strip-components=1 -xzf /tmp/go.tar.gz
+      - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
+      - export GOPATH=/tmp/omngo-go-path
+      - export PATH=$GOPATH/bin:$PATH
+      - cd ..
+      - sh android/fdroid_fetch_assets.sh
+      - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
+      - go mod tidy
+      - go install golang.org/x/mobile/cmd/gobind
+      - go install golang.org/x/mobile/cmd/gomobile
+      - gomobile init
+      - mkdir -p android/app/libs
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android
+    gradle:
+      - fdroid
+    scanignore:
+      - android/app/libs/omngo.aar
+      - android/app/libs/omngo-sources.jar
+      - local/icons/res-drawable.zip
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags .*f$
@@ -70,5 +172,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: '1.11.17'
-CurrentVersionCode: 111174
+CurrentVersion: '1.11.19-fdroid'
+CurrentVersionCode: 111194
