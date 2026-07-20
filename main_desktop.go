@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	app := backend.StartServer("") // desktop always uses initStorage's OS-appropriate default
+	app := backend.StartServer("", 0) // desktop: OS-appropriate storage default, historical port default (8080)
 
 	// Block until the listener has actually bound, instead of guessing
 	// with a fixed time.Sleep(500ms) that could fire too early on a slow

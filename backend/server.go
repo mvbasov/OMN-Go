@@ -77,7 +77,15 @@ var templatesFS embed.FS
 // learn the running app's applicationId (net.basov.omngo vs
 // net.basov.omngo.fdroid) on its own. Every other caller (desktop's
 // main_desktop.go) passes "" and gets the existing default unchanged.
-func StartServer(storageDir string) *App {
+//
+// defaultPort, when > 0, is used as the server port whenever config.json
+// does not carry a (positive) server_port of its own - the same
+// "flavor knows, this package can't" reasoning as storageDir: the
+// standard and fdroid Android flavors are installable side by side, so
+// they must not compete for the same default loopback port (see
+// DEFAULT_SERVER_PORT in android/app/build.gradle). Pass 0 to keep the
+// historical default of 8080 (desktop does).
+func StartServer(storageDir string, defaultPort int) *App {
 	a := &App{
 		Router: http.NewServeMux(),
 		ready:  make(chan struct{}),
@@ -139,8 +147,15 @@ func StartServer(storageDir string) *App {
 
 		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
 		// i.e. before any HTTP handler can possibly be invoked concurrently.
+		// A configured (positive) server_port always wins; otherwise the
+		// caller-supplied per-flavor default applies, then the historical
+		// 8080 fallback.
 		if a.Config.ServerPort <= 0 {
-			a.Config.ServerPort = 8080
+			if defaultPort > 0 {
+				a.Config.ServerPort = defaultPort
+			} else {
+				a.Config.ServerPort = 8080
+			}
 		}
 
 		// BEHAVIOR CHANGE vs pre-ShareLAN versions: the server used to

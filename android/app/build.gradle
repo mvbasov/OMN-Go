@@ -5,13 +5,14 @@ plugins {
 android {
     namespace 'net.basov.omngo'
     compileSdk 34
+    ndkVersion "25.2.9519653"
 
     defaultConfig {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 11119
-        versionName "1.11.19"
+        versionCode 11120
+        versionName "1.11.20"
     }
 
 
@@ -39,6 +40,7 @@ android {
             dimension "distribution"
             // Default channel: desktop-signed release (GitHub releases,
             // direct APK download). No changes vs. current behavior.
+            buildConfigField "int", "DEFAULT_SERVER_PORT", "8080"
         }
         fdroid {
             dimension "distribution"
@@ -46,7 +48,21 @@ android {
             // see accompanying notes.
             applicationId "net.basov.omngo.fdroid"
             versionNameSuffix "-fdroid"
+            // Different DEFAULT port than the standard flavor: both
+            // flavors are installable side by side (that is the point of
+            // the separate applicationId above), but the loopback port is
+            // a device-global resource - with both defaulting to 8080,
+            // whichever app starts second loses the bind (and its WebView
+            // silently talks to the OTHER app's server). A user-configured
+            // server_port in config.json always wins over this default.
+            buildConfigField "int", "DEFAULT_SERVER_PORT", "8081"
         }
+    }
+
+    // AGP 8 no longer generates BuildConfig by default; needed for the
+    // per-flavor DEFAULT_SERVER_PORT constants above.
+    buildFeatures {
+        buildConfig true
     }
 
     signingConfigs {

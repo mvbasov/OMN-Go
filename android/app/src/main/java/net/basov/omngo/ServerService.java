@@ -120,11 +120,21 @@ public class ServerService extends Service {
         return cfg != null && cfg.optBoolean("share_lan", false);
     }
 
-    /** Configured server port (default 8080). */
+    /**
+     * Configured server port. The fallback is the per-flavor
+     * BuildConfig.DEFAULT_SERVER_PORT (8080 standard / 8081 fdroid - see
+     * build.gradle), NOT a hardcoded 8080: this helper feeds
+     * MainActivity.serverBase()'s WebView URL, so on a fresh install
+     * (no config.json yet) it MUST agree with the default the Go side
+     * applies via Backend.startServer(..., DEFAULT_SERVER_PORT) below,
+     * or the WebView polls a port nothing (or worse - the OTHER
+     * flavor's app) is listening on.
+     */
     public static int serverPort(Context ctx) {
         org.json.JSONObject cfg = readConfig(ctx);
-        int port = cfg != null ? cfg.optInt("server_port", 8080) : 8080;
-        return port > 0 ? port : 8080;
+        int def = BuildConfig.DEFAULT_SERVER_PORT;
+        int port = cfg != null ? cfg.optInt("server_port", def) : def;
+        return port > 0 ? port : def;
     }
 
     /**
@@ -234,8 +244,11 @@ public class ServerService extends Service {
             // storageDir(this) is resolved from the actually-running
             // applicationId (see the field comment on storageDir above),
             // not a hardcoded literal - correct for both the standard and
-            // fdroid flavors.
-            Backend.startServer(storageDir(this));
+            // fdroid flavors. DEFAULT_SERVER_PORT is likewise per-flavor
+            // (8080 standard / 8081 fdroid) so side-by-side installs
+            // don't fight over one loopback port; a user-configured
+            // server_port in config.json still wins on the Go side.
+            Backend.startServer(storageDir(this), BuildConfig.DEFAULT_SERVER_PORT);
             backendStarted = true;
         }
 
