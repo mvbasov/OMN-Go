@@ -1,10 +1,11 @@
 Title: Test OMN-Go
 Date: 2026-06-22 23:48:01
-Modified: 2026-07-18 13:49:16
+Modified: 2026-07-18 12:34:04
 Category: Notes
 Author: Mikhail Basov
 Tags: Index, Test
 
+* [KaTeX test](KaTeXTest)
 * [Link test](LinkTest)
 * [Console](Console)
 * [Fetch](Fetch)

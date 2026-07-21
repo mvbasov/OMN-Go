@@ -20,12 +20,12 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.11.20-fdroid'
-    versionCode: 111201
-    commit: v1.11.20f
+  - versionName: '1.11.21-fdroid'
+    versionCode: 111211
+    commit: v1.11.21f
     subdir: android
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.20-fdroid-fdroid-armeabi-v7a-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-armeabi-v7a-release.apk
     prebuild:
       - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
@@ -52,12 +52,12 @@ Builds:
       - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.20-fdroid'
-    versionCode: 111202
-    commit: v1.11.20f
+  - versionName: '1.11.21-fdroid'
+    versionCode: 111212
+    commit: v1.11.21f
     subdir: android
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.20-fdroid-fdroid-arm64-v8a-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-arm64-v8a-release.apk
     prebuild:
       - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
@@ -84,12 +84,12 @@ Builds:
       - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.20-fdroid'
-    versionCode: 111203
-    commit: v1.11.20f
+  - versionName: '1.11.21-fdroid'
+    versionCode: 111213
+    commit: v1.11.21f
     subdir: android
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.20-fdroid-fdroid-x86-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-x86-release.apk
     prebuild:
       - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
@@ -116,12 +116,12 @@ Builds:
       - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.20-fdroid'
-    versionCode: 111204
-    commit: v1.11.20f
+  - versionName: '1.11.21-fdroid'
+    versionCode: 111214
+    commit: v1.11.21f
     subdir: android
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.20-fdroid-fdroid-x86_64-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-x86_64-release.apk
     prebuild:
       - export GOROOT_BOOTSTRAP_DIR=/tmp/omngo-go-toolchain
       - curl -fsSL -o /tmp/go.tar.gz https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
@@ -155,5 +155,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: '1.11.20-fdroid'
-CurrentVersionCode: 111204
+CurrentVersion: '1.11.21-fdroid'
+CurrentVersionCode: 111214
