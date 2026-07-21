@@ -11,6 +11,12 @@
 # Builds the LATEST build entry in the metadata (-l), so a version bump
 # in the .yml needs no change here.
 
+# Repeat build
+# cd ~/git/fdroiddata
+# rm -f unsigned/net.basov.omngo.fdroid_*.apk unsigned/net.basov.omngo.fdroid_*_src.tar.gz
+# rm -rf ~/git/fdroiddata/tmp                            # fdroid scratch
+# rm -rf ~/fdroid-cache/gradle/caches
+
 set -euo pipefail
 
 # ---- paths (edit if yours differ) ----
