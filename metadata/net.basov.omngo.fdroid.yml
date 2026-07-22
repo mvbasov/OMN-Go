@@ -19,14 +19,12 @@ Builds:
   - versionName: 1.11.23-fdroid
     versionCode: 111231
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
-    subdir: android
+    subdir: android/app
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output: 
-      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -40,7 +38,7 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH="$HOME/go"
       - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
-      - cd ..
+      - cd ../..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
       - go mod tidy
@@ -48,22 +46,20 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
-        -w" -o android/app/libs/omngo.aar ./backend
-      - cd android
+      - gomobile bind -target=android/arm -androidapi 24 -javapkg net.basov.omngo 
+        -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android/app
     ndk: 25.2.9519653
 
   - versionName: 1.11.23-fdroid
     versionCode: 111232
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
-    subdir: android
+    subdir: android/app
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output: 
-      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -77,7 +73,7 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH="$HOME/go"
       - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
-      - cd ..
+      - cd ../..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
       - go mod tidy
@@ -85,22 +81,20 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
-        -w" -o android/app/libs/omngo.aar ./backend
-      - cd android
+      - gomobile bind -target=android/arm64 -androidapi 24 -javapkg net.basov.omngo
+        -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android/app
     ndk: 25.2.9519653
 
   - versionName: 1.11.23-fdroid
     versionCode: 111233
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
-    subdir: android
+    subdir: android/app
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output: 
-      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -114,7 +108,7 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH="$HOME/go"
       - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
-      - cd ..
+      - cd ../..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
       - go mod tidy
@@ -122,22 +116,20 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
-        -w" -o android/app/libs/omngo.aar ./backend
-      - cd android
+      - gomobile bind -target=android/386 -androidapi 24 -javapkg net.basov.omngo
+        -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android/app
     ndk: 25.2.9519653
 
   - versionName: 1.11.23-fdroid
     versionCode: 111234
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
-    subdir: android
+    subdir: android/app
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output: 
-      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86_64-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -151,7 +143,7 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH="$HOME/go"
       - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
-      - cd ..
+      - cd ../..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
       - go mod tidy
@@ -159,9 +151,9 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
-        -w" -o android/app/libs/omngo.aar ./backend
-      - cd android
+      - gomobile bind -target=android/amd64 -androidapi 24 -javapkg net.basov.omngo
+        -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - cd android/app
     ndk: 25.2.9519653
 
 AutoUpdateMode: Version
@@ -171,5 +163,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: 1.11.23-fdroid
+CurrentVersion: 1.11.23
 CurrentVersionCode: 111234
