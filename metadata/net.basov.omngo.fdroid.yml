@@ -30,8 +30,12 @@ Builds:
       - go@go1.26.0
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
-      - export GOPATH=$$go$$
-      - export PATH="$GOPATH/bin:$PATH"
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - export GOROOT=$$go$$
+      - export GOPATH="$HOME/go"
+      - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -57,8 +61,12 @@ Builds:
       - go@go1.26.0
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
-      - export GOPATH=$$go$$
-      - export PATH="$GOPATH/bin:$PATH"
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - export GOROOT=$$go$$
+      - export GOPATH="$HOME/go"
+      - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -84,8 +92,12 @@ Builds:
       - go@go1.26.0
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
-      - export GOPATH=$$go$$
-      - export PATH="$GOPATH/bin:$PATH"
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - export GOROOT=$$go$$
+      - export GOPATH="$HOME/go"
+      - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -111,8 +123,12 @@ Builds:
       - go@go1.26.0
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
-      - export GOPATH=$$go$$
-      - export PATH="$GOPATH/bin:$PATH"
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - export GOROOT=$$go$$
+      - export GOPATH="$HOME/go"
+      - export PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
