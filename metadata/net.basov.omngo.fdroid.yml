@@ -46,7 +46,7 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android/arm -androidapi 24 -javapkg net.basov.omngo 
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo 
         -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android/app
     ndk: 25.2.9519653
@@ -81,7 +81,7 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android/arm64 -androidapi 24 -javapkg net.basov.omngo
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo
         -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android/app
     ndk: 25.2.9519653
@@ -116,7 +116,7 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android/386 -androidapi 24 -javapkg net.basov.omngo
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo
         -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android/app
     ndk: 25.2.9519653
@@ -151,7 +151,7 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android/amd64 -androidapi 24 -javapkg net.basov.omngo
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo
         -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
       - cd android/app
     ndk: 25.2.9519653
