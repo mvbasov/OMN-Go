@@ -7,7 +7,7 @@ AuthorName: Mikhail Basov
 WebSite: https://github.com/mvbasov/OMN-Go
 SourceCode: https://github.com/mvbasov/OMN-Go
 IssueTracker: https://github.com/mvbasov/OMN-Go/issues
-Changelog:
+Changelog: 
   https://github.com/mvbasov/OMN-Go/blob/master/fastlane/metadata/android/en-US/changelogs/%c.txt
 
 AutoName: OMN-Go
@@ -25,7 +25,7 @@ Builds:
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output:
+    output: 
       app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
       - go@go1.25.12
@@ -62,7 +62,7 @@ Builds:
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output:
+    output: 
       app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
       - go@go1.25.12
@@ -99,7 +99,7 @@ Builds:
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output:
+    output: 
       app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86-release.apk
     srclibs:
       - go@go1.25.12
@@ -136,7 +136,7 @@ Builds:
       - apt-get install -y golang-go gcc libc-dev
     gradle:
       - fdroid
-    output:
+    output: 
       app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86_64-release.apk
     srclibs:
       - go@go1.25.12
