@@ -27,7 +27,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
-      - go@go1.26.0
+      - go@go1.24.6
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - pushd $$go$$/src
@@ -58,7 +58,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
-      - go@go1.26.0
+      - go@go1.24.6
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - pushd $$go$$/src
@@ -89,7 +89,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-x86-release.apk
     srclibs:
-      - go@go1.26.0
+      - go@go1.24.6
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - pushd $$go$$/src
@@ -120,7 +120,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.21-fdroid-fdroid-x86_64-release.apk
     srclibs:
-      - go@go1.26.0
+      - go@go1.24.6
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - pushd $$go$$/src
