@@ -30,7 +30,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
-      - go@go1.24.6
+      - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
@@ -65,7 +65,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
-      - go@go1.24.6
+      - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
@@ -100,7 +100,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-x86-release.apk
     srclibs:
-      - go@go1.24.6
+      - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
@@ -135,7 +135,7 @@ Builds:
     ndk: 25.2.9519653
     output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-x86_64-release.apk
     srclibs:
-      - go@go1.24.6
+      - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
