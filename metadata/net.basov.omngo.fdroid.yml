@@ -45,8 +45,6 @@ Builds:
     gradle:
       - fdroid
     scanignore:
-      - android/app/libs/omngo.aar
-      - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
   - versionName: '1.11.21-fdroid'
@@ -74,8 +72,6 @@ Builds:
     gradle:
       - fdroid
     scanignore:
-      - android/app/libs/omngo.aar
-      - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
   - versionName: '1.11.21-fdroid'
@@ -103,8 +99,6 @@ Builds:
     gradle:
       - fdroid
     scanignore:
-      - android/app/libs/omngo.aar
-      - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
   - versionName: '1.11.21-fdroid'
@@ -132,8 +126,6 @@ Builds:
     gradle:
       - fdroid
     scanignore:
-      - android/app/libs/omngo.aar
-      - android/app/libs/omngo-sources.jar
       - local/icons/res-drawable.zip
 
 AutoUpdateMode: Version
