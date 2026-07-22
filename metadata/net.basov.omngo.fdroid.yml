@@ -35,6 +35,7 @@ Builds:
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
       - export GOPATH=/tmp/omngo-go-path
       - export PATH=$GOPATH/bin:$PATH
+      - sdkmanager "platforms;android-34" "build-tools;33.0.1"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -67,6 +68,7 @@ Builds:
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
       - export GOPATH=/tmp/omngo-go-path
       - export PATH=$GOPATH/bin:$PATH
+      - sdkmanager "platforms;android-34" "build-tools;33.0.1"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -99,6 +101,7 @@ Builds:
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
       - export GOPATH=/tmp/omngo-go-path
       - export PATH=$GOPATH/bin:$PATH
+      - sdkmanager "platforms;android-34" "build-tools;33.0.1"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
@@ -131,6 +134,7 @@ Builds:
       - export PATH=$GOROOT_BOOTSTRAP_DIR/bin:$PATH
       - export GOPATH=/tmp/omngo-go-path
       - export PATH=$GOPATH/bin:$PATH
+      - sdkmanager "platforms;android-34" "build-tools;33.0.1"
       - cd ..
       - sh android/fdroid_fetch_assets.sh
       - go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
