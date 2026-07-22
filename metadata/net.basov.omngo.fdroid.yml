@@ -20,6 +20,7 @@ Builds:
     versionCode: 111231
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android/app
+    output: build/outputs/apk/fdroid/release/*-armeabi-v7a-release.apk
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
@@ -55,6 +56,7 @@ Builds:
     versionCode: 111232
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android/app
+    output: build/outputs/apk/fdroid/release/*-arm64-v8a-release.apk
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
@@ -90,6 +92,7 @@ Builds:
     versionCode: 111233
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android/app
+    output: build/outputs/apk/fdroid/release/*-x86-release.apk
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
@@ -125,6 +128,7 @@ Builds:
     versionCode: 111234
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android/app
+    output: build/outputs/apk/fdroid/release/*-x86_64-release.apk
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
