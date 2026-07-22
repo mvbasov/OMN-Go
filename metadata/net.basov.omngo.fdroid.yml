@@ -20,15 +20,15 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.11.22-fdroid'
-    versionCode: 111221
-    commit: 698b8ede9a8f0904bf94d98f45f7f2f070b90cc7
+  - versionName: '1.11.23-fdroid'
+    versionCode: 111231
+    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-armeabi-v7a-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -55,15 +55,15 @@ Builds:
     scanignore:
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.22-fdroid'
-    versionCode: 111222
-    commit: 698b8ede9a8f0904bf94d98f45f7f2f070b90cc7
+  - versionName: '1.11.23-fdroid'
+    versionCode: 111232
+    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-arm64-v8a-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -90,15 +90,15 @@ Builds:
     scanignore:
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.22-fdroid'
-    versionCode: 111223
-    commit: 698b8ede9a8f0904bf94d98f45f7f2f070b90cc7
+  - versionName: '1.11.23-fdroid'
+    versionCode: 111233
+    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-x86-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -125,15 +125,15 @@ Builds:
     scanignore:
       - local/icons/res-drawable.zip
 
-  - versionName: '1.11.22-fdroid'
-    versionCode: 111224
-    commit: 698b8ede9a8f0904bf94d98f45f7f2f070b90cc7
+  - versionName: '1.11.23-fdroid'
+    versionCode: 111234
+    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
     ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.22-fdroid-fdroid-x86_64-release.apk
+    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86_64-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
@@ -167,5 +167,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: '1.11.22-fdroid'
-CurrentVersionCode: 111224
+CurrentVersion: '1.11.23-fdroid'
+CurrentVersionCode: 111234
