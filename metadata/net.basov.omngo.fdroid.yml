@@ -1,30 +1,37 @@
 Categories:
-  - Writing
   - Development
   - Note
+  - Writing
 License: MIT
 AuthorName: Mikhail Basov
 WebSite: https://github.com/mvbasov/OMN-Go
 SourceCode: https://github.com/mvbasov/OMN-Go
 IssueTracker: https://github.com/mvbasov/OMN-Go/issues
-Changelog: https://github.com/mvbasov/OMN-Go/blob/master/fastlane/metadata/android/en-US/changelogs/%c.txt
+Changelog:
+  https://github.com/mvbasov/OMN-Go/blob/master/fastlane/metadata/android/en-US/changelogs/%c.txt
+
+AutoName: OMN-Go
 
 RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: '1.11.23-fdroid'
+  - versionName: 1.11.23-fdroid
     versionCode: 111231
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
-    ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-armeabi-v7a-release.apk
+    gradle:
+      - fdroid
+    output:
+      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-armeabi-v7a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
+    scanignore:
+      - local/icons/res-drawable.zip
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
       - pushd $$go$$/src
@@ -41,25 +48,27 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
+        -w" -o android/app/libs/omngo.aar ./backend
       - cd android
-    gradle:
-      - fdroid
-    scanignore:
-      - local/icons/res-drawable.zip
+    ndk: 25.2.9519653
 
-  - versionName: '1.11.23-fdroid'
+  - versionName: 1.11.23-fdroid
     versionCode: 111232
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
-    ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-arm64-v8a-release.apk
+    gradle:
+      - fdroid
+    output:
+      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-arm64-v8a-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
+    scanignore:
+      - local/icons/res-drawable.zip
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
       - pushd $$go$$/src
@@ -76,25 +85,27 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
+        -w" -o android/app/libs/omngo.aar ./backend
       - cd android
-    gradle:
-      - fdroid
-    scanignore:
-      - local/icons/res-drawable.zip
+    ndk: 25.2.9519653
 
-  - versionName: '1.11.23-fdroid'
+  - versionName: 1.11.23-fdroid
     versionCode: 111233
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
-    ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86-release.apk
+    gradle:
+      - fdroid
+    output:
+      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
+    scanignore:
+      - local/icons/res-drawable.zip
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
       - pushd $$go$$/src
@@ -111,25 +122,27 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
+        -w" -o android/app/libs/omngo.aar ./backend
       - cd android
-    gradle:
-      - fdroid
-    scanignore:
-      - local/icons/res-drawable.zip
+    ndk: 25.2.9519653
 
-  - versionName: '1.11.23-fdroid'
+  - versionName: 1.11.23-fdroid
     versionCode: 111234
     commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
     subdir: android
     sudo:
       - apt-get update
       - apt-get install -y golang-go gcc libc-dev
-    ndk: 25.2.9519653
-    output: app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86_64-release.apk
+    gradle:
+      - fdroid
+    output:
+      app/build/outputs/apk/fdroid/release/omn-go-v1.11.23-fdroid-fdroid-x86_64-release.apk
     srclibs:
       - go@go1.25.12
     prebuild: sdkmanager "platforms;android-34" "build-tools;33.0.1"
+    scanignore:
+      - local/icons/res-drawable.zip
     build:
       - export GOROOT_BOOTSTRAP=$(go env GOROOT)
       - pushd $$go$$/src
@@ -146,12 +159,10 @@ Builds:
       - go install golang.org/x/mobile/cmd/gomobile
       - gomobile init
       - mkdir -p android/app/libs
-      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+      - gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s
+        -w" -o android/app/libs/omngo.aar ./backend
       - cd android
-    gradle:
-      - fdroid
-    scanignore:
-      - local/icons/res-drawable.zip
+    ndk: 25.2.9519653
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags .*f$
@@ -160,5 +171,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: '1.11.23-fdroid'
+CurrentVersion: 1.11.23-fdroid
 CurrentVersionCode: 111234
