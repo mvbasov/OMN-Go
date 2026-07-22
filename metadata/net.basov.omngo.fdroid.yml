@@ -9,13 +9,6 @@ SourceCode: https://github.com/mvbasov/OMN-Go
 IssueTracker: https://github.com/mvbasov/OMN-Go/issues
 Changelog: https://github.com/mvbasov/OMN-Go/blob/master/fastlane/metadata/android/en-US/changelogs/%c.txt
 
-# No ads, analytics, or trackers; git sync and LAN sharing both point at
-# user-configured, self-hostable endpoints rather than a fixed
-# proprietary service, so neither qualifies for the Tethered/NonFreeNet
-# anti-features. Leaving this present-but-empty as an explicit "checked,
-# none apply" marker rather than omitting the field silently.
-AntiFeatures:
-
 RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
