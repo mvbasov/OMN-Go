@@ -16,9 +16,9 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: 1.11.23-fdroid
-    versionCode: 111231
-    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
+  - versionName: 1.11.24
+    versionCode: 111241
+    commit: 0269077cb638d71f28a5347062eaf948451c7685
     subdir: android/app
     sudo:
       - apt-get update
@@ -52,9 +52,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.23-fdroid
-    versionCode: 111232
-    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
+  - versionName: 1.11.24
+    versionCode: 111242
+    commit: 0269077cb638d71f28a5347062eaf948451c7685
     subdir: android/app
     sudo:
       - apt-get update
@@ -88,9 +88,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.23-fdroid
-    versionCode: 111233
-    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
+  - versionName: 1.11.24
+    versionCode: 111243
+    commit: 0269077cb638d71f28a5347062eaf948451c7685
     subdir: android/app
     sudo:
       - apt-get update
@@ -124,9 +124,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.23-fdroid
-    versionCode: 111234
-    commit: b6bb19ce15a2b01ff9208565600816e1e8dfd529
+  - versionName: 1.11.24
+    versionCode: 111244
+    commit: 0269077cb638d71f28a5347062eaf948451c7685
     subdir: android/app
     sudo:
       - apt-get update
@@ -167,5 +167,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: 1.11.23
-CurrentVersionCode: 111234
+CurrentVersion: 1.11.24
+CurrentVersionCode: 111244
