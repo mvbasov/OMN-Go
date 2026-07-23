@@ -28,6 +28,7 @@ edit mode (pencil button) to see how any example on it is written.
 - [Buttons and shortcuts inside a page](#buttons-and-shortcuts-inside-a-page)
 - [Android intents and Termux](AndroidIntents)
 - [Quick Notes and Bookmarks](#quick-notes-and-bookmarks)
+- [The Tags page](#the-tags-page)
 - [Theme](#theme)
 
 **Advanced**
@@ -153,8 +154,8 @@ First line of the actual note...
 
 - `Title` sets the page title shown in the browser tab and page header.
 - `Modified` is maintained automatically on every save — you never edit it.
-- `Tags` renders clickable pills in the page header. (Automatic generation
-  of the tag overview page is planned.)
+- `Tags` renders clickable pills in the page header; tapping a pill jumps
+  to that tag on the auto-generated [Tags page](#the-tags-page).
 - Every header line also becomes a `<meta>` tag in the compiled page.
 - If you save a page with no header at all, a minimal one (`Title`,
   `Date`, `Modified`, and `Author` from your config) is added for you.
@@ -321,6 +322,21 @@ Quick Notes. It is off by default; see
 - **Android sharing:** share text or a link from any app to OMN-Go and it
   arrives pre-filled in the bookmark form.
 
+## The Tags page
+
+Every note that carries a `Tags:` header line is indexed on a single
+**Tags** overview page (the note `OMNGoTags`). It lists an alphabetical
+cloud of all tags at the top, then one section per tag with links to the
+notes that use it. Reach it by tapping any tag pill in a page header — the
+pill jumps straight to that tag's section.
+
+The page is **generated automatically**: OMN-Go rebuilds it at startup and
+whenever a note's tags change, so you never edit it by hand (a "do not
+edit" comment at the top says as much, and your edits would be overwritten
+on the next rebuild). It is plain static HTML with no scripts, so it also
+works when the compiled `html/` tree is opened offline. Untagged notes are
+simply omitted.
+
 ## Theme
 
 On the [Config](Config) page, *Theme* selects **Auto** (follow the
@@ -347,7 +363,10 @@ The [Config](Config) page edits `config.json`. Fields:
 | Share on LAN | Serve other devices, see [Sharing on the LAN](#sharing-on-the-lan). Changing it restarts the application. |
 | Hostname | Device label added to database backup filenames (see [Database backups](#database-backups)). Defaults to the OS hostname; on Android set a short name like `phone`. |
 | Backup Prune Depth | How many backups to keep per database (default `3`); creating a new backup deletes the oldest beyond this. |
+| Max Upload Size (MB) | Largest image or JSON file you can drag into the editor or share into Quick Notes (default `3`). |
 | Git Servers | Up to five remote slots, see [Git synchronization](#git-synchronization). |
+| Enable intent: links (Android) | Let a note launch Android `intent:` URIs when tapped. Off by default; Android only. See [Android Intents & Termux](AndroidIntents). |
+| Enable Termux commands (Android) | Additionally let notes run Termux shell commands; requires *Enable intent: links* to also be on. Off by default. See [Android Intents & Termux](AndroidIntents). |
 
 Two settings exist only in the file itself: `mime_types` (extension →
 content-type overrides) and `force_pull_one_time` (arms a single forced

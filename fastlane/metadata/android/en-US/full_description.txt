@@ -1,17 +1,25 @@
 OMN-Go is a self-hosted, Markdown-based personal wiki and notes app. It runs a small local web server on your device and serves your notes through a browser-style interface - no account, no cloud service, and no dependency on any third party to keep working.
 
-Notes are plain Markdown files with a small metadata header (title, date, tags), compiled to static HTML pages you can browse, search visually, and link between using ordinary relative or absolute links.
+Notes are plain Markdown files with a small metadata header (title, date, tags), compiled to static HTML pages you can browse and link between using ordinary relative or absolute links.
 
 Key features:
 
 * Full Markdown editing, with an internal editor or your preferred external text editor.
 * Optional git synchronization over SSH, so the same notes stay up to date across every device you run OMN-Go on. Conflicts are shown clearly, with manual-merge and safe pull/push options.
 * Optional LAN sharing: off by default (the app only answers itself); when enabled, other devices on your network can reach your notes over HTTP with a password, useful for reading or editing from a second device without setting up sync.
-* An embedded SQL database that note scripts can read and write directly, with automatic git-trackable JSON backups of its contents alongside your notes.
+* An embedded SQL database that note scripts can read and write directly, with on-demand, git-trackable snapshots of its contents saved alongside your notes.
 * Quick capture: a one-tap quick-note box and a bookmark collector, including Android share-to-app support.
-* Math formulas (KaTeX) and syntax-highlighted code blocks, both opt-in per page.
+* An automatically generated Tags page that indexes every note by its tags and works offline.
+* On Android, notes can open system settings screens, launch other apps, or run Termux commands through intent: links - off by default.
+* Math formulas (KaTeX, opt-in per page) and automatic syntax highlighting for fenced code blocks.
 * Light, dark, and system-following themes.
 * Material Design icons and small HTML/JS building blocks you can drop into any note.
+
+I tried to describe as much as possible in the built-in documentation. Please read it.
+
+I design this application to my needs and use it everyday for several years. I will be glad if this application meets anybody needs also.
+
+The Telegram channel created to share news and usage tips for this application https://t.me/OMNNewsAndTips
 
 OMN-Go does not include ads, analytics, or trackers of any kind, and does not require an internet connection for day-to-day note-taking - sync and LAN sharing are both entirely optional.
 
