@@ -19,6 +19,25 @@ It is designed to be the modern successor to the original [mvbasov/OMN](https://
   -->
 </p>
 
+<p align="center">
+  <a href="https://gitlab.com/mvbasov/OMN-Go/-/releases/permalink/latest">
+    <img alt="Get it on GitLab" src="https://img.shields.io/badge/Get_it_on-GitLab-FC6D26?style=for-the-badge&amp;logo=gitlab&amp;logoColor=white">
+  </a>
+  <img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png">
+  <a href="https://github.com/mvbasov/OMN-Go/releases/latest">
+    <img alt="Get it on GitHub" src="https://img.shields.io/badge/Get_it_on-GitHub-6e5494?style=for-the-badge&amp;logo=github&amp;logoColor=white">
+  </a>
+</p>
+<!--
+F-Droid — uncomment once published (it's already in its own centered paragraph, so it stays on the line below the other two on every screen size):
+<p align="center"><a href="https://f-droid.org/packages/net.basov.omngo"><img alt="Get it on F-Droid" src="https://img.shields.io/badge/Get_it_on-F--Droid-1976D2?style=for-the-badge&amp;logo=fdroid&amp;logoColor=white"></a></p>
+-->
+
+
+> [!NOTE]
+> **Not on Google Play.** OMN-Go will never be published on the Google Play Store — Google's policies don't allow some of the app's core functionality (notably its background web service), and I won't cripple those features to comply.
+
+
 > **Note:** This project is currently in an **early development state**. Features and storage structures are subject to change.
 
 ## Features
