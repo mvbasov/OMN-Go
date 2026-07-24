@@ -27,4 +27,3 @@ jobs:
           
           # 3. Explicitly push tag history safely
           git push --tags gitlab
-
