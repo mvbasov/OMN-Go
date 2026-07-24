@@ -79,6 +79,7 @@ build_job:
     - ls -la artifacts/
   artifacts:
     name: "omn-go-artifacts"
+    expire_in: 8 hours
     paths:
       - artifacts/
     reports:
@@ -130,6 +131,7 @@ upload_job:
     - echo "]" >> assets.json
     - cat assets.json
   artifacts:
+    expire_in: 8 hours
     paths:
       - assets.json
     reports:
