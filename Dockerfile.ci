@@ -68,9 +68,10 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # ============================== STAGE 2 ===============================
 FROM base_env AS project_builder
 
-ARG KEYSTORE_PASSWORD
-ARG KEY_ALIAS
-ARG KEY_PASSWORD
+# NOTE: signing secrets (keystore password, key alias, key password) are no
+# longer passed as ARG/--build-arg. They are mounted with BuildKit
+# --mount=type=secret in the gradle step below, so they never end up in the
+# image layers or `docker history`.
 ARG SKIP_TESTS=0
 
 COPY . .
@@ -116,7 +117,23 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # would be pointless (F-Droid re-signs with its own key regardless) and
 # risks producing/publishing an APK that looks official but isn't what
 # F-Droid actually distributes.
+#
+# Signing material is mounted here only, and exported into the environment
+# for gradle to read. --mount=type=secret files live at /run/secrets/<id>,
+# are readable only during this RUN, and are never persisted to any layer -
+# so neither the keystore nor the passwords end up in the image history.
+# KEYSTORE_FILE points build.gradle's signingConfig at the mounted keystore.
+# The secret ids (keystore, keystore_password, key_alias, key_password) are
+# the contract every CI system must satisfy - see GitHub/GitLab notes.
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+    --mount=type=secret,id=keystore \
+    --mount=type=secret,id=keystore_password \
+    --mount=type=secret,id=key_alias \
+    --mount=type=secret,id=key_password \
+    export KEYSTORE_FILE="/run/secrets/keystore" && \
+    export KEYSTORE_PASSWORD="$(cat /run/secrets/keystore_password)" && \
+    export KEY_ALIAS="$(cat /run/secrets/key_alias)" && \
+    export KEY_PASSWORD="$(cat /run/secrets/key_password)" && \
     cd android && \
     gradle assembleStandardRelease && \
     cp app/build/outputs/apk/standard/release/*.apk ../bin/

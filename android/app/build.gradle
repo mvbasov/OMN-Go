@@ -67,7 +67,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('omn-go.keystore')
+            // KEYSTORE_FILE lets CI point at a BuildKit secret mount
+            // (e.g. /run/secrets/keystore) so the keystore never has to be
+            // COPYed into the image / baked into a layer. Local builds and
+            // F-Droid's own recipe fall back to the relative path in
+            // android/app, so their behavior is unchanged.
+            storeFile file(System.getenv("KEYSTORE_FILE") ?: 'omn-go.keystore')
             storePassword System.getenv("KEYSTORE_PASSWORD") ?: "fallback"
             keyAlias System.getenv("KEY_ALIAS") ?: "omn-go"
             keyPassword System.getenv("KEY_PASSWORD") ?: "fallback"

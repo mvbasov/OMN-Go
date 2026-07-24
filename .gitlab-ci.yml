@@ -45,20 +45,25 @@ build_job:
     # endpoint instead of failing to load TLS data from the environment.
     - docker context create builder
     - docker buildx create --use --driver docker-container --name omngo-builder builder
-    - mkdir -p android/app
-    - echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
+    # Decode the keystore to a path OUTSIDE the build context (/tmp), so it is
+    # never captured by `COPY . .` and never baked into an image layer. It is
+    # handed to the build only as a BuildKit secret.
+    - echo "${KEYSTORE_BASE64}" | base64 -d > /tmp/omn-go.keystore
     - |
       docker buildx build \
         -f Dockerfile.ci \
         -t omn-go-builder:latest \
-        --build-arg KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}" \
-        --build-arg KEY_ALIAS="${KEY_ALIAS}" \
-        --build-arg KEY_PASSWORD="${KEY_PASSWORD}" \
+        --secret id=keystore,src=/tmp/omn-go.keystore \
+        --secret id=keystore_password,env=KEYSTORE_PASSWORD \
+        --secret id=key_alias,env=KEY_ALIAS \
+        --secret id=key_password,env=KEY_PASSWORD \
         --cache-from type=local,src=.buildx-cache \
         --cache-to type=local,dest=.buildx-cache,mode=max \
         --load \
         .
-    - VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' backend/version.go)
+    - rm -f /tmp/omn-go.keystore
+    # FIXED: docker image is Alpine/BusyBox — grep has no -P/\K. Use awk instead.
+    - VERSION=$(awk -F'"' '/APP_VERSION/{print $2; exit}' backend/version.go)
     - echo "APP_VERSION=$VERSION" >> build.env
     - echo "App version is $VERSION"
     - mkdir -p artifacts
