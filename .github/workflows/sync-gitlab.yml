@@ -1,0 +1,30 @@
+name: Mirror to GitLab
+
+on:
+  push:
+    branches: [master, DS]
+    tags: ['v*']
+  delete: # Optional: Keeps branches in sync if you delete them on GitHub
+
+jobs:
+  git-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches full history so branches map identically
+
+      - name: Dynamic Push to GitLab Remote
+        env:
+          GITLAB_PAT: ${{ secrets.GITLAB_PAT }}
+        run: |
+          # 1. Register GitLab as an alternate authenticated remote target
+          git remote add gitlab "https://oauth2:${GITLAB_PAT}@gitlab.com/mvbasov/OMN-Go.git"
+          
+          # 2. Sync all branch heads and prune deleted ones
+          git push --prune gitlab "+refs/remotes/origin/*:refs/heads/*"
+          
+          # 3. Explicitly push tag history safely
+          git push --tags gitlab
+

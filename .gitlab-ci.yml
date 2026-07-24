@@ -1,0 +1,130 @@
+stages:
+  - build
+  - upload
+  - release
+
+default:
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+
+build_job:
+  stage: build
+  allow_failure: false 
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "DS"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+    - if: $CI_COMMIT_TAG =~ /^v/
+  cache:
+    key: "omngo-build-cache"
+    paths:
+      - .buildx-cache
+  script:
+    - docker buildx create --use --driver docker-container
+    - mkdir -p android/app
+    - echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
+    - |
+      docker buildx build \
+        -f Dockerfile.ci \
+        -t omn-go-builder:latest \
+        --build-arg KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}" \
+        --build-arg KEY_ALIAS="${KEY_ALIAS}" \
+        --build-arg KEY_PASSWORD="${KEY_PASSWORD}" \
+        --cache-from type=local,src=.buildx-cache \
+        --cache-to type=local,dest=.buildx-cache,mode=max \
+        --load \
+        .
+    - VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' backend/version.go)
+    - echo "APP_VERSION=$VERSION" >> build.env
+    - echo "App version is $VERSION"
+    - mkdir -p artifacts
+    - docker create --name omn-go-tmp omn-go-builder:latest
+    - docker cp omn-go-tmp:/app/bin/. artifacts/
+    - docker rm omn-go-tmp
+    - ls -la artifacts/
+  artifacts:
+    name: "omn-go-artifacts"
+    paths:
+      - artifacts/
+    reports:
+      dotenv: build.env
+
+upload_job:
+  stage: upload
+  # Image provides bash, curl, jq, and coreutils (for sha256sum)
+  image: badouralix/curl-jq:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  dependencies:
+    - build_job
+  script:
+    - echo "Generating SHA256 checksums and uploading all assets..."
+    - echo "[" > assets.json
+    - first=true
+    
+    - |
+      for filepath in artifacts/*.apk artifacts/omn-go-*-desktop-*; do
+        if [ -f "$filepath" ]; then
+          filename=$(basename "$filepath")
+          
+          # 1. Generate the SHA256 checksum string and save it to a separate file
+          sha256sum "$filepath" | awk '{print $1}' > "${filepath}.sha256"
+          sha_filename="${filename}.sha256"
+          
+          # 2. Upload the original binary to the Package Registry
+          echo "Uploading $filename..."
+          curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+               --upload-file "$filepath" \
+               "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}"
+          
+          # 3. Upload the matching .sha256 file to the Package Registry
+          echo "Uploading checksum for $filename..."
+          curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+               --upload-file "${filepath}.sha256" \
+               "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}"
+          
+          # 4. Format user-friendly labels for the UI
+          display_name=$(echo "$filename" | sed 's/omn-go-//g' | sed 's/-release//g')
+          
+          # 5. Append both the binary link and the checksum link to the JSON configuration
+          if [ "$first" = true ]; then
+            first=false
+          else
+            echo "," >> assets.json
+          fi
+          
+          # Add entry for the actual application file
+          echo "{\"name\":\"📦 $display_name\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}\",\"link_type\":\"package\"}" >> assets.json
+          echo "," >> assets.json
+          # Add entry for its corresponding validation checksum file
+          echo "{\"name\":\"🔑 $display_name (SHA256)\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}\",\"link_type\":\"other\"}" >> assets.json
+        fi
+      done
+      
+    - echo "]" >> assets.json
+    - cat assets.json # Prints to compilation console logs for validation checking
+  artifacts:
+    paths:
+      - assets.json
+    reports:
+      dotenv: build.env
+
+release_job:
+  stage: release
+  image: ://gitlab.com
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  dependencies:
+    - upload_job
+  script:
+    - echo "Forging release with automated validation tokens for OMN-Go $APP_VERSION"
+  release:
+    name: "OMN-Go $APP_VERSION"
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Release created automatically by GitLab CI/CD pipeline. Use the associated SHA256 links below to verify package integrity.'
+    assets:
+      assets_file: assets.json
+
