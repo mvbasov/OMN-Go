@@ -125,11 +125,15 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # KEYSTORE_FILE points build.gradle's signingConfig at the mounted keystore.
 # The secret ids (keystore, keystore_password, key_alias, key_password) are
 # the contract every CI system must satisfy - see GitHub/GitLab notes.
+# required=true makes BuildKit fail this step immediately with a clear
+# "secret <id> is required" message if a CI job forgets to pass one, instead
+# of silently skipping the mount and failing ~40s later inside gradle with a
+# confusing "keystore not found" / bad-password error.
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
-    --mount=type=secret,id=keystore \
-    --mount=type=secret,id=keystore_password \
-    --mount=type=secret,id=key_alias \
-    --mount=type=secret,id=key_password \
+    --mount=type=secret,id=keystore,required=true \
+    --mount=type=secret,id=keystore_password,required=true \
+    --mount=type=secret,id=key_alias,required=true \
+    --mount=type=secret,id=key_password,required=true \
     export KEYSTORE_FILE="/run/secrets/keystore" && \
     export KEYSTORE_PASSWORD="$(cat /run/secrets/keystore_password)" && \
     export KEY_ALIAS="$(cat /run/secrets/key_alias)" && \
