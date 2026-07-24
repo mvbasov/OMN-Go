@@ -18,7 +18,7 @@ F-Droid — uncomment once published (it's already in its own centered paragraph
 
 
 > [!NOTE]
-> **Not on Google Play.** OMN-Go will never be published on the Google Play Store — Google's policies don't allow some of the app's core functionality (notably its background web service), and I won't cripple those features to comply.
+> **Not on Google Play.** OMN-Go will never be published on the Google Play Store. Google's policies don't allow some of the app's optional convenience features, such as its background web service, and I won't remove or restrict them just to comply.
 
 ## Features
 
