@@ -26,6 +26,20 @@ build_job:
     key: "omngo-build-cache"
     paths:
       - .buildx-cache
+
+  # FIXED: Wait for the Docker-in-Docker service daemon to become active before starting build steps
+  before_script:
+    - |
+      echo "Waiting for Docker daemon to start..."
+      for i in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
+          echo "Docker daemon is ready!"
+          break
+        fi
+        echo "Still waiting..."
+        sleep 1
+      done
+
   script:
     - docker buildx create --use --driver docker-container
     - mkdir -p android/app
