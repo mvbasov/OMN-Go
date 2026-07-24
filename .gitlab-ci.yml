@@ -142,10 +142,20 @@ release_job:
     - if: $CI_COMMIT_TAG =~ /^v/
   dependencies:
     - upload_job
+  # glab authenticates with GITLAB_TOKEN. CI_JOB_TOKEN can't create releases
+  # via glab's API path (bare 403 Forbidden), so this must be a Project/Personal
+  # Access Token with `api` scope and at least the Developer role. Store it as a
+  # masked CI/CD variable named RELEASE_TOKEN (see project Settings > CI/CD).
+  variables:
+    GITLAB_TOKEN: "$RELEASE_TOKEN"
   script:
-    - echo "Forging release layout for version $APP_VERSION..."
+    # Name from CI_COMMIT_TAG so this job doesn't depend on the build.env
+    # dotenv reaching it (it depends on upload_job, not build_job, so
+    # APP_VERSION isn't guaranteed here). assets.json already carries the
+    # fully-formed package URLs built earlier.
+    - echo "Publishing release for tag $CI_COMMIT_TAG..."
     - |
       glab release create "$CI_COMMIT_TAG" \
-        --name "OMN-Go $APP_VERSION" \
+        --name "OMN-Go $CI_COMMIT_TAG" \
         --notes "Release created automatically by GitLab CI/CD pipeline. Use the associated SHA256 links below to verify package integrity." \
         --assets-links "$(cat assets.json)"
