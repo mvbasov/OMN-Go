@@ -4,6 +4,23 @@
 
 It is designed to be the modern successor to the original [mvbasov/OMN](https://github.com/mvbasov/OMN) project. By leveraging a local Go web server and a native WebView, OMN-Go delivers a seamless experience across both Desktop (Linux) and Mobile (Android) environments without relying on bloated electron frameworks or external cloud services.
 
+<p align="center">
+  <a href="https://gitlab.com/mvbasov/OMN-Go/-/releases/permalink/latest">
+    <img alt="Latest GitLab Release" src="https://gitlab.com/mvbasov/OMN-Go/-/badges/release.svg">
+  </a>
+  &nbsp;
+  <a href="https://github.com/mvbasov/OMN-Go/releases/latest">
+    <img alt="Latest GitHub Release" src="https://img.shields.io/github/v/release/mvbasov/OMN-Go?sort=date&amp;label=github">
+  </a>
+  <!--
+  F-Droid badge — uncomment once the app is published on F-Droid:
+  &nbsp;
+  <a href="https://f-droid.org/packages/net.basov.omngo">
+    <img alt="F-Droid Release" src="https://img.shields.io/f-droid/v/net.basov.omngo?label=f-droid">
+  </a>
+  -->
+</p>
+
 > **Note:** This project is currently in an **early development state**. Features and storage structures are subject to change.
 
 ## Features
