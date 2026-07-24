@@ -93,7 +93,13 @@ upload_job:
   dependencies:
     - build_job
   script:
-    - echo "Generating SHA256 checksums and uploading all assets..."
+    # FIXED: re-derive APP_VERSION locally instead of trusting the build.env
+    # dotenv hand-off. When it arrived empty, every upload URL lost its version
+    # segment, GitLab rejected the PUTs, and plain curl (exit 0 on HTTP errors)
+    # let the job go green while nothing was stored -> Packages registry = 0 B.
+    - APP_VERSION=$(awk -F'"' '/APP_VERSION/{print $2; exit}' backend/version.go)
+    - '[ -n "$APP_VERSION" ] || { echo "ERROR: APP_VERSION is empty, aborting"; exit 1; }'
+    - echo "Generating SHA256 checksums and uploading all assets for version $APP_VERSION..."
     - echo "[" > assets.json
     - first=true
 
@@ -105,12 +111,15 @@ upload_job:
           sha_filename="${filename}.sha256"
 
           echo "Uploading $filename..."
-          curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          # --fail-with-body: turn any HTTP >=400 into a non-zero exit (and print
+          # GitLab's error body) so a rejected upload fails the job LOUDLY instead
+          # of silently leaving the package registry empty.
+          curl --fail-with-body --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "$filepath" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}"
 
           echo "Uploading checksum for $filename..."
-          curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          curl --fail-with-body --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "${filepath}.sha256" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}"
 
@@ -130,6 +139,9 @@ upload_job:
 
     - echo "]" >> assets.json
     - cat assets.json
+    # Guard: if the loop matched nothing, assets.json is just "[]" and no package
+    # was uploaded. Fail rather than publish a release with empty asset links.
+    - '[ "$(cat assets.json)" != "[]" ] || { echo "ERROR: no artifacts matched, nothing uploaded"; exit 1; }'
   artifacts:
     expire_in: 8 hours
     paths:
