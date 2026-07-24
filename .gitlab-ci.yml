@@ -22,10 +22,11 @@ build_job:
     - if: $CI_COMMIT_BRANCH == "DS"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
     - if: $CI_COMMIT_TAG =~ /^v/
-  cache:
-    key: "omngo-build-cache"
-    paths:
-      - .buildx-cache
+  # NOTE: the local `cache: .buildx-cache` block was removed. mode=max local
+  # cache wrote several GB of toolchain layers to the small runner's disk and
+  # ran it out of space ("no space left on device" during cache export). The
+  # build now caches to GitLab's container registry instead (see below), which
+  # streams off-disk and doesn't touch the runner's limited local storage.
 
   # FIXED: Wait for the Docker-in-Docker service daemon to become active before starting build steps
   before_script:
@@ -49,9 +50,15 @@ build_job:
     # never captured by `COPY . .` and never baked into an image layer. It is
     # handed to the build only as a BuildKit secret.
     - echo "${KEYSTORE_BASE64}" | base64 -d > /tmp/omn-go.keystore
+    # Log in to GitLab's container registry so buildx can push/pull the build
+    # cache there (CI_REGISTRY_USER / CI_REGISTRY_PASSWORD are predefined).
+    - echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
     # FIXED: export ONLY the build outputs to ./artifacts via the `export`
     # stage, instead of --load'ing the multi-GB toolchain image into the
     # Docker daemon (that import step ran the small runner out of disk).
+    # Cache goes to the GitLab registry (type=registry), NOT local disk, so
+    # mode=max no longer fills the runner. ignore-error=true means a cache
+    # push hiccup never fails the job - artifacts are already exported by then.
     - |
       docker buildx build \
         -f Dockerfile.ci \
@@ -61,8 +68,8 @@ build_job:
         --secret id=keystore_password,env=KEYSTORE_PASSWORD \
         --secret id=key_alias,env=KEY_ALIAS \
         --secret id=key_password,env=KEY_PASSWORD \
-        --cache-from type=local,src=.buildx-cache \
-        --cache-to type=local,dest=.buildx-cache,mode=max \
+        --cache-from type=registry,ref=${CI_REGISTRY_IMAGE}:buildcache \
+        --cache-to type=registry,ref=${CI_REGISTRY_IMAGE}:buildcache,mode=max,ignore-error=true \
         .
     - rm -f /tmp/omn-go.keystore
     # FIXED: docker image is Alpine/BusyBox — grep has no -P/\K. Use awk instead.
