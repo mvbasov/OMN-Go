@@ -3,12 +3,16 @@ stages:
   - upload
   - release
 
+# Global variables must live outside the default block
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}"
+
+# Default options applied globally to jobs
 default:
   image: docker:24.0.7
   services:
     - docker:24.0.7-dind
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
 
 build_job:
   stage: build
@@ -54,7 +58,6 @@ build_job:
 
 upload_job:
   stage: upload
-  # Image provides bash, curl, jq, and coreutils (for sha256sum)
   image: badouralix/curl-jq:latest
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
@@ -69,43 +72,35 @@ upload_job:
       for filepath in artifacts/*.apk artifacts/omn-go-*-desktop-*; do
         if [ -f "$filepath" ]; then
           filename=$(basename "$filepath")
-          
-          # 1. Generate the SHA256 checksum string and save it to a separate file
           sha256sum "$filepath" | awk '{print $1}' > "${filepath}.sha256"
           sha_filename="${filename}.sha256"
           
-          # 2. Upload the original binary to the Package Registry
           echo "Uploading $filename..."
           curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "$filepath" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}"
           
-          # 3. Upload the matching .sha256 file to the Package Registry
           echo "Uploading checksum for $filename..."
           curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "${filepath}.sha256" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}"
           
-          # 4. Format user-friendly labels for the UI
           display_name=$(echo "$filename" | sed 's/omn-go-//g' | sed 's/-release//g')
           
-          # 5. Append both the binary link and the checksum link to the JSON configuration
           if [ "$first" = true ]; then
             first=false
           else
             echo "," >> assets.json
           fi
           
-          # Add entry for the actual application file
           echo "{\"name\":\"📦 $display_name\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}\",\"link_type\":\"package\"}" >> assets.json
           echo "," >> assets.json
-          # Add entry for its corresponding validation checksum file
           echo "{\"name\":\"🔑 $display_name (SHA256)\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}\",\"link_type\":\"other\"}" >> assets.json
         fi
       done
       
     - echo "]" >> assets.json
-    - cat assets.json # Prints to compilation console logs for validation checking
+    - cat assets.json
   artifacts:
     paths:
       - assets.json
