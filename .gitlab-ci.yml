@@ -73,7 +73,7 @@ build_job:
         .
     - rm -f /tmp/omn-go.keystore
     # FIXED: docker image is Alpine/BusyBox — grep has no -P/\K. Use awk instead.
-    - VERSION=$(awk -F'"' '/APP_VERSION/{print $2; exit}' backend/version.go)
+    - VERSION=$(awk -F'"' '/APP_VERSION[[:space:]]*=/{print $2; exit}' backend/version.go)
     - echo "APP_VERSION=$VERSION" >> build.env
     - echo "App version is $VERSION"
     - ls -la artifacts/
@@ -97,7 +97,10 @@ upload_job:
     # dotenv hand-off. When it arrived empty, every upload URL lost its version
     # segment, GitLab rejected the PUTs, and plain curl (exit 0 on HTTP errors)
     # let the job go green while nothing was stored -> Packages registry = 0 B.
-    - APP_VERSION=$(awk -F'"' '/APP_VERSION/{print $2; exit}' backend/version.go)
+    # Anchor on the `=` so the DOC COMMENT line (`// APP_VERSION is ...`, which
+    # has no quotes) can't match first and yield an empty $2. Matches only the
+    # `const APP_VERSION = "x.y.z"` assignment line.
+    - APP_VERSION=$(awk -F'"' '/APP_VERSION[[:space:]]*=/{print $2; exit}' backend/version.go)
     - '[ -n "$APP_VERSION" ] || { echo "ERROR: APP_VERSION is empty, aborting"; exit 1; }'
     - echo "Generating SHA256 checksums and uploading all assets for version $APP_VERSION..."
     - echo "[" > assets.json
