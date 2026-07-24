@@ -65,19 +65,24 @@ jobs:
       #
       # --load makes the result available to the classic `docker create`/
       # `docker cp` steps further down.
-      - name: Build Docker image
+      # Export ONLY the build outputs to ./artifacts via the `export` stage,
+      # instead of --load'ing the multi-GB toolchain image into the Docker
+      # daemon and copying files out of a container. No image tar / daemon
+      # import means far less disk use (and it's faster).
+      - name: Build and export artifacts
         run: |
           docker buildx build \
             -f Dockerfile.ci \
-            -t omn-go-builder:latest \
+            --target export \
+            --output type=local,dest=artifacts \
             --secret id=keystore,src="${RUNNER_TEMP}/omn-go.keystore" \
             --secret id=keystore_password,env=KEYSTORE_PASSWORD \
             --secret id=key_alias,env=KEY_ALIAS \
             --secret id=key_password,env=KEY_PASSWORD \
             --cache-from type=gha,scope=omngo \
             --cache-to type=gha,mode=max,scope=omngo \
-            --load \
             .
+          ls -la artifacts/
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -93,14 +98,6 @@ jobs:
           VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' backend/version.go)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "App version: $VERSION"
-
-      - name: Extract artifacts from container
-        run: |
-          mkdir -p artifacts
-          docker create --name omn-go-tmp omn-go-builder:latest
-          docker cp omn-go-tmp:/app/bin/. artifacts/
-          docker rm omn-go-tmp
-          ls -la artifacts/
 
 #####
 # To get artefact without release uncoment related following block

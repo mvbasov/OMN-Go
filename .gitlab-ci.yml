@@ -49,27 +49,26 @@ build_job:
     # never captured by `COPY . .` and never baked into an image layer. It is
     # handed to the build only as a BuildKit secret.
     - echo "${KEYSTORE_BASE64}" | base64 -d > /tmp/omn-go.keystore
+    # FIXED: export ONLY the build outputs to ./artifacts via the `export`
+    # stage, instead of --load'ing the multi-GB toolchain image into the
+    # Docker daemon (that import step ran the small runner out of disk).
     - |
       docker buildx build \
         -f Dockerfile.ci \
-        -t omn-go-builder:latest \
+        --target export \
+        --output type=local,dest=artifacts \
         --secret id=keystore,src=/tmp/omn-go.keystore \
         --secret id=keystore_password,env=KEYSTORE_PASSWORD \
         --secret id=key_alias,env=KEY_ALIAS \
         --secret id=key_password,env=KEY_PASSWORD \
         --cache-from type=local,src=.buildx-cache \
         --cache-to type=local,dest=.buildx-cache,mode=max \
-        --load \
         .
     - rm -f /tmp/omn-go.keystore
     # FIXED: docker image is Alpine/BusyBox — grep has no -P/\K. Use awk instead.
     - VERSION=$(awk -F'"' '/APP_VERSION/{print $2; exit}' backend/version.go)
     - echo "APP_VERSION=$VERSION" >> build.env
     - echo "App version is $VERSION"
-    - mkdir -p artifacts
-    - docker create --name omn-go-tmp omn-go-builder:latest
-    - docker cp omn-go-tmp:/app/bin/. artifacts/
-    - docker rm omn-go-tmp
     - ls -la artifacts/
   artifacts:
     name: "omn-go-artifacts"

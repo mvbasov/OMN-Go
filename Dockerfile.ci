@@ -141,3 +141,18 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     cd android && \
     gradle assembleStandardRelease && \
     cp app/build/outputs/apk/standard/release/*.apk ../bin/
+
+# ============================== EXPORT ===============================
+# Minimal final stage containing ONLY the build outputs. Build this with
+#   docker buildx build --target export --output type=local,dest=artifacts .
+# to have BuildKit write just these files to the host - instead of --load'ing
+# the multi-GB toolchain image into the Docker daemon (which exhausted disk
+# on GitLab's small runner: "no space left on device" during import-to-docker).
+# No image tar, no daemon import, no `docker create`/`docker cp` needed.
+#
+# NOTE: because this is the LAST stage, it is also the default build target.
+# Both CI pipelines pass --target export explicitly, so that is moot for them,
+# but a plain `docker build` with no --target would now produce this
+# artifacts-only image rather than the full builder.
+FROM scratch AS export
+COPY --from=project_builder /app/bin/ /
