@@ -16,7 +16,7 @@ default:
 
 build_job:
   stage: build
-  allow_failure: false 
+  allow_failure: false
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "DS"
@@ -41,7 +41,10 @@ build_job:
       done
 
   script:
-    - docker buildx create --use --driver docker-container
+    # FIXED: create an explicit docker context so buildx picks up the DinD TLS
+    # endpoint instead of failing to load TLS data from the environment.
+    - docker context create builder
+    - docker buildx create --use --driver docker-container --name omngo-builder builder
     - mkdir -p android/app
     - echo "${KEYSTORE_BASE64}" | base64 -d > android/app/omn-go.keystore
     - |
@@ -81,38 +84,38 @@ upload_job:
     - echo "Generating SHA256 checksums and uploading all assets..."
     - echo "[" > assets.json
     - first=true
-    
+
     - |
       for filepath in artifacts/*.apk artifacts/omn-go-*-desktop-*; do
         if [ -f "$filepath" ]; then
           filename=$(basename "$filepath")
           sha256sum "$filepath" | awk '{print $1}' > "${filepath}.sha256"
           sha_filename="${filename}.sha256"
-          
+
           echo "Uploading $filename..."
           curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "$filepath" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}"
-          
+
           echo "Uploading checksum for $filename..."
           curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "${filepath}.sha256" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}"
-          
+
           display_name=$(echo "$filename" | sed 's/omn-go-//g' | sed 's/-release//g')
-          
+
           if [ "$first" = true ]; then
             first=false
           else
             echo "," >> assets.json
           fi
-          
+
           echo "{\"name\":\"📦 $display_name\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}\",\"link_type\":\"package\"}" >> assets.json
           echo "," >> assets.json
           echo "{\"name\":\"🔑 $display_name (SHA256)\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${sha_filename}\",\"link_type\":\"other\"}" >> assets.json
         fi
       done
-      
+
     - echo "]" >> assets.json
     - cat assets.json
   artifacts:
