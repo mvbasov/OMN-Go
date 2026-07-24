@@ -6,17 +6,15 @@ It is designed to be the modern successor to the original [mvbasov/OMN](https://
 
 <p align="center">
   <a href="https://gitlab.com/mvbasov/OMN-Go/-/releases/permalink/latest">
-    <img alt="Latest GitLab Release" src="https://gitlab.com/mvbasov/OMN-Go/-/badges/release.svg">
+    <img alt="Get it on GitLab" src="https://img.shields.io/badge/Get_it_on-GitLab-FC6D26?style=for-the-badge&amp;logo=gitlab&amp;logoColor=white">
   </a>
-  &nbsp;
   <a href="https://github.com/mvbasov/OMN-Go/releases/latest">
-    <img alt="Latest GitHub Release" src="https://img.shields.io/github/v/release/mvbasov/OMN-Go?sort=date&amp;label=github">
+    <img alt="Get it on GitHub" src="https://img.shields.io/badge/Get_it_on-GitHub-181717?style=for-the-badge&amp;logo=github&amp;logoColor=white">
   </a>
   <!--
-  F-Droid badge — uncomment once the app is published on F-Droid:
-  &nbsp;
+  F-Droid — uncomment once the app is published on F-Droid:
   <a href="https://f-droid.org/packages/net.basov.omngo">
-    <img alt="F-Droid Release" src="https://img.shields.io/f-droid/v/net.basov.omngo?label=f-droid">
+    <img alt="Get it on F-Droid" src="https://img.shields.io/badge/Get_it_on-F--Droid-1976D2?style=for-the-badge&amp;logo=fdroid&amp;logoColor=white">
   </a>
   -->
 </p>
