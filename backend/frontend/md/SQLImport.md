@@ -213,19 +213,29 @@ The dump is applied through the normal `/api/sql` endpoint in batches, each batc
         // 400 per batch stays under both /api/sql caps (500 statements,
         // 1 MB body) for typical rows; halve on "too large" style errors.
         var BATCH = 400, done = 0;
+        // Unlike the git and backup operations, an import knows exactly how
+        // much work there is up front, so this is the one place the bar can
+        // show a real percentage instead of an indeterminate sweep.
+        window.OMNProgress.show('SQL import');
+        window.OMNProgress.stage('Importing into "' + db + '"…');
+        window.OMNProgress.percent(0);
         try {
             for (var off = 0; off < statements.length; off += BATCH) {
                 var chunk = statements.slice(off, off + BATCH);
                 await postBatch(db, chunk);
                 done += chunk.length;
                 log('  ' + done + ' / ' + statements.length);
+                window.OMNProgress.percent(done * 100 / statements.length);
+                window.OMNProgress.detail(done + ' / ' + statements.length + ' statements');
             }
         } catch (e) {
+            window.OMNProgress.hide();
             var at = (e.failedIndex >= 0) ? ' at statement ' + (done + e.failedIndex + 1) : '';
             log('FAILED' + at + ': ' + e.message);
             log('Everything in the failed batch was rolled back; earlier batches are already applied.');
             return;
         }
+        window.OMNProgress.hide();
         log('Done. Now open /db_backups and press "Backup now" for "' + db + '".');
     };
 })();

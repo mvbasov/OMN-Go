@@ -654,6 +654,114 @@ a.taglink {
     border: none;
 }
 
+/* -- Progress overlay --
+   Shown while the server is doing something the user has to wait for (git
+   sync, database backup/restore, a slow page load). Driven entirely by
+   window.OMNProgress in omn-go-core.js, which builds the markup on first
+   use, so a page that never reports progress carries none of this DOM.
+   The bar is indeterminate by default and becomes determinate only where a
+   real total is known (see OMNProgress.percent). Deliberately does NOT
+   block pointer events on the page beneath: a sync stuck on a bad SSH key
+   must not lock the UI. */
+.omn-progress-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 18vh 16px 16px;
+    background: var(--overlay-bg);
+}
+.omn-progress-overlay[hidden] {
+    display: none;
+}
+.omn-progress-card {
+    width: 100%;
+    max-width: 420px;
+    box-sizing: border-box;
+    padding: 18px 20px;
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    box-shadow: 0 4px 24px var(--shadow-strong);
+}
+.omn-progress-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.omn-progress-title {
+    flex: 1 1 auto;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-strong);
+}
+.omn-progress-close {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text-faint);
+    cursor: pointer;
+}
+.omn-progress-close:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+.omn-progress-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-inset);
+    overflow: hidden;
+}
+.omn-progress-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+}
+/* Indeterminate: a short bar sweeping the track. translateX percentages are
+   relative to the FILL's own width (40% of the track), so -100% parks it
+   just off the left edge and 250% carries it just past the right. */
+.omn-progress-track.indeterminate .omn-progress-fill {
+    width: 40%;
+    animation: omn-progress-sweep 1.2s ease-in-out infinite;
+}
+@keyframes omn-progress-sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}
+.omn-progress-stage {
+    margin-top: 14px;
+    font-size: 14px;
+    color: var(--text-heading);
+}
+.omn-progress-detail {
+    margin-top: 5px;
+    min-height: 1.2em;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--text-faint);
+    overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+    .omn-progress-track.indeterminate .omn-progress-fill {
+        width: 100%;
+        animation: none;
+        opacity: 0.55;
+    }
+}
+
 /* ==========================================================================
    7. Config page
    ========================================================================== */

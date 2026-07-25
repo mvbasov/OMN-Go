@@ -3,6 +3,95 @@
 // if the user is merely viewing an exported HTML file locally without the server.
 
 if (window.location.protocol !== 'file:') {
+
+    // Subscribers to the /api/logs SSE stream (registered below, fed by the
+    // EventSource at the bottom of this file). Returns an unsubscribe
+    // function - callers MUST call it, or a finished operation keeps
+    // reacting to unrelated server log lines.
+    const logSubscribers = [];
+    window.omnGoOnServerLog = function(fn) {
+        logSubscribers.push(fn);
+        return function() {
+            const i = logSubscribers.indexOf(fn);
+            if (i !== -1) logSubscribers.splice(i, 1);
+        };
+    };
+
+    // Maps a backend "[sync] ..." log line to a human-readable stage. First
+    // match wins, so more specific prefixes come first. Anything unmatched
+    // leaves the current stage alone and only updates the detail line - that
+    // way a log message added to git_helper.go later degrades to "still
+    // working" rather than blanking the stage.
+    const SYNC_STAGES = [
+        ['Opening repo',            'Opening repository…'],
+        ['Repo not found',          'Initializing repository…'],
+        ['Repo initialized',        'Repository ready'],
+        ['Repo opened',             'Repository ready'],
+        ['Created .gitignore',      'Preparing repository…'],
+        ['Updated .gitignore',      'Preparing repository…'],
+        ['cannot update .gitignore','Preparing repository…'],
+        ['Remote',                  'Configuring remote…'],
+        ['Removing remote',         'Configuring remote…'],
+        ['Adding remote',           'Configuring remote…'],
+        ['Active server slot',      'Configuring remote…'],
+        ['SSH',                     'Authenticating…'],
+        ['Error: No SSH key',       'No SSH key configured'],
+        ['Checking worktree',       'Checking local changes…'],
+        ['Nothing to commit',       'Nothing to commit'],
+        ['No real changes',         'Nothing to commit'],
+        ['Staging',                 'Staging changes…'],
+        ['Staged',                  'Staging changes…'],
+        ['Ignoring',                'Staging changes…'],
+        ['Committing',              'Committing…'],
+        ['Committed',               'Committing…'],
+        ['Commit aborted',          'Nothing to commit'],
+        ['Pull: fetching',          'Fetching from remote…'],
+        ['Force pull: fetching',    'Fetching from remote…'],
+        ['Pull: already up to date','Already up to date'],
+        ['Pull: local tracked',     'Local changes block fast-forward'],
+        ['Pull: fast-forward not',  'Histories have diverged'],
+        ['Pull: fast-forward comp', 'Pull complete'],
+        ['Pull: 3-way conflict',    'Conflicts need resolving'],
+        ['Force pull complete',     'Pull complete'],
+        ['pull:',                   'Applying changes…'],
+        ['force pull:',             'Applying changes…'],
+        ['pull_abort',              'Restoring local state…'],
+        ['Pushing to',              'Uploading to remote…'],
+        ['push:',                   'Finishing upload…'],
+        // go-git sideband text relayed from the remote (see
+        // syncProgressWriter in git_helper.go).
+        ['remote:',                 'Transferring…'],
+        ['Counting objects',        'Transferring…'],
+        ['Compressing objects',     'Transferring…'],
+        ['Receiving objects',       'Transferring…'],
+        ['Resolving deltas',        'Transferring…'],
+        ['Writing objects',         'Transferring…']
+    ];
+
+    // Feeds one server log line into the progress overlay. Only "[sync]"
+    // lines are relevant; everything else on the stream is ignored so an
+    // unrelated background log cannot hijack the display.
+    function applySyncLogLine(msg) {
+        const at = msg.indexOf('[sync]');
+        if (at === -1) return;
+        const line = msg.slice(at + '[sync]'.length).trim();
+        if (!line) return;
+        for (const [prefix, label] of SYNC_STAGES) {
+            if (line.indexOf(prefix) === 0) {
+                window.OMNProgress.stage(label);
+                break;
+            }
+        }
+        window.OMNProgress.detail(line);
+    }
+
+    const SYNC_TITLES = {
+        pull: 'Download', pull_ff: 'Download', download: 'Download',
+        pull_force: 'Force download', pull_mark: 'Mark conflicts',
+        pull_abort: 'Abort pull',
+        push: 'Upload', upload: 'Upload', push_force: 'Force upload'
+    };
+
     const Logger = (function() {
         // runSync is the single place that talks to /api/sync. It always
         // POSTs action/force/message together and always expects a JSON
@@ -19,12 +108,26 @@ if (window.location.protocol !== 'file:') {
             if (opts.force) fd.append('force', 'true');
             if (opts.message) fd.append('message', opts.message);
 
-            let data;
+            // The overlay is fed by the server's own "[sync]" log lines over
+            // the /api/logs stream, so it reports real backend stages rather
+            // than a guess. It is torn down before any alert()/modal below,
+            // otherwise a blocking dialog would sit on top of a still-
+            // spinning bar.
+            let data, netErr = null;
+            window.OMNProgress.show(SYNC_TITLES[action] || 'Sync');
+            window.OMNProgress.stage('Contacting server…');
+            const unsubscribe = window.omnGoOnServerLog(applySyncLogLine);
             try {
                 const res = await fetch('/api/sync', { method: 'POST', body: fd });
                 data = await res.json();
             } catch (e) {
-                alert('Sync error: ' + e);
+                netErr = e;
+            } finally {
+                unsubscribe();
+                window.OMNProgress.hide();
+            }
+            if (netErr) {
+                alert('Sync error: ' + netErr);
                 return null;
             }
 
@@ -173,13 +276,31 @@ if (window.location.protocol !== 'file:') {
     })();
 
     window.previewAndCommit = async function(force) {
+        // Building the preview walks the whole worktree diff, which is the
+        // slow half of an upload on a large note collection - show progress
+        // here too, not just during the commit/push that follows.
+        let res, files, err = null;
+        window.OMNProgress.show('Upload');
+        window.OMNProgress.stage('Collecting pending changes…');
+        const unsubscribe = window.omnGoOnServerLog(applySyncLogLine);
         try {
-            const res = await fetch('/api/sync/preview?action=upload');
+            res = await fetch('/api/sync/preview?action=upload');
+            if (res.ok) files = await res.json();
+        } catch (e) {
+            err = e;
+        } finally {
+            unsubscribe();
+            window.OMNProgress.hide();
+        }
+        try {
+            if (err) {
+                alert('Error: ' + err);
+                return;
+            }
             if (!res.ok) {
                 alert('Failed to get pending changes');
                 return;
             }
-            const files = await res.json();
             if (!files || files.length === 0) {
                 alert('Nothing to commit');
                 return;
@@ -709,6 +830,18 @@ if (window.location.protocol !== 'file:') {
     };
 
     // GoOMN Log Interceptor - Bridges Go background logs to JS UI
+    //
+    // Every log.Printf in the backend already reaches this stream (see
+    // logger.go), which is why the sync progress overlay needs no transport
+    // of its own: git_helper.go's "[sync] ..." lines are the progress feed.
+    // Subscribers registered through window.omnGoOnServerLog get each line in
+    // addition to the console mirroring that has always happened here.
+    //
+    // Caveat worth knowing: JSLogger drops a message rather than blocking
+    // when a client's 10-slot channel is full, so this stream is a live
+    // sample, not a guaranteed-complete transcript. That is fine for a
+    // progress display (it only ever shows the newest line) but means it
+    // must never be used to drive state that has to see every event.
     document.addEventListener('DOMContentLoaded', () => {
         try {
             const logSource = new EventSource('/api/logs');
@@ -718,6 +851,9 @@ if (window.location.protocol !== 'file:') {
                 let msg = event.data.trim();
                 if(msg) {
                     console.log("[GO] " + msg);
+                    for (const fn of logSubscribers.slice()) {
+                        try { fn(msg); } catch (e) { /* a bad subscriber must not kill the stream */ }
+                    }
                 }
             };
         } catch(e) {

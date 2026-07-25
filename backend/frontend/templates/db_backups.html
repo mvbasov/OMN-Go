@@ -160,10 +160,19 @@
             body += '</p>';
         }
         dbbShowModal('Backup ' + name, body, 'Create backup', async function() {
+            // Serialising a whole database is not instant on a phone, and the
+            // confirm dialog closes before it starts - without this the UI
+            // just sits there. Torn down before any alert(), so a blocking
+            // dialog never lands on top of a live progress bar.
+            var err = null;
+            window.OMNProgress.show('Database backup');
+            window.OMNProgress.stage('Creating backup of ' + name + '…');
             try {
                 await api('/api/db/backup?db=' + encodeURIComponent(name), { method: 'POST' });
-                load();
-            } catch (e) { alert('Backup failed: ' + e.message); }
+            } catch (e) { err = e; }
+            window.OMNProgress.hide();
+            if (err) { alert('Backup failed: ' + err.message); return; }
+            load();
         });
     };
 
@@ -183,11 +192,17 @@
             '</table>' +
             '<p><b>The current database contents will be lost.</b> (You can create a backup of the current state first.)</p>';
         dbbShowModal('Restore ' + name, body, 'Replace database', async function() {
+            var err = null;
+            window.OMNProgress.show('Database restore');
+            window.OMNProgress.stage('Restoring ' + name + '…');
+            window.OMNProgress.detail(file);
             try {
                 await api('/api/db/restore?db=' + encodeURIComponent(name) +
                           '&file=' + encodeURIComponent(file), { method: 'POST' });
-                load();
-            } catch (e) { alert('Restore failed: ' + e.message); }
+            } catch (e) { err = e; }
+            window.OMNProgress.hide();
+            if (err) { alert('Restore failed: ' + err.message); return; }
+            load();
         }, true);
     };
 

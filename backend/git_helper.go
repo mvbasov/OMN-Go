@@ -817,9 +817,60 @@ func trackedWorktreeIsDirty(wTree *git.Worktree) (bool, error) {
 	return false, nil
 }
 
+// syncProgressWriter relays git's sideband progress ("Counting objects: 45%
+// ...") into the normal log, which means it reaches the browser over the
+// /api/logs SSE stream like every other log line and shows up in the sync
+// progress overlay. Passed as FetchOptions/PushOptions.Progress; without it
+// the network phase - reliably the longest part of a sync - reports nothing
+// at all between "fetching" and "complete".
+//
+// Two details the sideband format forces:
+//   - Progress lines are terminated with '\r', not '\n': the remote rewrites
+//     one line in place to animate a percentage. Splitting on '\n' alone
+//     would buffer an entire transfer into a single message.
+//   - Those rewrites arrive fast. JSLogger drops messages when a client's
+//     channel is full (logger.go), so an unthrottled relay would flood that
+//     buffer and push out the more useful stage lines. One line per interval
+//     is plenty for a progress display.
+//
+// go-git writes to Progress from the single goroutine draining the pack
+// stream, so the unsynchronised buffer below is safe; each call site passes
+// its own instance regardless.
+type syncProgressWriter struct {
+	buf  []byte
+	last time.Time
+}
+
+const syncProgressInterval = 300 * time.Millisecond
+
+func (w *syncProgressWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	// Keep only what follows the last terminator; earlier progress lines have
+	// been superseded by a newer one.
+	if i := bytes.LastIndexAny(w.buf, "\r\n"); i != -1 {
+		line := string(w.buf[:i])
+		w.buf = append(w.buf[:0], w.buf[i+1:]...)
+		if j := strings.LastIndexAny(line, "\r\n"); j != -1 {
+			line = line[j+1:]
+		}
+		line = strings.TrimSpace(line)
+		// Servers normally send bare progress text and the "remote:" label is
+		// the client's convention (mirrored here). Strip it if a server does
+		// send one, so the line can't come out as "remote: remote: ...".
+		line = strings.TrimSpace(strings.TrimPrefix(line, "remote:"))
+		if line != "" && time.Since(w.last) >= syncProgressInterval {
+			w.last = time.Now()
+			log.Printf("[sync] remote: %s", line)
+		}
+	}
+	// Never report an error: failing to log progress must not abort a fetch
+	// or push that is otherwise working fine.
+	return len(p), nil
+}
+
 func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
 	log.Printf("[sync] Pull: fetching %s", remoteName)
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -943,7 +994,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 // that commit's parent is the remote tip and a normal push can
 // fast-forward. The pre-merge HEAD is saved so "pull_abort" can undo this.
 func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -1166,7 +1217,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		a.ensureGitignore()
 	}
 
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -1332,6 +1383,7 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 		Auth:       auth,
 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
 		Force:      force,
+		Progress:   &syncProgressWriter{},
 	})
 	if err == git.NoErrAlreadyUpToDate {
 		log.Printf("[sync] push: remote %s already up to date", remoteName)

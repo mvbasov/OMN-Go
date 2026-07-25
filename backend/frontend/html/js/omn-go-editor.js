@@ -809,10 +809,31 @@
             var fieldName = isJSON ? 'file' : 'image';
             var fd = new FormData();
             fd.append(fieldName, file);
+            // Uploads can take a while on a phone (up to Max Upload Size,
+            // 3 MB by default) and used to give no sign at all that anything
+            // was happening - and a failure was swallowed entirely, so a
+            // rejected file looked identical to a dropped one. Report both
+            // through the status bar this page already has, rather than an
+            // overlay: the upload runs while the user is mid-edit, so
+            // covering the textarea would interrupt the actual task.
+            setStatus('Uploading ' + file.name + '…');
+            setDot('loading');
             try {
                 var res = await fetch(uploadURL, { method: 'POST', body: fd });
-                if (res.ok) { insertAtCaret(await res.text()); }
-            } catch (_) { /* ignore */ }
+                if (res.ok) {
+                    insertAtCaret(await res.text());
+                    setStatus(NAME);
+                } else {
+                    var why = '';
+                    try { why = (await res.text()).trim(); } catch (_) {}
+                    setStatus('Upload failed: ' + (why || ('HTTP ' + res.status)), 'error');
+                }
+            } catch (e) {
+                setStatus('Upload failed: ' + e.message, 'error');
+            }
+            // insertAtCaret marks the buffer dirty on success; on failure the
+            // previous state stands. Either way the dot must leave 'loading'.
+            setDot(dirty ? 'dirty' : 'clean');
         });
     }
 

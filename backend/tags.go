@@ -200,7 +200,21 @@ func renderTagsMarkdown(index map[string][]tagPageRef) []byte {
 // replaces both files). Wiring - when it runs (startup, and lazily on a stale
 // view) - is Phase T2; this is the generator itself.
 func (a *App) generateTagsPage() error {
-	content := renderTagsMarkdown(a.buildTagIndex())
+	// Rebuilding reads and parses every note, so on a large collection this
+	// is a real wait - and when it happens lazily it is inside a page
+	// navigation (serveTagsPage), where no in-page progress UI can run.
+	// Logging start and end at least surfaces it on the /api/logs stream and
+	// in the JS console; the user-visible indicator for the navigation
+	// itself is the Android ProgressBar (MainActivity.onPageStarted) and the
+	// delayed overlay in omn-go-core.js.
+	log.Printf("[tags] Rebuilding tags index")
+	started := time.Now()
+	index := a.buildTagIndex()
+	content := renderTagsMarkdown(index)
+	defer func() {
+		log.Printf("[tags] Tags index rebuilt: %d tags in %s",
+			len(index), time.Since(started).Round(time.Millisecond))
+	}()
 
 	mdRoot := filepath.Join(a.StorageDir, "md")
 	if err := os.MkdirAll(mdRoot, 0755); err != nil {

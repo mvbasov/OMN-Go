@@ -212,10 +212,32 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
+            // The same spinner that covers the initial server-start wait is
+            // reused for every later navigation. Several pages are built by
+            // the Go server at request time - OMNGoTags rescans every note,
+            // and any note whose .md is newer than its cached .html is
+            // recompiled on first view, which is every changed note after a
+            // pull - so a tap could otherwise sit on the old screen with no
+            // feedback for seconds. Handling it here rather than in JS also
+            // covers the hardware Back button and shortcut launches, which
+            // no in-page click handler can observe.
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                progressBar.setVisibility(android.view.View.VISIBLE);
+                super.onPageStarted(view, url, favicon);
+            }
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(android.view.View.GONE);
                 super.onPageFinished(view, url);
+            }
+            // A failed load may never reach onPageFinished, which would
+            // strand the spinner on screen; clear it here too.
+            @Override
+            public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
+                                        android.webkit.WebResourceError error) {
+                progressBar.setVisibility(android.view.View.GONE);
+                super.onReceivedError(view, request, error);
             }
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {

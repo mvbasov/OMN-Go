@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // initStorage computes a.StorageDir and prepares its layout. overrideDir,
@@ -127,6 +128,14 @@ func (a *App) precompileAllPages() {
 	htmlDir := filepath.Join(a.StorageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
+	// This runs in a background goroutine at startup, so a note opened before
+	// it finishes is compiled on demand by serveHTMLPage instead - the user
+	// waits, with no way to tell why. Logging the run makes that visible on
+	// the /api/logs stream rather than leaving it invisible.
+	log.Printf("[precompile] Compiling notes in background")
+	started := time.Now()
+	compiled := 0
+
 	filepath.Walk(mdDir, func(f string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() && strings.HasSuffix(f, ".md") {
 			content, err := os.ReadFile(f)
@@ -136,11 +145,16 @@ func (a *App) precompileAllPages() {
 				// renderAndCache is the single cache writer (render_cache.go).
 				if _, err := a.renderAndCache(name, content); err != nil {
 					log.Printf("precompileAllPages: %v", err)
+				} else {
+					compiled++
 				}
 			}
 		}
 		return nil
 	})
+
+	log.Printf("[precompile] Compiled %d notes in %s", compiled,
+		time.Since(started).Round(time.Millisecond))
 
 	// After every note is compiled, (re)generate the Tags index so
 	// html/OMNGoTags.html exists and is current in the offline artifact even if
