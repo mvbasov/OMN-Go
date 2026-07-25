@@ -15,6 +15,8 @@ Key features:
 * Light, dark, and system-following themes.
 * Material Design icons and small HTML/JS building blocks you can drop into any note.
 
+OMN-Go also runs on the desktop. Linux and Windows builds are available at https://github.com/mvbasov/OMN-Go/releases - the same notes and the same interface, with optional git sync keeping a computer and a phone in step.
+
 I tried to describe as much as possible in the built-in documentation. Please read it.
 
 I design this application to my needs and use it everyday for several years. I will be glad if this application meets anybody needs also.
