@@ -283,6 +283,24 @@ func TestRenderedPageAcceptsRuntimeVars(t *testing.T) {
 	}
 }
 
+// selectBlock returns the markup of the <select name="..."> element in html,
+// so a test can assert about one dropdown without being perturbed by any
+// other. The page carries more than one select (theme, android_fullscreen),
+// which is why "count the selected attributes in the whole page" is not a
+// safe assertion.
+func selectBlock(t *testing.T, html, name string) string {
+	t.Helper()
+	i := strings.Index(html, `name="`+name+`"`)
+	if i == -1 {
+		t.Fatalf("no <select name=%q> in rendered page", name)
+	}
+	j := strings.Index(html[i:], "</select>")
+	if j == -1 {
+		t.Fatalf("unterminated <select name=%q> in rendered page", name)
+	}
+	return html[i : i+j]
+}
+
 func TestRenderConfigPageThemeSelection(t *testing.T) {
 	cases := []struct {
 		theme        string
@@ -300,12 +318,60 @@ func TestRenderConfigPageThemeSelection(t *testing.T) {
 		if !strings.Contains(out, tc.wantSelected) {
 			t.Errorf("theme=%q: expected %q in output", tc.theme, tc.wantSelected)
 		}
-		// Exactly one option may be selected.
-		if n := strings.Count(out, " selected"); n != 1 {
-			t.Errorf("theme=%q: %d options selected, want exactly 1", tc.theme, n)
+		// Exactly one option may be selected - within the theme select.
+		if n := strings.Count(selectBlock(t, out, "theme"), " selected"); n != 1 {
+			t.Errorf("theme=%q: %d theme options selected, want exactly 1", tc.theme, n)
 		}
 		if strings.Contains(out, "%%") {
 			t.Fatalf("theme=%q: unfilled placeholder left in output", tc.theme)
+		}
+	}
+}
+
+func TestRenderConfigPageFullscreenSelection(t *testing.T) {
+	cases := []struct {
+		mode         string
+		wantSelected string
+	}{
+		{"off", `value="off" selected`},
+		{"fullscreen", `value="fullscreen" selected`},
+		{"immersive", `value="immersive" selected`},
+		// A config.json written before android_fullscreen existed carries
+		// "" and MUST land on fullscreen, not off - that is what keeps an
+		// upgraded install looking the way it always has. Garbage lands
+		// there too.
+		{"", `value="fullscreen" selected`},
+		{"sideways", `value="fullscreen" selected`},
+	}
+	for _, tc := range cases {
+		out := renderConfigPage(configPageView{AndroidFullscreen: tc.mode})
+		if !strings.Contains(out, tc.wantSelected) {
+			t.Errorf("fullscreen=%q: expected %q in output", tc.mode, tc.wantSelected)
+		}
+		if n := strings.Count(selectBlock(t, out, "android_fullscreen"), " selected"); n != 1 {
+			t.Errorf("fullscreen=%q: %d fullscreen options selected, want exactly 1", tc.mode, n)
+		}
+		if strings.Contains(out, "%%") {
+			t.Fatalf("fullscreen=%q: unfilled placeholder left in output", tc.mode)
+		}
+	}
+}
+
+func TestNormalizeFullscreen(t *testing.T) {
+	cases := map[string]string{
+		"off":        FullscreenOff,
+		"fullscreen": FullscreenOn,
+		"immersive":  FullscreenImmersive,
+		// Empty is the important one: it is what every config.json written
+		// before this field existed contains.
+		"":          FullscreenOn,
+		"sideways":  FullscreenOn,
+		"OFF":       FullscreenOn, // case-sensitive whitelist, as normalizeTheme
+		"Immersive": FullscreenOn,
+	}
+	for in, want := range cases {
+		if got := normalizeFullscreen(in); got != want {
+			t.Errorf("normalizeFullscreen(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

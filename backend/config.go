@@ -39,6 +39,36 @@ func normalizeTheme(s string) string {
 	}
 }
 
+// Android system-bar modes accepted in Config.AndroidFullscreen.
+//
+// Note the default is FullscreenOn, NOT the zero value: the app has always
+// shipped Theme.NoTitleBar.Fullscreen in AndroidManifest.xml, so every
+// existing install already runs with the status bar hidden. A plain bool
+// would have made "field absent" mean false and silently changed how every
+// upgraded install looks; a string enum lets normalizeFullscreen map absent
+// onto the behaviour those installs already have, exactly as normalizeTheme
+// maps absent onto auto.
+const (
+	FullscreenOff       = "off"        // status and navigation bars visible
+	FullscreenOn        = "fullscreen" // status bar hidden (historic behaviour)
+	FullscreenImmersive = "immersive"  // status AND navigation bars hidden
+)
+
+// normalizeFullscreen maps any input to a valid Android fullscreen mode.
+// Unknown or empty values (including every config.json written before this
+// field existed) become FullscreenOn. Centralized for the same reason as
+// normalizeTheme - and deliberately mirrored in
+// MainActivity.readFullscreenMode(), which reads config.json natively and
+// must apply the identical default.
+func normalizeFullscreen(s string) string {
+	switch s {
+	case FullscreenOff, FullscreenImmersive:
+		return s
+	default:
+		return FullscreenOn
+	}
+}
+
 type GitServerConfig struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -100,6 +130,16 @@ type Config struct {
 	// confirmation (all enforced Android-side). Also read natively from
 	// config.json at tap time.
 	EnableTermuxIntent bool `json:"enable_termux_intent"`
+	// AndroidFullscreen selects which system bars the Android app hides:
+	// FullscreenOff (none), FullscreenOn (status bar - the historic and
+	// default behaviour) or FullscreenImmersive (status and navigation
+	// bars, revealed by a swipe). See normalizeFullscreen above for why
+	// this is a string rather than a bool. Like the two intent toggles it
+	// is read natively by MainActivity out of config.json rather than
+	// through the Go HTTP server, and re-read on resume and after each page
+	// load, so a change applies without an app restart. Purely an
+	// Android-client concern; the desktop/LAN server ignores it.
+	AndroidFullscreen string `json:"android_fullscreen"`
 }
 
 func (a *App) loadConfig(storageDir string) {
@@ -117,6 +157,9 @@ func (a *App) loadConfig(storageDir string) {
 			DesktopExtCmd:   "subl",
 			Theme:           ThemeAuto,
 			MaxUploadSizeMB: defaultMaxUploadSizeMB,
+			// Matches the manifest's Theme.NoTitleBar.Fullscreen, so a
+			// fresh install looks the same as every existing one.
+			AndroidFullscreen: FullscreenOn,
 
 			// Hostname labels this device in database backup filenames
 			// (see db_backup.go); BackupPruneDepth is how many backups
@@ -178,6 +221,10 @@ func (a *App) loadConfig(storageDir string) {
 	// normalize once at load so the rest of the code never sees an
 	// invalid value.
 	a.Config.Theme = normalizeTheme(a.Config.Theme)
+	// Same story for android_fullscreen: configs written before the field
+	// existed carry "", which normalizes to FullscreenOn - i.e. exactly the
+	// status-bar-hidden behaviour those installs already had.
+	a.Config.AndroidFullscreen = normalizeFullscreen(a.Config.AndroidFullscreen)
 	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})

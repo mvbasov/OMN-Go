@@ -40,6 +40,7 @@ func (a *App) getConfigPageBody() string {
 		MaxUploadSizeMB:    cfg.MaxUploadSizeMB,
 		EnableIntentURI:    cfg.EnableIntentURI,
 		EnableTermuxIntent: cfg.EnableTermuxIntent,
+		AndroidFullscreen:  cfg.AndroidFullscreen,
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -117,6 +118,10 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			// the desktop/LAN server itself never acts on either.
 			c.EnableIntentURI = r.FormValue("enable_intent_uri") == "true"
 			c.EnableTermuxIntent = r.FormValue("enable_termux_intent") == "true"
+			// Whitelisted through normalizeFullscreen, same shape as the
+			// theme select above: anything unrecognised (or a missing
+			// field) becomes FullscreenOn, the historic behaviour.
+			c.AndroidFullscreen = normalizeFullscreen(r.FormValue("android_fullscreen"))
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int

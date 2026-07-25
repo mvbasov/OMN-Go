@@ -365,6 +365,7 @@ The [Config](Config) page edits `config.json`. Fields:
 | Backup Prune Depth | How many backups to keep per database (default `3`); creating a new backup deletes the oldest beyond this. |
 | Max Upload Size (MB) | Largest image or JSON file you can drag into the editor or share into Quick Notes (default `3`). |
 | Git Servers | Up to five remote slots, see [Git synchronization](#git-synchronization). |
+| Fullscreen mode (Android) | Which system bars the app hides: *Off* (show status bar), *Fullscreen* (hide the status bar, the default) or *Immersive* (hide the status and navigation bars; swipe from an edge to bring them back briefly). Applies as soon as you save. Android only. |
 | Enable intent: links (Android) | Let a note launch Android `intent:` URIs when tapped. Off by default; Android only. See [Android Intents & Termux](AndroidIntents). |
 | Enable Termux commands (Android) | Additionally let notes run Termux shell commands; requires *Enable intent: links* to also be on. Off by default. See [Android Intents & Termux](AndroidIntents). |
 
@@ -419,7 +420,8 @@ and are **not** synchronized with your notes automatically; to move a
 database's contents between devices, or just to keep a safety copy, you
 take a **backup**.
 
-Open the [Config](Config) page and press **Database Backups** at the top.
+Open the [Config](Config) page, choose **DB Backups**, and press
+**Database Backups**.
 For each database you can:
 
 - **Backup now** — write a snapshot file under `html/db_backup/`. Because
@@ -432,9 +434,9 @@ For each database you can:
 A coloured dot shows each database's state (in sync, not backed up, backup
 newer, no backups, ...). A brand-new device with no database file yet
 restores its newest backup automatically the first time a note opens it.
-Two related settings live on the [Config](Config) page: **Hostname**
-(labels this device in backup filenames) and **Backup Prune Depth** (how
-many backups to keep per database). A database whose name starts with
+Two related settings live on the [Config](Config) page under **DB
+Backups**: **Hostname** (labels this device in backup filenames) and
+**Backup Prune Depth** (how many backups to keep per database). A database whose name starts with
 `local-` is backed up on-device but kept out of git.
 
 To load data from an existing SQL dump (a `sqlite3 .dump`, or old

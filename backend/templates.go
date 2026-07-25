@@ -248,6 +248,7 @@ type configPageView struct {
 	MaxUploadSizeMB    int
 	EnableIntentURI    bool
 	EnableTermuxIntent bool
+	AndroidFullscreen  string // "off" | "fullscreen" | "immersive" (normalized)
 	GitServers         []gitServerView
 }
 
@@ -302,6 +303,23 @@ func renderConfigPage(v configPageView) string {
 		themeSel["THEME_AUTO_SEL"] = "selected"
 	}
 
+	// Exactly one option is marked selected; normalizeFullscreen guarantees
+	// the value is one of the three, with unknown/empty mapping to
+	// FullscreenOn (see config.go for why that, not "off", is the default).
+	fsSel := map[string]string{
+		"FS_OFF_SEL":       "",
+		"FS_ON_SEL":        "",
+		"FS_IMMERSIVE_SEL": "",
+	}
+	switch normalizeFullscreen(v.AndroidFullscreen) {
+	case FullscreenOff:
+		fsSel["FS_OFF_SEL"] = "selected"
+	case FullscreenImmersive:
+		fsSel["FS_IMMERSIVE_SEL"] = "selected"
+	default:
+		fsSel["FS_ON_SEL"] = "selected"
+	}
+
 	return fill(configPageTmpl, map[string]string{
 		"SERVER_PORT":           fmt.Sprintf("%d", v.ServerPort),
 		"ADMIN_PWD":             escapeHTML(v.AdminPassword),
@@ -318,6 +336,9 @@ func renderConfigPage(v configPageView) string {
 		"THEME_LIGHT_SEL":       themeSel["THEME_LIGHT_SEL"],
 		"THEME_DARK_SEL":        themeSel["THEME_DARK_SEL"],
 		"MAX_UPLOAD_MB":         fmt.Sprintf("%d", v.MaxUploadSizeMB),
+		"FS_OFF_SEL":            fsSel["FS_OFF_SEL"],
+		"FS_ON_SEL":             fsSel["FS_ON_SEL"],
+		"FS_IMMERSIVE_SEL":      fsSel["FS_IMMERSIVE_SEL"],
 		"GIT_SERVERS":           cards.String(),
 	})
 }

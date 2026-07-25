@@ -229,6 +229,10 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(android.view.View.GONE);
+                // Saving on the Config page reloads it, so this is what makes
+                // a "Fullscreen mode" change apply straight away instead of
+                // waiting for an app restart.
+                applyFullscreenMode();
                 super.onPageFinished(view, url);
             }
             // A failed load may never reach onPageFinished, which would
@@ -364,6 +368,11 @@ public class MainActivity extends Activity {
         rootLayout.addView(webView);
         rootLayout.addView(progressBar);
         setContentView(rootLayout);
+
+        // Applied before the first frame is drawn, so a user who has turned
+        // fullscreen off does not see the manifest theme's hidden status bar
+        // appear and then slide back in.
+        applyFullscreenMode();
 
         // Wait for the Go server to bind before loading
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
@@ -504,6 +513,133 @@ public class MainActivity extends Activity {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // Fullscreen / system bars (Config page -> "Fullscreen mode")
+    // ----------------------------------------------------------------------
+    //
+    // The app used to be unconditionally fullscreen via
+    // Theme.NoTitleBar.Fullscreen in AndroidManifest.xml. That theme is still
+    // declared - it is what makes the DEFAULT case (status bar hidden) draw
+    // correctly from the very first frame, with no visible bar flashing away
+    // once this code runs - and applyFullscreenMode() then takes over as the
+    // single source of truth for what is actually shown.
+    //
+    // Reading the mode from config.json on each call mirrors readConfigFlag /
+    // readMaxUploadSizeMB: no HTTP round-trip, and a Settings change applies
+    // as soon as the Config page saves and reloads (see the onPageFinished
+    // hook) rather than needing an app restart. config.json is a couple of KB,
+    // so re-reading it on navigation is cheaper than keeping a cache coherent
+    // with an edit made inside the WebView.
+    //
+    // Deliberately platform-only, no androidx.core.view.WindowInsetsController
+    // compat wrapper, matching this project's no-AndroidX constraint: the
+    // API 30+ path uses android.view.WindowInsetsController directly and the
+    // older path uses View.setSystemUiVisibility, which is deprecated from
+    // API 30 but still functional and is the only platform option on API
+    // 24-29 (this app's minSdk is 24).
+    private static final String FULLSCREEN_OFF = "off";
+    private static final String FULLSCREEN_ON = "fullscreen";
+    private static final String FULLSCREEN_IMMERSIVE = "immersive";
+
+    // Mirrors backend/config.go's normalizeFullscreen: an unknown or absent
+    // value means "fullscreen", so a config.json written before this setting
+    // existed keeps the behaviour that install already had. Changing the
+    // default here without changing it there (or vice versa) would make the
+    // Config page disagree with what the window actually does.
+    private String readFullscreenMode() {
+        String mode = readConfigString("android_fullscreen");
+        if (FULLSCREEN_OFF.equals(mode) || FULLSCREEN_IMMERSIVE.equals(mode)) {
+            return mode;
+        }
+        return FULLSCREEN_ON;
+    }
+
+    private void applyFullscreenMode() {
+        String mode = readFullscreenMode();
+        android.view.Window window = getWindow();
+        if (window == null) return;
+
+        // The manifest theme sets FLAG_FULLSCREEN. On API 30+ that legacy flag
+        // overrides WindowInsetsController, so "off" could never show the
+        // status bar while it was still set; clear it unconditionally and let
+        // the branches below be the only thing deciding.
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.view.WindowInsetsController controller = window.getInsetsController();
+            if (controller == null) return;
+            int status = android.view.WindowInsets.Type.statusBars();
+            int nav = android.view.WindowInsets.Type.navigationBars();
+            if (FULLSCREEN_OFF.equals(mode)) {
+                controller.show(status | nav);
+            } else if (FULLSCREEN_IMMERSIVE.equals(mode)) {
+                // Swiping from an edge reveals the bars briefly, then they
+                // hide again - without this they would stay up for good after
+                // the first swipe.
+                controller.setSystemBarsBehavior(
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(status | nav);
+            } else {
+                controller.show(nav);
+                controller.hide(status);
+            }
+            return;
+        }
+
+        android.view.View decor = window.getDecorView();
+        if (FULLSCREEN_OFF.equals(mode)) {
+            decor.setSystemUiVisibility(0);
+        } else if (FULLSCREEN_IMMERSIVE.equals(mode)) {
+            decor.setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            // STICKY, not plain IMMERSIVE: the bars come back
+                            // for a moment on a swipe and then re-hide by
+                            // themselves, matching the API 30+ behaviour above.
+                            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        } else {
+            decor.setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Covers coming back from another app, and a mode change made on
+        // another device that arrived via git sync.
+        applyFullscreenMode();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // Regaining focus (dismissing the keyboard, closing a dialog, the
+        // Termux confirmation returning) clears the hidden-bar state on some
+        // builds, so re-assert it rather than silently falling back to a
+        // half-visible bar.
+        if (hasFocus) applyFullscreenMode();
+    }
+
+    // Reads a string value out of config.json (empty string when the file or
+    // key is missing/unreadable, which every caller must treat as "use the
+    // default"). String counterpart to readConfigFlag below.
+    private String readConfigString(String key) {
+        try {
+            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
+            if (!cfgFile.exists()) return "";
+            java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = fis.read(buf)) != -1) bos.write(buf, 0, n);
+            fis.close();
+            org.json.JSONObject cfg = new org.json.JSONObject(bos.toString("UTF-8"));
+            return cfg.optString(key, "");
+        } catch (Exception e) {
+            return "";
         }
     }
 
