@@ -1,31 +1,97 @@
 <div class="config-panel">
     <h2 class="config-title">Database Backups</h2>
     <div class="config-field">
-        <span class="config-hint">Whole-database snapshots stored as one JSONL file each under <code>html/db_backup/&lt;db&gt;/</code>. Backups travel between devices through the normal git sync (databases named <code>local-*</code> stay on this device). Restore always replaces the whole database with the chosen backup.</span>
+        <span class="config-hint">Whole-database snapshots stored as one JSONL file each under <code class="dbb-code">html/db_backup/&lt;db&gt;/</code>. Backups travel between devices through the normal git sync (databases named <code class="dbb-code">local-*</code> stay on this device). Restore always replaces the whole database with the chosen backup.</span>
     </div>
     <div id="dbBackupList">Loading…</div>
 </div>
 
-<div id="dbbModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;">
-    <div style="max-width:480px;margin:10vh auto;background:var(--bg-color,#fff);color:inherit;border-radius:8px;padding:1em 1.2em;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
-        <h3 id="dbbModalTitle" style="margin-top:0;"></h3>
-        <div id="dbbModalBody" style="max-height:50vh;overflow:auto;"></div>
-        <div style="text-align:right;margin-top:1em;">
-            <button type="button" onclick="dbbCloseModal()">Cancel</button>
-            <button type="button" id="dbbModalOk" style="margin-left:0.6em;font-weight:bold;"></button>
+<div id="dbbModal" class="dbb-modal-overlay">
+    <div class="dbb-modal">
+        <h3 id="dbbModalTitle" class="dbb-modal-title"></h3>
+        <div id="dbbModalBody" class="dbb-modal-body"></div>
+        <div class="dbb-modal-actions">
+            <button type="button" class="dbb-btn" onclick="dbbCloseModal()">Cancel</button>
+            <button type="button" id="dbbModalOk" class="dbb-btn dbb-btn-primary"></button>
         </div>
     </div>
 </div>
 
 <style>
-.dbb-row { display:flex; align-items:center; gap:0.6em; padding:0.5em 0.2em; border-bottom:1px solid rgba(128,128,128,0.25); flex-wrap:wrap; }
-.dbb-dot { width:0.85em; height:0.85em; border-radius:50%; flex:0 0 auto; display:inline-block; }
-.dbb-name { font-weight:bold; min-width:8em; }
-.dbb-meta { opacity:0.75; font-size:0.9em; }
+/* Every color here comes from the shared design tokens in
+   omn-go-core.css, so this page follows the light/dark/auto theme like
+   the rest of the app. (It previously hard-coded a white modal via a
+   var(--bg-color,#fff) fallback - a token that does not exist - which
+   left dark-theme text unreadable on white.) */
+.dbb-row { display:flex; align-items:center; gap:0.6em; padding:0.5em 0.2em; border-bottom:1px solid var(--border-soft); flex-wrap:wrap; }
+.dbb-dot { width:0.85em; height:0.85em; border-radius:50%; flex:0 0 auto; display:inline-block; background:var(--text-dim); }
+.dbb-name { font-weight:bold; min-width:8em; color:var(--text-strong); }
+.dbb-meta { color:var(--text-faint); font-size:0.9em; }
 .dbb-details { margin:0.3em 0 0.8em 1.6em; font-size:0.92em; }
 .dbb-bk { display:flex; align-items:center; gap:0.6em; padding:0.25em 0; flex-wrap:wrap; }
-.dbb-btn { cursor:pointer; }
-.dbb-state { font-size:0.85em; padding:0.05em 0.5em; border-radius:1em; border:1px solid rgba(128,128,128,0.4); }
+.dbb-state { font-size:0.85em; padding:0.05em 0.5em; border-radius:1em; border:1px solid var(--border); color:var(--text-muted); }
+.dbb-error { color:var(--danger); }
+.dbb-code { font-family:monospace; background:var(--bg-inset); color:var(--text); padding:0.1em 0.35em; border-radius:4px; }
+
+/* State dots. Mid-tone hues chosen to stay legible on both the light and
+   the dark surface; each dot is labelled by the adjacent .dbb-state pill
+   anyway, so they carry no meaning on their own. */
+.dbb-dot.st-insync       { background:#3fb950; }
+.dbb-dot.st-dirty        { background:#d29922; }
+.dbb-dot.st-backup_newer { background:#4d9fff; }
+.dbb-dot.st-missing      { background:#4d9fff; }
+.dbb-dot.st-none         { background:#8b949e; }
+.dbb-dot.st-invalid      { background:#f85149; }
+
+/* Buttons: plain <button>s inherited the UA style, which ignores the
+   app theme. */
+.dbb-btn {
+    cursor:pointer;
+    background:var(--bg-surface);
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:0.3em 0.8em;
+    font-size:0.9em;
+}
+.dbb-btn:hover { background:var(--bg-hover); }
+.dbb-btn-primary {
+    margin-left:0.6em;
+    font-weight:bold;
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+}
+.dbb-btn-primary:hover { background:var(--accent-hover); }
+/* Restore replaces a whole database - flag it as destructive. */
+.dbb-btn-primary.dbb-btn-danger {
+    background:var(--danger);
+    border-color:var(--danger);
+}
+.dbb-btn-primary.dbb-btn-danger:hover { background:var(--danger); opacity:0.9; }
+
+.dbb-modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:var(--overlay-bg); z-index:1000;
+}
+.dbb-modal {
+    max-width:480px; margin:10vh auto;
+    background:var(--bg-surface); color:var(--text);
+    border:1px solid var(--border-card); border-radius:8px;
+    padding:1em 1.2em; box-shadow:0 4px 24px var(--shadow-strong);
+}
+.dbb-modal-title { margin-top:0; color:var(--text-strong); }
+.dbb-modal-body { max-height:50vh; overflow:auto; }
+.dbb-modal-actions { text-align:right; margin-top:1em; }
+/* The restore dialog lays its details out in a plain <table>, which would
+   otherwise inherit the markdown table skin (#preview td: 2px blue border,
+   striped row backgrounds) from omn-go-core.css. These selectors carry the
+   same #preview id plus a class, so they win on specificity. */
+#preview .dbb-modal-body table,
+#preview .dbb-modal-body th,
+#preview .dbb-modal-body td,
+#preview .dbb-modal-body tr:nth-child(odd),
+#preview .dbb-modal-body tr:nth-child(even) { border:none; background:none; color:inherit; }
 </style>
 
 <script>
@@ -37,13 +103,16 @@
         return;
     }
 
+    // cls names a .dbb-dot.st-* rule in the <style> block above, so the
+    // dot colors live in CSS with the rest of the theming instead of being
+    // hard-coded here.
     var STATE = {
-        insync:       { color: '#2e7d32', label: 'in sync',        hint: 'Database matches its newest backup.' },
-        dirty:        { color: '#f9a825', label: 'not backed up',  hint: 'Database has changes newer than any backup.' },
-        backup_newer: { color: '#1565c0', label: 'backup newer',   hint: 'Newest backup is newer than the database (pulled from another device?). Consider Restore.' },
-        missing:      { color: '#1565c0', label: 'no database',    hint: 'Backups exist but the database file does not (fresh device). It is restored automatically on first use, or restore manually here.' },
-        none:         { color: '#9e9e9e', label: 'no backups',     hint: 'No backups exist yet for this database.' },
-        invalid:      { color: '#c62828', label: 'invalid backup', hint: 'The newest backup file cannot be parsed (damaged or conflicted?).' }
+        insync:       { cls: 'st-insync',       label: 'in sync',        hint: 'Database matches its newest backup.' },
+        dirty:        { cls: 'st-dirty',        label: 'not backed up',  hint: 'Database has changes newer than any backup.' },
+        backup_newer: { cls: 'st-backup_newer', label: 'backup newer',   hint: 'Newest backup is newer than the database (pulled from another device?). Consider Restore.' },
+        missing:      { cls: 'st-missing',      label: 'no database',    hint: 'Backups exist but the database file does not (fresh device). It is restored automatically on first use, or restore manually here.' },
+        none:         { cls: 'st-none',         label: 'no backups',     hint: 'No backups exist yet for this database.' },
+        invalid:      { cls: 'st-invalid',      label: 'invalid backup', hint: 'The newest backup file cannot be parsed (damaged or conflicted?).' }
     };
     var lastData = null;
 
@@ -55,11 +124,12 @@
     function kb(n) { return n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B'; }
     function ts(iso) { return iso ? iso.replace('T', ' ').replace(/(:\d\d)(\.\d+)?(Z|[+-].*)$/, '$1') : '—'; }
 
-    function dbbShowModal(title, bodyHTML, okLabel, onOk) {
+    function dbbShowModal(title, bodyHTML, okLabel, onOk, destructive) {
         document.getElementById('dbbModalTitle').textContent = title;
         document.getElementById('dbbModalBody').innerHTML = bodyHTML;
         var ok = document.getElementById('dbbModalOk');
         ok.textContent = okLabel;
+        ok.classList.toggle('dbb-btn-danger', !!destructive);
         ok.onclick = function() { dbbCloseModal(); onOk(); };
         document.getElementById('dbbModal').style.display = 'block';
     }
@@ -81,7 +151,7 @@
         if (willPrune) {
             var oldest = db.backups[db.backups.length - 1].file;
             body += '<p>⚠ This exceeds the prune depth (' + lastData.prune_depth +
-                    '): the oldest backup <code>' + esc(oldest) + '</code> will be <b>deleted</b>.';
+                    '): the oldest backup <code class="dbb-code">' + esc(oldest) + '</code> will be <b>deleted</b>.';
             if (name.indexOf('local-') === 0) {
                 body += '<br><b>This is a local database: its backups are not in git history — the pruned file is unrecoverable.</b>';
             } else {
@@ -107,7 +177,7 @@
             '<p>Replace the <b>entire</b> database <b>' + esc(name) + '</b> with this backup?</p>' +
             '<table style="border-collapse:collapse;">' +
             '<tr><td style="padding:0.15em 0.8em 0.15em 0;">Current database:</td><td>' + esc(cur) + '</td></tr>' +
-            '<tr><td style="padding:0.15em 0.8em 0.15em 0;">Backup:</td><td><code>' + esc(file) + '</code></td></tr>' +
+            '<tr><td style="padding:0.15em 0.8em 0.15em 0;">Backup:</td><td><code class="dbb-code">' + esc(file) + '</code></td></tr>' +
             '<tr><td></td><td>created ' + ts(bk.created) + ' on <b>' + esc(bk.hostname || '?') + '</b>, ' +
             bk.objects + ' objects, ' + bk.rows + ' rows, ' + kb(bk.size) + '</td></tr>' +
             '</table>' +
@@ -118,7 +188,7 @@
                           '&file=' + encodeURIComponent(file), { method: 'POST' });
                 load();
             } catch (e) { alert('Restore failed: ' + e.message); }
-        });
+        }, true);
     };
 
     window.dbbToggle = function(name) {
@@ -139,7 +209,7 @@
             var st = STATE[db.state] || STATE.none;
             out.push(
                 '<div class="dbb-row">' +
-                '<span class="dbb-dot" style="background:' + st.color + ';" title="' + esc(st.hint) + '"></span>' +
+                '<span class="dbb-dot ' + st.cls + '" title="' + esc(st.hint) + '"></span>' +
                 '<span class="dbb-name">' + esc(db.name) + '</span>' +
                 '<span class="dbb-state" title="' + esc(st.hint) + '">' + st.label + '</span>' +
                 '<span class="dbb-meta">' + (db.sqlite_exists ? kb(db.size) + ' · ' + ts(db.mtime) : 'no .sqlite file') +
@@ -152,11 +222,11 @@
             if (db.backups.length === 0) det.push('<div class="dbb-meta">No backups.</div>');
             db.backups.forEach(function(bk) {
                 det.push('<div class="dbb-bk">' +
-                    '<code>' + esc(bk.file) + '</code>' +
+                    '<code class="dbb-code">' + esc(bk.file) + '</code>' +
                     (bk.valid
                         ? '<span class="dbb-meta">created ' + ts(bk.created) + ' on ' + esc(bk.hostname || '?') +
                           ' · ' + bk.objects + ' obj · ' + bk.rows + ' rows · ' + kb(bk.size) + '</span>'
-                        : '<span class="dbb-meta" style="color:#c62828;">invalid: ' + esc(bk.error || '?') + '</span>') +
+                        : '<span class="dbb-meta dbb-error">invalid: ' + esc(bk.error || '?') + '</span>') +
                     '<span style="flex:1"></span>' +
                     (bk.valid ? '<button type="button" class="dbb-btn" onclick="dbbRestore(\'' + db.name + '\',\'' + bk.file + '\')">Restore</button>' : '') +
                     '<a href="/db_backup/' + encodeURIComponent(db.name) + '/' + encodeURIComponent(bk.file) +

@@ -494,6 +494,101 @@ document.addEventListener("DOMContentLoaded", () => {
             if (footer) footer.innerText = 'OMN-Go v' + v;
         });
 
+// --- Config page: menu navigation + unsaved-changes tracking ---
+// The config form itself is untouched: each settings group is a
+// show/hide .config-screen block inside the ONE <form>, so
+// FormData(form) in saveConfig() (omn-go-sse.js) still collects every
+// field no matter which screen is open. No-ops on pages without a
+// #configForm.
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById('configForm');
+    if (!form) return;
+    const panel = form.closest('.config-panel') || document;
+    const menu = document.getElementById('configMenu');
+    const screens = panel.querySelectorAll('.config-screen');
+
+    // -- Navigation --
+    // Driven by the URL hash rather than plain click handlers so that
+    // Android's hardware Back button works: MainActivity.onBackPressed
+    // forwards Back to webView.goBack() whenever there is history, and
+    // each hash change is a history entry. Back therefore walks
+    // sub-screen -> menu -> whatever page preceded Config, matching what
+    // a native settings screen does. Desktop browser Back behaves the
+    // same way for free.
+    const HASH_PREFIX = 'cfg-';
+
+    function currentScreen() {
+        const h = (window.location.hash || '').replace(/^#/, '');
+        return h.indexOf(HASH_PREFIX) === 0 ? h.slice(HASH_PREFIX.length) : '';
+    }
+
+    function applyHash() {
+        const want = currentScreen();
+        let matched = false;
+        screens.forEach(s => {
+            // The menu block has no data-screen attribute; it is the
+            // fallback shown when the hash names no known sub-screen.
+            const name = s.getAttribute('data-screen');
+            const active = !!name && name === want;
+            s.classList.toggle('active', active);
+            if (active) matched = true;
+        });
+        if (menu) menu.classList.toggle('active', !matched);
+        // A sub-screen replaces the menu at the top of the panel, so start
+        // it at the top instead of inheriting the menu's scroll offset.
+        window.scrollTo(0, 0);
+    }
+
+    panel.querySelectorAll('[data-goto]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            window.location.hash = HASH_PREFIX + btn.getAttribute('data-goto');
+        });
+    });
+    panel.querySelectorAll('[data-back]').forEach(btn => {
+        // history.back() rather than clearing the hash, so returning to the
+        // menu consumes the history entry instead of adding another one -
+        // otherwise Back would bounce between menu and sub-screen.
+        btn.addEventListener('click', () => window.history.back());
+    });
+
+    window.addEventListener('hashchange', applyHash);
+    applyHash();
+
+    // -- Unsaved-changes tracking --
+    // Mirrors the dirty/clean dot in omn-go-editor.js. Any input/change
+    // anywhere in the form marks dirty; beforeunload then covers every way
+    // of leaving, since this is a real full-page load and not an SPA
+    // (following a link, browser Back out of the page, closing the tab).
+    // Moving between sub-screens only changes the hash, so it never
+    // triggers the prompt. saveConfig() calls window.configMarkClean()
+    // before its reload paths so a successful save doesn't prompt.
+    const dots = panel.querySelectorAll('.config-dirty-dot');
+    const labels = panel.querySelectorAll('.config-dirty-indicator .config-dirty-label');
+    const menuBanner = document.getElementById('configMenuDirty');
+    let dirty = false;
+
+    function markDirty() {
+        if (dirty) return;
+        dirty = true;
+        dots.forEach(d => d.classList.add('dirty'));
+        labels.forEach(l => { l.textContent = 'Unsaved changes'; });
+        if (menuBanner) menuBanner.hidden = false;
+    }
+    window.configMarkClean = function() {
+        dirty = false;
+        dots.forEach(d => d.classList.remove('dirty'));
+        labels.forEach(l => { l.textContent = ''; });
+        if (menuBanner) menuBanner.hidden = true;
+    };
+
+    form.addEventListener('input', markDirty);
+    form.addEventListener('change', markDirty);
+
+    window.addEventListener('beforeunload', function(e) {
+        if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+});
+
 // --- Dynamic Metadata Panel Extractor ---
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');

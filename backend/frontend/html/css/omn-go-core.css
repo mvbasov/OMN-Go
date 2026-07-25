@@ -678,6 +678,165 @@ a.taglink {
 .config-form {
     margin-top: 20px;
 }
+
+/* -- Screen switching: the root menu and each settings group are sibling
+   .config-screen blocks; exactly one carries .active at a time (see the
+   hash-driven navigation in omn-go-core.js). -- */
+.config-screen {
+    display: none;
+}
+.config-screen.active {
+    display: block;
+}
+
+/* -- Root menu: full-width rows sized as comfortable touch targets
+   (Android WebView is the primary consumer of this page). -- */
+.config-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+.config-menu-item,
+.config-link-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 60px;
+    padding: 12px 14px;
+    text-align: left;
+    text-decoration: none;
+    background: var(--bg-inset);
+    color: var(--text);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background 0.15s, border-color 0.15s;
+}
+.config-menu-item:hover,
+.config-link-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
+.config-menu-icon {
+    flex: 0 0 auto;
+    font-size: 24px;
+    color: var(--accent);
+}
+.config-menu-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.config-menu-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-strong);
+}
+.config-menu-desc {
+    font-size: 13px;
+    color: var(--text-faint);
+}
+.config-menu-chevron {
+    flex: 0 0 auto;
+    font-size: 22px;
+    color: var(--text-dim);
+}
+
+/* -- Sub-screen header: back control + group title -- */
+.config-subhead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-title);
+}
+.config-back {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text-heading);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.config-back:hover {
+    background: var(--bg-hover);
+}
+.config-subtitle {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-strong);
+}
+
+/* -- Unsaved-changes cues (mirrors the editor's saved/unsaved dot) -- */
+.config-menu-dirty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    background: var(--bg-inset);
+}
+.config-menu-dirty[hidden] {
+    display: none;
+}
+.config-menu-dirty-save {
+    margin-left: auto;
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.config-menu-dirty-save:hover {
+    background: var(--success-hover);
+}
+.config-dirty-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    min-height: 16px;
+}
+.config-dirty-dot {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    transition: background 0.2s;
+}
+.config-dirty-dot.dirty {
+    background: var(--danger);
+}
+.config-dirty-label {
+    font-size: 13px;
+    color: var(--text-faint);
+}
+
+.config-link-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 .config-field {
     margin-bottom: 20px;
 }
@@ -1035,4 +1194,7 @@ a.taglink {
     .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
     .modal { width: 90%; }
     .git-server-grid { grid-template-columns: 1fr; }
+    .config-panel { padding: 16px; }
+    .config-menu-desc { font-size: 12px; }
+    .config-subtitle { font-size: 18px; }
 }

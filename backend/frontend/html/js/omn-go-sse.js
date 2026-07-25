@@ -142,6 +142,10 @@ if (window.location.protocol !== 'file:') {
         try {
             const res = await fetch('/api/config', { method: 'POST', body: fd });
             if (res.ok) {
+                // Config is now persisted server-side; clear the dirty flag
+                // before either reload path below so the save doesn't
+                // immediately re-trigger its own "leave site?" prompt.
+                if (window.configMarkClean) window.configMarkClean();
                 const body = await res.text();
                 if (body === 'RestartRequired') {
                     // ShareLAN changed: the listen socket is bound once at

@@ -1,85 +1,209 @@
 <div class="config-panel">
-    <h2 class="config-title">Configuration Dashboard</h2>
-    <div class="config-field config-save-row">
-        <a href="/db_backups" class="config-save-btn" style="display:inline-block;text-decoration:none;text-align:center;">Database Backups</a>
+    <!-- Root screen: a list of large tap targets, one per settings group.
+         Selecting one opens its sub-screen (see .config-screen blocks
+         below); the sub-screen's back control returns here. Navigation is
+         driven by the "#cfg-<name>" URL hash, so Android's hardware Back
+         button walks sub-screen -> menu -> previous page for free (see
+         MainActivity.onBackPressed, which forwards Back to WebView history).
+         The "cfg-" prefix keeps these hashes from colliding with the
+         scroll-to-anchor handling in omn-go-core.js. -->
+    <div id="configMenu" class="config-screen active">
+        <h2 class="config-title">Settings</h2>
+
+        <div id="configMenuDirty" class="config-menu-dirty" hidden>
+            <span class="config-dirty-dot dirty"></span>
+            <span class="config-dirty-label">You have unsaved changes</span>
+            <button type="button" class="config-menu-dirty-save" onclick="saveConfig()">Save</button>
+        </div>
+
+        <nav class="config-menu">
+            <button type="button" class="config-menu-item" data-goto="general">
+                <i class="material-icons config-menu-icon">tune</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">General</span>
+                    <span class="config-menu-desc">Author, theme, editor</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
+            <button type="button" class="config-menu-item" data-goto="network">
+                <i class="material-icons config-menu-icon">wifi</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">Network &amp; Access</span>
+                    <span class="config-menu-desc">Port, passwords, LAN sharing</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
+            <button type="button" class="config-menu-item" data-goto="backups">
+                <i class="material-icons config-menu-icon">storage</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">DB Backups</span>
+                    <span class="config-menu-desc">Backups, SQL import, upload limit</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
+            <button type="button" class="config-menu-item" data-goto="android">
+                <i class="material-icons config-menu-icon">android</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">Android Integration</span>
+                    <span class="config-menu-desc">intent: links, Termux commands</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
+            <button type="button" class="config-menu-item" data-goto="git">
+                <i class="material-icons config-menu-icon">cloud_sync</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">Git Sync</span>
+                    <span class="config-menu-desc">Remote servers and SSH keys</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
+        </nav>
     </div>
+
+    <!-- Every field stays inside this one form on every sub-screen, so
+         FormData(form) in saveConfig() keeps collecting the whole config
+         regardless of which screen is open. -->
     <form id="configForm" class="config-form">
-        <div class="config-field">
-            <label class="config-label">Server Port</label>
-            <input type="number" id="cfgPort" name="server_port" value="%%SERVER_PORT%%" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Admin Password</label>
-            <input type="password" id="cfgAdminPwd" name="admin_password" value="%%ADMIN_PWD%%" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Guest Password</label>
-            <input type="password" id="cfgGuestPwd" name="guest_password" value="%%GUEST_PWD%%" class="config-input" required />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Author Name</label>
-            <input type="text" id="cfgAuthor" name="author" value="%%AUTHOR%%" class="config-input" />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Theme</label>
-            <select id="cfgTheme" name="theme" class="config-input">
-                <option value="auto" %%THEME_AUTO_SEL%%>Auto (follow system)</option>
-                <option value="light" %%THEME_LIGHT_SEL%%>Light</option>
-                <option value="dark" %%THEME_DARK_SEL%%>Dark</option>
-            </select>
-        </div>
-        <div class="config-field config-checkbox-row">
-            <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %%INTERNAL_ED_CHECKED%% />
-            <label class="config-label">Use Internal Editor</label>
-        </div>
-        <div class="config-field">
-            <div class="config-checkbox-row">
-                <input type="checkbox" id="cfgShareLan" name="share_lan" value="true" %%SHARE_LAN_CHECKED%% />
-                <label class="config-label">Share on LAN</label>
+        <div class="config-screen" data-screen="general">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">General</h2>
             </div>
-            <span class="config-hint">When off, the server answers only this device (127.0.0.1 / localhost). When on, it listens on all network interfaces so other devices can connect using the admin or guest password. Takes effect after application restart.</span>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Desktop External Cmd</label>
-            <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
-        </div>
-        <div class="config-field">
-            <label class="config-label">Hostname (device label)</label>
-            <input type="text" id="cfgHostname" name="hostname" value="%%HOSTNAME%%" class="config-input" />
-            <span class="config-hint">Identifies this device in database backup filenames (e.g. pixel7, desktop). Letters, digits, '_' and '-' only; anything else is replaced. Clearing the field resets it to the OS hostname.</span>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Backup Prune Depth</label>
-            <input type="number" id="cfgBackupPruneDepth" name="backup_prune_depth" value="%%BACKUP_PRUNE_DEPTH%%" class="config-input" min="1" step="1" />
-            <span class="config-hint">How many backups to keep per database on the Database Backups page; creating a new backup deletes the oldest beyond this count. Default 3.</span>
-        </div>
-        <div class="config-field">
-            <label class="config-label">Max Upload Size (MB)</label>
-            <input type="number" id="cfgMaxUploadMB" name="max_upload_size_mb" value="%%MAX_UPLOAD_MB%%" class="config-input" min="1" step="1" required />
-            <span class="config-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
+            <div class="config-field">
+                <label class="config-label">Author Name</label>
+                <input type="text" id="cfgAuthor" name="author" value="%%AUTHOR%%" class="config-input" />
+            </div>
+            <div class="config-field">
+                <label class="config-label">Theme</label>
+                <select id="cfgTheme" name="theme" class="config-input">
+                    <option value="auto" %%THEME_AUTO_SEL%%>Auto (follow system)</option>
+                    <option value="light" %%THEME_LIGHT_SEL%%>Light</option>
+                    <option value="dark" %%THEME_DARK_SEL%%>Dark</option>
+                </select>
+            </div>
+            <div class="config-field config-checkbox-row">
+                <input type="checkbox" id="cfgInternalEd" name="use_internal_editor" value="true" %%INTERNAL_ED_CHECKED%% />
+                <label class="config-label">Use Internal Editor</label>
+            </div>
+            <div class="config-field">
+                <label class="config-label">Desktop External Cmd</label>
+                <input type="text" id="cfgDesktopExtCmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="config-input" />
+            </div>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
         </div>
 
-        <h3>Android Integration</h3>
-        <div class="config-field">
-            <div class="config-checkbox-row">
-                <input type="checkbox" id="cfgEnableIntentUri" name="enable_intent_uri" value="true" %%INTENT_URI_CHECKED%% />
-                <label class="config-label">Enable intent: links</label>
+        <div class="config-screen" data-screen="network">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">Network &amp; Access</h2>
             </div>
-            <span class="config-hint">Lets a note launch Android "intent:" URIs when tapped in the app - e.g. opening a Settings screen with [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;). Off by default. Android only; ignored on desktop and in LAN browsers.</span>
-        </div>
-        <div class="config-field">
-            <div class="config-checkbox-row">
-                <input type="checkbox" id="cfgEnableTermuxIntent" name="enable_termux_intent" value="true" %%TERMUX_INTENT_CHECKED%% />
-                <label class="config-label">Enable Termux commands</label>
+            <div class="config-field">
+                <label class="config-label">Server Port</label>
+                <input type="number" id="cfgPort" name="server_port" value="%%SERVER_PORT%%" class="config-input" required />
             </div>
-            <span class="config-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
+            <div class="config-field">
+                <label class="config-label">Admin Password</label>
+                <input type="password" id="cfgAdminPwd" name="admin_password" value="%%ADMIN_PWD%%" class="config-input" required />
+            </div>
+            <div class="config-field">
+                <label class="config-label">Guest Password</label>
+                <input type="password" id="cfgGuestPwd" name="guest_password" value="%%GUEST_PWD%%" class="config-input" required />
+            </div>
+            <div class="config-field">
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgShareLan" name="share_lan" value="true" %%SHARE_LAN_CHECKED%% />
+                    <label class="config-label">Share on LAN</label>
+                </div>
+                <span class="config-hint">When off, the server answers only this device (127.0.0.1 / localhost). When on, it listens on all network interfaces so other devices can connect using the admin or guest password. Takes effect after application restart.</span>
+            </div>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
         </div>
 
-        <h3>Git Servers</h3>
+        <div class="config-screen" data-screen="backups">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">DB Backups</h2>
+            </div>
+            <div class="config-field config-link-row">
+                <a href="/db_backups" class="config-link-btn">
+                    <i class="material-icons config-menu-icon">backup</i>
+                    <span class="config-menu-text">
+                        <span class="config-menu-name">Database Backups</span>
+                        <span class="config-menu-desc">Create, restore and download snapshots</span>
+                    </span>
+                    <i class="material-icons config-menu-chevron">chevron_right</i>
+                </a>
+                <a href="/SQLImport" class="config-link-btn">
+                    <i class="material-icons config-menu-icon">file_upload</i>
+                    <span class="config-menu-text">
+                        <span class="config-menu-name">SQL Import</span>
+                        <span class="config-menu-desc">Load an SQL dump into a database</span>
+                    </span>
+                    <i class="material-icons config-menu-chevron">chevron_right</i>
+                </a>
+            </div>
+            <div class="config-field">
+                <label class="config-label">Hostname (device label)</label>
+                <input type="text" id="cfgHostname" name="hostname" value="%%HOSTNAME%%" class="config-input" />
+                <span class="config-hint">Identifies this device in database backup filenames (e.g. pixel7, desktop). Letters, digits, '_' and '-' only; anything else is replaced. Clearing the field resets it to the OS hostname.</span>
+            </div>
+            <div class="config-field">
+                <label class="config-label">Backup Prune Depth</label>
+                <input type="number" id="cfgBackupPruneDepth" name="backup_prune_depth" value="%%BACKUP_PRUNE_DEPTH%%" class="config-input" min="1" step="1" />
+                <span class="config-hint">How many backups to keep per database on the Database Backups page; creating a new backup deletes the oldest beyond this count. Default 3.</span>
+            </div>
+            <div class="config-field">
+                <label class="config-label">Max Upload Size (MB)</label>
+                <input type="number" id="cfgMaxUploadMB" name="max_upload_size_mb" value="%%MAX_UPLOAD_MB%%" class="config-input" min="1" step="1" required />
+                <span class="config-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
+            </div>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
+        </div>
+
+        <div class="config-screen" data-screen="android">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">Android Integration</h2>
+            </div>
+            <div class="config-field">
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgEnableIntentUri" name="enable_intent_uri" value="true" %%INTENT_URI_CHECKED%% />
+                    <label class="config-label">Enable intent: links</label>
+                </div>
+                <span class="config-hint">Lets a note launch Android "intent:" URIs when tapped in the app - e.g. opening a Settings screen with [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;). Off by default. Android only; ignored on desktop and in LAN browsers.</span>
+            </div>
+            <div class="config-field">
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgEnableTermuxIntent" name="enable_termux_intent" value="true" %%TERMUX_INTENT_CHECKED%% />
+                    <label class="config-label">Enable Termux commands</label>
+                </div>
+                <span class="config-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
+            </div>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
+        </div>
+
+        <div class="config-screen" data-screen="git">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">Git Sync</h2>
+            </div>
 %%GIT_SERVERS%%
-
-        <div class="config-field config-save-row">
-            <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
         </div>
     </form>
 </div>
