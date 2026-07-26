@@ -108,6 +108,7 @@ var (
 	gitServerCardTmpl = loadTemplate("git_server_card.html")
 	externalEditTmpl  = loadTemplate("external_edit.html")
 	editorPageTmpl    = loadTemplate("editor.html")
+	notFoundTmpl      = loadTemplate("not_found.html")
 	// modalsHTML is the block of server-only modals (login, quick note,
 	// bookmark, commit, conflict). It is kept OUT of the cached/exported
 	// page (index.html carries only the modalsMarker slot) and spliced in by
@@ -340,6 +341,74 @@ func renderConfigPage(v configPageView) string {
 		"FS_ON_SEL":             fsSel["FS_ON_SEL"],
 		"FS_IMMERSIVE_SEL":      fsSel["FS_IMMERSIVE_SEL"],
 		"GIT_SERVERS":           cards.String(),
+	})
+}
+
+// --- 404 page ---
+
+// notFoundView is everything the detailed 404 page shows. Every field is a
+// RAW value that renderNotFoundPage escapes itself - URL and Referer in
+// particular are attacker-controlled (anyone can request any path, and
+// Referer is a plain request header), so they must never reach the output
+// unescaped. This file deliberately does not use html/template (see the
+// note at the top of this file for why), which makes that this function's
+// responsibility rather than the template engine's.
+type notFoundView struct {
+	URL       string // path + query, exactly as requested
+	Method    string
+	Time      string
+	Referer   string // "" when absent or not from this server
+	Suggested string // "" when there is no plausible alternative
+}
+
+// safeLocalPath reports whether s may be used as an href: it must be a
+// path on this server. A scheme-bearing value ("javascript:...") or a
+// protocol-relative one ("//host/...") is rejected, so no caller of
+// renderNotFoundPage can turn a request header into an active link off the
+// app - defence in depth behind serveNotFound, which already filters the
+// Referer it passes in.
+func safeLocalPath(s string) bool {
+	return strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "//")
+}
+
+func renderNotFoundPage(v notFoundView) string {
+	// Optional blocks are built here as trusted pre-rendered HTML (the
+	// convention documented at the top of this file): the values inside are
+	// escaped as they are spliced in, and the surrounding markup is ours.
+	refererRows := ""
+	if v.Referer != "" {
+		esc := escapeHTML(v.Referer)
+		if safeLocalPath(v.Referer) {
+			refererRows = fmt.Sprintf(`        <dt>Linked from</dt>
+        <dd><a href="%s">%s</a> &middot; <a href="%s?edit=true">edit that page</a></dd>
+`, esc, esc, esc)
+		} else {
+			// Still worth reporting, but never as a link: escapeHTML makes
+			// it inert as text, whereas a "javascript:" or "//evil.example"
+			// value in an href would stay live.
+			refererRows = fmt.Sprintf(`        <dt>Linked from</dt>
+        <dd>%s</dd>
+`, esc)
+		}
+	}
+
+	suggestion := ""
+	if v.Suggested != "" && safeLocalPath(v.Suggested) {
+		esc := escapeHTML(v.Suggested)
+		suggestion = fmt.Sprintf(`    <div class="config-field notfound-suggest">
+        <span class="notfound-suggest-label">Did you mean</span>
+        <a href="%s" class="notfound-suggest-link">%s</a>
+        <span class="config-hint">A note of that name exists. A link written as [text](name) asks the server for a file called "name"; note links need the .html suffix - [text](name.html).</span>
+    </div>
+`, esc, esc)
+	}
+
+	return fill(notFoundTmpl, map[string]string{
+		"URL":          escapeHTML(v.URL),
+		"METHOD":       escapeHTML(v.Method),
+		"TIME":         escapeHTML(v.Time),
+		"REFERER_ROWS": refererRows,
+		"SUGGESTION":   suggestion,
 	})
 }
 

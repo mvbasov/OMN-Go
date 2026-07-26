@@ -1038,6 +1038,56 @@ a.taglink {
     min-height: 60px;
 }
 
+/* -- 404 page --
+   Reuses .config-panel / .config-link-btn as a generic card and action row
+   (db_backups.html and md/SQLImport.md lean on .config-panel the same way);
+   only the fact list and the suggestion block need rules of their own. */
+.notfound-lead {
+    margin: 16px 0 0;
+    color: var(--text-muted);
+}
+.notfound-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    margin: 18px 0 0;
+}
+.notfound-facts dt {
+    font-weight: 600;
+    color: var(--text-heading);
+    white-space: nowrap;
+}
+.notfound-facts dd {
+    margin: 0;
+    color: var(--text);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.notfound-url {
+    font-family: monospace;
+    background: var(--bg-inset);
+    color: var(--text);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+}
+.notfound-suggest {
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--bg-inset);
+}
+.notfound-suggest-label {
+    color: var(--text-heading);
+    font-weight: 600;
+    margin-right: 6px;
+}
+.notfound-suggest-link {
+    font-family: monospace;
+    font-size: 15px;
+    color: var(--accent);
+}
+
 /* ==========================================================================
    8. External editor page
    ========================================================================== */

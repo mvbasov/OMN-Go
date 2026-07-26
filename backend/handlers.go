@@ -614,7 +614,11 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if !isPage {
 		data, err := os.ReadFile(htmlPath)
 		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
+			// Plain text in practice: the editor fetches this without an
+			// html Accept, and serveNotFound negotiates on that - so
+			// loadContent() still surfaces a readable message, now with
+			// the requested path in it.
+			a.serveNotFound(w, r)
 			return
 		}
 		w.Write(data)
