@@ -1,0 +1,6 @@
+* Fix config page design
+* Add progress bars to long time operations
+* Android fullscreen mode configurable
+* Create more informative Not Found (404) page
+* Fix default .gitignore
+* Add API documentation
