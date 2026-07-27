@@ -28,8 +28,8 @@ import (
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 
-	cryptossh "golang.org/x/crypto/ssh"
 	gitconfig "github.com/go-git/go-git/v5/config"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 // ----------------------------------------------------------------------
@@ -146,24 +146,24 @@ var gitignorePatterns = []string{
 	"/html/images/icons/*",
 	"!/html/images/icons/*.svg",
 	"/html/css/omn-go-core.css",
-        "/html/css/Bookmarker.css",
-        "/html/css/highlight.default.min.css",
-        "/html/css/katex.min.css",
-        "/html/css/markdown.css",
+	"/html/css/Bookmarker.css",
+	"/html/css/highlight.default.min.css",
+	"/html/css/katex.min.css",
+	"/html/css/markdown.css",
 	"/html/js/omn-go-core.js",
 	"/html/js/omn-go-sse.js",
 	"/html/js/omn-go-editor.js",
-        "/html/js/auto-render.min.js",
-        "/html/js/katex.min.js",
-        "/html/js/highlight.min.js",
-        "/html/js/Bookmarker.js",
+	"/html/js/auto-render.min.js",
+	"/html/js/katex.min.js",
+	"/html/js/highlight.min.js",
+	"/html/js/Bookmarker.js",
 	"/md/AndroidIntents.md",
-        "/md/Database.md",
-        "/md/Editor.md",
+	"/md/Database.md",
+	"/md/Editor.md",
 	"/md/OMNGoTags.md",
-        "/md/ScriptRules.md",
-        "/md/SQLImport.md",
-        "/md/UserManual.md",
+	"/md/ScriptRules.md",
+	"/md/SQLImport.md",
+	"/md/UserManual.md",
 	"/md/local/",
 	"/db/",
 	"/html/db_backup/local-*/",
@@ -417,7 +417,6 @@ func (a *App) ensureRemotesAndGetActive(repo *git.Repository) (string, error) {
 
 	return a.ensureSlotRemotes(repo, cfg)
 }
-
 
 func (a *App) manualGitInit(dir string) error {
 	gitDir := filepath.Join(dir, ".git")
@@ -1749,21 +1748,21 @@ func (a *App) GetConfigAuthor() string {
 
 // Prevent Android media scanner delete critical empty directoryes
 func (a *App) protectGitDirs() {
-    if runtime.GOOS != "android" {
-        return
-    }
-    //for _, dir := range []string{"objects", "refs"} {
-    for _, dir := range []string{"objects"} {
-        p := filepath.Join(a.StorageDir, ".git", dir)
-        if err := os.MkdirAll(p, 0755); err != nil {
-            log.Printf("[a.protectGitDirs] MkdirAll %s failed: %v", p, err)
-            continue
-        }
-        keepFile := filepath.Join(p, ".gitkeep")
-        if _, err := os.Stat(keepFile); os.IsNotExist(err) {
-            if f, err := os.Create(keepFile); err == nil {
-                f.Close()
-            }
-        }
-    }
+	if runtime.GOOS != "android" {
+		return
+	}
+	//for _, dir := range []string{"objects", "refs"} {
+	for _, dir := range []string{"objects"} {
+		p := filepath.Join(a.StorageDir, ".git", dir)
+		if err := os.MkdirAll(p, 0755); err != nil {
+			log.Printf("[a.protectGitDirs] MkdirAll %s failed: %v", p, err)
+			continue
+		}
+		keepFile := filepath.Join(p, ".gitkeep")
+		if _, err := os.Stat(keepFile); os.IsNotExist(err) {
+			if f, err := os.Create(keepFile); err == nil {
+				f.Close()
+			}
+		}
+	}
 }

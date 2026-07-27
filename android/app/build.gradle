@@ -11,8 +11,8 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 11131
-        versionName "1.11.31"
+        versionCode 11132
+        versionName "1.11.32"
     }
 
 
