@@ -1,7 +1,6 @@
 Categories:
   - Development
   - Note
-  - Writing
 License: MIT
 AuthorName: Mikhail Basov
 WebSite: https://github.com/mvbasov/OMN-Go
@@ -16,9 +15,9 @@ RepoType: git
 Repo: https://github.com/mvbasov/OMN-Go.git
 
 Builds:
-  - versionName: 1.11.24
-    versionCode: 111241
-    commit: 0269077cb638d71f28a5347062eaf948451c7685
+  - versionName: 1.11.33
+    versionCode: 111331
+    commit: daafa15873fc9fef9293b790a3e5c51ebd0420da
     subdir: android/app
     sudo:
       - apt-get update
@@ -52,9 +51,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.24
-    versionCode: 111242
-    commit: 0269077cb638d71f28a5347062eaf948451c7685
+  - versionName: 1.11.33
+    versionCode: 111332
+    commit: daafa15873fc9fef9293b790a3e5c51ebd0420da
     subdir: android/app
     sudo:
       - apt-get update
@@ -88,9 +87,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.24
-    versionCode: 111243
-    commit: 0269077cb638d71f28a5347062eaf948451c7685
+  - versionName: 1.11.33
+    versionCode: 111333
+    commit: daafa15873fc9fef9293b790a3e5c51ebd0420da
     subdir: android/app
     sudo:
       - apt-get update
@@ -124,9 +123,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 1.11.24
-    versionCode: 111244
-    commit: 0269077cb638d71f28a5347062eaf948451c7685
+  - versionName: 1.11.33
+    versionCode: 111334
+    commit: daafa15873fc9fef9293b790a3e5c51ebd0420da
     subdir: android/app
     sudo:
       - apt-get update
@@ -167,5 +166,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: 1.11.24
-CurrentVersionCode: 111244
+CurrentVersion: 1.11.33
+CurrentVersionCode: 111334
