@@ -315,6 +315,9 @@ Quick Notes. It is off by default; see
 - <i class="material-icons">insert_comment</i> **Quick note** opens a small text box;
   what you type is appended, with a timestamp, to the
   [QuickNotes](QuickNotes) page. Use it for capture-first-sort-later notes.
+  Its **Copy** button puts the text on the clipboard without saving it -
+  handy when something was shared or scanned into the box and you only want
+  to paste it somewhere else.
 - <i class="material-icons">bookmark_add</i> **Add bookmark** asks for a
   URL, title, tags and notes, and stores the entry in the
   [Bookmarks](Bookmarks) page's data block, which renders as your bookmark

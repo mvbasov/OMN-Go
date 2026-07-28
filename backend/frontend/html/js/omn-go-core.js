@@ -497,6 +497,76 @@ if (typeof currentNote === 'undefined') {
             if (p) p.classList.toggle('hidden');
         };
 
+        // Copies the Quick Note text to the clipboard WITHOUT saving it, so a
+        // captured snippet - typed, shared in from another Android app, or
+        // pushed in by a barcode scan (see showQuickCapture in omn-go-sse.js) -
+        // can be pasted somewhere else. Wired to the panel's Copy button, which
+        // passes itself as btn so the label can report the outcome.
+        //
+        // It lives here rather than beside submitQuickNote in omn-go-sse.js
+        // because it never talks to the backend: that file's no-server branch
+        // replaces every handler with a printDebug stub, which is right for
+        // /api/quick and wrong for a pure clipboard action.
+        //
+        // Two copy paths, deliberately: navigator.clipboard exists only in a
+        // secure context, and "Share on LAN" (http://<lan-ip>:8080) is exactly
+        // the case that is not one - only loopback and https qualify, so on
+        // desktop the app's own tab has it and a phone browsing to the same
+        // server does not. The execCommand fallback covers that, and needs no
+        // scratch element since the text already sits in a <textarea>.
+        window.copyQuickNote = function (btn) {
+            var q = document.getElementById('quickText');
+            if (!q) return;
+
+            // Restores the button's own label after a moment. The original is
+            // stashed on first use so repeated clicks (which land while the
+            // label still reads "Copied!") can't capture the feedback text as
+            // the label to go back to.
+            function feedback(msg) {
+                if (!btn) return;
+                if (typeof btn.dataset.omnLabel === 'undefined') {
+                    btn.dataset.omnLabel = btn.textContent;
+                }
+                btn.textContent = msg;
+                clearTimeout(btn._omnCopyTimer);
+                btn._omnCopyTimer = setTimeout(function () {
+                    btn.textContent = btn.dataset.omnLabel;
+                }, 1200);
+            }
+
+            var text = q.value;
+            if (!text) {
+                feedback('Empty');
+                return;
+            }
+
+            function fallbackCopy() {
+                var start = q.selectionStart;
+                var end = q.selectionEnd;
+                var ok = false;
+                q.focus();
+                q.select();
+                try {
+                    ok = document.execCommand('copy');
+                } catch (e) {
+                    ok = false;
+                }
+                // Put the caret back where it was: the panel stays open after
+                // a copy, and leaving the whole note selected would make the
+                // next keystroke wipe it.
+                try { q.setSelectionRange(start, end); } catch (e) { /* not selectable */ }
+                feedback(ok ? 'Copied!' : 'Copy failed');
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function () {
+                    feedback('Copied!');
+                }, fallbackCopy); // permission denied / insecure context
+            } else {
+                fallbackCopy();
+            }
+        };
+
         // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
         // the omngo://edit precedent) to pin a home-screen shortcut to the
         // current note. Only reachable via the .android-only button, which
