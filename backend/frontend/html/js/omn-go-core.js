@@ -508,12 +508,20 @@ if (typeof currentNote === 'undefined') {
         // replaces every handler with a printDebug stub, which is right for
         // /api/quick and wrong for a pure clipboard action.
         //
-        // Two copy paths, deliberately: navigator.clipboard exists only in a
-        // secure context, and "Share on LAN" (http://<lan-ip>:8080) is exactly
-        // the case that is not one - only loopback and https qualify, so on
-        // desktop the app's own tab has it and a phone browsing to the same
-        // server does not. The execCommand fallback covers that, and needs no
-        // scratch element since the text already sits in a <textarea>.
+        // select() + execCommand('copy') on purpose, and NOT
+        // navigator.clipboard. The async Clipboard API is the modern spelling
+        // but it is unusable in the Android WebView this app ships as its main
+        // UI: writeText() needs a clipboard-write permission grant, and
+        // WebChromeClient denies permission requests by default (MainActivity
+        // overrides only the JS dialog callbacks, not onPermissionRequest), so
+        // the returned promise simply never delivers a copy. Verified
+        // on-device. execCommand is formally deprecated, but it is synchronous,
+        // needs no permission, and works in the WebView, plain-http LAN pages
+        // (which are not a secure context, so navigator.clipboard is absent
+        // there anyway) and desktop browsers alike - one path for all three.
+        //
+        // No scratch element is needed: the text already sits in a <textarea>,
+        // which is exactly what select() wants.
         window.copyQuickNote = function (btn) {
             var q = document.getElementById('quickText');
             if (!q) return;
@@ -534,37 +542,30 @@ if (typeof currentNote === 'undefined') {
                 }, 1200);
             }
 
-            var text = q.value;
-            if (!text) {
+            if (!q.value) {
                 feedback('Empty');
                 return;
             }
 
-            function fallbackCopy() {
-                var start = q.selectionStart;
-                var end = q.selectionEnd;
-                var ok = false;
-                q.focus();
-                q.select();
-                try {
-                    ok = document.execCommand('copy');
-                } catch (e) {
-                    ok = false;
-                }
-                // Put the caret back where it was: the panel stays open after
-                // a copy, and leaving the whole note selected would make the
-                // next keystroke wipe it.
-                try { q.setSelectionRange(start, end); } catch (e) { /* not selectable */ }
-                feedback(ok ? 'Copied!' : 'Copy failed');
+            var ok = false;
+            q.focus();
+            q.select();
+            try {
+                ok = document.execCommand('copy');
+            } catch (e) {
+                ok = false;
             }
 
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function () {
-                    feedback('Copied!');
-                }, fallbackCopy); // permission denied / insecure context
-            } else {
-                fallbackCopy();
-            }
+            // Drop the selection once the copy has been taken. The panel stays
+            // open afterwards, so leaving the whole note highlighted would both
+            // look like it is still "in progress" and let the next keystroke
+            // replace the entire text. Collapsing to the end keeps the caret
+            // somewhere sensible for continued typing.
+            try {
+                q.setSelectionRange(q.value.length, q.value.length);
+            } catch (e) { /* element does not support selection ranges */ }
+
+            feedback(ok ? 'Copied!' : 'Copy failed');
         };
 
         // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
