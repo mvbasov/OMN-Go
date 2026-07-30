@@ -27,12 +27,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Limits and defaults for one request.
@@ -84,6 +86,13 @@ type queryTerm struct {
 	runes []rune
 	mask  uint64
 	field string // "" = any field; otherwise "title", "tag", "path"
+
+	// raw is the term as the user typed it, with only the field prefix
+	// removed. Matching never reads it - that is what runes is for - but
+	// highlighting does, and it has to be the unfolded text: the client marks
+	// LITERAL occurrences, and fold maps 'ё' to 'е', so highlighting the
+	// folded form of "ёж" would mark nothing on a page that says "ёж".
+	raw string
 }
 
 // parsedQuery is a query string after parsing: the terms that must ALL match,
@@ -119,9 +128,70 @@ func parseQuery(q string) parsedQuery {
 		if len(runes) == 0 {
 			continue
 		}
-		out.terms = append(out.terms, queryTerm{runes: runes, mask: runeMask(runes), field: field})
+		out.terms = append(out.terms, queryTerm{
+			runes: runes, mask: runeMask(runes), field: field, raw: f,
+		})
 	}
 	return out
+}
+
+// highlightMinRunes mirrors OMN_HL_MIN in omn-go-core.js: a one-character term
+// marks half the page, which is noise rather than an answer. Both ends drop it,
+// so a link never carries a term the client would refuse to use.
+const highlightMinRunes = 2
+
+// highlightTerms is what a result should mark once it is opened: the query's
+// terms as typed, field prefixes removed, deduplicated case-insensitively.
+//
+// Note what this is NOT. It is not the spans the matcher produced - those are
+// per line, already travel with each snippet, and are offsets into the SOURCE.
+// This is literal text to look for in the RENDERED page, which is a different
+// document: the source line "**fetch** the json" renders as "fetch the json",
+// and no span from the former survives into the latter.
+//
+// A term that only matched fuzzily will simply not be found, and nothing is
+// marked. That is the honest outcome - the result list has already shown which
+// lines matched - and it is why this returns text rather than positions.
+func highlightTerms(q parsedQuery) []string {
+	var out []string
+	seen := make(map[string]bool, len(q.terms))
+	for _, t := range q.terms {
+		if utf8.RuneCountInString(t.raw) < highlightMinRunes {
+			continue
+		}
+		key := strings.ToLower(t.raw)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, t.raw)
+	}
+	return out
+}
+
+// highlightURL hangs those terms off a document URL: /Note.html?hl=fetch&hl=json.
+//
+// Repeated parameters rather than one comma-joined value, because a term may
+// itself contain a comma and re-splitting it would be guesswork. The client
+// strips them from the address bar once applied, so what a reader ends up
+// copying or bookmarking is the plain URL.
+func highlightURL(base string, terms []string) string {
+	if base == "" || len(terms) == 0 {
+		return base
+	}
+	sep := "?"
+	if strings.Contains(base, "?") {
+		sep = "&"
+	}
+	var b strings.Builder
+	b.WriteString(base)
+	for _, t := range terms {
+		b.WriteString(sep)
+		sep = "&"
+		b.WriteString("hl=")
+		b.WriteString(url.QueryEscape(t))
+	}
+	return b.String()
 }
 
 func normalizeQueryField(k string) string {
@@ -712,6 +782,12 @@ type searchResponse struct {
 	Results   []searchResult `json:"results"`
 	Status    string         `json:"status,omitempty"`
 	Error     string         `json:"error,omitempty"`
+
+	// Highlight is the query's terms as typed, for the client to mark once a
+	// result is opened. It sits here rather than on each result because it is
+	// a property of the QUESTION, not of any one answer: every result gets the
+	// same terms, and repeating them per result would only be bytes.
+	Highlight []string `json:"highlight,omitempty"`
 }
 
 // handleSearch answers GET /api/search.
@@ -761,6 +837,7 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp.Highlight = highlightTerms(parseQuery(resp.Query))
 	writeSearchJSON(w, http.StatusOK, &resp, started)
 }
 
@@ -971,6 +1048,7 @@ func (a *App) serveSearchPage(w http.ResponseWriter, r *http.Request) {
 	view := searchPageView{
 		Query:        query,
 		IndexedKinds: normalizeSearchKinds(a.GetConfig().SearchKinds),
+		Highlight:    highlightTerms(parseQuery(query)),
 	}
 
 	if strings.TrimSpace(query) != "" && a.ensureSearchIndex() {

@@ -928,6 +928,16 @@ mark.omn-search-hit {
     border-radius: 2px;
 }
 
+/* The one that was scrolled to on arrival. A ring rather than a different
+   colour: the reader landed mid-page and needs to know which of several
+   identical-looking marks the scroll was aimed at, without that mark reading
+   as a different KIND of match. currentColor picks up the surrounding text, so
+   it stays legible in every theme without a token of its own. */
+mark.omn-search-hit.omn-search-hit-current {
+    outline: 2px solid currentColor;
+    outline-offset: 1px;
+}
+
 /* -- Header action button accents --
    Semantic colors stay identical in both themes; !important preserved
    from the pre-token version to keep specificity behavior unchanged. */

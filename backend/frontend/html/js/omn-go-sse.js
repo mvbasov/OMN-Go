@@ -1099,7 +1099,14 @@ if (window.location.protocol !== 'file:') {
 
         function render(query, data) {
             clearRows();
-            lastTerms = query.split(/\s+/).filter(function (t) { return t.length > 0; });
+            // The server's own list, not a naive split: it has already dropped
+            // the field prefixes ("tag:hydro" is a search for "hydro", and
+            // marking the literal "tag:hydro" would find nothing) and applied
+            // the same minimum length the highlighter uses. Falling back to a
+            // split keeps this working against an older server.
+            lastTerms = (data && data.highlight && data.highlight.length)
+                ? data.highlight
+                : query.split(/\s+/).filter(function (t) { return t.length > 0; });
 
             // The server reports which scope it actually used. Adopting it
             // means the first query needs no guess about the configured
@@ -1191,7 +1198,23 @@ if (window.location.protocol !== 'file:') {
         // screen and the useful move is to highlight it in place.
         function openResult(r) {
             close();
-            if (r && r.url) window.location.href = r.url;
+            if (r && r.url) window.location.href = withHighlight(r.url);
+        }
+
+        // withHighlight hangs the query terms off a URL as ?hl=, so the page
+        // being opened marks them and scrolls to the first on arrival. Same
+        // parameter the results page puts on its links (highlightURL in
+        // search.go), so a result behaves identically whichever list it came
+        // from. The receiving page strips them from the address bar once
+        // applied - see omn-go-core.js.
+        function withHighlight(url) {
+            if (!lastTerms.length) return url;
+            var sep = url.indexOf('?') === -1 ? '?' : '&';
+            for (var i = 0; i < lastTerms.length; i++) {
+                url += sep + 'hl=' + encodeURIComponent(lastTerms[i]);
+                sep = '&';
+            }
+            return url;
         }
 
         function renderPage(result) {
@@ -1301,7 +1324,7 @@ if (window.location.protocol !== 'file:') {
         function choose(i) {
             setActive(i);
             close();
-            var first = highlightPreview(lastTerms);
+            var first = window.omnHighlightTerms(lastTerms);
             if (first && first.scrollIntoView) {
                 first.scrollIntoView({ block: 'center' });
             }
@@ -1335,101 +1358,11 @@ if (window.location.protocol !== 'file:') {
         }
 
         // --- highlighting inside the rendered page ---
-
-        // clearPreviewHighlights puts the DOM back exactly as it was: each
-        // <mark> is replaced by its own text and the parent normalised, so
-        // repeated searches cannot leave the page progressively more nested.
-        function clearPreviewHighlights() {
-            var preview = document.getElementById('preview');
-            if (!preview) return;
-            var marks = preview.querySelectorAll('mark.omn-search-hit');
-            for (var i = 0; i < marks.length; i++) {
-                var m = marks[i];
-                var parent = m.parentNode;
-                if (!parent) continue;
-                parent.replaceChild(document.createTextNode(m.textContent), m);
-                if (parent.normalize) parent.normalize();
-            }
-        }
-
-        // highlightPreview wraps literal occurrences of the query terms in the
-        // rendered page and returns the first one.
         //
-        // Literal only, on purpose: a fuzzy or misspelled term does not appear
-        // in the text as typed, so there is nothing to wrap. In that case the
-        // panel has already shown WHICH lines matched, and this returns null
-        // rather than highlighting something that is not what matched.
-        function highlightPreview(terms) {
-            clearPreviewHighlights();
-            var preview = document.getElementById('preview');
-            if (!preview || !terms || !terms.length) return null;
-
-            var needles = terms
-                .map(function (t) { return t.toLowerCase(); })
-                .filter(function (t) { return t.length >= MIN_QUERY; });
-            if (!needles.length) return null;
-
-            // Collect first, mutate after: rewriting text nodes while walking
-            // the tree invalidates the walker.
-            var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
-            var nodes = [];
-            var node;
-            while ((node = walker.nextNode())) {
-                if (!node.nodeValue || !node.nodeValue.trim()) continue;
-                var p = node.parentNode, skip = false;
-                while (p && p !== preview) {
-                    var tag = p.tagName ? p.tagName.toUpperCase() : '';
-                    // Never touch executable or already-marked content: a note
-                    // may carry inline <script>, and rewriting its text would
-                    // corrupt source the console/editor still shows.
-                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK' || tag === 'TEXTAREA') {
-                        skip = true;
-                        break;
-                    }
-                    p = p.parentNode;
-                }
-                if (!skip) nodes.push(node);
-            }
-
-            var firstMark = null;
-            nodes.forEach(function (textNode) {
-                var value = textNode.nodeValue;
-                var lower = value.toLowerCase();
-                var pieces = null;
-                var at = 0;
-
-                while (at < value.length) {
-                    var bestAt = -1, bestLen = 0;
-                    for (var i = 0; i < needles.length; i++) {
-                        var idx = lower.indexOf(needles[i], at);
-                        if (idx !== -1 && (bestAt === -1 || idx < bestAt)) {
-                            bestAt = idx;
-                            bestLen = needles[i].length;
-                        }
-                    }
-                    if (bestAt === -1) break;
-                    if (!pieces) pieces = document.createDocumentFragment();
-                    if (bestAt > at) {
-                        pieces.appendChild(document.createTextNode(value.slice(at, bestAt)));
-                    }
-                    var mark = document.createElement('mark');
-                    mark.className = 'omn-search-hit';
-                    mark.textContent = value.slice(bestAt, bestAt + bestLen);
-                    pieces.appendChild(mark);
-                    if (!firstMark) firstMark = mark;
-                    at = bestAt + bestLen;
-                }
-
-                if (pieces) {
-                    if (at < value.length) {
-                        pieces.appendChild(document.createTextNode(value.slice(at)));
-                    }
-                    textNode.parentNode.replaceChild(pieces, textNode);
-                }
-            });
-
-            return firstMark;
-        }
+        // The implementation lives in omn-go-core.js, not here: arriving at a
+        // page with ?hl= needs it on every page, including one opened from
+        // disk where this file's server half never runs. This module is just
+        // one of its callers.
 
         // --- entry points ---
 
@@ -1442,7 +1375,7 @@ if (window.location.protocol !== 'file:') {
             open();
         };
 
-        window.omnSearchClearHighlights = clearPreviewHighlights;
+        window.omnSearchClearHighlights = window.omnClearHighlights;
 
         // Keyboard: Ctrl/Cmd-K anywhere, and "/" when not already typing -
         // the two conventions people arrive with. Both are desktop-only in
@@ -1490,5 +1423,6 @@ if (window.location.protocol !== 'file:') {
     // therefore already hidden here (applyOfflineUI) - these stubs cover a
     // note script or a stale keyboard shortcut calling in anyway.
     window.omnSearchOpen = function() { printDebug('omnSearchOpen'); };
-    window.omnSearchClearHighlights = function() { printDebug('omnSearchClearHighlights'); };
+    // omnSearchClearHighlights is NOT stubbed here: the highlighting lives in
+    // omn-go-core.js and works offline, so the real one is already defined.
 }

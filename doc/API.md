@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.07.43** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.07.45** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -456,6 +456,7 @@ outranks one that merely suggests it:
   "took_ms": 9,
   "total": 1,
   "truncated": false,
+  "highlight": ["fetch", "json"],
   "results": [
     {
       "path": "md/Test/OMN-Go/Fetch.md",
@@ -484,7 +485,8 @@ outranks one that merely suggests it:
 | `total` | Documents matched, before `limit` |
 | `truncated` | Results were capped by `limit`, or a file was only partly searched |
 | `score` | Higher is better; comparable only within one response |
-| `url` | Where the result lives: `/<Name>.html` for a note, the served path for an asset |
+| `url` | Where the result lives: `/<Name>.html` for a note, the served path for an asset. Always the plain URL — see `highlight` |
+| `highlight` | The query's terms as typed, for the client to mark in whatever page it opens. Present on both scopes, and on a query that matched nothing |
 | `matches[].line` | 1-based line in the file **as stored** — the markdown source for a note |
 | `matches[].context` | `script` or `code` when the hit is inside a `<script>` or a fenced block; absent in prose |
 | `matches[].text` | The snippet, whitespace-trimmed and windowed to ~160 runes around the first hit, with `…` markers |
@@ -493,6 +495,16 @@ outranks one that merely suggests it:
 `spans` are rune offsets, not byte offsets and not UTF-16 units: slicing
 `text` by anything else cuts Cyrillic and emoji in half. In JavaScript,
 `Array.from(text)` gives the right units.
+
+`highlight` is not the same thing as `spans`. `spans` are offsets into a
+snippet of the **source**; `highlight` is literal text to look for in the
+**rendered** page, which is a different document — the source line
+`**fetch** the json` renders as `fetch the json`, and no span from one survives
+into the other. Field prefixes are stripped (`tag:hydro` → `hydro`), terms
+shorter than 2 runes are dropped, and the text is **not** folded: the client
+marks literal occurrences, and folding maps `ё` to `е`, so the folded form of a
+term may appear nowhere on the page. A term that only matched fuzzily will not
+be found and nothing is marked — which is the honest outcome.
 
 **Files larger than 500 KiB** are searched up to that point, cut at a line
 boundary, and the result carries `"truncated": true` — "found nothing in the
@@ -509,9 +521,27 @@ nothing is written to the `html/` cache, and `?refresh` means nothing here.
 | --- | --- | --- | --- | --- |
 | `q` | string | no | — | The query. Absent or empty renders just the form |
 
+Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>` — see
+`?hl=` below.
+
 Global only: with `search_enabled` off it answers **404** through
 `serveNotFound`, because a page that could only ever be empty is worse than an
 honest miss. Page search lives in the dialog.
+
+#### `?hl=<term>` — highlight on arrival
+
+Any page accepts repeated `hl` parameters. On load the client marks every
+literal occurrence of those terms in `#preview`, scrolls to the first, and then
+removes the parameters from the address bar with `history.replaceState` — so
+the URL that gets copied, bookmarked or reloaded is the plain one, and a
+refresh does not re-apply the highlight.
+
+Repeated parameters rather than one comma-joined value: a term may itself
+contain a comma. Terms shorter than 2 runes are ignored (`OMN_HL_MIN` in
+`omn-go-core.js`, `highlightMinRunes` in `search.go` — the two ends agree).
+
+Handled entirely in `omn-go-core.js`, so it works on a page opened from disk
+with no server running, and on pages the search dialog never loads on.
 
 **Errors**
 

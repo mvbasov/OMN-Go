@@ -140,6 +140,155 @@ window.OMNProgress = (function() {
     return api;
 })();
 
+// --- Search highlighting ---
+//
+// Marking query terms inside the rendered page. Two callers, and they are why
+// this lives here rather than beside the search dialog:
+//
+//   - the dialog (omn-go-sse.js), when a page-scope result is chosen;
+//   - arriving at a page with ?hl=<term> on the URL, which a search result
+//     links to - and which has to work on any page, including one opened from
+//     disk where the server half of the app never loads.
+//
+// Literal matching only, deliberately: a fuzzy or misspelled term does not
+// appear in the text as typed, so there is nothing to wrap. In that case
+// nothing is highlighted rather than something that is not what matched.
+
+var OMN_HL_MIN = 2;   // 1 character marks half the page
+
+// omnClearHighlights puts the DOM back exactly as it was: each
+// <mark> is replaced by its own text and the parent normalised, so
+// repeated searches cannot leave the page progressively more nested.
+function omnClearHighlights() {
+    var preview = document.getElementById('preview');
+    if (!preview) return;
+    var marks = preview.querySelectorAll('mark.omn-search-hit');
+    for (var i = 0; i < marks.length; i++) {
+        var m = marks[i];
+        var parent = m.parentNode;
+        if (!parent) continue;
+        parent.replaceChild(document.createTextNode(m.textContent), m);
+        if (parent.normalize) parent.normalize();
+    }
+}
+
+// omnHighlightTerms wraps literal occurrences of the query terms in the
+// rendered page and returns the first one.
+//
+// Literal only, on purpose: a fuzzy or misspelled term does not appear
+// in the text as typed, so there is nothing to wrap. In that case the
+// panel has already shown WHICH lines matched, and this returns null
+// rather than highlighting something that is not what matched.
+function omnHighlightTerms(terms) {
+    omnClearHighlights();
+    var preview = document.getElementById('preview');
+    if (!preview || !terms || !terms.length) return null;
+
+    var needles = terms
+        .map(function (t) { return t.toLowerCase(); })
+        .filter(function (t) { return t.length >= OMN_HL_MIN; });
+    if (!needles.length) return null;
+
+    // Collect first, mutate after: rewriting text nodes while walking
+    // the tree invalidates the walker.
+    var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
+    var nodes = [];
+    var node;
+    while ((node = walker.nextNode())) {
+        if (!node.nodeValue || !node.nodeValue.trim()) continue;
+        var p = node.parentNode, skip = false;
+        while (p && p !== preview) {
+            var tag = p.tagName ? p.tagName.toUpperCase() : '';
+            // Never touch executable or already-marked content: a note
+            // may carry inline <script>, and rewriting its text would
+            // corrupt source the console/editor still shows.
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK' || tag === 'TEXTAREA') {
+                skip = true;
+                break;
+            }
+            p = p.parentNode;
+        }
+        if (!skip) nodes.push(node);
+    }
+
+    var firstMark = null;
+    nodes.forEach(function (textNode) {
+        var value = textNode.nodeValue;
+        var lower = value.toLowerCase();
+        var pieces = null;
+        var at = 0;
+
+        while (at < value.length) {
+            var bestAt = -1, bestLen = 0;
+            for (var i = 0; i < needles.length; i++) {
+                var idx = lower.indexOf(needles[i], at);
+                if (idx !== -1 && (bestAt === -1 || idx < bestAt)) {
+                    bestAt = idx;
+                    bestLen = needles[i].length;
+                }
+            }
+            if (bestAt === -1) break;
+            if (!pieces) pieces = document.createDocumentFragment();
+            if (bestAt > at) {
+                pieces.appendChild(document.createTextNode(value.slice(at, bestAt)));
+            }
+            var mark = document.createElement('mark');
+            mark.className = 'omn-search-hit';
+            mark.textContent = value.slice(bestAt, bestAt + bestLen);
+            pieces.appendChild(mark);
+            if (!firstMark) firstMark = mark;
+            at = bestAt + bestLen;
+        }
+
+        if (pieces) {
+            if (at < value.length) {
+                pieces.appendChild(document.createTextNode(value.slice(at)));
+            }
+            textNode.parentNode.replaceChild(pieces, textNode);
+        }
+    });
+
+    return firstMark;
+}
+
+window.omnClearHighlights = omnClearHighlights;
+window.omnHighlightTerms = omnHighlightTerms;
+
+// --- ?hl= : highlight on arrival ---
+//
+// A search result links to /Note.html?hl=fetch&hl=json. On load, mark those
+// terms, scroll to the first, and strip the parameters from the address bar so
+// the URL is clean to copy, bookmark or reload - the highlight has already
+// been applied, and leaving the query on would re-apply it on every refresh.
+//
+// history.replaceState rather than a redirect: no navigation, no extra request,
+// and the back button behaves as though the parameters were never there.
+//
+// Deliberately NOT the #:~:text= scroll-to-text fragment, which browsers
+// implement inconsistently and the Android WebView largely does not.
+window.addEventListener('load', function () {
+    var terms;
+    try {
+        terms = new URLSearchParams(window.location.search).getAll('hl');
+    } catch (e) {
+        return; // no URLSearchParams, or an unparsable URL: nothing to do
+    }
+    if (!terms || !terms.length) return;
+
+    var first = window.omnHighlightTerms(terms);
+    if (first && first.scrollIntoView) {
+        first.scrollIntoView({ block: 'center' });
+        first.classList.add('omn-search-hit-current');
+    }
+
+    try {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('hl');
+        window.history.replaceState({}, document.title,
+            url.pathname + url.search + url.hash);
+    } catch (e) { /* leaving the parameters on is harmless */ }
+});
+
 // --- Global Listeners & State ---
 // This file is loaded synchronously in <head>, BEFORE the body (and any
 // classic <script> embedded in a note) is parsed. That is deliberate and

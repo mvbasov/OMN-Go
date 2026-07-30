@@ -458,6 +458,7 @@ type searchPageView struct {
 	Total        int
 	Truncated    bool
 	IndexedKinds []string // what the index currently covers, for the empty state
+	Highlight    []string // query terms, hung off every result link as ?hl=
 }
 
 // searchKindLabel is the human name of a kind, used for the group headings.
@@ -533,8 +534,13 @@ func renderSearchPage(v searchPageView) string {
 			if title == "" {
 				title = r.Name
 			}
+			// The link carries the query as ?hl= so the note highlights and
+			// scrolls to the match on arrival, instead of dropping the reader at
+			// the top of a long page to find it again by eye. The client strips
+			// the parameters once applied, so the URL left in the address bar -
+			// the one that gets copied or bookmarked - is the plain one.
 			fmt.Fprintf(&groups, "  <a class=\"search-result-title\" href=\"%s\">%s</a>\n",
-				escapeHTML(r.URL), escapeHTML(title))
+				escapeHTML(highlightURL(r.URL, v.Highlight)), escapeHTML(title))
 			fmt.Fprintf(&groups, "  <div class=\"search-result-path\">%s</div>\n", escapeHTML(r.Name))
 
 			if len(r.Tags) > 0 {

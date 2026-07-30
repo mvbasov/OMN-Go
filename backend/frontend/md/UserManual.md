@@ -380,9 +380,18 @@ never ranked lower for it, because code in notes is a normal thing to look for.
 
 Selecting a result in **This page** closes the panel and marks every occurrence
 in the page, jumping to the first. In **All notes** it opens the note the match
-came from, and *See all results* opens the full [search page](OMNGoSearch),
-which is easier to read for a long list — and is an ordinary URL, so you can
-bookmark it or send it to someone.
+came from — already scrolled to the match, with the words you typed marked, so
+you do not have to find them again by eye. The same happens from the full
+[search page](OMNGoSearch), which *See all results* opens: it is easier to read
+for a long list, and is an ordinary URL you can bookmark or send to someone.
+
+The highlight disappears from the address bar as soon as it is applied, so the
+URL you end up copying or bookmarking is the plain one, and reloading the page
+does not put the marks back.
+
+One case where nothing is marked: a word that only matched loosely — `fecth`
+finding `fetch` — does not appear in the note as you typed it, so there is
+nothing to mark. The result list has already shown you which lines matched.
 
 ### What it costs
 

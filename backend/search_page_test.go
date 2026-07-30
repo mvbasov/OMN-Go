@@ -43,7 +43,7 @@ func TestSearchPage_RendersResults(t *testing.T) {
 		t.Error("unfilled template placeholder")
 	}
 	for _, want := range []string{
-		`href="/Fetch.html"`,            // the result links to the note
+		`href="/Fetch.html?hl=fetch"`,   // links to the note, carrying the query
 		"1 result for",                  // the summary counts
 		`class="search-group"`,          // grouped by kind
 		"Notes",                         // ... with a human label
