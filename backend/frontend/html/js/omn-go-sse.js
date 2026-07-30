@@ -864,10 +864,13 @@ if (window.location.protocol !== 'file:') {
     // --- Search overlay ---
     //
     // The everyday entry point to search: a spotlight-style panel over the
-    // current page. It talks to /api/search with scope=page, which needs no
-    // index and no configuration (see backend/search.go), so this panel works
-    // on any device and in any state of the app - there is nothing to switch
-    // on first.
+    // current page. It has two scopes and one control to pick between them:
+    //
+    //   page - the open note only. No index, no configuration, always
+    //          available, so this panel works on any device and in any state
+    //          of the app: there is nothing to switch on first.
+    //   all  - every indexed note. Offered only when the server says it can
+    //          answer (OMN_SEARCH_GLOBAL), so the control never leads nowhere.
     //
     // It lives in this file rather than a new asset for two reasons: this file
     // is already inside the `protocol !== 'file:'` guard, so an exported page
@@ -891,6 +894,12 @@ if (window.location.protocol !== 'file:') {
         var timer = null;
         var inflight = null;
         var lastTerms = [];
+        // "" until the user picks: the FIRST query deliberately sends no scope
+        // and adopts whatever the server used (it knows the configured
+        // default, and whether global search can answer at all). After that
+        // the choice is explicit and sticky for the session.
+        var scope = "";
+        var scopeShown = "";
 
         // The page to search. index.html defines currentNote for every
         // rendered note; without it there is nothing to scope to.
@@ -939,25 +948,58 @@ if (window.location.protocol !== 'file:') {
             return overlay;
         }
 
-        // Scope indicator. Global search does not exist yet, so this is a
-        // statement of fact rather than a control; the phase that adds the
-        // index turns it into the All notes / This page toggle, keyed on the
-        // OMN_SEARCH_GLOBAL runtime variable that phase introduces.
+        // Whether the server can answer a scope=all query: the setting is on
+        // AND there is an index to ask. Injected per request (see
+        // injectRuntimeVars), so a page cached before the setting changed
+        // still gets the current answer.
+        function globalAvailable() {
+            return typeof OMN_SEARCH_GLOBAL !== 'undefined' && OMN_SEARCH_GLOBAL;
+        }
+
+        // The scope row: one control, and only when there is a choice to make.
+        // With global search off it stays what it was before - a statement of
+        // where you are searching, not a switch that leads nowhere.
         function renderScope() {
             if (!scopeEl) return;
             scopeEl.textContent = '';
-            var chip = document.createElement('span');
-            chip.className = 'omn-search-chip is-active';
-            chip.textContent = 'This page';
-            scopeEl.appendChild(chip);
+            var showing = scopeShown || (globalAvailable() ? 'all' : 'page');
 
+            function chip(value, label) {
+                var el = document.createElement('span');
+                el.className = 'omn-search-chip' + (showing === value ? ' is-active' : '');
+                el.textContent = label;
+                if (globalAvailable()) {
+                    el.setAttribute('role', 'button');
+                    el.tabIndex = 0;
+                    el.addEventListener('click', function () { setScope(value); });
+                }
+                scopeEl.appendChild(el);
+            }
+
+            if (globalAvailable()) chip('all', 'All notes');
+            chip('page', 'This page');
+            if (input) {
+                input.placeholder = showing === 'all' ? 'Search all notes' : 'Search this page';
+            }
+
+            // Which page "this page" means. Shown only in page scope, where it
+            // is the thing being searched.
             var name = pageName();
-            if (name) {
+            if (showing === 'page' && name) {
                 var where = document.createElement('span');
                 where.className = 'omn-search-where';
                 where.textContent = name;
                 scopeEl.appendChild(where);
             }
+        }
+
+        function setScope(next) {
+            if (scope === next && scopeShown === next) return;
+            scope = next;
+            scopeShown = next;
+            renderScope();
+            clearTimeout(timer);
+            run();
         }
 
         function open() {
@@ -1016,9 +1058,10 @@ if (window.location.protocol !== 'file:') {
             var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
             inflight = ctrl;
 
-            var url = '/api/search?scope=page&snippets=' + MAX_SNIPPETS +
+            var url = '/api/search?snippets=' + MAX_SNIPPETS +
                 '&q=' + encodeURIComponent(q) +
                 '&on=' + encodeURIComponent(pageName());
+            if (scope) url += '&scope=' + encodeURIComponent(scope);
 
             var opts = { cache: 'no-store' };
             if (ctrl) opts.signal = ctrl.signal;
@@ -1028,6 +1071,20 @@ if (window.location.protocol !== 'file:') {
                 .then(function (data) {
                     if (ctrl && inflight !== ctrl) return; // superseded
                     inflight = null;
+                    if (data && data.status && data.status !== 'ok' && data.error) {
+                        // The server refused this scope (global search off, or
+                        // its index not ready). Say why and drop back to the
+                        // scope that always works, rather than showing an
+                        // empty list that would read as "nothing matched".
+                        clearRows();
+                        setStatus(data.error);
+                        if (scope !== 'page') {
+                            scope = 'page';
+                            scopeShown = 'page';
+                            renderScope();
+                        }
+                        return;
+                    }
                     render(q, data);
                 })
                 .catch(function (err) {
@@ -1044,49 +1101,86 @@ if (window.location.protocol !== 'file:') {
             clearRows();
             lastTerms = query.split(/\s+/).filter(function (t) { return t.length > 0; });
 
-            var result = (data && data.results && data.results.length) ? data.results[0] : null;
+            // The server reports which scope it actually used. Adopting it
+            // means the first query needs no guess about the configured
+            // default, and the chips can never disagree with the results
+            // underneath them.
+            if (data && data.scope && data.scope !== scopeShown) {
+                scopeShown = data.scope;
+                renderScope();
+            }
+
+            var results = (data && data.results) ? data.results : [];
+            if (!results.length) {
+                setStatus(scopeShown === 'all' ? 'No matches in your notes' : 'No matches on this page');
+                return;
+            }
+
+            if (scopeShown === 'all') {
+                renderGlobal(data, results);
+            } else {
+                renderPage(results[0]);
+            }
+        }
+
+        // Global scope: several documents, each with its own snippets. A row
+        // opens the document; the heading above it says which one.
+        function renderGlobal(data, results) {
+            results.forEach(function (r) {
+                var head = document.createElement('li');
+                head.className = 'omn-search-doc';
+
+                var title = document.createElement('span');
+                title.className = 'omn-search-doc-title';
+                title.textContent = r.title || r.name;
+                head.appendChild(title);
+
+                var path = document.createElement('span');
+                path.className = 'omn-search-doc-path';
+                path.textContent = r.name;
+                head.appendChild(path);
+
+                head.addEventListener('click', function () { openResult(r); });
+                list.appendChild(head);
+
+                (r.matches || []).forEach(function (m) {
+                    list.appendChild(buildSnippetRow(m, function () { openResult(r); }));
+                });
+                if (r.truncated) {
+                    var note = document.createElement('li');
+                    note.className = 'omn-search-note';
+                    note.textContent = 'only the first 500 KiB of this file was searched';
+                    list.appendChild(note);
+                }
+            });
+
+            var n = data.total || results.length;
+            var note = n === 1 ? '1 result' : n + ' results';
+            if (data.truncated && n > results.length) note += ' (showing ' + results.length + ')';
+            setStatus(note + ' \u00b7 \u2191\u2193 to move \u00b7 \u21b5 to open');
+            setActive(0);
+        }
+
+        // A result in global scope is a different document, so following it is
+        // a navigation - unlike page scope, where the answer is already on
+        // screen and the useful move is to highlight it in place.
+        function openResult(r) {
+            close();
+            if (r && r.url) window.location.href = r.url;
+        }
+
+        function renderPage(result) {
             if (!result || !result.matches || !result.matches.length) {
                 // A note can match on its title or a tag and have no matching
                 // LINE - say so, rather than showing an empty list that reads
                 // as "nothing found".
-                if (result) {
-                    setStatus('Matches this page’s title or tags, but no line in the text');
-                } else {
-                    setStatus('No matches on this page');
-                }
+                setStatus('Matches this page’s title or tags, but no line in the text');
                 return;
             }
 
             result.matches.forEach(function (m, i) {
-                var li = document.createElement('li');
-                li.className = 'omn-search-row';
-                li.setAttribute('role', 'option');
-
-                var num = document.createElement('span');
-                num.className = 'omn-search-line';
-                num.textContent = m.line;
-                li.appendChild(num);
-
-                if (m.context) {
-                    // A hit inside a script or a fenced block is a different
-                    // kind of answer from one in prose. Marked, never ranked
-                    // down: code in notes is a normal thing to search for.
-                    var ctx = document.createElement('span');
-                    ctx.className = 'omn-search-ctx';
-                    ctx.textContent = '‹/›';
-                    ctx.title = m.context === 'script' ? 'inside a <script> block' : 'inside a code block';
-                    li.appendChild(ctx);
-                }
-
-                var text = document.createElement('span');
-                text.className = 'omn-search-text';
-                renderHighlighted(text, m.text || '', m.spans || []);
-                li.appendChild(text);
-
-                li.addEventListener('click', function () { choose(i); });
-                li.addEventListener('mousemove', function () { setActive(i); });
-                list.appendChild(li);
-                rows.push(li);
+                var idx = i;
+                list.appendChild(buildSnippetRow(m, function () { choose(idx); }));
             });
 
             var n = result.matches.length;
@@ -1094,6 +1188,43 @@ if (window.location.protocol !== 'file:') {
             if (result.truncated) note += ' · only the first 500 KiB was searched';
             setStatus(note + ' · ↑↓ to move · ↵ to highlight in the page');
             setActive(0);
+        }
+
+        // buildSnippetRow renders one match. Shared by both scopes so a line
+        // looks the same wherever it was found; only what following it DOES
+        // differs, which is the caller's business.
+        function buildSnippetRow(m, onChoose) {
+            var li = document.createElement('li');
+            li.className = 'omn-search-row';
+            li.setAttribute('role', 'option');
+
+            var num = document.createElement('span');
+            num.className = 'omn-search-line';
+            num.textContent = m.line;
+            li.appendChild(num);
+
+            if (m.context) {
+                // A hit inside a script or a fenced block is a different kind
+                // of answer from one in prose. Marked, never ranked down: code
+                // in notes is a normal thing to search for.
+                var ctx = document.createElement('span');
+                ctx.className = 'omn-search-ctx';
+                ctx.textContent = '‹/›';
+                ctx.title = m.context === 'script' ? 'inside a <script> block' : 'inside a code block';
+                li.appendChild(ctx);
+            }
+
+            var text = document.createElement('span');
+            text.className = 'omn-search-text';
+            renderHighlighted(text, m.text || '', m.spans || []);
+            li.appendChild(text);
+
+            var idx = rows.length;
+            li.addEventListener('click', onChoose);
+            li.addEventListener('mousemove', function () { setActive(idx); });
+            rows.push(li);
+            li._omnChoose = onChoose;
+            return li;
         }
 
         // renderHighlighted writes text into node, wrapping each span in a
@@ -1169,7 +1300,8 @@ if (window.location.protocol !== 'file:') {
                 e.preventDefault();
                 clearTimeout(timer);
                 if (rows.length) {
-                    choose(active < 0 ? 0 : active);
+                    var row = rows[active < 0 ? 0 : active];
+                    if (row && row._omnChoose) row._omnChoose();
                 } else {
                     run();
                 }

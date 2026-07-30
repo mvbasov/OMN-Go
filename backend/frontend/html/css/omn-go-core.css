@@ -709,6 +709,57 @@ a.taglink {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* A document heading in global scope: the note a group of snippets came from.
+   Page scope has no equivalent - there, every row is from the page you are
+   already looking at. */
+.omn-search-doc {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 12px 4px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft);
+}
+.omn-search-doc:hover {
+    background: var(--bg-hover);
+}
+.omn-search-doc-title {
+    flex: 0 1 auto;
+    font-weight: 600;
+    color: var(--text-strong);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.omn-search-doc-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.omn-search-note {
+    padding: 4px 12px 8px;
+    color: var(--text-faint);
+    font-size: 11px;
+}
+/* Only clickable when there is a choice to make: with global search off the
+   scope row is a label, not a control. */
+.omn-search-chip[role="button"] {
+    cursor: pointer;
+}
+.omn-search-chip[role="button"]:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.omn-search-chip.is-active[role="button"]:hover {
+    color: var(--bg-surface);
+}
+
 .omn-search-results {
     flex: 1 1 auto;
     margin: 0;

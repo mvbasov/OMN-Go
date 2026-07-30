@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **1.11.32** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.07.42** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -114,6 +114,7 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 | --- | --- |
 | `POST /login` | none (it is the login) |
 | `GET /api/note` | **none — deliberately open** |
+| `GET /api/search` | **none — deliberately open** |
 | `GET /api/logs` | **none** |
 | `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/db_backups` | admin (local bypass applies) |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
@@ -126,6 +127,7 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 | --- | --- | --- | --- | --- |
 | any | `/login` | no | none | text |
 | GET | `/api/note` | no | none | raw file |
+| GET | `/api/search` | no | **none — deliberately open** | JSON |
 | any | `/api/save` | no | admin | text |
 | any | `/api/newpage` | no | admin | text |
 | any | `/api/quick` | no | admin | text |
@@ -393,7 +395,124 @@ never break out of the surrounding `<script>` block.
 
 ---
 
-### 4.3 Uploads
+### 4.3 Search
+
+#### `GET /api/search`
+
+Fuzzy search over the notes. Two scopes, one matcher: the response shape,
+the scoring and the meaning of a result are identical either way — only the
+haystack differs.
+
+| Scope | Searches | Needs the index | Needs configuration |
+| --- | --- | --- | --- |
+| `page` | the one file named by `on` | no | **no — always available** |
+| `all` | every indexed document | yes | yes (`search_enabled`) |
+
+Page scope reads that single file per request and keeps nothing, which is why
+it has no setting: there is no standing cost to opt out of. Global scope is
+answered from the in-memory index (`backend/search_index.go`), which is built
+only when `search_enabled` is on.
+
+**Parameters** (query string)
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `q` | string | yes | — | The query. Empty is an empty result, not an error |
+| `scope` | string | no | see below | `page` or `all` |
+| `on` | string | no | — | Page name or asset path for `scope=page`, resolved by `resolvePageName` |
+| `kind` | string | no | the configured kinds | Comma list of `md,bookmarks,js,json,user_json` — narrows, never widens |
+| `limit` | int | no | `50` | Max results (hard cap `200`); `scope=page` returns at most one |
+| `snippets` | int | no | `3` | Max snippet lines per result (hard cap `10`) |
+
+The default `scope` is the configured `search_scope`, except that it falls back
+to `page` whenever global search cannot answer — defaulting a caller who
+expressed no preference into a scope that can only fail would be a strange
+reading of silence. An **explicit** `scope=all` is still refused in that state,
+because hiding it would misreport what the server did.
+
+**Query syntax**
+
+Terms are whitespace-separated and combined with **AND**: every term must match
+somewhere in a document. A term may carry a field prefix — `title:`, `tag:`,
+`path:` — or `kind:` to filter. An unknown prefix is not a prefix, so
+`https://example.com` stays a search for that text.
+
+Each term is matched by the first of three rungs that hits, and matches compare
+by **(rung, score)** — never score alone, so a document containing the word
+outranks one that merely suggests it:
+
+1. **exact substring** (case- and diacritic-folded)
+2. **subsequence**, fzf-style — `andint` finds `Android Intents`
+3. **bounded edit distance** (Damerau/OSA) for terms of 4+ runes — `fecth`
+   finds `fetch`
+
+**Response** `200`
+
+```json
+{
+  "query": "fetch json",
+  "scope": "page",
+  "took_ms": 9,
+  "total": 1,
+  "truncated": false,
+  "results": [
+    {
+      "path": "md/Test/OMN-Go/Fetch.md",
+      "kind": "md",
+      "name": "Test/OMN-Go/Fetch",
+      "title": "Test/OMNGo/Fetch",
+      "tags": ["Test"],
+      "score": 570,
+      "url": "/Test/OMN-Go/Fetch.html",
+      "matches": [
+        {
+          "line": 15,
+          "context": "script",
+          "text": "const response = await fetch('/json/test.json');",
+          "spans": [[23,5],[31,4],[41,4]]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `scope` | The scope actually used — a client that sent none can read its default from here |
+| `total` | Documents matched, before `limit` |
+| `truncated` | Results were capped by `limit`, or a file was only partly searched |
+| `score` | Higher is better; comparable only within one response |
+| `url` | Where the result lives: `/<Name>.html` for a note, the served path for an asset |
+| `matches[].line` | 1-based line in the file **as stored** — the markdown source for a note |
+| `matches[].context` | `script` or `code` when the hit is inside a `<script>` or a fenced block; absent in prose |
+| `matches[].text` | The snippet, whitespace-trimmed and windowed to ~160 runes around the first hit, with `…` markers |
+| `matches[].spans` | `[start, length]` pairs in **rune** offsets into `text` |
+
+`spans` are rune offsets, not byte offsets and not UTF-16 units: slicing
+`text` by anything else cuts Cyrillic and emoji in half. In JavaScript,
+`Array.from(text)` gives the right units.
+
+**Files larger than 500 KiB** are searched up to that point, cut at a line
+boundary, and the result carries `"truncated": true` — "found nothing in the
+part I looked at" rather than silence.
+
+**Errors**
+
+| Status | Body | When |
+| --- | --- | --- |
+| `200` | normal response with `"results": []` | Nothing matched; `on` names something that does not exist; `q` is empty |
+| `400` | `{"status":"error","error":"unknown scope …"}` | `scope` is neither `page` nor `all` |
+| `503` | `{"status":"disabled","error":"global search is off …"}` | `scope=all` with `search_enabled` false — the user can act on this |
+| `503` | `{"status":"unavailable","error":"the search index is not ready"}` | `scope=all`, enabled, but no index yet — the user cannot |
+
+A miss is always `200` with no results. `on` pointing outside the storage
+directory, or at a file that does not exist, is a miss — never a way to probe
+the filesystem.
+
+---
+
+### 4.4 Uploads
 
 Both upload endpoints share `saveUploadedFile`:
 
@@ -445,7 +564,7 @@ Stored in `html/user_json/`, served from `/user_json/<filename>`.
 
 ---
 
-### 4.4 Configuration
+### 4.5 Configuration
 
 #### `GET /api/config`
 
@@ -581,7 +700,7 @@ The client should expect the connection to drop.
 
 ---
 
-### 4.5 External editor
+### 4.6 External editor
 
 #### `GET /api/edit-external`
 
@@ -609,7 +728,7 @@ failure to launch is logged only — the wait page is still returned `200`.
 
 ---
 
-### 4.6 Server log stream
+### 4.7 Server log stream
 
 #### `GET /api/logs`
 
@@ -650,7 +769,7 @@ es.onmessage = e => console.log(e.data);
 
 ---
 
-### 4.7 SQLite
+### 4.8 SQLite
 
 #### `POST /api/sql`
 
@@ -737,7 +856,7 @@ Whole request body is capped at **1 MB** (`http.MaxBytesReader`).
 
 ---
 
-### 4.8 Database backups
+### 4.9 Database backups
 
 Backups are **JSON Lines** (`.jsonl`) dumps of one user database, stored
 at `html/db_backup/<db>/<timestamp>_<hostname>.jsonl` — under `html/`, so
@@ -871,7 +990,7 @@ immediately.
 
 ---
 
-### 4.9 Git synchronization
+### 4.10 Git synchronization
 
 #### `POST /api/sync`
 

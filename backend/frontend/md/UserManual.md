@@ -29,6 +29,7 @@ edit mode (pencil button) to see how any example on it is written.
 - [Android intents and Termux](AndroidIntents)
 - [Quick Notes and Bookmarks](#quick-notes-and-bookmarks)
 - [The Tags page](#the-tags-page)
+- [Searching](#searching)
 - [Theme](#theme)
 
 **Advanced**
@@ -339,6 +340,58 @@ edit" comment at the top says as much, and your edits would be overwritten
 on the next rebuild). It is plain static HTML with no scripts, so it also
 works when the compiled `html/` tree is opened offline. Untagged notes are
 simply omitted.
+
+## Searching
+
+Tap the magnifier in the page header (or press **Ctrl-K**, or **/**, on a
+keyboard) to open the search panel.
+
+There are two searches, and the chips at the top of the panel say which one
+you are using:
+
+- **This page** — searches the note you have open. It always works, needs no
+  setting, and costs nothing: the file is read for that one query and
+  forgotten again.
+- **All notes** — searches everything at once. This one needs an index, so it
+  appears only after you switch **Enable global search** on under
+  [Config → Search](Config#cfg-search).
+
+### What it matches
+
+Typing does not have to be exact. Each word you type is tried three ways, best
+first:
+
+1. the word as written — `json` finds `json`
+2. the letters in order — `andint` finds **And**roid **Int**ents
+3. a near miss — `fecth` finds `fetch`, because a swapped pair of letters is
+   the commonest way to mistype a word
+
+Several words all have to match, so `fetch json` finds notes containing both.
+A word can be aimed at one part of a note with `title:`, `tag:` or `path:` —
+for example `tag:recipe bread`.
+
+Case and accents are ignored, in every script: `Ёлка` is found by `елка`.
+
+### Reading the results
+
+Each line shows where the match is and highlights it. A `‹/›` mark means the
+line is inside a script or a code block rather than prose — useful to know, and
+never ranked lower for it, because code in notes is a normal thing to look for.
+
+Selecting a result in **This page** closes the panel and marks every occurrence
+in the page, jumping to the first. In **All notes** it opens the note the match
+came from.
+
+### What it costs
+
+Page search costs nothing at all. Global search keeps an index in memory —
+roughly half the size of the text it covers, so about 3 MB for 2000 notes.
+The Config page shows the current figure. On a device short of memory, leave
+global search off: page search keeps working either way.
+
+Two limits worth knowing: only the first 500 KiB of a very large file is
+searched (results say so when it happens), and a note whose heading is not
+Latin script may not be linkable to a precise section.
 
 ## Theme
 
