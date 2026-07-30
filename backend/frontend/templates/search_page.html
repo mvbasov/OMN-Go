@@ -1,0 +1,18 @@
+<div class="search-page">
+    <!-- A plain GET form: the results page works with JavaScript disabled,
+         behind any proxy, and as a shareable URL. The dialog is the fast path;
+         this is the one you can send to someone. -->
+    <form class="search-page-form" method="get" action="/OMNGoSearch.html">
+        <input type="text" name="q" value="%%QUERY%%" class="search-page-input"
+               placeholder="Search all notes" autocomplete="off" autofocus />
+        <button type="submit" class="search-page-submit">
+            <i class="material-icons">search</i>
+        </button>
+    </form>
+    <!-- No kind checkboxes and no scope switch here: what is indexed is a
+         Config setting (a filter contradicting it would only produce empty
+         sections), and this page exists to search everything. -->
+    <div class="search-page-summary">%%SUMMARY%%</div>
+%%GROUPS%%
+%%EMPTY%%
+</div>

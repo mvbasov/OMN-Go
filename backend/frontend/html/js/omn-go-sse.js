@@ -1158,7 +1158,32 @@ if (window.location.protocol !== 'file:') {
             var note = n === 1 ? '1 result' : n + ' results';
             if (data.truncated && n > results.length) note += ' (showing ' + results.length + ')';
             setStatus(note + ' \u00b7 \u2191\u2193 to move \u00b7 \u21b5 to open');
+            addSeeAll();
             setActive(0);
+        }
+
+        // "See all results" goes to the full page: shareable as a URL, readable
+        // without JavaScript, and not capped by what fits in this panel. Global
+        // scope only, because the page is global only (serveSearchPage).
+        function addSeeAll() {
+            var q = input.value.trim();
+            if (!q) return;
+            var li = document.createElement('li');
+            li.className = 'omn-search-row omn-search-seeall';
+            var text = document.createElement('span');
+            text.className = 'omn-search-text';
+            text.textContent = 'See all results \u2192';
+            li.appendChild(text);
+            var go = function () {
+                close();
+                window.location.href = '/OMNGoSearch.html?q=' + encodeURIComponent(q);
+            };
+            var idx = rows.length;
+            li.addEventListener('click', go);
+            li.addEventListener('mousemove', function () { setActive(idx); });
+            li._omnChoose = go;
+            rows.push(li);
+            list.appendChild(li);
         }
 
         // A result in global scope is a different document, so following it is

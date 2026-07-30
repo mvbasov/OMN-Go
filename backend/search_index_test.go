@@ -528,3 +528,8 @@ func containsPath(list []string, want string) bool {
 	}
 	return false
 }
+
+// readIfExists is a small helper for asserting that something was NOT created.
+func readIfExists(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}

@@ -884,6 +884,13 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 		return
 	}
 
+	// The search results page: dynamic like Config (no .md source, no html/
+	// cache), and only present when global search is on - see serveSearchPage.
+	if name == "OMNGoSearch" {
+		a.serveSearchPage(w, r)
+		return
+	}
+
 	mdPath, htmlPath, name, _ := a.resolvePageName(name)
 
 	htmlStat, errHtml := os.Stat(htmlPath)

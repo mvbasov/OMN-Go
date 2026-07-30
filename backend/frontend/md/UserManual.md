@@ -380,7 +380,9 @@ never ranked lower for it, because code in notes is a normal thing to look for.
 
 Selecting a result in **This page** closes the panel and marks every occurrence
 in the page, jumping to the first. In **All notes** it opens the note the match
-came from.
+came from, and *See all results* opens the full [search page](OMNGoSearch),
+which is easier to read for a long list — and is an ordinary URL, so you can
+bookmark it or send it to someone.
 
 ### What it costs
 

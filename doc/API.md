@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.07.42** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.07.43** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -145,6 +145,7 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 | GET | `/api/edit-external` | no | admin | HTML or 303 |
 | GET | `/api/logs` | no | none | SSE |
 | GET | `/db_backups` | no | admin | HTML |
+| GET | `/OMNGoSearch.html` | no | none | HTML (404 when global search is off) |
 | GET | `/`, `/<name>.html`, `/<asset>` | no | none | HTML / asset |
 | GET | `/js/…`, `/css/…`, `/json/…` | no | none | asset |
 | GET | `/images/…`, `/user_json/…` | no | none | asset |
@@ -496,6 +497,21 @@ outranks one that merely suggests it:
 **Files larger than 500 KiB** are searched up to that point, cut at a line
 boundary, and the result carries `"truncated": true` — "found nothing in the
 part I looked at" rather than silence.
+
+#### `GET /OMNGoSearch.html`
+
+The results page: the same search as `scope=all`, rendered as a shareable,
+JavaScript-free page. Special-cased in `serveHTMLPage` beside `Config` and
+`OMNGoTags`, and **dynamic like `Config`** - there is no `md/OMNGoSearch.md`,
+nothing is written to the `html/` cache, and `?refresh` means nothing here.
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `q` | string | no | — | The query. Absent or empty renders just the form |
+
+Global only: with `search_enabled` off it answers **404** through
+`serveNotFound`, because a page that could only ever be empty is worse than an
+honest miss. Page search lives in the dialog.
 
 **Errors**
 

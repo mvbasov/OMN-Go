@@ -809,6 +809,116 @@ a.taglink {
     font-size: 12px;
     border-top: 1px solid var(--border-soft);
 }
+.omn-search-seeall .omn-search-text {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
+   The shareable, JS-free counterpart to the dialog. Same match styling, laid
+   out for reading rather than for speed. */
+.search-page {
+    max-width: 900px;
+}
+.search-page-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.search-page-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 16px;
+    color: var(--text);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+.search-page-submit {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.search-page-submit:hover {
+    background: var(--accent-hover);
+}
+.search-page-summary {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+.search-page-note {
+    color: var(--text-faint);
+}
+.search-group {
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    font-size: 15px;
+    color: var(--text-heading);
+    border-bottom: 1px solid var(--border-soft);
+}
+.search-group-count {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: normal;
+}
+.search-result {
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--border-soft);
+}
+.search-result-title {
+    font-size: 15px;
+    font-weight: 600;
+}
+.search-result-path {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+.search-result-tags {
+    margin-bottom: 4px;
+}
+.search-snippet {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.search-snippet-line {
+    flex: 0 0 auto;
+    min-width: 3em;
+    text-align: right;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+.search-snippet-ctx {
+    flex: 0 0 auto;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: -1px;
+}
+.search-snippet-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.search-result-note,
+.search-empty-hint {
+    color: var(--text-faint);
+    font-size: 12px;
+}
+.search-empty {
+    padding: 12px 0;
+}
+
 /* Shared by the result rows and the in-page highlight, so a match looks the
    same wherever it is shown. */
 mark.omn-search-hit {

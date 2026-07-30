@@ -22,7 +22,7 @@ package backend
 //
 //   - S2 adds /api/search to TestBaseline_RouteSet (done)
 //   - S4 adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet (done)
-//   - the results-page phase adds an arm to TestBaseline_ServeHTMLPageDispatch
+//   - S7 adds the OMNGoSearch arm to TestBaseline_ServeHTMLPageDispatch (done)
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -141,6 +141,31 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 		}
 		if _, err := os.Stat(a.pageHTMLPath("OMNGoTags")); err != nil {
 			t.Errorf("OMNGoTags.html not cached: %v", err)
+		}
+	})
+
+	t.Run("OMNGoSearch is dynamic and gated", func(t *testing.T) {
+		// With global search off the page does not exist at all - and, unlike
+		// an unknown page name, a miss here must not synthesize a note.
+		rec := getPage(t, a, "/OMNGoSearch.html")
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("status %d, want 404 while global search is off", rec.Code)
+		}
+		if _, err := os.Stat(filepath.Join(a.StorageDir, "md", "OMNGoSearch.md")); err == nil {
+			t.Error("a request for the search page created an md/ source")
+		}
+
+		a.WithConfig(func(c *Config) { c.SearchEnabled = true })
+		defer a.WithConfig(func(c *Config) { c.SearchEnabled = false })
+		if a.search == nil {
+			a.search = &searchIndex{}
+		}
+		rec = getPage(t, a, "/OMNGoSearch.html?q=hello")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d with global search on", rec.Code)
+		}
+		if _, err := os.Stat(a.pageHTMLPath("OMNGoSearch")); err == nil {
+			t.Error("the search page wrote an html/ cache; it is dynamic like Config")
 		}
 	})
 

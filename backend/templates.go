@@ -109,6 +109,7 @@ var (
 	externalEditTmpl  = loadTemplate("external_edit.html")
 	editorPageTmpl    = loadTemplate("editor.html")
 	notFoundTmpl      = loadTemplate("not_found.html")
+	searchPageTmpl    = loadTemplate("search_page.html")
 	// modalsHTML is the block of server-only modals (login, quick note,
 	// bookmark, commit, conflict). It is kept OUT of the cached/exported
 	// page (index.html carries only the modalsMarker slot) and spliced in by
@@ -441,6 +442,173 @@ func renderNotFoundPage(v notFoundView) string {
 		"TIME":         escapeHTML(v.Time),
 		"REFERER_ROWS": refererRows,
 		"SUGGESTION":   suggestion,
+	})
+}
+
+// --- Search results page (search_page.html) ---
+
+// searchPageView is everything renderSearchPage needs. Query is RAW - it is
+// whatever someone typed into a URL, so it is escaped here for both the
+// attribute and the text contexts it lands in. Results carry the same data the
+// API returns; the snippet text and its spans are turned into <mark> markup by
+// renderSnippetHTML, which escapes as it goes.
+type searchPageView struct {
+	Query        string
+	Results      []searchResult
+	Total        int
+	Truncated    bool
+	IndexedKinds []string // what the index currently covers, for the empty state
+}
+
+// searchKindLabel is the human name of a kind, used for the group headings.
+func searchKindLabel(kind string) string {
+	switch kind {
+	case SearchKindMD:
+		return "Notes"
+	case SearchKindBookmarks:
+		return "Bookmarks"
+	case SearchKindJS:
+		return "Scripts"
+	case SearchKindJSON:
+		return "JSON"
+	case SearchKindUserJSON:
+		return "Uploaded JSON"
+	default:
+		return kind
+	}
+}
+
+// renderSnippetHTML splices <mark> around each span of a snippet.
+//
+// Spans are RUNE offsets (the Go side works in runes so Cyrillic is never cut
+// in half), so the text is walked as []rune rather than sliced by byte. Every
+// segment is escaped as it is emitted - the only markup in the result is the
+// <mark> tags this function writes itself, which is the escaping contract at
+// the top of this file applied to text that comes from the user's own notes.
+func renderSnippetHTML(text string, spans [][2]int) string {
+	runes := []rune(text)
+	var b strings.Builder
+	at := 0
+	for _, sp := range spans {
+		start, length := sp[0], sp[1]
+		if start < at || length <= 0 || start+length > len(runes) {
+			continue
+		}
+		if start > at {
+			b.WriteString(escapeHTML(string(runes[at:start])))
+		}
+		b.WriteString(`<mark class="omn-search-hit">`)
+		b.WriteString(escapeHTML(string(runes[start : start+length])))
+		b.WriteString(`</mark>`)
+		at = start + length
+	}
+	if at < len(runes) {
+		b.WriteString(escapeHTML(string(runes[at:])))
+	}
+	return b.String()
+}
+
+func renderSearchPage(v searchPageView) string {
+	var groups strings.Builder
+
+	// Grouped by kind, in a fixed order rather than by score, so the page has
+	// a stable shape a reader can scan. Within a group the server's ranking is
+	// preserved.
+	for _, kind := range searchKindsAll {
+		var inKind []searchResult
+		for _, r := range v.Results {
+			if r.Kind == kind {
+				inKind = append(inKind, r)
+			}
+		}
+		if len(inKind) == 0 {
+			continue
+		}
+		fmt.Fprintf(&groups, "<h2 class=\"search-group\">%s <span class=\"search-group-count\">%d</span></h2>\n",
+			escapeHTML(searchKindLabel(kind)), len(inKind))
+
+		for _, r := range inKind {
+			groups.WriteString("<div class=\"search-result\">\n")
+			title := r.Title
+			if title == "" {
+				title = r.Name
+			}
+			fmt.Fprintf(&groups, "  <a class=\"search-result-title\" href=\"%s\">%s</a>\n",
+				escapeHTML(r.URL), escapeHTML(title))
+			fmt.Fprintf(&groups, "  <div class=\"search-result-path\">%s</div>\n", escapeHTML(r.Name))
+
+			if len(r.Tags) > 0 {
+				groups.WriteString("  <div class=\"search-result-tags\">")
+				for _, t := range r.Tags {
+					// The same pill markup and the same anchor contract as a
+					// page header (see renderIndexPage), so a tag means the
+					// same thing and goes to the same place wherever it is
+					// shown.
+					fmt.Fprintf(&groups, "<a href=\"/OMNGoTags.html#%s\" class=\"taglink\"><span class=\"tagmark\">%s</span></a>",
+						escapeHTML(tagSlug(t)), escapeHTML(t))
+				}
+				groups.WriteString("</div>\n")
+			}
+
+			for _, m := range r.Matches {
+				groups.WriteString("  <div class=\"search-snippet\">")
+				fmt.Fprintf(&groups, "<span class=\"search-snippet-line\">%d</span>", m.Line)
+				if m.Context != "" {
+					where := "inside a code block"
+					if m.Context == "script" {
+						where = "inside a <script> block"
+					}
+					fmt.Fprintf(&groups, "<span class=\"search-snippet-ctx\" title=\"%s\">&lsaquo;/&rsaquo;</span>",
+						escapeHTML(where))
+				}
+				fmt.Fprintf(&groups, "<span class=\"search-snippet-text\">%s</span>",
+					renderSnippetHTML(m.Text, m.Spans))
+				groups.WriteString("</div>\n")
+			}
+			if r.Truncated {
+				groups.WriteString("  <div class=\"search-result-note\">only the first 500 KiB of this file was searched</div>\n")
+			}
+			groups.WriteString("</div>\n")
+		}
+	}
+
+	summary := ""
+	empty := ""
+	switch {
+	case v.Query == "":
+		summary = ""
+	case v.Total == 0:
+		// Naming what WAS searched matters: "no results" from a config the
+		// reader has forgotten about is a trap, not an answer.
+		var kinds []string
+		for _, k := range v.IndexedKinds {
+			kinds = append(kinds, searchKindLabel(k))
+		}
+		covered := "nothing"
+		if len(kinds) > 0 {
+			covered = strings.Join(kinds, ", ")
+		}
+		empty = fmt.Sprintf(`<div class="search-empty">`+
+			`<p>No matches for <strong>%s</strong>.</p>`+
+			`<p class="search-empty-hint">The index currently covers: %s. `+
+			`<a href="/Config.html#cfg-search">Change what is searched</a>.</p>`+
+			`</div>`, escapeHTML(v.Query), escapeHTML(covered))
+	default:
+		word := "results"
+		if v.Total == 1 {
+			word = "result"
+		}
+		summary = fmt.Sprintf("%d %s for <strong>%s</strong>", v.Total, word, escapeHTML(v.Query))
+		if v.Truncated && len(v.Results) < v.Total {
+			summary += fmt.Sprintf(" <span class=\"search-page-note\">(showing the first %d)</span>", len(v.Results))
+		}
+	}
+
+	return fill(searchPageTmpl, map[string]string{
+		"QUERY":   escapeHTML(v.Query),
+		"SUMMARY": summary,
+		"GROUPS":  groups.String(),
+		"EMPTY":   empty,
 	})
 }
 

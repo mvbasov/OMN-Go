@@ -950,6 +950,50 @@ func writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, st
 	}
 }
 
+// serveSearchPage renders /OMNGoSearch.html.
+//
+// Dynamic like Config, not generated like OMNGoTags: there is no
+// md/OMNGoSearch.md, nothing is written to the html/ cache, and ?refresh means
+// nothing here. The results are computed per request from the index.
+//
+// GLOBAL ONLY. This page exists to show a ranked list across everything, which
+// is exactly what needs the index; with global search off it does not exist,
+// because a permanently empty page is worse than an honest 404. Page search
+// lives in the dialog, where the answer is short enough not to need a page of
+// its own.
+func (a *App) serveSearchPage(w http.ResponseWriter, r *http.Request) {
+	if !a.GetConfig().SearchEnabled {
+		a.serveNotFound(w, r)
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	view := searchPageView{
+		Query:        query,
+		IndexedKinds: normalizeSearchKinds(a.GetConfig().SearchKinds),
+	}
+
+	if strings.TrimSpace(query) != "" && a.ensureSearchIndex() {
+		// Same code path as the API, so the page and the dialog can never
+		// disagree about what matches or in what order.
+		resp := searchResponse{Query: query, Scope: SearchScopeAll, Results: []searchResult{}}
+		a.searchGlobal(&resp, map[string][]string{"q": {query}})
+		view.Results = resp.Results
+		view.Total = resp.Total
+		view.Truncated = resp.Truncated
+	}
+
+	title := "Search"
+	if query != "" {
+		title = "Search: " + query
+	}
+	body := renderSearchPage(view)
+	compiled := a.compilePageWithBody(title,
+		[]byte("Title: "+title+"\nCategory: System\n\n"), body)
+	w.Header().Set("Content-Type", "text/html")
+	w.Write(a.injectRuntimeVars(compiled))
+}
+
 // ----------------------------------------------------------------------
 // Small shared helpers
 // ----------------------------------------------------------------------
