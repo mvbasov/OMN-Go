@@ -141,13 +141,25 @@ func trigrams(s []rune) []uint32 {
 }
 
 // indexStamp is the cheap fingerprint of the corpus on disk: how many files
-// there are and the newest modification time among them AND their directories.
+// there are, the newest modification time among them AND their directories,
+// and their total size.
+//
 // Directory times are included on purpose - adding, deleting or renaming a
 // file bumps its directory's mtime but not necessarily any surviving file's,
 // so a file-only scan would miss exactly those changes.
+//
+// The size sum is here because mtime alone is not trustworthy: several
+// filesystems (notably Android's external media, where every note lives) round
+// timestamps to the second, so an edit made within a second of the previous one
+// leaves the newest mtime unchanged. Size moves for almost any real edit, and
+// costs nothing to collect - the walk is already stat-ing every file. It still
+// cannot see an external edit that keeps the byte count identical within the
+// same second; that waits for the next change. Edits made THROUGH the app do
+// not rely on any of this (see ensureSearchIndex).
 type indexStamp struct {
 	files  int
 	newest time.Time
+	bytes  int64
 }
 
 type searchIndex struct {
@@ -498,9 +510,16 @@ func hasExt(name string, exts []string) bool {
 // searchStamp is the stat-only walk: no file is opened and nothing is parsed.
 func (a *App) searchStamp(kinds []string) indexStamp {
 	var st indexStamp
-	consider := func(e fs.DirEntry) {
-		if info, err := e.Info(); err == nil && info.ModTime().After(st.newest) {
+	consider := func(e fs.DirEntry, countSize bool) {
+		info, err := e.Info()
+		if err != nil {
+			return
+		}
+		if info.ModTime().After(st.newest) {
 			st.newest = info.ModTime()
+		}
+		if countSize {
+			st.bytes += info.Size()
 		}
 	}
 	for _, root := range a.searchRoots(kinds) {
@@ -512,14 +531,14 @@ func (a *App) searchStamp(kinds []string) indexStamp {
 				if root.kind == SearchKindMD && p == filepath.Join(root.dir, "local") {
 					return fs.SkipDir
 				}
-				consider(e) // a rename shows up here and nowhere else
+				consider(e, false) // a rename shows up here and nowhere else
 				return nil
 			}
 			if !hasExt(e.Name(), root.exts) {
 				return nil
 			}
 			st.files++
-			consider(e)
+			consider(e, true)
 			return nil
 		})
 	}
@@ -550,7 +569,17 @@ func (a *App) ensureSearchIndex() bool {
 		a.rebuildSearchIndex()
 		return a.searchIndexBuilt()
 	}
-	if !dirty && time.Since(checked) < indexStaleCheckEvery {
+	// An in-process write means the CONTENT changed - we watched it happen.
+	// Re-stating to confirm is not just redundant, it is unreliable: file
+	// timestamps have coarse granularity on some filesystems (Android's
+	// external media among them), so an edit and the write before it can share
+	// an mtime to the second and the stamp below would report "nothing
+	// changed" about a file we know we just rewrote.
+	if dirty {
+		a.rebuildSearchIndex()
+		return a.searchIndexBuilt()
+	}
+	if time.Since(checked) < indexStaleCheckEvery {
 		return true
 	}
 

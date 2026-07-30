@@ -354,7 +354,9 @@ func TestGlobalSearchLimits(t *testing.T) {
 
 func TestIndexPicksUpEdits(t *testing.T) {
 	a := enabledSearchApp(t)
-	writeSearchNote(t, a, "Note.md", "Title: A Note\n\noriginal text\n")
+	// The two bodies are the SAME LENGTH on purpose: the stat stamp counts
+	// bytes as well as times, and this test is about the other mechanism.
+	writeSearchNote(t, a, "Note.md", "Title: A Note\n\noriginal wording\n")
 
 	if _, resp := searchReq(t, a, url.Values{"q": {"original"}, "scope": {"all"}}); resp.Total != 1 {
 		t.Fatalf("first query: total %d", resp.Total)
@@ -362,14 +364,64 @@ func TestIndexPicksUpEdits(t *testing.T) {
 
 	// An edit made through the app marks the index dirty (renderAndCache), so
 	// the change is visible without waiting out the stat-walk interval.
-	writeSearchNote(t, a, "Note.md", "Title: A Note\n\nreplacement wording\n")
+	//
+	// The mtime is deliberately forced BACK to what it was before the edit.
+	// That is not a contrived case: filesystems with second-granularity
+	// timestamps - Android's external media, where every note lives - produce
+	// exactly this when two writes land in the same second. An index that
+	// re-stats to "confirm" an edit it was told about would conclude nothing
+	// changed and serve the old text. This is the regression that reached a
+	// build machine before it was caught.
+	before, err := os.Stat(filepath.Join(a.StorageDir, "md", "Note.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeSearchNote(t, a, "Note.md", "Title: A Note\n\nrewritten poetry\n") // same length
+	if err := os.Chtimes(filepath.Join(a.StorageDir, "md", "Note.md"),
+		before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
 	a.markSearchIndexDirty()
 
-	if _, resp := searchReq(t, a, url.Values{"q": {"replacement"}, "scope": {"all"}}); resp.Total != 1 {
-		t.Errorf("edit not picked up: total %d", resp.Total)
+	if _, resp := searchReq(t, a, url.Values{"q": {"rewritten"}, "scope": {"all"}}); resp.Total != 1 {
+		t.Errorf("edit not picked up: total %d - an edit the server itself made "+
+			"must never depend on the filesystem's clock", resp.Total)
 	}
 	if _, resp := searchReq(t, a, url.Values{"q": {"original"}, "scope": {"all"}}); resp.Total != 0 {
 		t.Errorf("removed text still matches: total %d", resp.Total)
+	}
+}
+
+// The other half: a change made BEHIND the server's back, with a timestamp too
+// coarse to move. Nothing marks the index dirty here, so the stat walk is the
+// only thing that can notice - which is why the stamp counts bytes as well as
+// times.
+func TestIndexNoticesExternalEditWithUnchangedMtime(t *testing.T) {
+	a := enabledSearchApp(t)
+	writeSearchNote(t, a, "Note.md", "Title: A Note\n\noriginal text\n")
+	a.rebuildSearchIndex()
+
+	path := filepath.Join(a.StorageDir, "md", "Note.md")
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An external editor rewrites the file; the clock has not visibly moved.
+	if err := os.WriteFile(path, []byte("Title: A Note\n\nquite different wording here\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Past the rate-limit window, so the walk actually runs.
+	a.search.mu.Lock()
+	a.search.checked = time.Now().Add(-2 * indexStaleCheckEvery)
+	a.search.dirty = false
+	a.search.mu.Unlock()
+
+	if _, resp := searchReq(t, a, url.Values{"q": {"different"}, "scope": {"all"}}); resp.Total != 1 {
+		t.Error("an external edit with an unchanged mtime was never noticed; the stamp needs more than times")
 	}
 }
 
