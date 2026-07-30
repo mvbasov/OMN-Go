@@ -445,6 +445,36 @@ func TestParseQuery(t *testing.T) {
 	}
 }
 
+// The dialog is reachable from the page chrome, and reachable by everyone.
+//
+// Search is read-only, so unlike create/quick-note/bookmark the button is NOT
+// .admin-only: a guest on the LAN can already read every page, and being
+// unable to search what you are allowed to read is a strange place to draw a
+// line. It IS .server-only, because an exported page has no /api/search - the
+// existing applyOfflineUI() hides it there with no extra code.
+func TestSearchButtonIsInTheRenderedPage(t *testing.T) {
+	a := newTestApp(t)
+	page := string(a.compilePage("Note", []byte("Title: A Note\n\nbody")))
+
+	if !strings.Contains(page, "omnSearchOpen()") {
+		t.Fatal("rendered page has no search button")
+	}
+
+	line := ""
+	for _, l := range strings.Split(page, "\n") {
+		if strings.Contains(l, "omnSearchOpen()") {
+			line = l
+			break
+		}
+	}
+	if !strings.Contains(line, "server-only") {
+		t.Errorf("search button is not .server-only, so an exported page would show a button that cannot work: %s", line)
+	}
+	if strings.Contains(line, "admin-only") {
+		t.Errorf("search button is .admin-only; reading and searching should need the same rights: %s", line)
+	}
+}
+
 func writeSearchNote(t *testing.T, a *App, rel, content string) {
 	t.Helper()
 	p := filepath.Join(a.StorageDir, "md", filepath.FromSlash(rel))

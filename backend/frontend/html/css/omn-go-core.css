@@ -7,7 +7,7 @@
      3. Base & page layout
      4. Page chrome (header, title, tags, footer)
      5. Content area (preview / editor)
-     6. Components (overlays, modals, panels, buttons)
+     6. Components (overlays, modals, panels, buttons, search)
      7. Config page
      8. External editor page
      9. JS console
@@ -86,6 +86,10 @@
     --table-row-even:#FFFFFF;
     --table-text:    #000000;
 
+    /* Search */
+    --search-hit-bg:   #ffe08a;   /* matched text in results and in the page */
+    --search-hit-text: #1a1a1a;
+
     /* Effects */
     --overlay-bg:    rgba(0, 0, 0, 0.7);
     --shadow:        rgba(0, 0, 0, 0.1);
@@ -125,6 +129,9 @@
     --tag-bg:        #3a3d40;
     --tag-border:    #808080;
     --tag-selected:  #5a5f63;
+
+    --search-hit-bg:   #7a5c14;
+    --search-hit-text: #ffeab0;
 
     --table-th-bg:   #3a3d40;
     --table-th-text: #e8eaed;
@@ -173,6 +180,9 @@
         --tag-bg:        #3a3d40;
         --tag-border:    #808080;
         --tag-selected:  #5a5f63;
+
+        --search-hit-bg:   #7a5c14;
+        --search-hit-text: #ffeab0;
 
         --table-th-bg:   #3a3d40;
         --table-th-text: #e8eaed;
@@ -610,6 +620,151 @@ a.taglink {
 .tag-suggestion-item:hover,
 .tag-suggestion-item.active {
     background: var(--bg-hover);
+}
+
+/* -- Search overlay (omnSearchOpen in omn-go-sse.js) --
+   Anchored to the top of the viewport rather than centred: results grow
+   downwards, and a panel that re-centres itself as the list changes length is
+   unusable to type into. */
+.omn-search-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--overlay-bg);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8vh 12px 12px;
+    z-index: 70;                 /* above the modals (50) and progress (60) */
+}
+.omn-search-overlay[hidden] {
+    display: none;               /* [hidden] alone loses to display:flex */
+}
+.omn-search-card {
+    width: 100%;
+    max-width: 640px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px var(--shadow-strong);
+    overflow: hidden;
+}
+.omn-search-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-soft);
+}
+.omn-search-icon {
+    color: var(--text-faint);
+    flex: 0 0 auto;
+}
+.omn-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 4px;
+    font-size: 16px;             /* 16px stops iOS/WebView zooming on focus */
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+}
+.omn-search-close {
+    flex: 0 0 auto;
+    padding: 2px;
+    color: var(--text-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+.omn-search-close:hover {
+    color: var(--text);
+}
+.omn-search-scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 12px;
+}
+.omn-search-chip {
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+}
+.omn-search-chip.is-active {
+    color: var(--bg-surface);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+.omn-search-where {
+    color: var(--text-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.omn-search-results {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+}
+.omn-search-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft);
+}
+.omn-search-row:hover,
+.omn-search-row.is-active {
+    background: var(--bg-hover);
+}
+.omn-search-line {
+    flex: 0 0 auto;
+    min-width: 2.5em;
+    text-align: right;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+/* A hit inside a script or a fenced block. Marked, never ranked down: code
+   in notes is a normal thing to search for. */
+.omn-search-ctx {
+    flex: 0 0 auto;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: -1px;
+}
+.omn-search-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;     /* a long unbroken token must not widen the card */
+}
+.omn-search-status {
+    flex: 0 0 auto;
+    padding: 7px 12px;
+    color: var(--text-faint);
+    font-size: 12px;
+    border-top: 1px solid var(--border-soft);
+}
+/* Shared by the result rows and the in-page highlight, so a match looks the
+   same wherever it is shown. */
+mark.omn-search-hit {
+    padding: 0 1px;
+    color: var(--search-hit-text);
+    background: var(--search-hit-bg);
+    border-radius: 2px;
 }
 
 /* -- Header action button accents --

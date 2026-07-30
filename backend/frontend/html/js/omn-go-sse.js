@@ -861,6 +861,459 @@ if (window.location.protocol !== 'file:') {
         }
     });
 
+    // --- Search overlay ---
+    //
+    // The everyday entry point to search: a spotlight-style panel over the
+    // current page. It talks to /api/search with scope=page, which needs no
+    // index and no configuration (see backend/search.go), so this panel works
+    // on any device and in any state of the app - there is nothing to switch
+    // on first.
+    //
+    // It lives in this file rather than a new asset for two reasons: this file
+    // is already inside the `protocol !== 'file:'` guard, so an exported page
+    // gets the stub version for free; and it is already in
+    // versionDependentAssets + gitignorePatterns, so no new plumbing is needed
+    // to ship it.
+    //
+    // Everything the server returns is written with textContent (or into a
+    // <mark> element's textContent). Nothing from a response is ever assigned
+    // to innerHTML - the same discipline OMNProgress.build documents in
+    // omn-go-core.js, and it matters more here because the text being rendered
+    // is the user's own notes.
+    (function () {
+        var DEBOUNCE_MS = 150;   // long enough to skip intermediate keystrokes
+        var MIN_QUERY = 2;       // 1 rune matches nearly everything
+        var MAX_SNIPPETS = 10;   // the API's own cap
+
+        var overlay = null, input = null, list = null, statusEl = null, scopeEl = null;
+        var rows = [];
+        var active = -1;
+        var timer = null;
+        var inflight = null;
+        var lastTerms = [];
+
+        // The page to search. index.html defines currentNote for every
+        // rendered note; without it there is nothing to scope to.
+        function pageName() {
+            return (typeof currentNote !== 'undefined' && currentNote) ? currentNote : '';
+        }
+
+        function build() {
+            if (overlay || !document.body) return overlay;
+
+            overlay = document.createElement('div');
+            overlay.className = 'omn-search-overlay';
+            overlay.hidden = true;
+            // Static markup only - see the note at the top of this module.
+            overlay.innerHTML =
+                '<div class="omn-search-card" role="dialog" aria-label="Search">' +
+                  '<div class="omn-search-head">' +
+                    '<i class="material-icons omn-search-icon">search</i>' +
+                    '<input type="text" class="omn-search-input" autocomplete="off" ' +
+                          'autocorrect="off" autocapitalize="none" spellcheck="false" ' +
+                          'placeholder="Search this page">' +
+                    '<button type="button" class="omn-search-close" aria-label="Close">' +
+                      '<i class="material-icons icon-sm">close</i>' +
+                    '</button>' +
+                  '</div>' +
+                  '<div class="omn-search-scope"></div>' +
+                  '<ul class="omn-search-results"></ul>' +
+                  '<div class="omn-search-status"></div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+
+            input = overlay.querySelector('.omn-search-input');
+            list = overlay.querySelector('.omn-search-results');
+            statusEl = overlay.querySelector('.omn-search-status');
+            scopeEl = overlay.querySelector('.omn-search-scope');
+
+            overlay.querySelector('.omn-search-close').addEventListener('click', close);
+            // A click on the backdrop closes; a click inside the card must not.
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) close();
+            });
+            input.addEventListener('input', schedule);
+            input.addEventListener('keydown', onInputKey);
+
+            renderScope();
+            return overlay;
+        }
+
+        // Scope indicator. Global search does not exist yet, so this is a
+        // statement of fact rather than a control; the phase that adds the
+        // index turns it into the All notes / This page toggle, keyed on the
+        // OMN_SEARCH_GLOBAL runtime variable that phase introduces.
+        function renderScope() {
+            if (!scopeEl) return;
+            scopeEl.textContent = '';
+            var chip = document.createElement('span');
+            chip.className = 'omn-search-chip is-active';
+            chip.textContent = 'This page';
+            scopeEl.appendChild(chip);
+
+            var name = pageName();
+            if (name) {
+                var where = document.createElement('span');
+                where.className = 'omn-search-where';
+                where.textContent = name;
+                scopeEl.appendChild(where);
+            }
+        }
+
+        function open() {
+            if (!document.body) return;
+            build();
+            overlay.hidden = false;
+            input.focus();
+            input.select();
+            if (input.value.trim().length >= MIN_QUERY) {
+                run();
+            } else {
+                setStatus('Type at least ' + MIN_QUERY + ' characters');
+            }
+        }
+
+        function close() {
+            clearTimeout(timer);
+            if (inflight) {
+                inflight.abort();
+                inflight = null;
+            }
+            if (overlay) overlay.hidden = true;
+        }
+
+        function isOpen() {
+            return !!overlay && !overlay.hidden;
+        }
+
+        function schedule() {
+            clearTimeout(timer);
+            timer = setTimeout(run, DEBOUNCE_MS);
+        }
+
+        function setStatus(text) {
+            if (statusEl) statusEl.textContent = text || '';
+        }
+
+        function clearRows() {
+            rows = [];
+            active = -1;
+            if (list) list.textContent = '';
+        }
+
+        function run() {
+            var q = input.value.trim();
+            if (q.length < MIN_QUERY) {
+                clearRows();
+                setStatus(q ? 'Type at least ' + MIN_QUERY + ' characters' : '');
+                return;
+            }
+
+            // Cancel the previous request rather than racing it: on a fast
+            // typist the older answer can otherwise arrive last and overwrite
+            // the newer one.
+            if (inflight) inflight.abort();
+            var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            inflight = ctrl;
+
+            var url = '/api/search?scope=page&snippets=' + MAX_SNIPPETS +
+                '&q=' + encodeURIComponent(q) +
+                '&on=' + encodeURIComponent(pageName());
+
+            var opts = { cache: 'no-store' };
+            if (ctrl) opts.signal = ctrl.signal;
+
+            fetch(url, opts)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (ctrl && inflight !== ctrl) return; // superseded
+                    inflight = null;
+                    render(q, data);
+                })
+                .catch(function (err) {
+                    if (err && err.name === 'AbortError') return;
+                    if (ctrl && inflight !== ctrl) return;
+                    inflight = null;
+                    clearRows();
+                    setStatus('Search failed');
+                    console.error('search: ' + err);
+                });
+        }
+
+        function render(query, data) {
+            clearRows();
+            lastTerms = query.split(/\s+/).filter(function (t) { return t.length > 0; });
+
+            var result = (data && data.results && data.results.length) ? data.results[0] : null;
+            if (!result || !result.matches || !result.matches.length) {
+                // A note can match on its title or a tag and have no matching
+                // LINE - say so, rather than showing an empty list that reads
+                // as "nothing found".
+                if (result) {
+                    setStatus('Matches this page’s title or tags, but no line in the text');
+                } else {
+                    setStatus('No matches on this page');
+                }
+                return;
+            }
+
+            result.matches.forEach(function (m, i) {
+                var li = document.createElement('li');
+                li.className = 'omn-search-row';
+                li.setAttribute('role', 'option');
+
+                var num = document.createElement('span');
+                num.className = 'omn-search-line';
+                num.textContent = m.line;
+                li.appendChild(num);
+
+                if (m.context) {
+                    // A hit inside a script or a fenced block is a different
+                    // kind of answer from one in prose. Marked, never ranked
+                    // down: code in notes is a normal thing to search for.
+                    var ctx = document.createElement('span');
+                    ctx.className = 'omn-search-ctx';
+                    ctx.textContent = '‹/›';
+                    ctx.title = m.context === 'script' ? 'inside a <script> block' : 'inside a code block';
+                    li.appendChild(ctx);
+                }
+
+                var text = document.createElement('span');
+                text.className = 'omn-search-text';
+                renderHighlighted(text, m.text || '', m.spans || []);
+                li.appendChild(text);
+
+                li.addEventListener('click', function () { choose(i); });
+                li.addEventListener('mousemove', function () { setActive(i); });
+                list.appendChild(li);
+                rows.push(li);
+            });
+
+            var n = result.matches.length;
+            var note = n === 1 ? '1 matching line' : n + ' matching lines';
+            if (result.truncated) note += ' · only the first 500 KiB was searched';
+            setStatus(note + ' · ↑↓ to move · ↵ to highlight in the page');
+            setActive(0);
+        }
+
+        // renderHighlighted writes text into node, wrapping each span in a
+        // <mark>. Spans are RUNE offsets (the Go side works in runes so that
+        // Cyrillic is not cut in half), so the text is split with Array.from,
+        // which iterates code points - text.substring would use UTF-16 units
+        // and drift on anything outside the BMP.
+        function renderHighlighted(node, text, spans) {
+            var runes = Array.from(text);
+            var at = 0;
+            spans.forEach(function (s) {
+                var start = s[0], len = s[1];
+                if (typeof start !== 'number' || typeof len !== 'number') return;
+                if (start < at || start + len > runes.length) return;
+                if (start > at) {
+                    node.appendChild(document.createTextNode(runes.slice(at, start).join('')));
+                }
+                var mark = document.createElement('mark');
+                mark.className = 'omn-search-hit';
+                mark.textContent = runes.slice(start, start + len).join('');
+                node.appendChild(mark);
+                at = start + len;
+            });
+            if (at < runes.length) {
+                node.appendChild(document.createTextNode(runes.slice(at).join('')));
+            }
+        }
+
+        function setActive(i) {
+            if (!rows.length) return;
+            if (i < 0) i = 0;
+            if (i >= rows.length) i = rows.length - 1;
+            if (active >= 0 && rows[active]) rows[active].classList.remove('is-active');
+            active = i;
+            rows[active].classList.add('is-active');
+            if (rows[active].scrollIntoView) {
+                rows[active].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        // choose closes the panel and marks the query in the page itself.
+        //
+        // Per-LINE jumping is deliberately not attempted here: the result's
+        // line number indexes the markdown SOURCE, and the page shows compiled
+        // HTML, so there is no reliable mapping between the two without the
+        // machinery a later phase adds. Highlighting every occurrence and
+        // scrolling to the first is honest about what it knows, and is the
+        // answer to "where does this note talk about X" either way.
+        function choose(i) {
+            setActive(i);
+            close();
+            var first = highlightPreview(lastTerms);
+            if (first && first.scrollIntoView) {
+                first.scrollIntoView({ block: 'center' });
+            }
+        }
+
+        function onInputKey(e) {
+            switch (e.key) {
+            case 'Escape':
+                e.preventDefault();
+                close();
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                setActive(active + 1);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setActive(active - 1);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                clearTimeout(timer);
+                if (rows.length) {
+                    choose(active < 0 ? 0 : active);
+                } else {
+                    run();
+                }
+                break;
+            }
+        }
+
+        // --- highlighting inside the rendered page ---
+
+        // clearPreviewHighlights puts the DOM back exactly as it was: each
+        // <mark> is replaced by its own text and the parent normalised, so
+        // repeated searches cannot leave the page progressively more nested.
+        function clearPreviewHighlights() {
+            var preview = document.getElementById('preview');
+            if (!preview) return;
+            var marks = preview.querySelectorAll('mark.omn-search-hit');
+            for (var i = 0; i < marks.length; i++) {
+                var m = marks[i];
+                var parent = m.parentNode;
+                if (!parent) continue;
+                parent.replaceChild(document.createTextNode(m.textContent), m);
+                if (parent.normalize) parent.normalize();
+            }
+        }
+
+        // highlightPreview wraps literal occurrences of the query terms in the
+        // rendered page and returns the first one.
+        //
+        // Literal only, on purpose: a fuzzy or misspelled term does not appear
+        // in the text as typed, so there is nothing to wrap. In that case the
+        // panel has already shown WHICH lines matched, and this returns null
+        // rather than highlighting something that is not what matched.
+        function highlightPreview(terms) {
+            clearPreviewHighlights();
+            var preview = document.getElementById('preview');
+            if (!preview || !terms || !terms.length) return null;
+
+            var needles = terms
+                .map(function (t) { return t.toLowerCase(); })
+                .filter(function (t) { return t.length >= MIN_QUERY; });
+            if (!needles.length) return null;
+
+            // Collect first, mutate after: rewriting text nodes while walking
+            // the tree invalidates the walker.
+            var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
+            var nodes = [];
+            var node;
+            while ((node = walker.nextNode())) {
+                if (!node.nodeValue || !node.nodeValue.trim()) continue;
+                var p = node.parentNode, skip = false;
+                while (p && p !== preview) {
+                    var tag = p.tagName ? p.tagName.toUpperCase() : '';
+                    // Never touch executable or already-marked content: a note
+                    // may carry inline <script>, and rewriting its text would
+                    // corrupt source the console/editor still shows.
+                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK' || tag === 'TEXTAREA') {
+                        skip = true;
+                        break;
+                    }
+                    p = p.parentNode;
+                }
+                if (!skip) nodes.push(node);
+            }
+
+            var firstMark = null;
+            nodes.forEach(function (textNode) {
+                var value = textNode.nodeValue;
+                var lower = value.toLowerCase();
+                var pieces = null;
+                var at = 0;
+
+                while (at < value.length) {
+                    var bestAt = -1, bestLen = 0;
+                    for (var i = 0; i < needles.length; i++) {
+                        var idx = lower.indexOf(needles[i], at);
+                        if (idx !== -1 && (bestAt === -1 || idx < bestAt)) {
+                            bestAt = idx;
+                            bestLen = needles[i].length;
+                        }
+                    }
+                    if (bestAt === -1) break;
+                    if (!pieces) pieces = document.createDocumentFragment();
+                    if (bestAt > at) {
+                        pieces.appendChild(document.createTextNode(value.slice(at, bestAt)));
+                    }
+                    var mark = document.createElement('mark');
+                    mark.className = 'omn-search-hit';
+                    mark.textContent = value.slice(bestAt, bestAt + bestLen);
+                    pieces.appendChild(mark);
+                    if (!firstMark) firstMark = mark;
+                    at = bestAt + bestLen;
+                }
+
+                if (pieces) {
+                    if (at < value.length) {
+                        pieces.appendChild(document.createTextNode(value.slice(at)));
+                    }
+                    textNode.parentNode.replaceChild(pieces, textNode);
+                }
+            });
+
+            return firstMark;
+        }
+
+        // --- entry points ---
+
+        window.omnSearchOpen = function () {
+            if (isOpen()) {
+                input.focus();
+                input.select();
+                return;
+            }
+            open();
+        };
+
+        window.omnSearchClearHighlights = clearPreviewHighlights;
+
+        // Keyboard: Ctrl/Cmd-K anywhere, and "/" when not already typing -
+        // the two conventions people arrive with. Both are desktop-only in
+        // practice; the header button is the route on Android.
+        document.addEventListener('keydown', function (e) {
+            if (e.defaultPrevented) return;
+
+            if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                window.omnSearchOpen();
+                return;
+            }
+            if (e.key === 'Escape' && isOpen()) {
+                e.preventDefault();
+                close();
+                return;
+            }
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+
+            var t = e.target;
+            var tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || (t && t.isContentEditable)) return;
+
+            e.preventDefault();
+            window.omnSearchOpen();
+        });
+    })();
+
 } else {
     console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
     window.printDebug = function(funcName) { console.debug('\'' + funcName + '\' Not usable on standalone page'); }
@@ -875,4 +1328,10 @@ if (window.location.protocol !== 'file:') {
     window.handleShare = function() { printDebug('handleShare'); };
     window.showBookmarkPanel = function() { printDebug('showBookmarkPanel'); };
     window.toggleBookmarkPanel = function() { printDebug('toggleBookmarkPanel'); };
+    // Search needs the server: the panel queries /api/search, which does not
+    // exist on a page opened from disk. The header button is .server-only and
+    // therefore already hidden here (applyOfflineUI) - these stubs cover a
+    // note script or a stale keyboard shortcut calling in anyway.
+    window.omnSearchOpen = function() { printDebug('omnSearchOpen'); };
+    window.omnSearchClearHighlights = function() { printDebug('omnSearchClearHighlights'); };
 }
