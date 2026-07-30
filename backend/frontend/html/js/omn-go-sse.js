@@ -918,9 +918,18 @@ if (window.location.protocol !== 'file:') {
                 '<div class="omn-search-card" role="dialog" aria-label="Search">' +
                   '<div class="omn-search-head">' +
                     '<i class="material-icons omn-search-icon">search</i>' +
+                    // NO spellcheck="false" and NO autocorrect="off" here,
+                    // however tidy they look on a search box. Chrome on
+                    // Android maps them onto the keyboard's NO_SUGGESTIONS
+                    // flag, which switches off the COMPOSING region - and
+                    // composing is how every non-Latin layout enters text at
+                    // all. The symptom is precise and baffling: Latin typing
+                    // works, Cyrillic produces nothing until you type a Latin
+                    // word, delete it, and start again. autocomplete="off"
+                    // stays; that one only suppresses the browser's saved-
+                    // values dropdown and has nothing to do with the IME.
                     '<input type="text" class="omn-search-input" autocomplete="off" ' +
-                          'autocorrect="off" autocapitalize="none" spellcheck="false" ' +
-                          'placeholder="Search this page">' +
+                          'autocapitalize="none" placeholder="Search this page">' +
                     '<button type="button" class="omn-search-close" aria-label="Close">' +
                       '<i class="material-icons icon-sm">close</i>' +
                     '</button>' +

@@ -485,3 +485,37 @@ func writeSearchNote(t *testing.T, a *App, rel, content string) {
 		t.Fatal(err)
 	}
 }
+
+// The search box must not tell the keyboard to stop making suggestions.
+//
+// spellcheck="false" and autocorrect="off" read like housekeeping on a search
+// field - no red squiggles, no "helpful" rewriting of a query. On Chrome for
+// Android they are not cosmetic: they set the IME's NO_SUGGESTIONS flag, which
+// disables the COMPOSING region, which is the mechanism every non-Latin layout
+// uses to enter text. Cyrillic input silently produces nothing.
+//
+// This is a shape test on the shipped asset rather than a behaviour test
+// because the behaviour needs a physical Android keyboard to observe, and the
+// attributes are exactly the kind of thing a later tidy-up puts back.
+func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
+	src, err := staticFS.ReadFile("frontend/html/js/omn-go-sse.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := strings.Index(string(src), "omn-search-input")
+	if at < 0 {
+		t.Fatal("the search input markup moved; this test needs updating")
+	}
+	// The attribute list is built by string concatenation across a few lines.
+	markup := string(src[at:min(at+400, len(src))])
+	for _, forbidden := range []string{`spellcheck="false"`, `autocorrect="off"`} {
+		if strings.Contains(markup, forbidden) {
+			t.Errorf("%s is set on the search input; it disables composing input, "+
+				"so Cyrillic (and every other IME-entered script) cannot be typed", forbidden)
+		}
+	}
+	if !strings.Contains(markup, `autocomplete="off"`) {
+		t.Error("autocomplete=\"off\" was dropped too; that one is fine and worth keeping - " +
+			"it suppresses the browser's saved-values dropdown, not the keyboard")
+	}
+}
