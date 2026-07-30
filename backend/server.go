@@ -28,6 +28,11 @@ type App struct {
 	// sqlMu is held.
 	dbRestoreMu sync.Mutex
 
+	// search is the global search index (see search_index.go). Non-nil from
+	// startup, but empty until global search is switched on - the memory
+	// belongs to the documents, not to the struct.
+	search *searchIndex
+
 	ready chan struct{} // closed once the HTTP listener is actually serving
 }
 

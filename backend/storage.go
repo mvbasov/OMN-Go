@@ -63,6 +63,10 @@ func (a *App) initStorage(overrideDir string) {
 	// 2. Init Config
 	a.loadConfig(a.StorageDir)
 
+	// The index struct exists from the start; it stays empty (and free) until
+	// global search is switched on.
+	a.search = &searchIndex{}
+
 	// 3. Extract all embedded MD files first
 	if entries, err := staticFS.ReadDir("frontend/md"); err == nil {
 		for _, entry := range entries {
@@ -163,5 +167,14 @@ func (a *App) precompileAllPages() {
 	// See tags.go.
 	if err := a.generateTagsPage(); err != nil {
 		log.Printf("precompileAllPages: tags: %v", err)
+	}
+
+	// Warm the search index, if the user asked for one. Deliberately last and
+	// on this same background goroutine: it is the cheapest of the three
+	// startup passes (masks and trigrams, no markdown rendering), and running
+	// it here means the first search after launch is instant instead of
+	// paying for the build inside a request.
+	if a.GetConfig().SearchEnabled {
+		a.rebuildSearchIndex()
 	}
 }

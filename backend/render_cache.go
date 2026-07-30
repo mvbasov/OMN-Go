@@ -54,5 +54,11 @@ func (a *App) renderAndCache(name string, content []byte) ([]byte, error) {
 	if err := os.WriteFile(htmlPath, compiled, 0644); err != nil {
 		return compiled, fmt.Errorf("cache %q: write: %w", name, err)
 	}
+	// Every in-process note change funnels through here - save, quick note,
+	// bookmark, new page, sync, precompile - which makes this the one place
+	// that can tell the search index "something moved" without a hook in each
+	// handler. It only skips the wait for the next stat walk; the walk is
+	// still what decides what actually changed.
+	a.markSearchIndexDirty()
 	return compiled, nil
 }

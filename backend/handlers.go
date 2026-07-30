@@ -84,6 +84,9 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		// Capture the pre-save value to detect the flip and tell the
 		// frontend, which then drives /api/restart.
 		prevShareLAN := a.GetConfig().ShareLAN
+		prevSearchEnabled := a.GetConfig().SearchEnabled
+		prevSearchKinds := strings.Join(normalizeSearchKinds(a.GetConfig().SearchKinds), ",")
+		prevSearchBundled := a.GetConfig().SearchBundled
 
 		var snapshot Config
 		a.WithConfig(func(c *Config) {
@@ -182,6 +185,17 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
+		// Applying the search setting is not deferred to a restart, unlike
+		// ShareLAN below: turning search OFF is exactly what someone does when
+		// a device is short of memory, and telling them to restart first would
+		// be an odd way to help.
+		if !snapshot.SearchEnabled {
+			a.dropSearchIndex()
+		} else if !prevSearchEnabled || prevSearchKinds != strings.Join(normalizeSearchKinds(snapshot.SearchKinds), ",") ||
+			prevSearchBundled != snapshot.SearchBundled {
+			go a.rebuildSearchIndex()
+		}
+
 		if snapshot.ShareLAN != prevShareLAN {
 			// Saved fine, but the new bind address only exists after a
 			// restart. The frontend reacts to this exact string (see

@@ -206,22 +206,42 @@ func (a *App) loadPageDocument(name string) (*searchDocument, error) {
 		return nil, nil
 	}
 
-	doc := &searchDocument{truncated: truncated}
 	if isPage {
-		doc.Path = "md/" + baseName + ".md"
-		doc.Kind = "md"
-		doc.Name = baseName
-		doc.URL = "/" + baseName + ".html"
-		doc.parseMarkdown(string(data))
-	} else {
-		rel := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(name)), "/")
-		doc.Path = "html/" + rel
-		doc.Kind = assetKind(rel)
-		doc.Name = rel
-		doc.URL = "/" + rel
-		doc.parsePlain(string(data))
+		return newMarkdownDocument(baseName, string(data), truncated), nil
 	}
-	return doc, nil
+	rel := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(name)), "/")
+	return newAssetDocument(rel, string(data), truncated), nil
+}
+
+// newMarkdownDocument builds the searchable form of a note. Shared by page
+// search (which builds one per request and drops it) and the index (which
+// builds one per file, keeps a reduced form, and rebuilds this one on demand
+// when a query actually reaches the document) - so both see identical fields,
+// identical line numbering and identical context labels.
+func newMarkdownDocument(baseName, content string, truncated bool) *searchDocument {
+	doc := &searchDocument{
+		Path:      "md/" + baseName + ".md",
+		Kind:      SearchKindMD,
+		Name:      baseName,
+		URL:       "/" + baseName + ".html",
+		truncated: truncated,
+	}
+	doc.parseMarkdown(content)
+	return doc
+}
+
+// newAssetDocument is the same for a file with no front matter: a script, a
+// JSON blob. rel is storage-relative below html/ ("js/mine.js").
+func newAssetDocument(rel, content string, truncated bool) *searchDocument {
+	doc := &searchDocument{
+		Path:      "html/" + rel,
+		Kind:      assetKind(rel),
+		Name:      rel,
+		URL:       "/" + rel,
+		truncated: truncated,
+	}
+	doc.parsePlain(content)
+	return doc
 }
 
 // parseMarkdown fills a document from note source: the front-matter header
@@ -432,6 +452,28 @@ func scoreDocument(q parsedQuery, d *searchDocument) (int, matchTier, []lineHit,
 			}
 		}
 
+		if bestTier == tierNone && term.field == "" {
+			// Nothing matched verbatim or as a subsequence. Before giving up
+			// on the document, try the typo rung - this is the rung that
+			// finds "fetch" when the query said "fecth", and it is the only
+			// one that cannot work from the character mask, so it runs last
+			// and only when everything cheaper has failed.
+			if s, spans, ok := scoreTypoInDocument(term.runes, d); ok {
+				bestScore, bestTier = s.score, tierTypo
+				for _, lh := range spans {
+					h := hits[lh.line.no]
+					if h == nil {
+						h = &lineHit{line: lh.line}
+						hits[lh.line.no] = h
+					}
+					h.spans = append(h.spans, lh.spans...)
+					h.score += lh.score
+					if lh.tier > h.tier {
+						h.tier = lh.tier
+					}
+				}
+			}
+		}
 		if bestTier == tierNone {
 			return 0, tierNone, nil, false // AND: one miss drops the document
 		}
@@ -454,6 +496,72 @@ func scoreDocument(q parsedQuery, d *searchDocument) (int, matchTier, []lineHit,
 	}
 	sortLineHits(ordered)
 	return total, worst, ordered, true
+}
+
+// typoResult is the best token match found for a term in a document.
+type typoResult struct {
+	score int
+	token string
+}
+
+// scoreTypoInDocument runs the edit-distance rung over the document's own
+// tokens.
+//
+// Tokens are built here rather than kept in the index, because keeping them
+// was the one structure that scaled with VOCABULARY rather than with text -
+// measured at ~44k unique tokens per MB, which for a large collection means
+// map entries in the millions. The index narrows to a handful of candidate
+// documents by trigram signature (see search_index.go); this then pays the
+// tokenisation cost only for those.
+//
+// Spans come from a plain substring scan for the matched TOKEN on the lines it
+// appears on: the token is what is really in the text, so highlighting it is
+// truthful in a way that highlighting the misspelled query would not be.
+func scoreTypoInDocument(term []rune, d *searchDocument) (typoResult, []lineHit, bool) {
+	if typoBudget(len(term)) == 0 {
+		return typoResult{}, nil, false
+	}
+
+	best := typoResult{}
+	bestWeight := 0
+	seen := map[string]bool{}
+
+	consider := func(text string, weight int) {
+		for _, tok := range tokenize(text) {
+			if seen[tok] {
+				continue
+			}
+			seen[tok] = true
+			s, _, ok := scoreTypo(term, []rune(tok))
+			if !ok {
+				continue
+			}
+			if weighted := s * weight / 10; weighted > bestWeight {
+				bestWeight = weighted
+				best = typoResult{score: weighted, token: tok}
+			}
+		}
+	}
+
+	for _, f := range d.fields {
+		consider(string(f.text), f.weight)
+	}
+	for i := range d.lines {
+		consider(d.lines[i].raw, weightContent)
+	}
+	if best.token == "" {
+		return typoResult{}, nil, false
+	}
+
+	var hits []lineHit
+	needle := []rune(best.token)
+	for i := range d.lines {
+		ln := &d.lines[i]
+		if _, spans, ok := scoreSubstring(needle, ln.fold); ok {
+			hits = append(hits, lineHit{line: ln, score: best.score, tier: tierTypo, spans: spans})
+		}
+	}
+	return best, hits, true
 }
 
 // sortLineHits orders by (tier, score) descending, then by line number so the
@@ -548,17 +656,6 @@ func isSpace(r rune) bool {
 // standing cost: a switch whose "off" position saves nothing is just a way to
 // break the feature by accident.
 
-// searchIndexBuilt reports whether a global index exists to answer from.
-//
-// The index itself arrives in the next phase; until then this is the seam that
-// keeps the rest of the gating honest - the config flag says what the user
-// WANTS, this says what the server can actually deliver, and the two are not
-// the same thing while the feature is being built. When the index lands, this
-// is where it reports itself.
-func (a *App) searchIndexBuilt() bool {
-	return false
-}
-
 // globalSearchAvailable is the one answer to "can this server search
 // everything right now": the user asked for it AND there is an index to ask.
 // Injected into every page as OMN_SEARCH_GLOBAL (see injectRuntimeVars), so
@@ -578,20 +675,6 @@ func (a *App) defaultSearchScope() string {
 		return normalizeSearchScope(a.GetConfig().SearchScope)
 	}
 	return SearchScopePage
-}
-
-// searchIndexStatus is the line the Config page shows under the search
-// settings. A memory-sensitive option that will not say how much memory it is
-// using is a setting people switch off blindly.
-func (a *App) searchIndexStatus() string {
-	cfg := a.GetConfig()
-	if !cfg.SearchEnabled {
-		return "Off - page search still works, and costs nothing."
-	}
-	if !a.searchIndexBuilt() {
-		return "Not built yet."
-	}
-	return "Built."
 }
 
 // ----------------------------------------------------------------------
@@ -656,19 +739,21 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	case SearchScopePage:
 		a.searchPage(&resp, qs)
 	case SearchScopeAll:
-		// Two different "no" answers, because they call for two different
-		// things from the user. Either way it is a 503 with a reason, never
-		// an empty result set - "nothing matched" is a claim about the notes,
-		// and neither of these is.
 		if !a.GetConfig().SearchEnabled {
+			// Not an empty result set: "nothing matched" is a claim about the
+			// notes, and this is a claim about the settings.
 			resp.Status = "disabled"
 			resp.Error = "global search is off (Settings -> Search)"
-		} else {
+			writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
+			return
+		}
+		if !a.ensureSearchIndex() {
 			resp.Status = "unavailable"
 			resp.Error = "the search index is not ready"
+			writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
+			return
 		}
-		writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
-		return
+		a.searchGlobal(&resp, qs)
 	default:
 		resp.Status = "error"
 		resp.Error = "unknown scope " + strconv.Quote(scope)
@@ -736,6 +821,124 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 	resp.Results = append(resp.Results, res)
 	resp.Total = 1
 	resp.Truncated = doc.truncated
+}
+
+// searchGlobal answers a scope=all query from the index.
+//
+// The shape is: reject cheaply, then read what survives. Every document is
+// tested against the query's character masks and trigram signature - no I/O at
+// all - and only the ones that could possibly match are read from disk and
+// scored by exactly the same code page search uses. That is what keeps the
+// index small enough to hold: it decides WHICH files to read, rather than
+// being a copy of them.
+func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
+	get := func(k string) string {
+		if v, ok := qs[k]; ok && len(v) > 0 {
+			return v[0]
+		}
+		return ""
+	}
+
+	q := parseQuery(resp.Query)
+	if len(q.terms) == 0 {
+		return
+	}
+
+	cfg := a.GetConfig()
+	kindFilter := splitCSV(get("kind"))
+	limit := clampInt(atoiOr(get("limit"), searchDefaultLimit), 1, searchMaxLimit)
+	snippets := clampInt(atoiOr(get("snippets"), searchDefaultSnippets), 1, searchMaxSnippets)
+
+	type scored struct {
+		doc   *searchDocument
+		index *indexedDoc
+		score int
+		tier  matchTier
+		hits  []lineHit
+	}
+	var found []scored
+	read := 0
+
+	for _, d := range a.snapshotDocs() {
+		if !kindAllowed(d.Kind, kindFilter, q.kinds) {
+			continue
+		}
+		feasible := true
+		for _, term := range q.terms {
+			if !d.couldMatchTerm(term) {
+				feasible = false
+				break
+			}
+		}
+		if !feasible {
+			continue
+		}
+
+		// Only now is a file opened.
+		doc := a.reloadDocument(d)
+		if doc == nil {
+			continue
+		}
+		read++
+		score, tier, hits, ok := scoreDocument(q, doc)
+		if !ok {
+			continue
+		}
+		found = append(found, scored{doc: doc, index: d, score: score, tier: tier, hits: hits})
+	}
+
+	// Documents order by (tier, score) - the same tier-first rule a single
+	// match uses, lifted to the document: one containing every term verbatim
+	// outranks one that needed a typo correction, whatever the sums say.
+	// Ties break on newest first, then path, so the order is stable.
+	sortScored := func(i, j int) bool {
+		a1, b1 := found[i], found[j]
+		if a1.tier != b1.tier || a1.score != b1.score {
+			return betterMatch(a1.tier, a1.score, b1.tier, b1.score)
+		}
+		if !a1.index.ModTime.Equal(b1.index.ModTime) {
+			return a1.index.ModTime.After(b1.index.ModTime)
+		}
+		return a1.index.Path < b1.index.Path
+	}
+	for i := 1; i < len(found); i++ {
+		for j := i; j > 0 && sortScored(j, j-1); j-- {
+			found[j], found[j-1] = found[j-1], found[j]
+		}
+	}
+
+	resp.Total = len(found)
+	if len(found) > limit {
+		found = found[:limit]
+		resp.Truncated = true
+	}
+
+	for _, f := range found {
+		hits := f.hits
+		if len(hits) > snippets {
+			hits = hits[:snippets]
+		}
+		res := searchResult{
+			Path: f.doc.Path, Kind: f.doc.Kind, Name: f.doc.Name, Title: f.doc.Title,
+			Tags: f.doc.Tags, Score: f.score, URL: f.doc.URL, Truncated: f.doc.truncated,
+		}
+		for _, h := range hits {
+			text, spans := snippetFor(h.line.raw, h.spans)
+			m := searchMatch{Line: h.line.no, Context: h.line.context, Text: text}
+			for _, s := range spans {
+				m.Spans = append(m.Spans, [2]int{s.Start, s.Len})
+			}
+			res.Matches = append(res.Matches, m)
+		}
+		if f.doc.truncated {
+			resp.Truncated = true
+		}
+		resp.Results = append(resp.Results, res)
+	}
+	_ = cfg
+	if read > 0 {
+		log.Printf("[search] %q: %d candidates read, %d matched", resp.Query, read, resp.Total)
+	}
 }
 
 func writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, started time.Time) {
