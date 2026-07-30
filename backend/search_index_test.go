@@ -67,7 +67,7 @@ func TestIndexRespectsConfiguredKinds(t *testing.T) {
 	a.WithConfig(func(c *Config) { c.SearchKinds = []string{SearchKindMD, SearchKindJS} })
 	a.rebuildSearchIndex()
 	got := indexedPaths(a)
-	if len(got) != 2 || !contains(got, "html/js/mine.js") {
+	if len(got) != 2 || !containsPath(got, "html/js/mine.js") {
 		t.Errorf("with js enabled: %v", got)
 	}
 
@@ -98,12 +98,12 @@ func TestIndexExclusions(t *testing.T) {
 		"html/js/omn-go-core.js", // shipped with the app
 		"html/js/katex.min.js",   // ... and a bundled library
 	} {
-		if contains(got, unwanted) {
+		if containsPath(got, unwanted) {
 			t.Errorf("%s should not be indexed by default; got %v", unwanted, got)
 		}
 	}
 	for _, wanted := range []string{"md/Keep.md", "html/js/mine.js"} {
-		if !contains(got, wanted) {
+		if !containsPath(got, wanted) {
 			t.Errorf("%s should be indexed; got %v", wanted, got)
 		}
 	}
@@ -111,7 +111,7 @@ func TestIndexExclusions(t *testing.T) {
 	// The opt-in brings the app's own code, which is the whole point of it.
 	a.WithConfig(func(c *Config) { c.SearchBundled = true })
 	a.rebuildSearchIndex()
-	if got := indexedPaths(a); !contains(got, "html/js/omn-go-core.js") {
+	if got := indexedPaths(a); !containsPath(got, "html/js/omn-go-core.js") {
 		t.Errorf("SearchBundled did not include the shipped scripts: %v", got)
 	}
 }
@@ -516,7 +516,11 @@ func indexedPaths(a *App) []string {
 	return out
 }
 
-func contains(list []string, want string) bool {
+// containsPath is a slice membership test. Named for what it holds rather than
+// the obvious "contains", because sync_errors_test.go already has a function of
+// that name with a different signature - and every _test.go file in a package
+// shares one namespace.
+func containsPath(list []string, want string) bool {
 	for _, s := range list {
 		if s == want {
 			return true
