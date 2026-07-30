@@ -928,6 +928,48 @@ mark.omn-search-hit {
     border-radius: 2px;
 }
 
+/* A section label standing in for a line number in the dialog: the same slot,
+   so rows stay aligned, but allowed to be wide enough for a bookmark title. */
+.omn-search-line.omn-search-section {
+    font-variant-numeric: normal;
+    max-width: 14em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The section a run of hits belongs to, on the results page. Sits above its
+   snippets and indents them under it, so "which entry was this in" is answered
+   by the shape of the list rather than by reading each line. */
+.search-section {
+    margin: 6px 0 2px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.search-section a {
+    text-decoration: none;
+}
+
+.search-section a:hover {
+    text-decoration: underline;
+}
+
+.search-section + .search-snippet,
+.search-section ~ .search-snippet {
+    margin-left: 10px;
+}
+
+/* Used by Bookmarker.js when a search result links straight to one entry -
+   the same ring the in-page highlighter puts on the hit it scrolled to, so
+   "this is the one you were sent to" looks the same everywhere. */
+li.omn-search-hit-current {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
 /* The one that was scrolled to on arrival. A ring rather than a different
    colour: the reader landed mid-page and needs to know which of several
    identical-looking marks the scroll was aimed at, without that mark reading

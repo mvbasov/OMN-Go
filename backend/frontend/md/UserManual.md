@@ -378,6 +378,17 @@ Each line shows where the match is and highlights it. A `‹/›` mark means the
 line is inside a script or a code block rather than prose — useful to know, and
 never ranked lower for it, because code in notes is a normal thing to look for.
 
+Where a note has parts, the result says which part rather than which line.
+A quick note shows its timestamp, a bookmark shows its title, a note with
+headings shows the heading — and opening the result takes you straight to it
+instead of to the top of a long page. "Line 1842" is not an answer to *where*;
+"27 Jul, 07:23" is.
+
+Bookmarks are searched by what you can *see* — title, address, tags and notes —
+rather than by how they are stored. That matters more than it sounds: a bookmark
+titled *Cats & Dogs* is written to disk with the `&` encoded, so before this it
+could not be found by its own name.
+
 Selecting a result in **This page** closes the panel and marks every occurrence
 in the page, jumping to the first. In **All notes** it opens the note the match
 came from — already scrolled to the match, with the words you typed marked, so
@@ -401,8 +412,11 @@ The Config page shows the current figure. On a device short of memory, leave
 global search off: page search keeps working either way.
 
 Two limits worth knowing: only the first 500 KiB of a very large file is
-searched (results say so when it happens), and a note whose heading is not
-Latin script may not be linkable to a precise section.
+searched (results say so when it happens), and some sections cannot be linked
+to directly — a heading written in a non-Latin script, or one containing a link,
+code or a formula. Those results still name the section; they just open the page
+at the top. This is deliberate: OMN-Go would rather not link than send you to the
+wrong place.
 
 ## Theme
 

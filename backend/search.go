@@ -179,6 +179,14 @@ func highlightURL(base string, terms []string) string {
 	if base == "" || len(terms) == 0 {
 		return base
 	}
+	// A result URL may already carry a section anchor (S9), and a query string
+	// goes BEFORE the fragment: "/Bookmarks.html?hl=cats#2026-06-15-200000".
+	// Appending blindly would put "?hl=" inside the fragment, where it is just
+	// part of an id that matches nothing.
+	frag := ""
+	if i := strings.IndexByte(base, '#'); i >= 0 {
+		base, frag = base[:i], base[i:]
+	}
 	sep := "?"
 	if strings.Contains(base, "?") {
 		sep = "&"
@@ -191,6 +199,7 @@ func highlightURL(base string, terms []string) string {
 		b.WriteString("hl=")
 		b.WriteString(url.QueryEscape(t))
 	}
+	b.WriteString(frag)
 	return b.String()
 }
 
@@ -240,6 +249,7 @@ type searchDocument struct {
 	URL       string
 	fields    []docField
 	lines     []docLine
+	sections  []docSection // may be nil: a flat document has no parts
 	truncated bool
 }
 
@@ -295,6 +305,12 @@ func newMarkdownDocument(baseName, content string, truncated bool) *searchDocume
 		Name:      baseName,
 		URL:       "/" + baseName + ".html",
 		truncated: truncated,
+	}
+	// Decided here rather than by the caller so PAGE search agrees with the
+	// index about what Bookmarks.html is. The index sets Kind again from the
+	// config-driven walk, to the same value.
+	if baseName == bookmarksNote {
+		doc.Kind = SearchKindBookmarks
 	}
 	doc.parseMarkdown(content)
 	return doc
@@ -352,7 +368,13 @@ func (d *searchDocument) parseMarkdown(content string) {
 
 	// Body line numbers continue from the header rather than restarting.
 	firstBodyLine := 1 + strings.Count(content[:fm.BodyOffset], "\n")
-	d.addLines(fm.Body, firstBodyLine)
+
+	if d.Kind == SearchKindBookmarks {
+		d.addBookmarks(fm.Body, firstBodyLine)
+		return
+	}
+	raw, contexts := d.addLines(fm.Body, firstBodyLine)
+	d.sections = sectionsFromHeadings(raw, contexts, firstBodyLine)
 }
 
 // parsePlain fills a document from a file with no front matter (a script, a
@@ -364,7 +386,10 @@ func (d *searchDocument) parsePlain(content string) {
 	d.addLines(content, 1)
 }
 
-func (d *searchDocument) addLines(content string, firstLineNo int) {
+// addLines returns the split lines and their context labels, so a caller that
+// also needs to walk the body - the heading sectionizer does - does not split
+// and classify it a second time.
+func (d *searchDocument) addLines(content string, firstLineNo int) ([]string, []string) {
 	raw := strings.Split(content, "\n")
 	contexts := classifyContexts(raw)
 	for i, line := range raw {
@@ -380,6 +405,7 @@ func (d *searchDocument) addLines(content string, firstLineNo int) {
 			context: contexts[i],
 		})
 	}
+	return raw, contexts
 }
 
 // classifyContexts labels every line prose, "code" or "script".
@@ -755,10 +781,24 @@ func (a *App) defaultSearchScope() string {
 // RUNE offsets into Text - see the matcher's note on why byte offsets are a
 // way to render mojibake.
 type searchMatch struct {
-	Line    int      `json:"line"`
-	Context string   `json:"context,omitempty"`
-	Text    string   `json:"text"`
-	Spans   [][2]int `json:"spans"`
+	Line    int            `json:"line"`
+	Context string         `json:"context,omitempty"`
+	Section *searchSection `json:"section,omitempty"`
+	Text    string         `json:"text"`
+	Spans   [][2]int       `json:"spans"`
+}
+
+// searchSection names the part of a document a hit fell in: a bookmark entry,
+// a timestamped quick note, a heading's section. Absent when the document is
+// flat, and when the hit is in a note's preamble above its first heading.
+//
+// ID is the anchor in the compiled HTML and may be empty while Label is not -
+// a section that can be NAMED but not LINKED, which is what a heading whose id
+// could not be predicted produces (see search_sections.go). The UI shows the
+// label either way and only makes it a link when there is an id.
+type searchSection struct {
+	ID    string `json:"id,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 type searchResult struct {
@@ -886,14 +926,9 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 		Path: doc.Path, Kind: doc.Kind, Name: doc.Name, Title: doc.Title,
 		Tags: doc.Tags, Score: score, URL: doc.URL, Truncated: doc.truncated,
 	}
-	for _, h := range hits {
-		text, spans := snippetFor(h.line.raw, h.spans)
-		m := searchMatch{Line: h.line.no, Context: h.line.context, Text: text}
-		for _, s := range spans {
-			m.Spans = append(m.Spans, [2]int{s.Start, s.Len})
-		}
-		res.Matches = append(res.Matches, m)
-	}
+	res.Matches, _ = buildMatches(doc, hits)
+	// No anchor in page scope: the reader is already on the page, and the
+	// dialog highlights in place rather than navigating.
 
 	resp.Results = append(resp.Results, res)
 	resp.Total = 1
@@ -999,14 +1034,9 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 			Path: f.doc.Path, Kind: f.doc.Kind, Name: f.doc.Name, Title: f.doc.Title,
 			Tags: f.doc.Tags, Score: f.score, URL: f.doc.URL, Truncated: f.doc.truncated,
 		}
-		for _, h := range hits {
-			text, spans := snippetFor(h.line.raw, h.spans)
-			m := searchMatch{Line: h.line.no, Context: h.line.context, Text: text}
-			for _, s := range spans {
-				m.Spans = append(m.Spans, [2]int{s.Start, s.Len})
-			}
-			res.Matches = append(res.Matches, m)
-		}
+		var anchor string
+		res.Matches, anchor = buildMatches(f.doc, hits)
+		res.URL += anchor
 		if f.doc.truncated {
 			resp.Truncated = true
 		}
@@ -1016,6 +1046,33 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 	if read > 0 {
 		log.Printf("[search] %q: %d candidates read, %d matched", resp.Query, read, resp.Total)
 	}
+}
+
+// buildMatches turns scored line hits into the response's snippets, attaching
+// each one's section. Shared by both scopes so a match means the same thing
+// whichever produced it.
+//
+// The document's URL gains the fragment of the BEST hit's section - best, not
+// first, because the ranked order is what the reader is being shown and
+// sending them to a weaker match further up the page would be arbitrary.
+func buildMatches(doc *searchDocument, hits []lineHit) ([]searchMatch, string) {
+	var out []searchMatch
+	anchor := ""
+	for _, h := range hits {
+		text, spans := snippetFor(h.line.raw, h.spans)
+		m := searchMatch{Line: h.line.no, Context: h.line.context, Text: text}
+		for _, sp := range spans {
+			m.Spans = append(m.Spans, [2]int{sp.Start, sp.Len})
+		}
+		if sec := sectionFor(doc.sections, h.line.no); sec != nil && (sec.id != "" || sec.label != "") {
+			m.Section = &searchSection{ID: sec.id, Label: sec.label}
+			if anchor == "" && sec.id != "" {
+				anchor = "#" + sec.id
+			}
+		}
+		out = append(out, m)
+	}
+	return out, anchor
 }
 
 func writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, started time.Time) {

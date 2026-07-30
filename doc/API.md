@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.07.45** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.07.46** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -470,6 +470,7 @@ outranks one that merely suggests it:
         {
           "line": 15,
           "context": "script",
+          "section": { "id": "fetching-json", "label": "Fetching JSON" },
           "text": "const response = await fetch('/json/test.json');",
           "spans": [[23,5],[31,4],[41,4]]
         }
@@ -485,16 +486,49 @@ outranks one that merely suggests it:
 | `total` | Documents matched, before `limit` |
 | `truncated` | Results were capped by `limit`, or a file was only partly searched |
 | `score` | Higher is better; comparable only within one response |
-| `url` | Where the result lives: `/<Name>.html` for a note, the served path for an asset. Always the plain URL — see `highlight` |
+| `url` | Where the result lives: `/<Name>.html` for a note, the served path for an asset, plus `#<section.id>` when the best hit fell in an addressable section. Never carries `hl` — see `highlight` |
 | `highlight` | The query's terms as typed, for the client to mark in whatever page it opens. Present on both scopes, and on a query that matched nothing |
 | `matches[].line` | 1-based line in the file **as stored** — the markdown source for a note |
 | `matches[].context` | `script` or `code` when the hit is inside a `<script>` or a fenced block; absent in prose |
+| `matches[].section` | The part of the document the hit fell in — a bookmark entry, a timestamped quick note, a heading's section. Absent for a flat document and for a note's preamble |
+| `matches[].section.id` | The anchor in the compiled HTML. May be absent while `label` is present: a section that can be named but not linked |
+| `matches[].section.label` | What to show — the heading text, the bookmark's title (or its URL) |
 | `matches[].text` | The snippet, whitespace-trimmed and windowed to ~160 runes around the first hit, with `…` markers |
 | `matches[].spans` | `[start, length]` pairs in **rune** offsets into `text` |
 
 `spans` are rune offsets, not byte offsets and not UTF-16 units: slicing
 `text` by anything else cuts Cyrillic and emoji in half. In JavaScript,
 `Array.from(text)` gives the right units.
+
+#### Sections
+
+A note whose body is a run of entries — QuickNotes and anything else built from
+`---` + `##### <timestamp>`, or simply a note with headings — is indexed as
+sections, and a result opens **at** the entry that matched rather than at the
+top of the page. `Bookmarks.md` is parsed rather than line-scanned, so each
+bookmark is its own section too.
+
+The anchor is predicted, not observed: goldmark assigns heading ids at compile
+time and `Bookmarker.js` assigns bookmark ids at render time, and the server has
+to name them without reading either. Two consequences worth knowing:
+
+- **An id may be absent while a label is present.** A heading containing a link,
+  inline code, math, an entity, inline HTML, an underscore or a closing `##` run
+  renders as text that differs from its source, so the id cannot be predicted
+  from the source and none is emitted. A wholly non-ASCII heading gets
+  goldmark's degenerate `heading` fallback, which is not emitted either. Once a
+  heading in a document is unreadable this way, **no** later heading in that
+  document gets an id — goldmark's collision counter has moved on by an unknown
+  amount.
+- **Anchors switch themselves off if the renderer changes.** At first use the
+  server compiles a probe document and checks that the ids coming back are the
+  ids it predicted. On a mismatch it logs
+  `[search] section anchors disabled` and every result links at the page
+  instead. The alternative — sending readers to the wrong section of the right
+  page — looks like a bug in the note.
+
+Page scope reports sections but never anchors a result: the reader is already on
+the page, and the dialog highlights in place rather than navigating.
 
 `highlight` is not the same thing as `spans`. `spans` are offsets into a
 snippet of the **source**; `highlight` is literal text to look for in the
@@ -542,6 +576,10 @@ contain a comma. Terms shorter than 2 runes are ignored (`OMN_HL_MIN` in
 
 Handled entirely in `omn-go-core.js`, so it works on a page opened from disk
 with no server running, and on pages the search dialog never loads on.
+
+When the URL also carries a fragment — `/Bookmarks.html?hl=cats#2026-06-15-200000`
+— the terms are still marked but the **scroll is left to the anchor**, which is
+the more precise target.
 
 **Errors**
 

@@ -1246,9 +1246,20 @@ if (window.location.protocol !== 'file:') {
             li.className = 'omn-search-row';
             li.setAttribute('role', 'option');
 
+            // A section label replaces the bare line number when there is one.
+            // "27 Jul, 07:23" or "OMN-Go on GitHub" locates a hit inside a
+            // 3 000-line QuickNotes in a way "line 1842" does not; the line
+            // number is still what the API reports, and still what the editor
+            // needs, but it is not what a reader is looking for.
             var num = document.createElement('span');
             num.className = 'omn-search-line';
-            num.textContent = m.line;
+            if (m.section && m.section.label) {
+                num.classList.add('omn-search-section');
+                num.textContent = '\u203a ' + m.section.label;
+                num.title = 'line ' + m.line;
+            } else {
+                num.textContent = m.line;
+            }
             li.appendChild(num);
 
             if (m.context) {

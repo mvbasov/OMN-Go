@@ -532,4 +532,36 @@ function configuration(params = '') {
   }
 }
 
+// --- Arriving from a search result -------------------------------------
+//
+// A search hit inside a bookmark links to "/Bookmarks.html#<date-anchor>",
+// the same id showBookmarks() puts on each <li> (see the setAttribute above).
+// Usually nothing more is needed: urlParams() renders the full, unfiltered
+// list synchronously while the document is still parsing, so the element
+// exists before the browser performs its fragment scroll.
+//
+// The exception is a URL that also carries ?tag= or ?search=, which renders a
+// FILTERED list - and the entry being linked to may not be in it. Rather than
+// leave the reader on a page that silently does not contain what they clicked,
+// drop the filter and render everything.
+//
+// The flash is not decoration: several entries look alike, the anchor scroll
+// gives no feedback about which one it landed on, and this is the same
+// treatment a match gets everywhere else in the app.
+function revealHashedBookmark() {
+  var id = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+  if (!id) return;
+  var li = document.getElementById(id);
+  if (!li) {
+    var searchF = document.querySelector('#searchInput');
+    if (searchF) searchF.value = '';
+    showBookmarks();
+    li = document.getElementById(id);
+    if (!li) return;   // deleted, or never existed: leave the page alone
+  }
+  if (li.scrollIntoView) li.scrollIntoView({ block: 'center' });
+  li.classList.add('omn-search-hit-current');
+}
+
 urlParams();
+revealHashedBookmark();

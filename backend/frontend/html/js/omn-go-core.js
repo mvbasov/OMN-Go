@@ -276,7 +276,12 @@ window.addEventListener('load', function () {
     if (!terms || !terms.length) return;
 
     var first = window.omnHighlightTerms(terms);
-    if (first && first.scrollIntoView) {
+    // A fragment is the more precise target, so it wins the scroll. A result
+    // that matched inside a bookmark entry or a timestamped section arrives as
+    // "?hl=cats#2026-06-15-200000": the browser is already taking the reader to
+    // that entry, and scrolling to the first marked word somewhere above it
+    // would undo the thing the anchor was for. The marks go on either way.
+    if (first && first.scrollIntoView && !window.location.hash) {
         first.scrollIntoView({ block: 'center' });
         first.classList.add('omn-search-hit-current');
     }

@@ -556,7 +556,33 @@ func renderSearchPage(v searchPageView) string {
 				groups.WriteString("</div>\n")
 			}
 
+			lastSection := ""
 			for _, m := range r.Matches {
+				// The section heading is printed once per run of hits that
+				// share it, not once per hit: several matches inside one
+				// bookmark or one timestamped entry are one place, and
+				// repeating the label for each would say otherwise.
+				if m.Section != nil && m.Section.Label != "" && m.Section.Label != lastSection {
+					lastSection = m.Section.Label
+					groups.WriteString("  <div class=\"search-section\">")
+					if m.Section.ID != "" {
+						// r.URL already ends in the BEST hit's anchor; this
+						// link wants THIS section's, so the document URL is
+						// taken back apart rather than appended to.
+						base := r.URL
+						if at := strings.IndexByte(base, '#'); at >= 0 {
+							base = base[:at]
+						}
+						fmt.Fprintf(&groups, "<a href=\"%s#%s\">%s</a>",
+							escapeHTML(highlightURL(base, v.Highlight)),
+							escapeHTML(m.Section.ID), escapeHTML(m.Section.Label))
+					} else {
+						groups.WriteString(escapeHTML(m.Section.Label))
+					}
+					groups.WriteString("</div>\n")
+				} else if m.Section == nil {
+					lastSection = ""
+				}
 				groups.WriteString("  <div class=\"search-snippet\">")
 				fmt.Fprintf(&groups, "<span class=\"search-snippet-line\">%d</span>", m.Line)
 				if m.Context != "" {
