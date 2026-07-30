@@ -20,6 +20,7 @@ package backend
 // single line of search code exists, and keep passing after. Two exceptions are
 // planned and named at the point they happen:
 //
+//   - S2 adds /api/search to TestBaseline_RouteSet (done)
 //   - the config phase adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet
 //   - the results-page phase adds an arm to TestBaseline_ServeHTMLPageDispatch
 //
@@ -279,6 +280,7 @@ func TestBaseline_RouteSet(t *testing.T) {
 		"/api/quick",
 		"/api/restart",
 		"/api/save",
+		"/api/search",
 		"/api/sql",
 		"/api/sync",
 		"/api/sync/preview",

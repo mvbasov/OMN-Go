@@ -132,6 +132,11 @@ func StartServer(storageDir string, defaultPort int) *App {
 		a.Router.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
 		a.Router.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
 		a.Router.HandleFunc("/api/note", a.handleGetNote)
+		// Registered WITHOUT authMiddleware, like /api/note directly above and
+		// every page and static route: search aggregates nothing a LAN guest
+		// could not already fetch file by file, so gating it would buy no
+		// confidentiality while breaking the guest experience.
+		a.Router.HandleFunc("/api/search", a.handleSearch)
 		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
 		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
 		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfigExt, true))
