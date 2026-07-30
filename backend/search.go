@@ -541,6 +541,60 @@ func isSpace(r rune) bool {
 }
 
 // ----------------------------------------------------------------------
+// Gating
+// ----------------------------------------------------------------------
+//
+// Only GLOBAL search is gated. Page search has no setting because it has no
+// standing cost: a switch whose "off" position saves nothing is just a way to
+// break the feature by accident.
+
+// searchIndexBuilt reports whether a global index exists to answer from.
+//
+// The index itself arrives in the next phase; until then this is the seam that
+// keeps the rest of the gating honest - the config flag says what the user
+// WANTS, this says what the server can actually deliver, and the two are not
+// the same thing while the feature is being built. When the index lands, this
+// is where it reports itself.
+func (a *App) searchIndexBuilt() bool {
+	return false
+}
+
+// globalSearchAvailable is the one answer to "can this server search
+// everything right now": the user asked for it AND there is an index to ask.
+// Injected into every page as OMN_SEARCH_GLOBAL (see injectRuntimeVars), so
+// the dialog never offers a scope that would fail.
+func (a *App) globalSearchAvailable() bool {
+	return a.GetConfig().SearchEnabled && a.searchIndexBuilt()
+}
+
+// defaultSearchScope is the scope a request without an explicit one gets.
+//
+// It follows the configured preference, EXCEPT that it falls back to page
+// scope whenever global search cannot answer - defaulting an unscoped query
+// to a scope that can only fail would be a strange way to treat a caller who
+// expressed no preference at all.
+func (a *App) defaultSearchScope() string {
+	if a.globalSearchAvailable() {
+		return normalizeSearchScope(a.GetConfig().SearchScope)
+	}
+	return SearchScopePage
+}
+
+// searchIndexStatus is the line the Config page shows under the search
+// settings. A memory-sensitive option that will not say how much memory it is
+// using is a setting people switch off blindly.
+func (a *App) searchIndexStatus() string {
+	cfg := a.GetConfig()
+	if !cfg.SearchEnabled {
+		return "Off - page search still works, and costs nothing."
+	}
+	if !a.searchIndexBuilt() {
+		return "Not built yet."
+	}
+	return "Built."
+}
+
+// ----------------------------------------------------------------------
 // The HTTP surface
 // ----------------------------------------------------------------------
 
@@ -589,9 +643,7 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	scope := strings.ToLower(strings.TrimSpace(qs.Get("scope")))
 	if scope == "" {
-		// Until global search exists, page scope is the only scope. A later
-		// phase makes the default configurable.
-		scope = "page"
+		scope = a.defaultSearchScope()
 	}
 
 	resp := searchResponse{
@@ -601,14 +653,20 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch scope {
-	case "page":
+	case SearchScopePage:
 		a.searchPage(&resp, qs)
-	case "all":
-		// Global search needs the index, which does not exist yet. Answer
-		// honestly rather than returning an empty result set that would read
-		// as "nothing matched".
-		resp.Status = "disabled"
-		resp.Error = "global search is not available"
+	case SearchScopeAll:
+		// Two different "no" answers, because they call for two different
+		// things from the user. Either way it is a 503 with a reason, never
+		// an empty result set - "nothing matched" is a claim about the notes,
+		// and neither of these is.
+		if !a.GetConfig().SearchEnabled {
+			resp.Status = "disabled"
+			resp.Error = "global search is off (Settings -> Search)"
+		} else {
+			resp.Status = "unavailable"
+			resp.Error = "the search index is not ready"
+		}
 		writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
 		return
 	default:
@@ -643,6 +701,11 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 	if doc == nil {
 		return // missing, outside storage, or binary: nothing to say
 	}
+	// The query's own kind filters apply; Config.SearchKinds deliberately does
+	// NOT. That setting says what the global INDEX covers - what it costs to
+	// hold in memory - and has nothing to say about a file the user is looking
+	// at right now. Letting it reach here would make page search stop working
+	// on a note the moment someone unticked "Notes" for the index.
 	if !kindAllowed(doc.Kind, splitCSV(get("kind")), q.kinds) {
 		return
 	}

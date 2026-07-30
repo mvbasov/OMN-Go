@@ -41,6 +41,11 @@ func (a *App) getConfigPageBody() string {
 		EnableIntentURI:    cfg.EnableIntentURI,
 		EnableTermuxIntent: cfg.EnableTermuxIntent,
 		AndroidFullscreen:  cfg.AndroidFullscreen,
+		SearchEnabled:      cfg.SearchEnabled,
+		SearchKinds:        normalizeSearchKinds(cfg.SearchKinds),
+		SearchBundled:      cfg.SearchBundled,
+		SearchScope:        cfg.SearchScope,
+		SearchIndexStatus:  a.searchIndexStatus(),
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -122,6 +127,22 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			// theme select above: anything unrecognised (or a missing
 			// field) becomes FullscreenOn, the historic behaviour.
 			c.AndroidFullscreen = normalizeFullscreen(r.FormValue("android_fullscreen"))
+			// Search settings. The checkboxes follow the same
+			// absent-means-false rule as everything else on this form.
+			c.SearchEnabled = r.FormValue("search_enabled") == "true"
+			c.SearchBundled = r.FormValue("search_bundled") == "true"
+			c.SearchScope = normalizeSearchScope(r.FormValue("search_scope"))
+			// search_kinds is a set of checkboxes sharing one name, so it
+			// arrives as a repeated field. Note the explicitly non-nil
+			// slice: nil means "no preference recorded, use the default"
+			// (see normalizeSearchKinds), which is NOT what unticking every
+			// box means - that means index nothing, and the two must not be
+			// confused by a save.
+			kinds := []string{}
+			if r.Form != nil {
+				kinds = append(kinds, r.Form["search_kinds"]...)
+			}
+			c.SearchKinds = normalizeSearchKinds(kinds)
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int

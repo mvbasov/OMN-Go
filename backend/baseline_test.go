@@ -21,7 +21,7 @@ package backend
 // planned and named at the point they happen:
 //
 //   - S2 adds /api/search to TestBaseline_RouteSet (done)
-//   - the config phase adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet
+//   - S4 adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet (done)
 //   - the results-page phase adds an arm to TestBaseline_ServeHTMLPageDispatch
 //
 // A baseline test failing for any other reason means the change under it was
@@ -750,7 +750,10 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 	}
 	sort.Strings(names)
 
-	want := []string{"APP_VERSION", "OMN_THEME", "USE_INTERNAL_ED"}
+	// S4 added OMN_SEARCH_GLOBAL: whether the dialog may offer the "All notes"
+	// scope depends on a setting that is toggleable at any time, so it has to
+	// reach already-cached pages the same way the theme does.
+	want := []string{"APP_VERSION", "OMN_SEARCH_GLOBAL", "OMN_THEME", "USE_INTERNAL_ED"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("injected runtime globals changed: got %v, want %v\n"+
 			"Adding one is fine - update this list in the same commit, and "+

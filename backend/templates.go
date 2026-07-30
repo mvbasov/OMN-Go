@@ -250,6 +250,11 @@ type configPageView struct {
 	EnableIntentURI    bool
 	EnableTermuxIntent bool
 	AndroidFullscreen  string // "off" | "fullscreen" | "immersive" (normalized)
+	SearchEnabled      bool
+	SearchKinds        []string // normalized
+	SearchBundled      bool
+	SearchScope        string // "all" | "page" (normalized)
+	SearchIndexStatus  string // human-readable line for the Search screen
 	GitServers         []gitServerView
 }
 
@@ -287,6 +292,23 @@ func renderConfigPage(v configPageView) string {
 	if v.EnableTermuxIntent {
 		termuxIntentChecked = "checked"
 	}
+	searchEnabledChecked := ""
+	if v.SearchEnabled {
+		searchEnabledChecked = "checked"
+	}
+	searchBundledChecked := ""
+	if v.SearchBundled {
+		searchBundledChecked = "checked"
+	}
+	// One checkbox per kind, checked when the kind is in the normalized list.
+	kindChecked := map[string]string{}
+	for _, k := range v.SearchKinds {
+		kindChecked[k] = "checked"
+	}
+	searchScopeAllSel, searchScopePageSel := "checked", ""
+	if normalizeSearchScope(v.SearchScope) == SearchScopePage {
+		searchScopeAllSel, searchScopePageSel = "", "checked"
+	}
 
 	// Exactly one option is marked selected; normalizeTheme guarantees
 	// the value is one of the three, with unknown/empty mapping to auto.
@@ -322,25 +344,35 @@ func renderConfigPage(v configPageView) string {
 	}
 
 	return fill(configPageTmpl, map[string]string{
-		"SERVER_PORT":           fmt.Sprintf("%d", v.ServerPort),
-		"ADMIN_PWD":             escapeHTML(v.AdminPassword),
-		"GUEST_PWD":             escapeHTML(v.GuestPassword),
-		"AUTHOR":                escapeHTML(v.Author),
-		"INTERNAL_ED_CHECKED":   internalEdChecked,
-		"SHARE_LAN_CHECKED":     shareLanChecked,
-		"INTENT_URI_CHECKED":    intentUriChecked,
-		"TERMUX_INTENT_CHECKED": termuxIntentChecked,
-		"DESKTOP_EXT_CMD":       escapeHTML(v.DesktopExtCmd),
-		"HOSTNAME":              escapeHTML(displayHostname(v.Hostname)),
-		"BACKUP_PRUNE_DEPTH":    fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
-		"THEME_AUTO_SEL":        themeSel["THEME_AUTO_SEL"],
-		"THEME_LIGHT_SEL":       themeSel["THEME_LIGHT_SEL"],
-		"THEME_DARK_SEL":        themeSel["THEME_DARK_SEL"],
-		"MAX_UPLOAD_MB":         fmt.Sprintf("%d", v.MaxUploadSizeMB),
-		"FS_OFF_SEL":            fsSel["FS_OFF_SEL"],
-		"FS_ON_SEL":             fsSel["FS_ON_SEL"],
-		"FS_IMMERSIVE_SEL":      fsSel["FS_IMMERSIVE_SEL"],
-		"GIT_SERVERS":           cards.String(),
+		"SERVER_PORT":            fmt.Sprintf("%d", v.ServerPort),
+		"ADMIN_PWD":              escapeHTML(v.AdminPassword),
+		"GUEST_PWD":              escapeHTML(v.GuestPassword),
+		"AUTHOR":                 escapeHTML(v.Author),
+		"INTERNAL_ED_CHECKED":    internalEdChecked,
+		"SHARE_LAN_CHECKED":      shareLanChecked,
+		"INTENT_URI_CHECKED":     intentUriChecked,
+		"TERMUX_INTENT_CHECKED":  termuxIntentChecked,
+		"DESKTOP_EXT_CMD":        escapeHTML(v.DesktopExtCmd),
+		"HOSTNAME":               escapeHTML(displayHostname(v.Hostname)),
+		"BACKUP_PRUNE_DEPTH":     fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
+		"THEME_AUTO_SEL":         themeSel["THEME_AUTO_SEL"],
+		"THEME_LIGHT_SEL":        themeSel["THEME_LIGHT_SEL"],
+		"THEME_DARK_SEL":         themeSel["THEME_DARK_SEL"],
+		"MAX_UPLOAD_MB":          fmt.Sprintf("%d", v.MaxUploadSizeMB),
+		"FS_OFF_SEL":             fsSel["FS_OFF_SEL"],
+		"FS_ON_SEL":              fsSel["FS_ON_SEL"],
+		"FS_IMMERSIVE_SEL":       fsSel["FS_IMMERSIVE_SEL"],
+		"SEARCH_ENABLED_CHECKED": searchEnabledChecked,
+		"SEARCH_BUNDLED_CHECKED": searchBundledChecked,
+		"SEARCH_KIND_MD":         kindChecked[SearchKindMD],
+		"SEARCH_KIND_BOOKMARKS":  kindChecked[SearchKindBookmarks],
+		"SEARCH_KIND_JS":         kindChecked[SearchKindJS],
+		"SEARCH_KIND_JSON":       kindChecked[SearchKindJSON],
+		"SEARCH_KIND_USER_JSON":  kindChecked[SearchKindUserJSON],
+		"SEARCH_SCOPE_ALL_SEL":   searchScopeAllSel,
+		"SEARCH_SCOPE_PAGE_SEL":  searchScopePageSel,
+		"SEARCH_INDEX_STATUS":    escapeHTML(v.SearchIndexStatus),
+		"GIT_SERVERS":            cards.String(),
 	})
 }
 
@@ -462,14 +494,20 @@ const modalsMarker = `<div id="omn-go-modals-slot"></div>`
 // exported page opened via file:// where this marker is never replaced)
 // falls through to the prefers-color-scheme media query.
 //
+// OMN_SEARCH_GLOBAL joins them for the same reason: whether the search dialog
+// can offer the "All notes" scope depends on a setting that is toggleable at
+// any time, and the header lives in every cached page. Baking it in at compile
+// time would leave a stale answer on every page compiled before the toggle
+// changed - exactly the problem this function exists to solve.
+//
 // All values are server-controlled (APP_VERSION is a build constant,
-// UseInternalEd a bool, Theme whitelisted through normalizeTheme), never
-// user input, so splicing them with fmt is safe.
+// UseInternalEd a bool, Theme whitelisted through normalizeTheme, and the
+// search flag a bool), never user input, so splicing them with fmt is safe.
 func (a *App) injectRuntimeVars(page []byte) []byte {
 	cfg := a.GetConfig()
 	script := fmt.Sprintf(
-		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
-		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme))
+		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; var OMN_SEARCH_GLOBAL = %t; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
+		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable())
 	page = bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
 	// Splice the server-only modals into the slot (a no-op on templates that
 	// don't carry it, e.g. the standalone editor page).

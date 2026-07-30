@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // maxGitServers is the fixed number of git-server config slots the UI
@@ -69,6 +70,73 @@ func normalizeFullscreen(s string) string {
 	}
 }
 
+// Search kinds accepted in Config.SearchKinds - the content the GLOBAL index
+// covers. Page search ignores this entirely: it reads whatever file is open,
+// which is what lets it work with no configuration at all.
+//
+// The default is notes plus bookmarks. Scripts and JSON are opt-in because
+// most people's notes are prose, and every kind added is memory held for as
+// long as the process lives.
+const (
+	SearchKindMD        = "md"
+	SearchKindBookmarks = "bookmarks"
+	SearchKindJS        = "js"
+	SearchKindJSON      = "json"
+	SearchKindUserJSON  = "user_json"
+)
+
+var searchKindsAll = []string{
+	SearchKindMD, SearchKindBookmarks, SearchKindJS, SearchKindJSON, SearchKindUserJSON,
+}
+
+var searchKindsDefault = []string{SearchKindMD, SearchKindBookmarks}
+
+// Scope values accepted in Config.SearchScope: where a search STARTS. The
+// dialog can still re-aim one query without changing this.
+const (
+	SearchScopeAll  = "all"
+	SearchScopePage = "page"
+)
+
+// normalizeSearchKinds whitelists and de-duplicates, preserving order.
+//
+// The nil/empty distinction is load-bearing and deliberate: a config written
+// before this feature existed has NO search_kinds key, unmarshals to nil, and
+// must get the default - whereas someone who unticks every box gets a real
+// empty list, which means "index nothing". Same shape as normalizeTheme
+// otherwise: the loader, the POST handler and the renderer all go through
+// here, so none of them can disagree about what is valid.
+func normalizeSearchKinds(kinds []string) []string {
+	if kinds == nil {
+		return append([]string(nil), searchKindsDefault...)
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, k := range kinds {
+		k = strings.ToLower(strings.TrimSpace(k))
+		if seen[k] {
+			continue
+		}
+		for _, known := range searchKindsAll {
+			if k == known {
+				seen[k] = true
+				out = append(out, k)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// normalizeSearchScope maps anything unrecognised - including the "" in every
+// config written before this field existed - onto SearchScopeAll.
+func normalizeSearchScope(s string) string {
+	if strings.ToLower(strings.TrimSpace(s)) == SearchScopePage {
+		return SearchScopePage
+	}
+	return SearchScopeAll
+}
+
 type GitServerConfig struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -106,6 +174,22 @@ type Config struct {
 	MimeTypes        map[string]string `json:"mime_types"`
 	ActiveGitIndex   int               `json:"active_git_index"`
 	GitServers       []GitServerConfig `json:"git_servers"`
+	// SearchEnabled turns on GLOBAL search - the part that builds and holds
+	// an index. Default FALSE: the index is the first standing memory cost
+	// this app has (roughly half the size of the indexed text, held for the
+	// life of the process), and on a device with little to spare the right
+	// amount of it is none. Page search is unaffected and always available.
+	SearchEnabled bool `json:"search_enabled"`
+	// SearchKinds is what the global index covers; see normalizeSearchKinds
+	// for why absent and empty mean different things.
+	SearchKinds []string `json:"search_kinds"`
+	// SearchBundled additionally indexes OMN-Go's own shipped scripts
+	// (omn-go-*.js, *.min.js and friends - the versionDependentAssets list).
+	// Off by default: they are several times the size of a typical note
+	// collection and rarely what anyone is looking for.
+	SearchBundled bool `json:"search_bundled"`
+	// SearchScope is where a search starts, "all" or "page".
+	SearchScope string `json:"search_scope"`
 	// MaxUploadSizeMB caps uploaded image/JSON file size (megabytes).
 	// Enforced in saveUploadedFile; see defaultMaxUploadSizeMB above for
 	// where the default and the Android-native duplicate of this value
@@ -157,6 +241,12 @@ func (a *App) loadConfig(storageDir string) {
 			DesktopExtCmd:   "subl",
 			Theme:           ThemeAuto,
 			MaxUploadSizeMB: defaultMaxUploadSizeMB,
+
+			// Global search is off on a fresh install; when it is switched
+			// on, it starts with notes and bookmarks.
+			SearchEnabled: false,
+			SearchKinds:   append([]string(nil), searchKindsDefault...),
+			SearchScope:   SearchScopeAll,
 			// Matches the manifest's Theme.NoTitleBar.Fullscreen, so a
 			// fresh install looks the same as every existing one.
 			AndroidFullscreen: FullscreenOn,
@@ -225,6 +315,10 @@ func (a *App) loadConfig(storageDir string) {
 	// existed carry "", which normalizes to FullscreenOn - i.e. exactly the
 	// status-bar-hidden behaviour those installs already had.
 	a.Config.AndroidFullscreen = normalizeFullscreen(a.Config.AndroidFullscreen)
+	// And the search settings: a config predating them has no search_kinds
+	// key at all (nil -> the default) and an empty search_scope (-> "all").
+	a.Config.SearchKinds = normalizeSearchKinds(a.Config.SearchKinds)
+	a.Config.SearchScope = normalizeSearchScope(a.Config.SearchScope)
 	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})

@@ -49,6 +49,14 @@
                 </span>
                 <i class="material-icons config-menu-chevron">chevron_right</i>
             </button>
+            <button type="button" class="config-menu-item" data-goto="search">
+                <i class="material-icons config-menu-icon">search</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">Search</span>
+                    <span class="config-menu-desc">Global search index and its content</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
             <button type="button" class="config-menu-item" data-goto="git">
                 <i class="material-icons config-menu-icon">cloud_sync</i>
                 <span class="config-menu-text">
@@ -197,6 +205,81 @@
                 </div>
                 <span class="config-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
             </div>
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
+        </div>
+
+        <div class="config-screen" data-screen="search">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">Search</h2>
+            </div>
+
+            <div class="config-field">
+                <span class="config-hint">Searching the page you have open always works and needs nothing - no index, no settings, no memory. Everything below is about searching <em>all</em> your notes at once, which does need an index.</span>
+            </div>
+
+            <div class="config-field">
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchEnabled" name="search_enabled" value="true" %%SEARCH_ENABLED_CHECKED%% />
+                    <label class="config-label">Enable global search</label>
+                </div>
+                <span class="config-hint">Builds an index of the content selected below and keeps it in memory - roughly half the size of the text it covers (about 3 MB for 2000 notes, 13 MB for 10000). Leave this off on a device short of memory; page search keeps working either way.</span>
+            </div>
+
+            <div class="config-field">
+                <label class="config-label">Include in the index</label>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchKindMd" name="search_kinds" value="md" %%SEARCH_KIND_MD%% />
+                    <label class="config-label">Notes</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchKindBookmarks" name="search_kinds" value="bookmarks" %%SEARCH_KIND_BOOKMARKS%% />
+                    <label class="config-label">Bookmarks</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchKindJs" name="search_kinds" value="js" %%SEARCH_KIND_JS%% />
+                    <label class="config-label">Scripts (html/js)</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchKindJson" name="search_kinds" value="json" %%SEARCH_KIND_JSON%% />
+                    <label class="config-label">JSON (html/json)</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchKindUserJson" name="search_kinds" value="user_json" %%SEARCH_KIND_USER_JSON%% />
+                    <label class="config-label">Uploaded JSON (html/user_json)</label>
+                </div>
+                <span class="config-hint">Every kind you add is more memory held for as long as the app runs. Unticking all of them means the index covers nothing.</span>
+            </div>
+
+            <div class="config-field">
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgSearchBundled" name="search_bundled" value="true" %%SEARCH_BUNDLED_CHECKED%% />
+                    <label class="config-label">Also index OMN-Go's own scripts</label>
+                </div>
+                <span class="config-hint">katex.min.js, omn-go-core.js and the rest of the app's own code. They are several times the size of a typical note collection and rarely what you are looking for - but useful if you want to grep the app itself.</span>
+            </div>
+
+            <div class="config-field">
+                <label class="config-label">Search in</label>
+                <div class="config-checkbox-row">
+                    <input type="radio" id="cfgSearchScopeAll" name="search_scope" value="all" %%SEARCH_SCOPE_ALL_SEL%% />
+                    <label class="config-label">All notes</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="radio" id="cfgSearchScopePage" name="search_scope" value="page" %%SEARCH_SCOPE_PAGE_SEL%% />
+                    <label class="config-label">The open page only</label>
+                </div>
+                <span class="config-hint">Where a search starts. The search box can switch for a single query without changing this.</span>
+            </div>
+
+            <div class="config-field">
+                <label class="config-label">Index status</label>
+                <span class="config-hint">%%SEARCH_INDEX_STATUS%%</span>
+            </div>
+
             <div class="config-field config-save-row">
                 <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
                 <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
