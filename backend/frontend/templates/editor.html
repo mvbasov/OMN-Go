@@ -51,6 +51,59 @@
             content: ""; width: 1px; align-self: stretch;
             background: var(--border); margin: 0 4px;
         }
+        /* -- Find / replace bar -------------------------------------
+           A block between the toolbar and the text, so opening it pushes
+           the note down rather than covering it. Rows wrap on a narrow
+           screen; the query field is the only thing that grows. */
+        .omn-editor-find {
+            display: flex; flex-direction: column; gap: 4px;
+            padding: 6px 8px;
+            background: var(--bg-band);
+            border-bottom: 1px solid var(--border);
+        }
+        .omn-editor-find[hidden] { display: none; }
+        .omn-editor-find-row {
+            display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+        }
+        .omn-editor-find-row[hidden] { display: none; }
+        .omn-editor-find input {
+            flex: 1 1 8em; min-width: 6em;
+            padding: 4px 6px;
+            background: var(--bg-surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px;
+            font-family: inherit; font-size: 13px;
+        }
+        .omn-editor-find input:focus { outline: 1px solid var(--accent); }
+        /* A query that cannot compile: said with colour as well as words,
+           because the count text is small and easy to miss mid-typing. */
+        .omn-editor-find input.is-invalid { border-color: var(--danger); }
+        .omn-editor-find button {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--bg-surface); color: var(--text);
+            border: 1px solid var(--border-strong);
+            border-radius: 4px; cursor: pointer;
+            padding: 4px 8px; line-height: 1;
+        }
+        .omn-editor-find button:hover { background: var(--bg-hover); }
+        .omn-editor-find button.active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .omn-editor-find .material-icons { font-size: 20px; }
+        /* The three mode flags are labelled with text, not icons - "Aa",
+           "ab", ".*" are what every editor uses and they need no legend. */
+        .omn-find-flag {
+            font-family: monospace; font-size: 12px; font-weight: 700;
+            min-width: 2.2em;
+        }
+        .omn-find-word { font-size: 12px; }
+        .omn-editor-find-count {
+            font-size: 12px; color: var(--text-muted);
+            min-width: 5em; text-align: right; white-space: nowrap;
+        }
+        /* Keeps the replace field aligned under the find field despite the
+           chevron button occupying the first slot of the row above. */
+        .omn-find-chevron-space { width: 30px; flex: 0 0 auto; }
+
         #editorSave { border-color: var(--accent); color: var(--accent); font-weight: 600; }
         #editorSave:hover { background: var(--accent); color: #fff; }
         /* Editing area: a horizontal row of [line-number gutter][textarea].
@@ -118,6 +171,44 @@
         <span class="omn-editor-spacer"></span>
         <button id="editorSave" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
         <button id="editorCancel" type="button" title="Cancel"><i class="material-icons">close</i></button>
+    </div>
+    <!-- Find / replace. Docked between the toolbar and the text rather than
+         floating over it: this is the one search in the app where you need to
+         see the thing you are changing WHILE you change it. Hidden until
+         Ctrl+F / Ctrl+H or the toolbar button; the replace row is a second
+         opt-in on top, because "search" is the common case and vertical space
+         on a phone is not free.
+
+         Note what these inputs deliberately do NOT carry: no spellcheck,
+         autocorrect, autocapitalize or autocomplete. On Android those fold
+         into the keyboard's NO_SUGGESTIONS flag, which disables the composing
+         region every non-Latin layout needs - see the search overlay in
+         omn-go-sse.js for the same rule and the bug that produced it. -->
+    <div class="omn-editor-find" id="editorFind" hidden>
+        <div class="omn-editor-find-row">
+            <button id="findToggleReplace" type="button" class="editor-tool omn-find-chevron"
+                    title="Show replace" aria-label="Show replace"><i class="material-icons">chevron_right</i></button>
+            <input id="findInput" type="text" placeholder="Find" aria-label="Find" />
+            <span class="omn-editor-find-count" id="findCount"></span>
+            <button id="findPrev" type="button" class="editor-tool" title="Previous match (Shift+Enter)"
+                    aria-label="Previous match"><i class="material-icons">keyboard_arrow_up</i></button>
+            <button id="findNext" type="button" class="editor-tool" title="Next match (Enter)"
+                    aria-label="Next match"><i class="material-icons">keyboard_arrow_down</i></button>
+            <button id="findCase" type="button" class="editor-tool omn-find-flag" title="Match case"
+                    aria-label="Match case" aria-pressed="false">Aa</button>
+            <button id="findWord" type="button" class="editor-tool omn-find-flag" title="Whole word"
+                    aria-label="Whole word" aria-pressed="false">ab</button>
+            <button id="findRegex" type="button" class="editor-tool omn-find-flag" title="Regular expression"
+                    aria-label="Regular expression" aria-pressed="false">.*</button>
+            <button id="findClose" type="button" class="editor-tool" title="Close (Esc)"
+                    aria-label="Close find"><i class="material-icons">close</i></button>
+        </div>
+        <div class="omn-editor-find-row omn-editor-replace-row" id="findReplaceRow" hidden>
+            <span class="omn-find-chevron-space" aria-hidden="true"></span>
+            <input id="replaceInput" type="text" placeholder="Replace with" aria-label="Replace with" />
+            <button id="replaceOne" type="button" class="editor-tool omn-find-word" title="Replace this match">Replace</button>
+            <button id="replaceAll" type="button" class="editor-tool omn-find-word" title="Replace every match">All</button>
+        </div>
     </div>
     <div class="omn-editor-main">
         <div id="editorGutter" class="omn-editor-gutter" aria-hidden="true"></div>

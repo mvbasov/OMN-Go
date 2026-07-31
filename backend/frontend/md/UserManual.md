@@ -137,6 +137,38 @@ page reloads with your changes.
 `images/` and a ready-to-use Markdown image reference is inserted at the
 cursor.
 
+### Find and replace
+
+Press <i class="material-icons">search</i> in the editor toolbar, or
+**Ctrl-F** (**Ctrl-H** to start with replace showing). A bar opens between the
+toolbar and the text — it pushes the note down rather than covering it, so you
+can see what you are changing. If you had text selected, it is already the
+query.
+
+**Enter** goes to the next match, **Shift-Enter** to the previous, **Esc**
+closes and puts the cursor back in the text. The counter reads *3 / 17*.
+
+Three switches sit at the right of the find field:
+
+- **Aa** — match case. Off by default.
+- **ab** — whole word: *note* stops matching inside *notes* or *footnote*.
+  It understands any alphabet, not just the Latin one.
+- **.\*** — regular expression. `$1`, `$2` … in the replacement stand for
+  the bracketed groups in the pattern, and `$&` for the whole match. A pattern
+  that does not compile is marked in red and says *bad pattern* rather than
+  quietly finding nothing. Outside this mode nothing is special: searching for
+  `a.b` finds `a.b`, and a `$` in the replacement is a dollar sign.
+
+The chevron at the left shows and hides the replace field. **Replace** changes
+the current match and moves to the next; **All** changes every match and says
+how many. Both are a single undo step — **Ctrl-Z** puts the note back.
+
+Two things to know. Only the current match is highlighted, because the editor
+is a plain text box and cannot colour more than the selection — the counter is
+how you know what else is out there. And the search covers the note's *source*,
+which is what you are editing: text inside a `<script>` block or a code fence
+is found like any other, and so are the header lines at the top.
+
 ## Page format: the header block
 
 Every page starts with a Pelican-style header: `Key: value` lines,

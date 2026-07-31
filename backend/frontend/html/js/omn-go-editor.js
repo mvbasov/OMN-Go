@@ -60,7 +60,8 @@
         { icon: 'code', title: 'Expand Emmet abbreviation (Tab)', action: function () { expandEmmetAtCursor(); } },
         { icon: 'format_line_spacing', title: 'Select line (click again: to end of file, then to after header, then repeats)', action: function () { selectCurrentLine(); } },
         { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
-        { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } }
+        { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } },
+        { id: 'toolFind', icon: 'search', title: 'Find / replace (Ctrl+F, Ctrl+H)', action: function () { openFind(false); } }
         // Future tools go here, e.g.:
         // { icon: 'format_bold', title: 'Bold selection', action: wrapBold },
     ];
@@ -685,12 +686,22 @@
             var l = window.localStorage.getItem('omngo_editor_ln');
             if (w !== null) wrapOn = w === '1';
             if (l !== null) lnOn = l === '1';
+            // Find/replace modes are per-device preferences too: someone who
+            // works in regex stays in regex across notes and restarts.
+            matchCase = window.localStorage.getItem('omngo_find_case') === '1';
+            wholeWord = window.localStorage.getItem('omngo_find_word') === '1';
+            useRegex = window.localStorage.getItem('omngo_find_regex') === '1';
+            replaceOpen = window.localStorage.getItem('omngo_find_replace') === '1';
         } catch (e) { /* storage unavailable - use defaults */ }
     }
     function savePrefs() {
         try {
             window.localStorage.setItem('omngo_editor_wrap', wrapOn ? '1' : '0');
             window.localStorage.setItem('omngo_editor_ln', lnOn ? '1' : '0');
+            window.localStorage.setItem('omngo_find_case', matchCase ? '1' : '0');
+            window.localStorage.setItem('omngo_find_word', wholeWord ? '1' : '0');
+            window.localStorage.setItem('omngo_find_regex', useRegex ? '1' : '0');
+            window.localStorage.setItem('omngo_find_replace', replaceOpen ? '1' : '0');
         } catch (e) { /* ignore */ }
     }
 
@@ -745,6 +756,428 @@
         applyState();
     }
 
+
+    // ==================================================================
+    // Find / replace
+    // ==================================================================
+    //
+    // Exact matching, deliberately - this is nothing to do with the fuzzy
+    // search in omn-go-sse.js. That one answers "where did I write about
+    // this"; this one has to answer "which characters am I about to
+    // overwrite", and a fuzzy match has no defensible replacement.
+    //
+    // A <textarea> cannot paint highlights, so the current match is shown by
+    // SELECTING it and the rest are reported as a count ("3 / 17"). The
+    // alternative - a mirrored div behind the textarea painting every match -
+    // has to track scroll, wrap, tab stops and font metrics exactly, which is
+    // the same alignment problem the line-number gutter already has, times
+    // every match on screen.
+
+    var findEl = null, findInput = null, replaceInput = null,
+        findCountEl = null, findReplaceRow = null, findChevron = null,
+        findCaseBtn = null, findWordBtn = null, findRegexBtn = null;
+
+    var findOpen = false, replaceOpen = false;
+    var matchCase = false, wholeWord = false, useRegex = false;
+    var findMatches = [];     // [{start, end}] in the CURRENT text
+    var findIndex = -1;       // which of them is selected
+    var findInvalid = false;  // the pattern would not compile
+    var findTimer = null;
+
+    // Above this the count stops being a number anyone reads and starts being
+    // a memory question. Nothing is hidden: the count says "1000+".
+    var FIND_MAX = 1000;
+
+    // Unicode-aware word boundaries. JavaScript's \b is defined on
+    // [A-Za-z0-9_], so on Cyrillic text it fires in all the wrong places -
+    // "\bприв\b" would match inside "привет". Property escapes need the "u"
+    // flag, which is only added when whole-word is actually on: under "u"
+    // some otherwise-legal patterns become errors, and a mode the user did
+    // not ask for must not break their regex.
+    var UNICODE_BOUNDARY = (function () {
+        try {
+            new RegExp('(?<![\\p{L}\\p{N}_])x(?![\\p{L}\\p{N}_])', 'u');
+            return true;
+        } catch (e) {
+            return false;
+        }
+    })();
+
+    function escapeRegex(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // buildFindRegex returns a global RegExp, or null when the query is empty
+    // or (in regex mode) will not compile.
+    function buildFindRegex() {
+        var q = findInput ? findInput.value : '';
+        if (!q) return null;
+
+        var body = useRegex ? q : escapeRegex(q);
+        var flags = 'g' + (matchCase ? '' : 'i');
+
+        if (wholeWord) {
+            if (UNICODE_BOUNDARY) {
+                body = '(?<![\\p{L}\\p{N}_])(?:' + body + ')(?![\\p{L}\\p{N}_])';
+                flags += 'u';
+            } else {
+                body = '\\b(?:' + body + ')\\b';
+            }
+        }
+        try {
+            return new RegExp(body, flags);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // collectMatches rebuilds the match list against the text as it is NOW.
+    // Called before every navigation and every replace rather than cached,
+    // because the document underneath can change between them - the user can
+    // type in the textarea with the bar still open.
+    function collectMatches() {
+        findMatches = [];
+        findInvalid = false;
+
+        var q = findInput ? findInput.value : '';
+        if (!q) return;
+
+        var re = buildFindRegex();
+        if (!re) {
+            findInvalid = true;
+            return;
+        }
+
+        var value = ta.value, m;
+        while ((m = re.exec(value)) !== null) {
+            // A zero-length match cannot be selected, cannot be replaced, and
+            // would spin this loop forever. Skipped, and the lastIndex nudge
+            // is what makes the loop terminate on patterns like "a*".
+            if (m[0].length === 0) {
+                re.lastIndex++;
+                continue;
+            }
+            findMatches.push({ start: m.index, end: m.index + m[0].length });
+            if (findMatches.length >= FIND_MAX) break;
+        }
+    }
+
+    function renderFindCount() {
+        if (!findCountEl) return;
+        if (findInput && findInput.classList) {
+            findInput.classList.toggle('is-invalid', findInvalid);
+        }
+        if (findInvalid) {
+            findCountEl.textContent = 'bad pattern';
+            return;
+        }
+        if (!findInput || !findInput.value) {
+            findCountEl.textContent = '';
+            return;
+        }
+        if (!findMatches.length) {
+            findCountEl.textContent = 'no matches';
+            return;
+        }
+        var total = findMatches.length >= FIND_MAX ? FIND_MAX + '+' : String(findMatches.length);
+        findCountEl.textContent = (findIndex + 1) + ' / ' + total;
+    }
+
+    // selectMatch puts the caret on a match and scrolls it into view. The
+    // textarea keeps focus on the find field, so the selection is drawn in the
+    // browser's "inactive" colour - which is the right signal: that text is
+    // marked, not being typed into.
+    function selectMatch(i) {
+        if (i < 0 || i >= findMatches.length) return;
+        findIndex = i;
+        var m = findMatches[i];
+        ta.setSelectionRange(m.start, m.end);
+        scrollToOffset(m.start);
+        renderFindCount();
+    }
+
+    // findStep moves to the next/previous match, wrapping around, starting
+    // from wherever the caret is rather than from the last index - so editing
+    // in the middle of the document and pressing Enter continues from there.
+    function findStep(dir) {
+        collectMatches();
+        if (!findMatches.length) {
+            renderFindCount();
+            return;
+        }
+        // Forward starts past the END of the selection and backward before its
+        // START. Using one end for both is how a "next" button lands on the
+        // match it is already sitting on and never moves.
+        var i;
+        if (dir > 0) {
+            var after = ta.selectionEnd;
+            for (i = 0; i < findMatches.length; i++) {
+                if (findMatches[i].start >= after) break;
+            }
+            if (i >= findMatches.length) i = 0;   // wrap to the top
+        } else {
+            var before = ta.selectionStart;
+            for (i = findMatches.length - 1; i >= 0; i--) {
+                if (findMatches[i].end <= before) break;
+            }
+            if (i < 0) i = findMatches.length - 1; // wrap to the bottom
+        }
+        selectMatch(i);
+    }
+
+    // expandReplacement gives $1, $&, $$ their usual meaning in REGEX mode
+    // only. In literal mode the replacement is literal: someone replacing a
+    // price with "$5" is not writing a back-reference.
+    //
+    // Written out rather than handed to String.replace's own expansion,
+    // because the single-match Replace has to reuse the exact same rules as
+    // Replace all, and only a function replacer can pick out one match.
+    function expandReplacement(rep, args) {
+        if (!useRegex || rep.indexOf('$') === -1) return rep;
+        var last = args.length - 1;
+        // Named groups append an object; drop it before counting.
+        if (typeof args[last] === 'object' && args[last] !== null) last--;
+        var groups = last - 2;  // args: match, p1..pN, offset, string
+        return rep.replace(/\$(\$|&|\d{1,2})/g, function (whole, tok) {
+            if (tok === '$') return '$';
+            if (tok === '&') return args[0];
+            var n = parseInt(tok, 10);
+            if (n >= 1 && n <= groups) return args[n] === undefined ? '' : args[n];
+            return whole;   // "$7" with six groups is text, not a reference
+        });
+    }
+
+    // applyReplace rewrites value. onlyIndex >= 0 replaces just that match
+    // (counting the same non-empty matches collectMatches counts, so the two
+    // agree on what "the third match" means); -1 replaces all.
+    function applyReplace(value, re, rep, onlyIndex) {
+        var seen = 0, count = 0;
+        var out = value.replace(re, function () {
+            var args = arguments, whole = args[0];
+            if (whole.length === 0) return whole;   // skipped by collectMatches too
+            var cur = seen++;
+            if (onlyIndex >= 0 && cur !== onlyIndex) return whole;
+            count++;
+            return expandReplacement(rep, args);
+        });
+        return { text: out, count: count };
+    }
+
+    // setTextRange writes through execCommand where it exists, so the change
+    // joins the textarea's native undo stack instead of wiping it - assigning
+    // .value clears undo entirely, and losing the whole history to one
+    // Replace all is a bad trade. The assignment is the fallback.
+    function setTextRange(start, end, text) {
+        ta.focus();
+        ta.setSelectionRange(start, end);
+        var ok = false;
+        try {
+            ok = !!(document.execCommand && document.execCommand('insertText', false, text));
+        } catch (e) {
+            ok = false;
+        }
+        if (!ok) {
+            ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+            ta.setSelectionRange(start + text.length, start + text.length);
+        }
+        markDirty();
+        renderGutter();
+    }
+
+    function replaceCurrent() {
+        collectMatches();
+        if (findInvalid || !findMatches.length) {
+            renderFindCount();
+            return;
+        }
+        // Replace what is SELECTED if the selection is one of the matches,
+        // otherwise step to a match first. Pressing Replace without having
+        // pressed Enter should not silently rewrite something off-screen.
+        var i = -1, s = ta.selectionStart, e = ta.selectionEnd;
+        for (var k = 0; k < findMatches.length; k++) {
+            if (findMatches[k].start === s && findMatches[k].end === e) { i = k; break; }
+        }
+        if (i === -1) {
+            findStep(1);
+            return;
+        }
+
+        var re = buildFindRegex();
+        if (!re) return;
+        var rep = replaceInput ? replaceInput.value : '';
+        var before = ta.value;
+        var res = applyReplace(before, re, rep, i);
+        if (!res.count) return;
+
+        setTextRange(0, before.length, res.text);
+        // Land the caret AFTER what was just written, then advance. Otherwise
+        // replacing "a" with "ab" would find its own output and Replace would
+        // never move on.
+        var caret = findMatches[i].end + (res.text.length - before.length);
+        ta.setSelectionRange(caret, caret);
+        setStatus('Replaced 1 match', 'ok');
+        findStep(1);
+    }
+
+    function replaceAll() {
+        collectMatches();
+        if (findInvalid) {
+            renderFindCount();
+            return;
+        }
+        var re = buildFindRegex();
+        if (!re) return;
+        var rep = replaceInput ? replaceInput.value : '';
+        var caret = ta.selectionStart;
+        var res = applyReplace(ta.value, re, rep, -1);
+        if (!res.count) {
+            setStatus('No matches to replace');
+            renderFindCount();
+            return;
+        }
+        // One write, so one undo step puts the whole document back.
+        setTextRange(0, ta.value.length, res.text);
+        ta.setSelectionRange(Math.min(caret, ta.value.length), Math.min(caret, ta.value.length));
+        setStatus('Replaced ' + res.count + (res.count === 1 ? ' match' : ' matches'), 'ok');
+        collectMatches();
+        findIndex = -1;
+        renderFindCount();
+    }
+
+    function scheduleFind() {
+        clearTimeout(findTimer);
+        findTimer = setTimeout(function () {
+            collectMatches();
+            findIndex = -1;
+            renderFindCount();
+            if (findMatches.length) findStep(1);
+        }, 120);
+    }
+
+    function setFindFlag(which) {
+        if (which === 'case') matchCase = !matchCase;
+        if (which === 'word') wholeWord = !wholeWord;
+        if (which === 'regex') useRegex = !useRegex;
+        savePrefs();
+        updateFindButtons();
+        collectMatches();
+        findIndex = -1;
+        renderFindCount();
+        if (findMatches.length) findStep(1);
+    }
+
+    function updateFindButtons() {
+        function set(btn, on) {
+            if (!btn) return;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+        set(findCaseBtn, matchCase);
+        set(findWordBtn, wholeWord);
+        set(findRegexBtn, useRegex);
+        if (findChevron) {
+            findChevron.title = replaceOpen ? 'Hide replace' : 'Show replace';
+            findChevron.innerHTML = '<i class="material-icons">' +
+                (replaceOpen ? 'expand_more' : 'chevron_right') + '</i>';
+        }
+        if (findReplaceRow) findReplaceRow.hidden = !replaceOpen;
+    }
+
+    function openFind(withReplace) {
+        if (!findEl) return;
+        if (withReplace) replaceOpen = true;
+        findEl.hidden = false;
+        findOpen = true;
+        updateFindButtons();
+        savePrefs();
+
+        // Seed from the selection, the way every editor does: select a word,
+        // press Ctrl+F, and it is already the query.
+        var sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+        if (sel && sel.indexOf('\n') === -1 && findInput) findInput.value = sel;
+
+        if (findInput) {
+            findInput.focus();
+            findInput.select();
+        }
+        collectMatches();
+        findIndex = -1;
+        renderFindCount();
+    }
+
+    function closeFind() {
+        if (!findEl) return;
+        findEl.hidden = true;
+        findOpen = false;
+        findMatches = [];
+        findIndex = -1;
+        // Focus goes back to the text with the caret where the last match was,
+        // so Esc leaves you where you were reading rather than at the top.
+        ta.focus();
+    }
+
+    function toggleReplaceRow() {
+        replaceOpen = !replaceOpen;
+        updateFindButtons();
+        savePrefs();
+        if (replaceOpen && replaceInput) replaceInput.focus();
+    }
+
+    function wireFind() {
+        findEl = document.getElementById('editorFind');
+        if (!findEl) return;
+        findInput = document.getElementById('findInput');
+        replaceInput = document.getElementById('replaceInput');
+        findCountEl = document.getElementById('findCount');
+        findReplaceRow = document.getElementById('findReplaceRow');
+        findChevron = document.getElementById('findToggleReplace');
+        findCaseBtn = document.getElementById('findCase');
+        findWordBtn = document.getElementById('findWord');
+        findRegexBtn = document.getElementById('findRegex');
+
+        if (findInput) {
+            findInput.addEventListener('input', scheduleFind);
+            findInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    findStep(e.shiftKey ? -1 : 1);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeFind();
+                }
+            });
+        }
+        if (replaceInput) {
+            replaceInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    replaceCurrent();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeFind();
+                }
+            });
+        }
+
+        var byId = {
+            findPrev: function () { findStep(-1); },
+            findNext: function () { findStep(1); },
+            findClose: closeFind,
+            findToggleReplace: toggleReplaceRow,
+            findCase: function () { setFindFlag('case'); },
+            findWord: function () { setFindFlag('word'); },
+            findRegex: function () { setFindFlag('regex'); },
+            replaceOne: replaceCurrent,
+            replaceAll: replaceAll
+        };
+        Object.keys(byId).forEach(function (id) {
+            var b = document.getElementById(id);
+            if (b) b.addEventListener('click', byId[id]);
+        });
+
+        updateFindButtons();
+    }
+
     // ==================================================================
     // Wiring
     // ==================================================================
@@ -781,6 +1214,40 @@
             e.preventDefault();
             save(true);
             return;
+        }
+    }
+
+    // Find shortcuts live on the document, not on the textarea: Ctrl+F has to
+    // work while the caret is in the find field too, and Escape has to close
+    // the bar from wherever focus happens to be.
+    //
+    // Ctrl+F is taken from the browser deliberately. Inside a text editor the
+    // browser's own find is the wrong tool - it searches the rendered page,
+    // cannot see past the textarea's scroll, and cannot replace anything.
+    function onDocKeyDown(e) {
+        if (e.defaultPrevented) return;
+        var ctrl = e.ctrlKey || e.metaKey;
+
+        if (ctrl && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            openFind(false);
+            return;
+        }
+        if (ctrl && (e.key === 'h' || e.key === 'H')) {
+            e.preventDefault();
+            openFind(true);
+            return;
+        }
+        if (!findOpen) return;
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeFind();
+            return;
+        }
+        if (e.key === 'F3' || (ctrl && (e.key === 'g' || e.key === 'G'))) {
+            e.preventDefault();
+            findStep(e.shiftKey ? -1 : 1);
         }
     }
 
@@ -848,8 +1315,17 @@
         lnBtn = document.getElementById('toolLn');
 
         ta.addEventListener('keydown', onKeyDown);
-        ta.addEventListener('input', function () { markDirty(); renderGutter(); });
+        ta.addEventListener('input', function () {
+            markDirty();
+            renderGutter();
+            // The match list is rebuilt before every navigation anyway, but
+            // the COUNT is on screen while you type - leaving it stale would
+            // be the bar quietly lying about the document underneath it.
+            if (findOpen) scheduleFind();
+        });
         ta.addEventListener('scroll', syncGutter);
+        document.addEventListener('keydown', onDocKeyDown);
+        wireFind();
         setupDragDrop();
 
         var saveBtn = document.getElementById('editorSave');
@@ -863,6 +1339,7 @@
 
         loadPrefs();
         applyState();   // apply wrap/line-number prefs before content loads
+        updateFindButtons();   // loadPrefs ran after wireFind: repaint the flags
         loadContent();
     }
 

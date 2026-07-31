@@ -558,3 +558,31 @@ func TestSearchOverlayReattachesFocusAfterLayout(t *testing.T) {
 			"element is a no-op, which is the state that needs clearing")
 	}
 }
+
+// The editor's find and replace fields carry no keyboard hints either.
+//
+// Same rule and same reason as the search overlay above: on Android those
+// attributes fold into the IME's NO_SUGGESTIONS flag, which disables the
+// composing region every non-Latin layout needs. A find field that cannot
+// accept Cyrillic is a find field that cannot search a Russian note.
+func TestEditorFindInputsDoNotDisableTheIME(t *testing.T) {
+	src, err := templatesFS.ReadFile("frontend/templates/editor.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(src)
+	for _, id := range []string{`id="findInput"`, `id="replaceInput"`} {
+		at := strings.Index(page, id)
+		if at < 0 {
+			t.Fatalf("%s is gone; this test needs updating", id)
+		}
+		start := strings.LastIndex(page[:at], "<input")
+		end := start + strings.Index(page[start:], ">")
+		markup := page[start : end+1]
+		for _, forbidden := range []string{"spellcheck", "autocorrect", "autocapitalize", "autocomplete"} {
+			if strings.Contains(markup, forbidden) {
+				t.Errorf("%s is set on %s: %s", forbidden, id, markup)
+			}
+		}
+	}
+}
