@@ -918,18 +918,23 @@ if (window.location.protocol !== 'file:') {
                 '<div class="omn-search-card" role="dialog" aria-label="Search">' +
                   '<div class="omn-search-head">' +
                     '<i class="material-icons omn-search-icon">search</i>' +
-                    // NO spellcheck="false" and NO autocorrect="off" here,
-                    // however tidy they look on a search box. Chrome on
-                    // Android maps them onto the keyboard's NO_SUGGESTIONS
-                    // flag, which switches off the COMPOSING region - and
-                    // composing is how every non-Latin layout enters text at
-                    // all. The symptom is precise and baffling: Latin typing
-                    // works, Cyrillic produces nothing until you type a Latin
-                    // word, delete it, and start again. autocomplete="off"
-                    // stays; that one only suppresses the browser's saved-
-                    // values dropdown and has nothing to do with the IME.
-                    '<input type="text" class="omn-search-input" autocomplete="off" ' +
-                          'autocapitalize="none" placeholder="Search this page">' +
+                    // Deliberately BARE: no spellcheck, no autocorrect, no
+                    // autocapitalize, no autocomplete, no inputmode. Every one
+                    // of those is a hint the Android keyboard reads when it
+                    // attaches, and several of them (spellcheck="false" and
+                    // autocorrect="off" certainly, autocomplete="off" in some
+                    // WebView builds) fold into the NO_SUGGESTIONS flag, which
+                    // switches off the COMPOSING region - the mechanism every
+                    // non-Latin layout uses to enter text at all.
+                    //
+                    // None of them buys anything here. The field is not in a
+                    // <form> and has no name, so autofill never engages;
+                    // matching is case-folded, so auto-capitalisation is
+                    // harmless; and a red squiggle under a query is cosmetic.
+                    // A search box has no reason to describe itself as
+                    // anything other than a plain text field.
+                    '<input type="text" class="omn-search-input" ' +
+                          'placeholder="Search this page">' +
                     '<button type="button" class="omn-search-close" aria-label="Close">' +
                       '<i class="material-icons icon-sm">close</i>' +
                     '</button>' +
@@ -1015,12 +1020,57 @@ if (window.location.protocol !== 'file:') {
             if (!document.body) return;
             build();
             overlay.hidden = false;
-            input.focus();
-            input.select();
+            focusInput();
             if (input.value.trim().length >= MIN_QUERY) {
                 run();
             } else {
                 setStatus('Type at least ' + MIN_QUERY + ' characters');
+            }
+        }
+
+        // focusInput hands the field to the keyboard twice, and the second time
+        // is the one that matters.
+        //
+        // The soft keyboard attaches to whatever element has focus and reads
+        // its configuration at that instant. This overlay goes from
+        // display:none to display:flex and takes focus in the SAME tick, so on
+        // Android the IME can attach to an element the browser has not laid out
+        // yet. When that happens it comes up without a COMPOSING region - which
+        // is how every non-Latin layout enters text - and the field then accepts
+        // Latin typing while silently refusing Cyrillic. That is why it reads as
+        // "the search box is broken" rather than "the keyboard attached wrong",
+        // and why it is intermittent: it depends on what the browser had already
+        // laid out.
+        //
+        // blur() before the second focus() is what makes it a re-attach rather
+        // than a no-op - focus() on the already-focused element does nothing,
+        // and doing nothing is exactly the state that needs clearing. It is the
+        // same reset a user stumbles on by opening the quick note panel and
+        // closing it again.
+        //
+        // The first, synchronous focus stays so that a character typed straight
+        // after Ctrl-K on a desktop is not dropped in the frame between.
+        function focusInput() {
+            input.focus();
+            if (input.value) input.select();
+
+            var reattach = function () {
+                // Only if nothing else has taken over in the meantime: the user
+                // may have closed the panel or tapped elsewhere already.
+                if (!isOpen() || document.activeElement !== input) return;
+                input.blur();
+                input.focus();
+                if (input.value) input.select();
+            };
+
+            if (window.requestAnimationFrame) {
+                // Two frames: one to lay the overlay out, one to be sure it has
+                // been through a paint before the keyboard looks at it.
+                window.requestAnimationFrame(function () {
+                    window.requestAnimationFrame(reattach);
+                });
+            } else {
+                setTimeout(reattach, 32);
             }
         }
 

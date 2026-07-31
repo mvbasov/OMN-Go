@@ -486,36 +486,75 @@ func writeSearchNote(t *testing.T, a *App, rel, content string) {
 	}
 }
 
-// The search box must not tell the keyboard to stop making suggestions.
+// The search box must not describe itself to the keyboard at all.
 //
-// spellcheck="false" and autocorrect="off" read like housekeeping on a search
-// field - no red squiggles, no "helpful" rewriting of a query. On Chrome for
-// Android they are not cosmetic: they set the IME's NO_SUGGESTIONS flag, which
-// disables the COMPOSING region, which is the mechanism every non-Latin layout
-// uses to enter text. Cyrillic input silently produces nothing.
+// spellcheck="false", autocorrect="off", autocapitalize and autocomplete all
+// read like housekeeping on a search field. On Android they are not cosmetic:
+// each is a hint the soft keyboard reads when it attaches, and several fold
+// into the IME's NO_SUGGESTIONS flag, which disables the COMPOSING region -
+// the mechanism every non-Latin layout uses to enter text. Cyrillic input then
+// silently produces nothing while Latin typing works, so the field looks fine
+// and simply refuses half the world's scripts.
+//
+// None of them buys anything here: the field is not in a <form> and has no
+// name, so autofill never engages; matching is case-folded, so
+// auto-capitalisation is harmless; and a red squiggle under a query is
+// cosmetic. So the rule is the simple one - a plain text field, nothing else.
 //
 // This is a shape test on the shipped asset rather than a behaviour test
-// because the behaviour needs a physical Android keyboard to observe, and the
-// attributes are exactly the kind of thing a later tidy-up puts back.
+// because the behaviour needs a physical Android keyboard to observe, and
+// these attributes are exactly what a later tidy-up puts back.
 func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
 	src, err := staticFS.ReadFile("frontend/html/js/omn-go-sse.js")
 	if err != nil {
 		t.Fatal(err)
 	}
-	at := strings.Index(string(src), "omn-search-input")
+	at := strings.Index(string(src), `class="omn-search-input"`)
 	if at < 0 {
 		t.Fatal("the search input markup moved; this test needs updating")
 	}
-	// The attribute list is built by string concatenation across a few lines.
-	markup := string(src[at:min(at+400, len(src))])
-	for _, forbidden := range []string{`spellcheck="false"`, `autocorrect="off"`} {
+	// The attribute list is built by string concatenation, so read a little
+	// either side of the class rather than trying to parse it.
+	markup := string(src[max(0, at-200):min(at+300, len(src))])
+	markup = markup[strings.Index(markup, "<input"):]
+	markup = markup[:strings.Index(markup, ">")]
+
+	for _, forbidden := range []string{
+		"spellcheck", "autocorrect", "autocapitalize", "autocomplete", "inputmode",
+	} {
 		if strings.Contains(markup, forbidden) {
-			t.Errorf("%s is set on the search input; it disables composing input, "+
-				"so Cyrillic (and every other IME-entered script) cannot be typed", forbidden)
+			t.Errorf("%s is set on the search input: %s\n"+
+				"Every keyboard hint here is a way for an IME to decide this is not "+
+				"an ordinary text field, and none of them buys anything on a search box.",
+				forbidden, markup)
 		}
 	}
-	if !strings.Contains(markup, `autocomplete="off"`) {
-		t.Error("autocomplete=\"off\" was dropped too; that one is fine and worth keeping - " +
-			"it suppresses the browser's saved-values dropdown, not the keyboard")
+}
+
+// Focus is handed to the field twice on open, and the second pass is the fix
+// for the same class of bug: the overlay goes from display:none to
+// display:flex and takes focus in one tick, so the keyboard can attach to an
+// element with no layout yet and come up without a composing region.
+//
+// A synchronous focus() alone is what the intermittent "cannot type Cyrillic
+// until I open and close another panel" report was. Pinned as a shape test for
+// the same reason as above - the failure needs a real soft keyboard to see.
+func TestSearchOverlayReattachesFocusAfterLayout(t *testing.T) {
+	src, err := staticFS.ReadFile("frontend/html/js/omn-go-sse.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := strings.Index(string(src), "function focusInput()")
+	if at < 0 {
+		t.Fatal("focusInput is gone; if the deferred re-attach moved, move this test with it")
+	}
+	body := string(src[at:min(at+900, len(src))])
+
+	if !strings.Contains(body, "requestAnimationFrame") {
+		t.Error("the re-attach is no longer deferred past layout")
+	}
+	if !strings.Contains(body, "input.blur()") {
+		t.Error("the re-attach no longer blurs first; focus() on an already-focused " +
+			"element is a no-op, which is the state that needs clearing")
 	}
 }
