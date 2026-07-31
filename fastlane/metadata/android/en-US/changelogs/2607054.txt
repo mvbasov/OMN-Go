@@ -1,0 +1,6 @@
+* Change version scheme to YY.MM.NNN (NNN id sequential number)
+* Fix git push logic (compare locl and remote HEAD)
+* Fix default f-droid package port
+* Add copy button to QuickNote dialog
+* Add search in current or all notes
+* Add find and replace to internal editor
