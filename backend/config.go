@@ -233,7 +233,12 @@ func (a *App) loadConfig(storageDir string) {
 	configPath := filepath.Join(a.StorageDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		a.Config = Config{
-			ServerPort:      8080,
+			// Not a literal 8080: the Android fdroid flavor passes 8081 so
+			// the two flavors, which are installable side by side, do not
+			// compete for the same loopback port. This is the one place that
+			// decision can be honoured - the value written here is persisted,
+			// and everything downstream sees a config that already has a port.
+			ServerPort:      a.fallbackPort(),
 			AdminPassword:   "admin_secret_changeme",
 			GuestPassword:   "guest_secret_changeme",
 			Author:          "Anonymous",
@@ -296,8 +301,10 @@ func (a *App) loadConfig(storageDir string) {
 		}
 
 	}
-	if a.Config.ServerPort == 0 {
-		a.Config.ServerPort = 8080
+	// A config.json written before server_port existed, or one carrying a
+	// nonsense value, falls back the same way a fresh install does.
+	if a.Config.ServerPort <= 0 {
+		a.Config.ServerPort = a.fallbackPort()
 	}
 	// Configs written before max_upload_size_mb existed (or one explicitly
 	// saved as 0/negative, which isn't a sane limit) fall back to the

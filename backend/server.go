@@ -33,7 +33,29 @@ type App struct {
 	// belongs to the documents, not to the struct.
 	search *searchIndex
 
+	// defaultPort is the per-flavor fallback StartServer was given: the port
+	// to use when config.json does not name one. 0 means "the historical
+	// 8080". It is read by loadConfig, which is the only place that can
+	// honour it - see fallbackPort.
+	defaultPort int
+
 	ready chan struct{} // closed once the HTTP listener is actually serving
+}
+
+// fallbackPort is the port to use when config.json has nothing usable to say.
+//
+// This exists because the per-flavor default has to be applied by the CONFIG
+// LOADER, not after it. loadConfig writes a full default config.json on a fresh
+// install and fills in a port for one that lacks it; by the time StartServer
+// resumed, a.Config.ServerPort was already a positive 8080 and any
+// caller-supplied default was unreachable - and, worse, the 8080 had been
+// persisted, so the wrong port stuck for the life of the install. That was the
+// fdroid flavor's DEFAULT_SERVER_PORT=8081 never taking effect.
+func (a *App) fallbackPort() int {
+	if a.defaultPort > 0 {
+		return a.defaultPort
+	}
+	return 8080
 }
 
 // GetConfig returns a copy of the current config, safe for concurrent reads.
@@ -96,6 +118,11 @@ func StartServer(storageDir string, defaultPort int) *App {
 		ready:  make(chan struct{}),
 	}
 
+	// Set BEFORE initStorage: that is what loads (and, on a fresh install,
+	// writes) config.json, and it is the only place the per-flavor default can
+	// still be applied.
+	a.defaultPort = defaultPort
+
 	a.initStorage(storageDir) // Execute synchronously to ensure config is loaded instantly
 
 	// Content-type resolution now lives in one place, resolveContentType
@@ -157,15 +184,12 @@ func StartServer(storageDir string, defaultPort int) *App {
 
 		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
 		// i.e. before any HTTP handler can possibly be invoked concurrently.
-		// A configured (positive) server_port always wins; otherwise the
-		// caller-supplied per-flavor default applies, then the historical
-		// 8080 fallback.
+		//
+		// loadConfig has already resolved the port - a configured (positive)
+		// server_port wins, otherwise fallbackPort(). This is only a guard
+		// against a caller that reached here without going through it.
 		if a.Config.ServerPort <= 0 {
-			if defaultPort > 0 {
-				a.Config.ServerPort = defaultPort
-			} else {
-				a.Config.ServerPort = 8080
-			}
+			a.Config.ServerPort = a.fallbackPort()
 		}
 
 		// BEHAVIOR CHANGE vs pre-ShareLAN versions: the server used to
