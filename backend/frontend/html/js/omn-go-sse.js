@@ -1218,12 +1218,25 @@ if (window.location.protocol !== 'file:') {
         // applied - see omn-go-core.js.
         function withHighlight(url) {
             if (!lastTerms.length) return url;
+            // The fragment stays last. A sectioned result arrives here as
+            // "/Bookmarks.html#2026-06-15-200000", and appending blindly gives
+            // "#2026-06-15-200000?hl=cats" - one fragment that names no
+            // element, and no query string at all, so the page neither scrolls
+            // nor highlights. This mirrors highlightURL in search.go; the two
+            // build the same URL from opposite ends of the app and have to
+            // agree.
+            var frag = '';
+            var hash = url.indexOf('#');
+            if (hash >= 0) {
+                frag = url.slice(hash);
+                url = url.slice(0, hash);
+            }
             var sep = url.indexOf('?') === -1 ? '?' : '&';
             for (var i = 0; i < lastTerms.length; i++) {
                 url += sep + 'hl=' + encodeURIComponent(lastTerms[i]);
                 sep = '&';
             }
-            return url;
+            return url + frag;
         }
 
         function renderPage(result) {
@@ -1237,7 +1250,7 @@ if (window.location.protocol !== 'file:') {
 
             result.matches.forEach(function (m, i) {
                 var idx = i;
-                list.appendChild(buildSnippetRow(m, function () { choose(idx); }));
+                list.appendChild(buildSnippetRow(m, function () { choose(idx, m); }));
             });
 
             var n = result.matches.length;
@@ -1341,12 +1354,24 @@ if (window.location.protocol !== 'file:') {
         // machinery a later phase adds. Highlighting every occurrence and
         // scrolling to the first is honest about what it knows, and is the
         // answer to "where does this note talk about X" either way.
-        function choose(i) {
+        function choose(i, m) {
             setActive(i);
             close();
             var first = window.omnHighlightTerms(lastTerms);
-            if (first && first.scrollIntoView) {
-                first.scrollIntoView({ block: 'center' });
+
+            // Go to the occurrence THIS row is about, not the first one on the
+            // page. A row inside a <script> block is skipped deliberately: the
+            // text is indexed but never rendered, so there is nothing on the
+            // page to scroll to and looking would only find a coincidence.
+            var target = null;
+            if (m && m.context !== 'script' && window.omnMarkNear) {
+                target = window.omnMarkNear(m.text || '');
+            }
+
+            var el = target || first;
+            if (el && el.scrollIntoView) {
+                el.scrollIntoView({ block: 'center' });
+                if (el.classList) el.classList.add('omn-search-hit-current');
             }
         }
 

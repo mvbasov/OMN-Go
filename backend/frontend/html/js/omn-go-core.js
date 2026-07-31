@@ -254,6 +254,114 @@ function omnHighlightTerms(terms) {
 window.omnClearHighlights = omnClearHighlights;
 window.omnHighlightTerms = omnHighlightTerms;
 
+// omnMarkNear finds the highlighted occurrence belonging to one SOURCE line,
+// so choosing the third row in the search panel goes to the third match in the
+// page rather than back to the first.
+//
+// It cannot do this by counting, which is the obvious implementation and a
+// wrong one. The panel's rows are source lines; the page is compiled HTML, and
+// the two do not have the same occurrences in the same order:
+//
+//   - a note's <script> block is indexed but never rendered as text;
+//   - a link's URL is text in the source and absent from the page;
+//   - one rendered paragraph can be several source lines.
+//
+// Any of those makes "the Nth row is the Nth mark" wrong, and wrong by an
+// amount that varies silently per note. So the line is located by its TEXT.
+// Both sides are flattened the same way and the first mark at or after the
+// line's position wins. When the line cannot be found the caller is told so,
+// rather than handed a confident wrong answer.
+
+// Markdown syntax that leaves no trace in the rendered page. Flattened to a
+// space on BOTH sides, so a character that survives rendering (a literal
+// parenthesis in prose, say) is treated identically in the needle and in the
+// haystack and cannot cause a miss on its own.
+var OMN_HL_SYNTAX = /[*_`~#\[\]()!>|\\\u2026]/;
+
+// omnFlatten lowercases, drops that syntax, and collapses whitespace, while
+// recording where every surviving character came from - the map is what turns
+// a position in the flattened text back into a position among the marks.
+function omnFlatten(raw) {
+    var out = '', map = [], lastSpace = true;
+    for (var i = 0; i < raw.length; i++) {
+        var c = raw.charAt(i);
+        if (OMN_HL_SYNTAX.test(c) || /\s/.test(c)) {
+            if (!lastSpace) {
+                out += ' ';
+                map.push(i);
+                lastSpace = true;
+            }
+            continue;
+        }
+        out += c.toLowerCase();
+        map.push(i);
+        lastSpace = false;
+    }
+    return { text: out, map: map };
+}
+
+// omnPreviewText concatenates the page's visible text and notes where each
+// mark starts within it. Same skip rules as the highlighter, minus MARK: here
+// the marks' own text is wanted, it is just not to be marked again.
+function omnPreviewText() {
+    var preview = document.getElementById('preview');
+    if (!preview) return null;
+
+    var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
+    var raw = '', marks = [], node;
+    while ((node = walker.nextNode())) {
+        var p = node.parentNode, skip = false, mark = null;
+        while (p && p !== preview) {
+            var tag = p.tagName ? p.tagName.toUpperCase() : '';
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA') {
+                skip = true;
+                break;
+            }
+            if (!mark && tag === 'MARK' &&
+                (' ' + (p.className || '') + ' ').indexOf(' omn-search-hit ') >= 0) {
+                mark = p;
+            }
+            p = p.parentNode;
+        }
+        if (skip) continue;
+        if (mark && (!marks.length || marks[marks.length - 1].el !== mark)) {
+            marks.push({ el: mark, at: raw.length });
+        }
+        raw += node.nodeValue;
+    }
+    return { raw: raw, marks: marks };
+}
+
+function omnMarkNear(snippet) {
+    var page = omnPreviewText();
+    if (!page || !page.marks.length || !snippet) return null;
+
+    var flat = omnFlatten(page.raw);
+    var needle = omnFlatten(snippet).text.trim();
+    if (needle.length < 8) return null;   // too short to identify a line
+
+    // Shorten from the right on a miss: the tail of a line is the part most
+    // likely to carry a link or an entity that rendered differently, and the
+    // head is enough to place it.
+    var at = flat.text.indexOf(needle);
+    while (at < 0 && needle.length > 12) {
+        var cut = needle.lastIndexOf(' ');
+        if (cut < 8) break;
+        needle = needle.slice(0, cut);
+        at = flat.text.indexOf(needle);
+    }
+    if (at < 0) return null;
+
+    var rawAt = flat.map[at];
+    for (var i = 0; i < page.marks.length; i++) {
+        if (page.marks[i].at >= rawAt) return page.marks[i].el;
+    }
+    return page.marks[page.marks.length - 1].el;
+}
+
+window.omnMarkNear = omnMarkNear;
+
+
 // --- ?hl= : highlight on arrival ---
 //
 // A search result links to /Note.html?hl=fetch&hl=json. On load, mark those
