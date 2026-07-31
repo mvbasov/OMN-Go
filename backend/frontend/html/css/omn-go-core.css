@@ -840,9 +840,34 @@ a.taglink {
     font-size: 12px;
     border-top: 1px solid var(--border-soft);
 }
-.omn-search-seeall .omn-search-text {
+/* "See all results", in the scope row rather than at the foot of the list.
+   margin-left:auto parks it at the far end, opposite the chips, so it reads as
+   a way out of the panel rather than as one more thing to search.
+
+   No display property here on purpose: setting one would beat [hidden]'s
+   display:none, and hidden is how it comes and goes with the query. */
+.omn-search-seeall {
+    margin-left: auto;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
     color: var(--accent);
+    font-size: 12px;
     font-weight: 600;
+    font-family: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.omn-search-seeall:hover {
+    border-color: var(--border);
+    background: var(--bg-hover);
+}
+
+.omn-search-seeall:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }
 
 /* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
