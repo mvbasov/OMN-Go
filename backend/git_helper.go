@@ -1412,6 +1412,127 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 }
 
 // ---------------------------------------------------------------
+// "Is there anything to push?" - for the upload preview
+// ---------------------------------------------------------------
+
+// unpushedState answers, for the ACTIVE remote, the question the upload
+// preview needs: is there a local commit this remote has not got?
+//
+// A worktree with nothing pending is NOT the same thing as nothing to push,
+// and conflating the two is how commits get stranded. Two ways it happens,
+// both reported from real use:
+//
+//   - a commit succeeds, the push that follows fails (the network dropped).
+//     The worktree is now clean and the commit exists only locally; pressing
+//     Upload again must retry the push, not report "nothing to commit".
+//   - the git profile is switched. The commit was pushed to slot 0 and the
+//     worktree is clean, but slot 1's remote has never seen it.
+//
+// This is deliberately the second time this file has had to learn that
+// lesson: syncPush once carried a hasUnpushedCommits() pre-check that SKIPPED
+// the push, and it was removed for causing exactly the profile-switch failure
+// above (see the note above syncPush). The difference in direction matters and
+// is the whole design here - that check could suppress a push that was needed,
+// this one can only ever offer a push that turns out to be unnecessary, and
+// repo.Push reports NoErrAlreadyUpToDate for that harmlessly.
+type unpushedState struct {
+	// Unpushed is "there is, or may be, something to push". It errs towards
+	// true on purpose: a needless push attempt costs a round trip, a
+	// suppressed one costs the user their commits.
+	Unpushed bool
+	Remote   string
+	// Verified records that the remote itself was asked, not just the local
+	// remote-tracking ref. Only the "nothing to push" answer is worth a round
+	// trip, so this is false whenever the local refs alone settled it - which
+	// includes every case where Unpushed came back true from them.
+	Verified bool
+	Error    string
+}
+
+// syncPreviewResponse is the body of GET /api/sync/preview?action=upload.
+//
+// Files alone used to be the whole answer, and the frontend read an empty list
+// as "nothing to do" - which is why a commit whose push failed could not be
+// retried. The three fields after it are that answer's missing half.
+type syncPreviewResponse struct {
+	Files       []string `json:"files"`
+	Unpushed    bool     `json:"unpushed"`
+	Remote      string   `json:"remote,omitempty"`
+	Verified    bool     `json:"verified,omitempty"`
+	RemoteError string   `json:"remote_error,omitempty"`
+}
+
+// aheadOfRemote compares local HEAD with the active remote.
+//
+// It looks locally FIRST and only goes to the network to check the one answer
+// that would stop the user pushing. Each slot owns its own named remote
+// (ensureSlotRemotes), so refs/remotes/<slot>/master really is that profile's
+// view and a never-contacted slot simply has no such ref - which reads as
+// "might be ahead", which is the safe reading.
+//
+// The remote round trip is a refs listing (git ls-remote), not a fetch: it
+// downloads no objects, and it is only reached when the local view already
+// says there is nothing to do.
+func (a *App) aheadOfRemote(repo *git.Repository, remoteName string, auth transport.AuthMethod) unpushedState {
+	out := unpushedState{Remote: remoteName}
+
+	head, err := repo.Head()
+	if err != nil {
+		// No commits yet: nothing to push, and nothing to check.
+		log.Printf("[sync] preview: no local HEAD (%v)", err)
+		return out
+	}
+
+	trackRef, tErr := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
+	if tErr != nil {
+		log.Printf("[sync] preview: %s has no known master yet - treating local HEAD as unpushed", remoteName)
+		out.Unpushed = true
+		return out
+	}
+	if trackRef.Hash() != head.Hash() {
+		log.Printf("[sync] preview: local HEAD %s differs from %s/master %s",
+			head.Hash().String()[:7], remoteName, trackRef.Hash().String()[:7])
+		out.Unpushed = true
+		return out
+	}
+
+	// The local view says level. That is the claim that would stop the user
+	// pushing, and the one that was wrong before, so it is the claim worth
+	// spending a round trip on.
+	remote, rErr := repo.Remote(remoteName)
+	if rErr != nil {
+		out.Error = rErr.Error()
+		return out
+	}
+	refs, lErr := remote.List(&git.ListOptions{Auth: auth})
+	if lErr != nil {
+		// Unreachable. Report that rather than claiming to have checked: a
+		// push would fail with the same error, so offering one buys nothing,
+		// but silently implying the remote agreed would be a lie.
+		log.Printf("[sync] preview: could not list %s: %v", remoteName, lErr)
+		out.Error = lErr.Error()
+		return out
+	}
+
+	out.Verified = true
+	for _, ref := range refs {
+		if ref.Name() == plumbing.Master {
+			out.Unpushed = ref.Hash() != head.Hash()
+			if out.Unpushed {
+				log.Printf("[sync] preview: %s/master is at %s, local HEAD is %s",
+					remoteName, ref.Hash().String()[:7], head.Hash().String()[:7])
+			}
+			return out
+		}
+	}
+	// The remote has no master branch at all - an empty repository, or one
+	// this profile has never been pushed to. The first push creates it.
+	log.Printf("[sync] preview: %s has no master branch yet", remoteName)
+	out.Unpushed = true
+	return out
+}
+
+// ---------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------
 
@@ -1731,8 +1852,43 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 	// scan above like every other changed file - the preview needs no
 	// special database handling to stay accurate.
 
+	// A clean worktree does not mean there is nothing to upload: a commit
+	// whose push failed, or a profile switched after a successful push,
+	// leaves commits this remote has never seen. Answering only "what is
+	// pending" is what let the frontend say "Nothing to commit" and stop.
+	//
+	// Only asked when there is nothing pending anyway: with files to commit
+	// the upload proceeds regardless, and the answer would not change what
+	// happens next.
+	ahead := unpushedState{}
+	if len(files) == 0 {
+		if remoteName, rErr := a.ensureRemotesAndGetActive(repo); rErr != nil {
+			ahead.Error = rErr.Error()
+		} else if auth, aErr := a.getSSHAuth(); aErr != nil {
+			// No usable key. The local half of the comparison still stands,
+			// and it is the half that catches a failed push.
+			ahead = a.aheadOfRemote(repo, remoteName, nil)
+			if !ahead.Verified && ahead.Error == "" {
+				ahead.Error = aErr.Error()
+			}
+		} else {
+			ahead = a.aheadOfRemote(repo, remoteName, auth)
+		}
+	}
+
+	// files is always an array, never null, so the frontend can read .length
+	// without a guard.
+	if files == nil {
+		files = []string{}
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(files)
+	json.NewEncoder(w).Encode(syncPreviewResponse{
+		Files:       files,
+		Unpushed:    ahead.Unpushed,
+		Remote:      ahead.Remote,
+		Verified:    ahead.Verified,
+		RemoteError: ahead.Error,
+	})
 }
 
 // ---------------------------------------------------------------

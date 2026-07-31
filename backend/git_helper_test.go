@@ -502,3 +502,92 @@ func TestMergeParentRoundTrip(t *testing.T) {
 		t.Error("merge parent still loadable after clear")
 	}
 }
+
+// ---------------------------------------------------------------
+// aheadOfRemote: "is there anything to push?"
+// ---------------------------------------------------------------
+//
+// A clean worktree is not the same thing as nothing to upload, and conflating
+// them stranded commits in two ways users actually hit: a commit whose push
+// failed, and a git profile switched after a successful push. Both leave the
+// worktree clean and the active remote behind.
+//
+// These cover the LOCAL half of the comparison, which is the half that catches
+// both. The network half - the ls-remote that confirms "nothing to push"
+// before saying so - needs a real remote and is not exercised here.
+
+// setTrackingRef points refs/remotes/<remote>/master at a commit, the way a
+// successful fetch or push does.
+func setTrackingRef(t *testing.T, repo *git.Repository, remote string, h plumbing.Hash) {
+	t.Helper()
+	ref := plumbing.NewHashReference(plumbing.NewRemoteReferenceName(remote, "master"), h)
+	if err := repo.Storer.SetReference(ref); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The reported case: the commit succeeded, the push did not. The worktree is
+// clean and the commit exists only locally.
+func TestAheadOfRemoteAfterAFailedPush(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+
+	writeAndAdd(t, a, wt, "md/First.md", "Title: First\n\nbody\n")
+	first := testCommit(t, wt, "pushed")
+	setTrackingRef(t, repo, "slot0", first)
+
+	writeAndAdd(t, a, wt, "md/Note.md", "Title: Note\n\nbody\n")
+	testCommit(t, wt, "committed but not pushed")
+
+	got := a.aheadOfRemote(repo, "slot0", nil)
+	if !got.Unpushed {
+		t.Error("a commit the remote has not seen was reported as nothing to push")
+	}
+	if got.Verified {
+		t.Error("no remote was contacted; Verified must not claim otherwise")
+	}
+}
+
+// The other reported case: the commit was pushed to one profile, then the user
+// switched profiles. Each slot owns its own named remote, so the new one
+// simply has no master yet - which must read as "might be ahead".
+func TestAheadOfRemoteAfterAProfileSwitch(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+
+	writeAndAdd(t, a, wt, "md/First.md", "Title: First\n\nbody\n")
+	h := testCommit(t, wt, "pushed to the old profile")
+	setTrackingRef(t, repo, "slot0", h)
+
+	// slot1 has never been contacted.
+	got := a.aheadOfRemote(repo, "slot1", nil)
+	if !got.Unpushed {
+		t.Error("a remote that has never seen this branch was reported as up to date")
+	}
+}
+
+// With the local view saying level, the answer is only trustworthy if the
+// remote itself agrees - so it must NOT report "nothing to push" as verified
+// when it could not ask.
+func TestAheadOfRemoteReportsWhenItCouldNotAsk(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+
+	writeAndAdd(t, a, wt, "md/First.md", "Title: First\n\nbody\n")
+	h := testCommit(t, wt, "level with the remote")
+	setTrackingRef(t, repo, "slot0", h)
+
+	got := a.aheadOfRemote(repo, "slot0", nil) // no such remote configured
+	if got.Verified {
+		t.Error("Verified set although no remote could be listed")
+	}
+	if got.Error == "" {
+		t.Error("no reason given for the unverified answer")
+	}
+}
+
+// An empty repository has nothing to push and nothing to check.
+func TestAheadOfRemoteWithNoCommits(t *testing.T) {
+	a, repo, _ := newTestRepo(t)
+
+	if got := a.aheadOfRemote(repo, "slot0", nil); got.Unpushed {
+		t.Error("an unborn branch was reported as having something to push")
+	}
+}

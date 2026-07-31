@@ -279,13 +279,13 @@ if (window.location.protocol !== 'file:') {
         // Building the preview walks the whole worktree diff, which is the
         // slow half of an upload on a large note collection - show progress
         // here too, not just during the commit/push that follows.
-        let res, files, err = null;
+        let res, preview, err = null;
         window.OMNProgress.show('Upload');
         window.OMNProgress.stage('Collecting pending changes…');
         const unsubscribe = window.omnGoOnServerLog(applySyncLogLine);
         try {
             res = await fetch('/api/sync/preview?action=upload');
-            if (res.ok) files = await res.json();
+            if (res.ok) preview = await res.json();
         } catch (e) {
             err = e;
         } finally {
@@ -301,10 +301,39 @@ if (window.location.protocol !== 'file:') {
                 alert('Failed to get pending changes');
                 return;
             }
-            if (!files || files.length === 0) {
-                alert('Nothing to commit');
+            const files = (preview && preview.files) || [];
+
+            if (files.length === 0) {
+                // A clean worktree is NOT nothing to upload. A commit whose
+                // push failed, or a git profile switched after a successful
+                // push, leaves commits the active remote has never seen -
+                // and this branch used to end the upload right here, with no
+                // way to retry them short of making a new change.
+                //
+                // There is nothing to commit, so no commit message is asked
+                // for: the upload goes straight to the push.
+                if (preview.unpushed) {
+                    const data = await window.runSync('upload', { force });
+                    if (data && data.status === 'success') {
+                        if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+                            window.location.reload();
+                        }
+                    }
+                    return;
+                }
+                // Only now is "nothing to do" an honest thing to say - and it
+                // says which remote it is true OF, because with several
+                // profiles configured that is the part that matters.
+                var where = preview.remote ? ' on ' + preview.remote : '';
+                if (preview.remote_error) {
+                    alert('Nothing to commit.\n\nCould not reach the remote' + where +
+                          ' to check for unpushed commits:\n' + preview.remote_error);
+                } else {
+                    alert('Nothing to commit, and nothing to push' + where + '.');
+                }
                 return;
             }
+
             var listEl = document.getElementById('commitFileList');
             if (listEl) listEl.textContent = files.join('\n');
             document.getElementById('commitModal').style.display = 'flex';

@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.07.46** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.07.52** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -1125,7 +1125,8 @@ curl -X POST http://127.0.0.1:8080/api/sync \
 
 #### `GET /api/sync/preview`
 
-Dry-run listing of what a `push` would commit.
+Dry-run of what an upload would do: what there is to commit, **and** whether
+there is anything to push without committing anything.
 
 **Parameters** (query string)
 
@@ -1138,11 +1139,46 @@ and minus the root `config.json` (which is never synced — it holds
 per-device secrets). Database backups need no special handling: they are
 ordinary files under `html/db_backup/` and show up in the same scan.
 
-**Responses**
+**Response** `200`
+
+```json
+{ "files": [], "unpushed": true, "remote": "slot1", "verified": true }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `files` | Storage-relative paths that would be committed. Always an array, never `null` |
+| `unpushed` | Local HEAD is, or may be, ahead of the active remote — see below |
+| `remote` | The active remote the answer is about |
+| `verified` | The remote itself was contacted, not just the local remote-tracking ref. Only the local-view-says-level path goes to the network, so this is absent whenever the local refs alone settled the answer |
+| `remote_error` | Why the remote could not be reached, when it could not |
+
+**`unpushed` is the reason this endpoint is not just a file list.** An empty
+`files` does not mean there is nothing to upload: a commit whose push failed,
+or a git profile switched after a successful push, leaves commits the active
+remote has never seen. A client that reads `files.length === 0` as "nothing to
+do" strands them.
+
+It is computed local-first and errs towards `true`:
+
+1. No local HEAD → `false`.
+2. `refs/remotes/<active>/master` missing, or different from HEAD → `true`.
+   Each profile slot owns its own named remote, so a never-contacted slot has
+   no such ref, which is the profile-switch case.
+3. Otherwise the local view says level — the one answer that would stop a
+   client pushing, so it is confirmed against the remote with a refs listing
+   (`ls-remote`; no objects are downloaded) before being reported. If that
+   fails, `remote_error` is set and `verified` stays absent.
+
+`unpushed` is only computed when `files` is empty — with something to commit
+the upload proceeds regardless, so the answer would change nothing.
+
+A false `true` costs one round trip: `push` reports already-up-to-date
+harmlessly. A false `false` costs the user their commits, which is why the
+asymmetry is deliberate.
 
 | Status | Content-Type | Body |
 | --- | --- | --- |
-| `200` | `application/json` | JSON array of storage-relative paths, e.g. `["md/Welcome.md","html/Welcome.html"]`. **`null` when nothing changed** (a nil slice) — clients must handle that |
 | `400` | `text/plain` | `Only upload preview supported` |
 | `405` | `text/plain` | `Method Not Allowed` |
 | `500` | `text/plain` | `Repo init failed: …`, `Worktree error: …`, `Status error: …` |
@@ -1271,5 +1307,6 @@ Every miss also emits one log line, visible on the `/api/logs` stream:
   URL.
 * Two endpoints return content designed to be spliced into a note verbatim,
   newlines included: `/api/upload` and `/api/upload_json`.
-* `/api/sync/preview` returns JSON `null`, not `[]`, when there is nothing
-  to push.
+* `/api/sync/preview` used to return a bare JSON array, and `null` rather
+  than `[]` when nothing had changed. It now returns an object whose `files`
+  is always an array — see §4 for why the extra fields exist.
