@@ -732,6 +732,9 @@
             ta.classList.add('nowrap');
             ta.setAttribute('wrap', 'off');
         }
+        // The mirror has to wrap exactly as the textarea does, or the marks
+        // land on different rows from the words they belong to.
+        if (mirrorEl) mirrorEl.classList.toggle('nowrap', !wrapOn);
         // Line numbers (forced off while wrapping).
         document.body.classList.toggle('ln-on', lineNumbersActive());
         renderGutter();
@@ -766,17 +769,20 @@
     // this"; this one has to answer "which characters am I about to
     // overwrite", and a fuzzy match has no defensible replacement.
     //
-    // A <textarea> cannot paint highlights, so the current match is shown by
-    // SELECTING it and the rest are reported as a count ("3 / 17"). The
-    // alternative - a mirrored div behind the textarea painting every match -
-    // has to track scroll, wrap, tab stops and font metrics exactly, which is
-    // the same alignment problem the line-number gutter already has, times
-    // every match on screen.
+    // A <textarea> cannot colour its own contents, and setting its selection is
+    // not enough on its own: Chromium draws no selection at all in a textarea
+    // that is not focused, and it never is while you are typing in the find
+    // field. So the matches are painted by a mirror layer underneath it
+    // (renderMirror) - same text, same metrics, invisible ink, a <mark> behind
+    // each hit showing through the transparent textarea. The selection is still
+    // set, because that is what puts the caret in the right place when you
+    // click back into the text and what Replace checks against.
 
     var findEl = null, findInput = null, replaceInput = null,
         findCountEl = null, findReplaceRow = null, findChevron = null,
         findCaseBtn = null, findWordBtn = null, findRegexBtn = null;
 
+    var mirrorEl = null;
     var findOpen = false, replaceOpen = false;
     var matchCase = false, wholeWord = false, useRegex = false;
     var findMatches = [];     // [{start, end}] in the CURRENT text
@@ -862,6 +868,47 @@
         }
     }
 
+
+    // renderMirror repaints the highlight layer.
+    //
+    // Built from text nodes and <mark> elements rather than an HTML string:
+    // the content is the user's note, and innerHTML would make every "<" in it
+    // a tag. Nothing here needs escaping precisely because nothing here is
+    // parsed as markup.
+    //
+    // Only called while the bar is open; closing it empties the layer, so a
+    // note being edited normally carries no cost at all.
+    function renderMirror() {
+        if (!mirrorEl) return;
+        mirrorEl.textContent = '';
+        if (!findOpen || !findMatches.length) return;
+
+        var value = ta.value, at = 0, frag = document.createDocumentFragment();
+        for (var i = 0; i < findMatches.length; i++) {
+            var m = findMatches[i];
+            if (m.start > at) {
+                frag.appendChild(document.createTextNode(value.slice(at, m.start)));
+            }
+            var mark = document.createElement('mark');
+            if (i === findIndex) mark.className = 'is-current';
+            mark.textContent = value.slice(m.start, m.end);
+            frag.appendChild(mark);
+            at = m.end;
+        }
+        // The tail, plus a newline: a textarea shows a final empty line that a
+        // div would collapse, and without it every mark after the last
+        // wrapped line drifts up by one row.
+        frag.appendChild(document.createTextNode(value.slice(at) + '\n'));
+        mirrorEl.appendChild(frag);
+        syncMirror();
+    }
+
+    function syncMirror() {
+        if (!mirrorEl) return;
+        mirrorEl.scrollTop = ta.scrollTop;
+        mirrorEl.scrollLeft = ta.scrollLeft;
+    }
+
     function renderFindCount() {
         if (!findCountEl) return;
         if (findInput && findInput.classList) {
@@ -893,6 +940,7 @@
         var m = findMatches[i];
         ta.setSelectionRange(m.start, m.end);
         scrollToOffset(m.start);
+        renderMirror();
         renderFindCount();
     }
 
@@ -902,6 +950,7 @@
     function findStep(dir) {
         collectMatches();
         if (!findMatches.length) {
+            renderMirror();
             renderFindCount();
             return;
         }
@@ -982,6 +1031,7 @@
         }
         markDirty();
         renderGutter();
+        renderMirror();
     }
 
     function replaceCurrent() {
@@ -1041,6 +1091,7 @@
         setStatus('Replaced ' + res.count + (res.count === 1 ? ' match' : ' matches'), 'ok');
         collectMatches();
         findIndex = -1;
+        renderMirror();
         renderFindCount();
     }
 
@@ -1049,6 +1100,7 @@
         findTimer = setTimeout(function () {
             collectMatches();
             findIndex = -1;
+            renderMirror();
             renderFindCount();
             if (findMatches.length) findStep(1);
         }, 120);
@@ -1062,6 +1114,7 @@
         updateFindButtons();
         collectMatches();
         findIndex = -1;
+        renderMirror();
         renderFindCount();
         if (findMatches.length) findStep(1);
     }
@@ -1102,6 +1155,7 @@
         }
         collectMatches();
         findIndex = -1;
+        renderMirror();
         renderFindCount();
     }
 
@@ -1111,6 +1165,7 @@
         findOpen = false;
         findMatches = [];
         findIndex = -1;
+        renderMirror();   // empties the layer: no cost while not searching
         // Focus goes back to the text with the caret where the last match was,
         // so Esc leaves you where you were reading rather than at the top.
         ta.focus();
@@ -1124,6 +1179,7 @@
     }
 
     function wireFind() {
+        mirrorEl = document.getElementById('editorMirror');
         findEl = document.getElementById('editorFind');
         if (!findEl) return;
         findInput = document.getElementById('findInput');
@@ -1323,7 +1379,7 @@
             // be the bar quietly lying about the document underneath it.
             if (findOpen) scheduleFind();
         });
-        ta.addEventListener('scroll', syncGutter);
+        ta.addEventListener('scroll', function () { syncGutter(); syncMirror(); });
         document.addEventListener('keydown', onDocKeyDown);
         wireFind();
         setupDragDrop();

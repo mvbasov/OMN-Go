@@ -125,6 +125,13 @@
             user-select: none; -webkit-user-select: none;
         }
         body.ln-on .omn-editor-gutter { display: block; }
+        /* The pane carries the surface colour so the textarea above it can be
+           transparent, letting the mirror's marks show through. */
+        .omn-editor-pane {
+            position: relative; display: flex;
+            flex: 1 1 auto; min-width: 0;
+            background: var(--bg-surface);
+        }
         .omn-editor #editor {
             display: block; flex: 1 1 auto; min-width: 0;
             box-sizing: border-box; border: none; outline: none;
@@ -132,10 +139,43 @@
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             font-size: 14px; line-height: 1.5; tab-size: 4;
             white-space: pre-wrap; overflow-x: hidden;
-            background: var(--bg-surface); color: var(--text);
+            background: transparent; color: var(--text);
+            /* Positioned so it paints ABOVE the absolutely-positioned mirror:
+               without this the mirror would cover the text being edited. */
+            position: relative; z-index: 1;
         }
         /* Word wrap off: don't wrap, scroll horizontally instead. */
         .omn-editor #editor.nowrap { white-space: pre; overflow-x: auto; }
+
+        /* -- Find match mirror --
+           Same box, same font, same wrapping as #editor; text in invisible ink
+           so only the <mark> backgrounds are seen. Any divergence from #editor
+           above shows up as highlights sliding off the words they mark. */
+        .omn-editor-mirror {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            box-sizing: border-box;
+            padding: 12px 14px; margin: 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 14px; line-height: 1.5; tab-size: 4;
+            white-space: pre-wrap;
+            overflow: hidden;
+            color: transparent;
+            z-index: 0;
+            pointer-events: none;
+            user-select: none; -webkit-user-select: none;
+        }
+        .omn-editor-mirror.nowrap { white-space: pre; }
+        .omn-editor-mirror mark {
+            color: transparent;
+            background: var(--search-hit-bg);
+            border-radius: 2px;
+        }
+        /* The one the counter is pointing at. A ring rather than a different
+           colour, so it reads as "this one of them", not "a different kind". */
+        .omn-editor-mirror mark.is-current {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
         .omn-editor-status {
             display: flex; align-items: center; gap: 8px;
             padding: 4px 12px; font-size: 12px;
@@ -212,7 +252,19 @@
     </div>
     <div class="omn-editor-main">
         <div id="editorGutter" class="omn-editor-gutter" aria-hidden="true"></div>
-        <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+        <!-- The textarea sits on a mirror layer that paints the find matches.
+             A <textarea> cannot colour its own contents, and Chromium does not
+             draw a selection in a textarea that is not focused - which it never
+             is while you are typing in the find field. So the matches are drawn
+             underneath: same text, same metrics, invisible ink, and a <mark>
+             behind each hit showing through the transparent textarea.
+
+             Every metric on .omn-editor-mirror must match #editor exactly, the
+             same discipline the line-number gutter already needs. -->
+        <div class="omn-editor-pane">
+            <div id="editorMirror" class="omn-editor-mirror" aria-hidden="true"></div>
+            <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+        </div>
     </div>
     <div class="omn-editor-status">
         <span id="editorStatus">Loading…</span>

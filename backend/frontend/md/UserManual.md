@@ -163,11 +163,10 @@ The chevron at the left shows and hides the replace field. **Replace** changes
 the current match and moves to the next; **All** changes every match and says
 how many. Both are a single undo step — **Ctrl-Z** puts the note back.
 
-Two things to know. Only the current match is highlighted, because the editor
-is a plain text box and cannot colour more than the selection — the counter is
-how you know what else is out there. And the search covers the note's *source*,
-which is what you are editing: text inside a `<script>` block or a code fence
-is found like any other, and so are the header lines at the top.
+Every match is highlighted, with a ring around the one the counter is pointing
+at. One thing to know: the search covers the note's *source*, which is what you
+are editing — text inside a `<script>` block or a code fence is found like any
+other, and so are the header lines at the top.
 
 ## Page format: the header block
 
