@@ -1089,6 +1089,146 @@ mark.omn-search-hit.omn-search-hit-current {
     outline-offset: 1px;
 }
 
+/* -- Directory index (/OMNGoFiles.html) --
+   Built to read like a browser's file:/// listing: one directory at a time, a
+   breadcrumb above it, one row per entry. Every colour comes from a token, so
+   the page follows the theme without a dark-mode block of its own. */
+.files-page {
+    padding: 4px 0 16px;
+}
+
+/* The way back up. Separators are their own spans rather than ::before, so the
+   crumb text is exactly what the server escaped and nothing else. */
+.files-crumbs {
+    margin-bottom: 10px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+.files-crumbs a {
+    text-decoration: none;
+}
+.files-crumbs a:hover {
+    text-decoration: underline;
+}
+.files-crumb-sep {
+    margin: 0 2px;
+    color: var(--text-dim);
+}
+.files-crumb-here {
+    font-weight: 600;
+    color: var(--text-strong);
+}
+
+/* One heading per source (embedded / on disk), carrying that source's totals -
+   which are recursive, so the number answers "how big is this subtree" rather
+   than "how many rows are below". */
+.files-section {
+    margin: 18px 0 6px;
+    padding-bottom: 4px;
+    font-size: 15px;
+    color: var(--text-heading);
+    border-bottom: 1px solid var(--border-soft);
+}
+.files-section-count {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: normal;
+}
+.files-empty,
+.files-more {
+    padding: 6px 0;
+    color: var(--text-faint);
+    font-size: 13px;
+}
+
+.files-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A row is a flex line: the name takes the slack, the metadata sits right.
+   Wrapping is allowed because a long name on a phone should push its metadata
+   onto a second line rather than squeeze it to nothing. */
+.files-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+}
+.files-name {
+    flex: 1 1 12em;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+}
+.files-name:hover {
+    text-decoration: underline;
+}
+/* Directories are the navigation on this page, so they are the one thing that
+   looks heavier than a file. */
+.files-dir .files-name {
+    font-weight: 600;
+}
+.files-size,
+.files-meta {
+    flex: 0 0 auto;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Embedded rows carry two facts a disk row does not: whether the file has been
+   extracted yet, and whether a version change may overwrite it. Colour is a
+   hint only - the words say the same thing - because these matter most to
+   someone deciding whether an edit will survive an update. */
+.files-state-present { color: var(--success); }
+.files-state-absent  { color: var(--text-faint); }
+.files-owner-app     { color: var(--danger); }
+.files-owner-yours   { color: var(--text-muted); }
+
+/* Only where editing a file in place makes sense - never for images, fonts or
+   anything else the editor would corrupt. */
+.files-edit {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 11px;
+    text-decoration: none;
+}
+.files-edit:hover {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* The refusal shown to a guest. Same shape as the search page's explanation:
+   an address someone can legitimately reach should say what it needs, not
+   answer with a bare code. */
+.files-page.is-denied .files-crumbs {
+    display: none;
+}
+.files-notice {
+    padding: 8px 0 4px;
+    max-width: 46em;
+}
+.files-notice h2 {
+    margin: 0 0 8px;
+    font-size: 1.15rem;
+}
+.files-notice p {
+    margin: 0 0 10px;
+}
+.files-note {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
 /* -- Header action button accents --
    Semantic colors stay identical in both themes; !important preserved
    from the pre-token version to keep specificity behavior unchanged. */

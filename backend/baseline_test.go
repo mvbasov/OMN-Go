@@ -29,6 +29,10 @@ package backend
 //     honest miss, which was wrong about who arrives here: the address is
 //     linkable and people put a "Search" link on their Welcome note, so the
 //     404 was a dead end naming neither cause nor cure.
+//   - 26.08.3 adds /OMNGoFiles.html to TestBaseline_RouteSet (done). The
+//     directory index is a page, but it is admin-only, and the catch-all that
+//     serves every other page is unauthenticated - so it takes a route of its
+//     own, next to /db_backups, which is there for the same reason.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -328,6 +332,12 @@ func TestBaseline_RouteSet(t *testing.T) {
 		"/json/",
 		"/login",
 		"/user_json/",
+		// 26.08.3: the directory index. An exact pattern, so it shadows
+		// nothing - the catch-all "/" still answers every other page. It is
+		// registered here rather than dispatched from serveHTMLPage because it
+		// is a page that needs authorization, and the catch-all is
+		// unauthenticated.
+		"/OMNGoFiles.html",
 	}
 	sort.Strings(want)
 

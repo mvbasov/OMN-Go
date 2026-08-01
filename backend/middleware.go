@@ -29,16 +29,33 @@ func (a *App) ActiveConnCount() int64 {
 	return atomic.LoadInt64(&a.ActiveConns)
 }
 
+// hasRole answers "may this request do a thing that needs this role", and is
+// the ONE definition of that. A connection from the device itself is always
+// the owner - the Android WebView and the desktop browser both arrive that way
+// - so the check only ever bites another machine on the network.
+//
+// It exists as a function because authMiddleware is not the only caller any
+// more: the file index is a PAGE that needs authorization, and a page must
+// answer a refusal with a page rather than the line of plain text below (see
+// serveFilesPage). Two responses, one rule; the alternative was two copies of
+// this condition drifting apart.
+func (a *App) hasRole(r *http.Request, requireAdmin bool) bool {
+	if a.isLocalConnection(r) {
+		return true
+	}
+	cookie, err := r.Cookie("session_role")
+	if err != nil {
+		return false
+	}
+	if requireAdmin {
+		return cookie.Value == "admin"
+	}
+	return cookie.Value == "admin" || cookie.Value == "guest"
+}
+
 func (a *App) authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Automatically bypass authorization for internal OS/WebView connections
-		if a.isLocalConnection(r) {
-			next(w, r)
-			return
-		}
-
-		cookie, err := r.Cookie("session_role")
-		if err != nil || (requireAdmin && cookie.Value != "admin") || (!requireAdmin && cookie.Value != "admin" && cookie.Value != "guest") {
+		if !a.hasRole(r, requireAdmin) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}

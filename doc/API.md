@@ -117,6 +117,7 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 | `GET /api/search` | **none — deliberately open** |
 | `GET /api/logs` | **none** |
 | `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/db_backups` | admin (local bypass applies) |
+| `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
 
 ---
@@ -145,7 +146,8 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 | GET | `/api/edit-external` | no | admin | HTML or 303 |
 | GET | `/api/logs` | no | none | SSE |
 | GET | `/db_backups` | no | admin | HTML |
-| GET | `/OMNGoSearch.html` | no | none | HTML (404 when global search is off) |
+| GET | `/OMNGoSearch.html` | no | none | HTML (explains how to turn global search on when it is off; used to 404) |
+| GET | `/OMNGoFiles.html` | no | admin | HTML (a page for a guest, not a 401) |
 | GET | `/`, `/<name>.html`, `/<asset>` | no | none | HTML / asset |
 | GET | `/js/…`, `/css/…`, `/json/…` | no | none | asset |
 | GET | `/images/…`, `/user_json/…` | no | none | asset |
@@ -1218,6 +1220,7 @@ Not JSON endpoints, but part of the server's URL surface.
 | `/Config.html` | `serveConfigPage` | Rendered server-side; posts to `/api/config` |
 | `/OMNGoTags.html` | `serveTagsPage` | Auto-generated tag index; staleness is checked against the newest mtime of **all** notes, not one source. Honours `?refresh` |
 | `/db_backups` | `serveDBBackupsPage` | Admin page; all data comes from `GET /api/db/backups`. **Admin-protected**, unlike other pages |
+| `/OMNGoFiles.html` | `serveFilesPage` | Directory index of the embedded and on-disk file trees. **Admin-protected**; see §5.3 |
 
 Served pages have `injectRuntimeVars` applied, which splices in:
 
@@ -1245,6 +1248,72 @@ first:
 4. nothing set → `net/http` sniffs the content
 
 `.jsonl` resolves to `application/jsonl`.
+
+### 5.3 Directory index
+
+#### `GET /OMNGoFiles.html`
+
+A listing of everything the app can serve, in the shape a browser uses for
+`file:///` — **one directory at a time**, with a breadcrumb up and links down.
+Two sections per directory, because a file can exist in one, the other, or both
+and the difference matters:
+
+| Section | Source | What a row means |
+| --- | --- | --- |
+| Embedded in the application | `staticFS` (`frontend/html`, `frontend/md`) | What this build ships. A row says whether the file has been extracted to disk yet, and whether it is app-owned |
+| On this device | `StorageDir/html` | What is actually on the device, with its size and modification time |
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `dir` | string | no | root | Directory to show, relative to `html/`, e.g. `js/`, `Test/OMN-Go/` |
+| `all` | `1`, `true` | no | — | Show every file in the directory instead of the first 200 |
+
+`dir` is normalised by `normalizeFilesDir`: `..` segments are resolved and a
+result that would climb above the root collapses to the root. It is only ever
+used as a **string prefix over paths already collected** from the two roots —
+it is never joined onto a filesystem path, so a value naming nothing simply
+matches nothing and renders an empty directory with a working breadcrumb.
+
+**Authorization.** Admin, with the usual local-connection bypass. It is
+registered as its own exact route rather than dispatched from `serveHTMLPage`,
+because the catch-all that serves every other page is unauthenticated —
+`/db_backups` is a separate route for the same reason. It does **not** wrap
+`authMiddleware`: a guest gets a **200** and a page explaining that the listing
+is administrator-only and how to log in, not the middleware's one line of plain
+text. Same lesson as the search page's 404 (26.08.2) — this address is
+linkable, so a refusal has to name the cause and the cure. No filename appears
+anywhere in the refusal.
+
+**What is never listed**
+
+* `frontend/templates` — it lives in `templatesFS`, a separate embed, so it
+  cannot appear by construction rather than by an exclusion rule.
+* `db_backup/` — database dumps, excluded by name. A listing decision, not an
+  access control: the files remain fetchable by anyone who can reach the
+  server, exactly as before this page existed.
+
+**Row extras**
+
+* An **edit** link appears only where editing in place makes sense — text-ish
+  content by resolved content type (`.js`, `.json`, `.css`, `.md`, …). Never on
+  images, fonts, audio or video, and never on `.html`, which is edited by
+  opening it and using the page's own Edit button.
+* Embedded rows carry `on disk` / `not yet` and `app-owned` / `yours`.
+  App-owned means the file is in `versionDependentAssets`: on the next
+  `APP_VERSION` change `refreshEmbeddedAssets` backs your copy up and replaces
+  it. `yours` is extracted once and then left alone.
+
+Directory totals are **recursive** — a directory row's file count and size
+cover its whole subtree, so the number answers "how big is this" rather than
+"how many rows are directly inside".
+
+**The 200-file cap** applies to files only; directory rows are never capped, so
+navigation always works. When it trims, the page says how many it withheld and
+offers `all=1` carrying the true total. Dynamic like `Config` and
+`OMNGoSearch`: no `md/` source, nothing written to the `html/` cache, and the
+page itself writes nothing at all.
 
 ---
 

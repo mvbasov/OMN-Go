@@ -178,6 +178,12 @@ func StartServer(storageDir string, defaultPort int) *App {
 		a.Router.HandleFunc("/api/db/backups", a.authMiddleware(a.handleDBBackupList, true))
 		a.Router.HandleFunc("/api/db/restore", a.authMiddleware(a.handleDBRestore, true))
 		a.Router.HandleFunc("/db_backups", a.authMiddleware(a.serveDBBackupsPage, true))
+		// A PAGE with its own route rather than an arm of serveHTMLPage: that
+		// switch sits behind the unauthenticated catch-all, and this listing is
+		// admin-only. Registered WITHOUT authMiddleware on purpose - the
+		// handler asks hasRole itself so it can answer a refusal with a page
+		// instead of a line of plain text. An exact pattern beats "/".
+		a.Router.HandleFunc("/OMNGoFiles.html", a.serveFilesPage)
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))

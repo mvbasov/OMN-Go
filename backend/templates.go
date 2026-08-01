@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
+	"time"
 )
 
 // ----------------------------------------------------------------------
@@ -110,6 +112,7 @@ var (
 	editorPageTmpl    = loadTemplate("editor.html")
 	notFoundTmpl      = loadTemplate("not_found.html")
 	searchPageTmpl    = loadTemplate("search_page.html")
+	filesPageTmpl     = loadTemplate("files_page.html")
 	// modalsHTML is the block of server-only modals (login, quick note,
 	// bookmark, commit, conflict). It is kept OUT of the cached/exported
 	// page (index.html carries only the modalsMarker slot) and spliced in by
@@ -443,6 +446,192 @@ func renderNotFoundPage(v notFoundView) string {
 		"REFERER_ROWS": refererRows,
 		"SUGGESTION":   suggestion,
 	})
+}
+
+// --- File index page (files_page.html, see files_index.go) ---
+
+// filesCrumb is one step of the breadcrumb. Dir is what ?dir= should become.
+type filesCrumb struct {
+	Label string
+	Dir   string
+}
+
+// filesDirRow is a subdirectory of the directory being shown. Files and Bytes
+// are RECURSIVE totals for that subtree.
+type filesDirRow struct {
+	Name  string
+	Dir   string
+	Files int
+	Bytes int64
+}
+
+// filesFileRow is one file. Every field is a raw value that renderFilesPage
+// escapes itself - names come from uploads and note titles, so they are
+// user-controlled and this file assembles HTML by hand.
+type filesFileRow struct {
+	Name     string
+	Path     string
+	URL      string
+	EditURL  string // "" when the row offers no edit link
+	Size     int64
+	Mod      time.Time
+	OnDisk   bool // embedded: has it been extracted yet
+	AppOwned bool // embedded: replaced on the next version change
+	IsLocal  bool // a row of the on-disk section, which reports mtime not state
+}
+
+type filesSection struct {
+	Title  string
+	Dirs   []filesDirRow
+	Files  []filesFileRow
+	Total  int   // files directly in this directory, before the cap
+	Hidden int   // ... how many of them are not shown
+	Count  int   // files in this whole subtree
+	Bytes  int64 // ... and their size
+	Empty  bool
+}
+
+type filesPageView struct {
+	Dir        string
+	Crumbs     []filesCrumb
+	Embedded   filesSection
+	Disk       filesSection
+	ShowingAll bool
+	Denied     bool
+}
+
+// filesDeniedNotice is what a non-admin sees.
+//
+// A page, not the bare 401 authMiddleware would produce: this address is
+// linkable, and a refusal that names neither the reason nor the remedy is the
+// dead end the search page's 404 turned out to be (26.08.2). Static markup, no
+// interpolation - nothing here can carry a value in from a request, and in
+// particular no filename appears anywhere in this response.
+const filesDeniedNotice = `<div class="files-notice">` +
+	`<h2>Administrator only</h2>` +
+	`<p>This page lists the files stored on the device, so it is shown only ` +
+	`to an administrator.</p>` +
+	`<p class="files-note">Log in from any note page - the account button in ` +
+	`the page header - and come back. A connection from the device itself is ` +
+	`always treated as the owner; this only applies to other machines on the ` +
+	`network.</p>` +
+	`</div>`
+
+func renderFilesPage(v filesPageView) string {
+	if v.Denied {
+		return fill(filesPageTmpl, map[string]string{
+			"DENIED":   " is-denied",
+			"NOTICE":   filesDeniedNotice,
+			"CRUMBS":   "",
+			"SECTIONS": "",
+		})
+	}
+
+	var crumbs strings.Builder
+	for i, c := range v.Crumbs {
+		if i > 0 {
+			crumbs.WriteString(`<span class="files-crumb-sep">/</span>`)
+		}
+		if i == len(v.Crumbs)-1 {
+			fmt.Fprintf(&crumbs, `<span class="files-crumb-here">%s</span>`, escapeHTML(c.Label))
+			continue
+		}
+		fmt.Fprintf(&crumbs, `<a href="%s">%s</a>`, escapeHTML(filesPageURL(c.Dir, false)), escapeHTML(c.Label))
+	}
+
+	var out strings.Builder
+	renderFilesSection(&out, v.Embedded, v, false)
+	renderFilesSection(&out, v.Disk, v, true)
+
+	return fill(filesPageTmpl, map[string]string{
+		"DENIED":   "",
+		"NOTICE":   "",
+		"CRUMBS":   crumbs.String(),
+		"SECTIONS": out.String(),
+	})
+}
+
+// filesPageURL builds a link back to this page. Only two parameters exist, and
+// both are produced here rather than anywhere in a template, so neither can be
+// spliced from a request value.
+func filesPageURL(dir string, all bool) string {
+	out := "/OMNGoFiles.html"
+	sep := "?"
+	if dir != "" {
+		out += sep + "dir=" + url.QueryEscape(dir)
+		sep = "&"
+	}
+	if all {
+		out += sep + "all=1"
+	}
+	return out
+}
+
+func renderFilesSection(b *strings.Builder, sec filesSection, v filesPageView, local bool) {
+	fmt.Fprintf(b, `<h2 class="files-section">%s <span class="files-section-count">%s · %s</span></h2>`,
+		escapeHTML(sec.Title), escapeHTML(filesCountLabel(sec.Count)), escapeHTML(filesSize(sec.Bytes)))
+
+	if sec.Empty {
+		what := "Nothing is embedded at this path."
+		if local {
+			what = "Nothing is on disk at this path yet."
+		}
+		fmt.Fprintf(b, `<p class="files-empty">%s</p>`, escapeHTML(what))
+		return
+	}
+
+	b.WriteString(`<ul class="files-list">`)
+	for _, d := range sec.Dirs {
+		fmt.Fprintf(b, `<li class="files-row files-dir">`+
+			`<a class="files-name" href="%s">%s</a>`+
+			`<span class="files-meta">%s · %s</span></li>`,
+			escapeHTML(filesPageURL(d.Dir, false)), escapeHTML(d.Name+"/"),
+			escapeHTML(filesCountLabel(d.Files)), escapeHTML(filesSize(d.Bytes)))
+	}
+	for _, f := range sec.Files {
+		b.WriteString(`<li class="files-row">`)
+		fmt.Fprintf(b, `<a class="files-name" href="%s">%s</a>`,
+			escapeHTML(f.URL), escapeHTML(f.Name))
+		fmt.Fprintf(b, `<span class="files-size">%s</span>`, escapeHTML(filesSize(f.Size)))
+
+		if f.IsLocal {
+			fmt.Fprintf(b, `<span class="files-meta">%s</span>`,
+				escapeHTML(f.Mod.Format("2006-01-02 15:04")))
+		} else {
+			state, cls := "not yet", "files-state-absent"
+			if f.OnDisk {
+				state, cls = "on disk", "files-state-present"
+			}
+			owner, ocls := "yours", "files-owner-yours"
+			if f.AppOwned {
+				owner, ocls = "app-owned", "files-owner-app"
+			}
+			fmt.Fprintf(b, `<span class="files-meta %s">%s</span><span class="files-meta %s" title="%s">%s</span>`,
+				cls, escapeHTML(state), ocls,
+				escapeHTML(filesOwnerHint(f.AppOwned)), escapeHTML(owner))
+		}
+
+		if f.EditURL != "" {
+			fmt.Fprintf(b, `<a class="files-edit" href="%s">edit</a>`, escapeHTML(f.EditURL))
+		}
+		b.WriteString(`</li>`)
+	}
+	b.WriteString(`</ul>`)
+
+	if sec.Hidden > 0 {
+		fmt.Fprintf(b, `<p class="files-more">%s not shown `+
+			`<a href="%s">show all %s &rarr;</a></p>`,
+			escapeHTML(itoa(sec.Hidden)),
+			escapeHTML(filesPageURL(v.Dir, true)),
+			escapeHTML(itoa(sec.Total)))
+	}
+}
+
+func filesOwnerHint(appOwned bool) string {
+	if appOwned {
+		return "Ships with the app: the next version change backs up your copy and replaces it"
+	}
+	return "Extracted once, then left alone - a version change never touches it"
 }
 
 // --- Search results page (search_page.html) ---

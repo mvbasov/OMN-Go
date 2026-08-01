@@ -37,6 +37,7 @@ edit mode (pencil button) to see how any example on it is written.
 - [Configuration reference](#configuration-reference)
 - [Git synchronization](#git-synchronization)
 - [Database backups](#database-backups)
+- [The file index](#the-file-index)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
 - [Troubleshooting](#troubleshooting)
@@ -229,6 +230,9 @@ your notes for files that are not Markdown pages:
 The link opens the raw file in the built-in editor (or your external
 editor, if configured), and saving writes it back in place. If the file
 does not exist yet, an empty one is created.
+
+If you are not sure what a file is called, [the file index](OMNGoFiles)
+lists everything the app serves and offers the same link ready-made.
 
 ## Math and code highlighting
 
@@ -542,6 +546,44 @@ Backups**: **Hostname** (labels this device in backup filenames) and
 To load data from an existing SQL dump (a `sqlite3 .dump`, or old
 `websqldump.js` output), use the [SQL Import](SQLImport) note, then press
 **Backup now**. See the [Database](Database) page for the full reference.
+
+## The file index
+
+The [file index](OMNGoFiles) lists every file OMN-Go can serve, the way a
+browser shows a `file:///` folder: one directory at a time, with a trail of
+links back up and the subdirectories as links down. It is **administrator
+only** — from another machine on the network you have to be logged in as
+admin; from the device itself you always are.
+
+Each directory is shown twice, because those are two different questions:
+
+- **Embedded in the application** — what this build of OMN-Go ships. Every
+  row says whether that file has been written to disk yet (*on disk* /
+  *not yet*) and who owns it. **yours** means the file was extracted once and
+  is then left alone forever — safe to edit. **app-owned** means the next
+  version of the app replaces it; your copy is backed up first, but your
+  changes stop being used. The stylesheets and scripts that make up the
+  interface are app-owned.
+- **On this device** — what is actually stored, with sizes and the time each
+  file was last written.
+
+A directory's count and size cover everything beneath it, not just the rows
+you can see, so the numbers answer "how big is this whole folder". A very
+large directory shows its first 200 files and says how many it is holding
+back, with a link to show them all.
+
+Files that can sensibly be edited as text carry an **edit** link, which is
+just the `?edit=true` trick from
+[Edit links for non-page files](#edit-links-for-non-page-files) with the URL
+already filled in. Images, fonts, sounds and video have none — the editor
+would only damage them. Neither do `.html` pages: open one and use the normal
+Edit button.
+
+Two things never appear: the page templates, which are part of the program
+rather than of your data, and the `db_backup/` folder, which is listed on the
+[Database backups](#database-backups) screen instead.
+
+The page only reads. Nothing on it deletes, moves, or creates a file.
 
 ## Sharing on the LAN
 
