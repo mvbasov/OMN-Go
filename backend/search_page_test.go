@@ -145,22 +145,70 @@ func TestSearchPage_EmptyStateNamesTheCorpus(t *testing.T) {
 	}
 }
 
-// With global search off the page does not exist. A permanently empty page
-// would be worse than an honest 404 - and page search, which is what still
-// works, lives in the dialog.
-func TestSearchPage_404WhenGlobalSearchOff(t *testing.T) {
+// With global search off the page still exists, and its whole job is to say
+// why it cannot do anything.
+//
+// It answered 404 until someone put a "Search" link on their Welcome note. The
+// address is legitimate and permanent, so a miss is a dead end that names
+// neither the cause nor the cure - and the cure is one settings toggle away.
+func TestSearchPage_ExplainsHowToEnableGlobalSearch(t *testing.T) {
 	a := newTestApp(t)
 	a.search = &searchIndex{}
 
-	rec := getSearchPage(t, a, "anything")
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("status %d, want 404 while global search is off", rec.Code)
+	rec := getSearchPage(t, a, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: the page is reachable, not missing", rec.Code)
+	}
+	body := rec.Body.String()
+
+	if strings.Contains(body, "%%") {
+		t.Error("unfilled template placeholder")
+	}
+	if !strings.Contains(body, "/Config.html#cfg-search") {
+		t.Error("no link to the setting that would fix it; an explanation with no " +
+			"way to act on it is only a politer dead end")
+	}
+	if !strings.Contains(body, "Global search is off") {
+		t.Error("the page does not say what is wrong")
+	}
+	// Page search is unaffected and is what the reader can still use today.
+	if !strings.Contains(body, "Ctrl") {
+		t.Error("the page does not mention that searching the open page still works")
 	}
 
-	// And it does not synthesize a note for itself on the way out, the way an
-	// unknown page name would.
+	// No form: submitting it would land straight back here.
+	if !strings.Contains(body, "is-disabled") {
+		t.Error("the form is not suppressed")
+	}
+
+	// Still dynamic: no source note, nothing written.
 	if _, err := readIfExists(a.storagePath("md/OMNGoSearch.md")); err == nil {
-		t.Error("a 404 for the search page created md/OMNGoSearch.md")
+		t.Error("serving the disabled page created md/OMNGoSearch.md")
+	}
+	if _, err := readIfExists(a.pageHTMLPath("OMNGoSearch")); err == nil {
+		t.Error("the disabled page wrote an html/ cache; it must stay dynamic")
+	}
+}
+
+// A query typed into the URL while search is off gets the same explanation
+// rather than an empty result list, which would read as "nothing matched".
+func TestSearchPage_DisabledIgnoresTheQuery(t *testing.T) {
+	a := newTestApp(t)
+	a.search = &searchIndex{}
+
+	body := getSearchPage(t, a, "anything").Body.String()
+	if strings.Contains(body, "No matches") {
+		t.Error("reported 'no matches' for a search that never ran")
+	}
+	if !strings.Contains(body, "Global search is off") {
+		t.Error("the explanation is missing when a query is present")
+	}
+	// The query is attacker-controlled and is not echoed at all here, so there
+	// is nothing to escape - assert that it really is absent rather than
+	// trusting it.
+	body = getSearchPage(t, a, "%3Cscript%3Ealert(1)%3C/script%3E").Body.String()
+	if strings.Contains(body, "alert(1)") {
+		t.Error("the query reached a page that does not display queries")
 	}
 }
 

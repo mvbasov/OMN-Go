@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.08.1** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.08.2** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
@@ -558,9 +558,16 @@ nothing is written to the `html/` cache, and `?refresh` means nothing here.
 Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>` — see
 `?hl=` below.
 
-Global only: with `search_enabled` off it answers **404** through
-`serveNotFound`, because a page that could only ever be empty is worse than an
-honest miss. Page search lives in the dialog.
+Global only. With `search_enabled` off it answers **200** with an explanation
+of what global search costs, a link to `/Config.html#cfg-search`, and no search
+form — submitting one would land straight back here. The query parameter is
+ignored in that state rather than producing an empty result list, which would
+read as "nothing matched".
+
+It used to answer 404 on the reasoning that a permanently empty page is worse
+than an honest miss. That was wrong about who arrives here: the address is
+linkable and users put a "Search" link on their own notes, so the 404 was a
+dead end that named neither the cause nor the cure.
 
 #### `?hl=<term>` — highlight on arrival
 

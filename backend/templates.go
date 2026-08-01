@@ -459,6 +459,7 @@ type searchPageView struct {
 	Truncated    bool
 	IndexedKinds []string // what the index currently covers, for the empty state
 	Highlight    []string // query terms, hung off every result link as ?hl=
+	Disabled     bool     // global search is switched off: explain, do not search
 }
 
 // searchKindLabel is the human name of a kind, used for the group headings.
@@ -509,7 +510,48 @@ func renderSnippetHTML(text string, spans [][2]int) string {
 	return b.String()
 }
 
+// searchDisabledNotice is what the page says when global search is off.
+//
+// It used to be a 404, on the reasoning that a permanently empty results page
+// is worse than an honest miss. That was wrong about who arrives here: the page
+// is linkable, and people put a "Search" link on their Welcome note - so the
+// address is permanent navigation and the 404 is a dead end that names neither
+// the cause nor the cure.
+//
+// Static markup, no interpolation: everything here is fixed text and one
+// internal link, so there is nothing to escape and nothing that can carry a
+// value in from a request.
+const searchDisabledNotice = `<div class="search-page-notice">` +
+	`<h2>Global search is off</h2>` +
+	`<p>Searching every note at once needs an index, and the index is held in ` +
+	`memory for as long as the app runs - roughly a third of the size of the ` +
+	`text it covers. That is a real cost on a small device, so it is off until ` +
+	`you ask for it.</p>` +
+	`<p><a class="search-page-cta" href="/Config.html#cfg-search">` +
+	`Turn on global search in Settings</a></p>` +
+	`<p class="search-page-note">There, <em>Enable global search</em> switches ` +
+	`it on and the checkboxes under it choose what gets indexed - notes and ` +
+	`bookmarks to begin with. It applies immediately; no restart.</p>` +
+	`<p class="search-page-note">Searching the note you have open needs none of ` +
+	`this and always works: the magnifier in the page header, or ` +
+	`<kbd>Ctrl</kbd>+<kbd>K</kbd>.</p>` +
+	`</div>`
+
 func renderSearchPage(v searchPageView) string {
+	if v.Disabled {
+		// Every other slot stays empty: no form, because submitting it would
+		// only land back here, and no results section to look mysteriously
+		// blank underneath the explanation.
+		return fill(searchPageTmpl, map[string]string{
+			"DISABLED": " is-disabled",
+			"NOTICE":   searchDisabledNotice,
+			"QUERY":    "",
+			"SUMMARY":  "",
+			"GROUPS":   "",
+			"EMPTY":    "",
+		})
+	}
+
 	var groups strings.Builder
 
 	// Grouped by kind, in a fixed order rather than by score, so the page has
@@ -637,10 +679,12 @@ func renderSearchPage(v searchPageView) string {
 	}
 
 	return fill(searchPageTmpl, map[string]string{
-		"QUERY":   escapeHTML(v.Query),
-		"SUMMARY": summary,
-		"GROUPS":  groups.String(),
-		"EMPTY":   empty,
+		"DISABLED": "",
+		"NOTICE":   "",
+		"QUERY":    escapeHTML(v.Query),
+		"SUMMARY":  summary,
+		"GROUPS":   groups.String(),
+		"EMPTY":    empty,
 	})
 }
 

@@ -1096,15 +1096,25 @@ func writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, st
 // lives in the dialog, where the answer is short enough not to need a page of
 // its own.
 func (a *App) serveSearchPage(w http.ResponseWriter, r *http.Request) {
-	if !a.GetConfig().SearchEnabled {
-		a.serveNotFound(w, r)
+	cfg := a.GetConfig()
+
+	// Off is not missing. This answered 404 until someone put a "Search" link
+	// on their Welcome note and it became a permanent dead end: the page IS
+	// reachable, so it has to say why it cannot do anything and where to fix
+	// that. See searchDisabledNotice.
+	if !cfg.SearchEnabled {
+		body := renderSearchPage(searchPageView{Disabled: true})
+		compiled := a.compilePageWithBody("Search",
+			[]byte("Title: Search\nCategory: System\n\n"), body)
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(a.injectRuntimeVars(compiled))
 		return
 	}
 
 	query := r.URL.Query().Get("q")
 	view := searchPageView{
 		Query:        query,
-		IndexedKinds: normalizeSearchKinds(a.GetConfig().SearchKinds),
+		IndexedKinds: normalizeSearchKinds(cfg.SearchKinds),
 		Highlight:    highlightTerms(parseQuery(query)),
 	}
 

@@ -371,7 +371,9 @@ you are using:
   forgotten again.
 - **All notes** — searches everything at once. This one needs an index, so it
   appears only after you switch **Enable global search** on under
-  [Config → Search](Config#cfg-search).
+  [Config → Search](Config#cfg-search). Until then the
+  [search page](OMNGoSearch) explains that and links straight to the setting,
+  so a *Search* link on one of your own notes keeps working either way.
 
 ### What it matches
 

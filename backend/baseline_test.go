@@ -23,6 +23,12 @@ package backend
 //   - S2 adds /api/search to TestBaseline_RouteSet (done)
 //   - S4 adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet (done)
 //   - S7 adds the OMNGoSearch arm to TestBaseline_ServeHTMLPageDispatch (done)
+//   - 26.08.2 changes that same arm: with global search off the page no longer
+//     404s, it explains how to turn it on (done). Not a planned edit - a
+//     reversal. S7 argued a permanently empty results page was worse than an
+//     honest miss, which was wrong about who arrives here: the address is
+//     linkable and people put a "Search" link on their Welcome note, so the
+//     404 was a dead end naming neither cause nor cure.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -145,11 +151,15 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 	})
 
 	t.Run("OMNGoSearch is dynamic and gated", func(t *testing.T) {
-		// With global search off the page does not exist at all - and, unlike
-		// an unknown page name, a miss here must not synthesize a note.
+		// With global search off the page still answers - it explains how to
+		// switch it on - and, unlike an unknown page name, it must not
+		// synthesize a note either way.
 		rec := getPage(t, a, "/OMNGoSearch.html")
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("status %d, want 404 while global search is off", rec.Code)
+		if rec.Code != http.StatusOK {
+			t.Errorf("status %d, want 200 with an explanation while global search is off", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "/Config.html#cfg-search") {
+			t.Error("the disabled page does not link to the setting that enables it")
 		}
 		if _, err := os.Stat(filepath.Join(a.StorageDir, "md", "OMNGoSearch.md")); err == nil {
 			t.Error("a request for the search page created an md/ source")

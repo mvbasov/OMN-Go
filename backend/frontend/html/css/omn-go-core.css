@@ -971,6 +971,59 @@ a.taglink {
     color: var(--text-faint);
     font-size: 12px;
 }
+/* The page you get when global search is off. It is not an error page - the
+   address is legitimate and people link to it from their own notes - so it
+   reads as an explanation with a way forward, not as a miss. */
+.search-page.is-disabled .search-page-form,
+.search-page.is-disabled .search-page-summary {
+    display: none;
+}
+
+.search-page-notice {
+    padding: 8px 0 4px 0;
+    max-width: 46em;
+}
+
+.search-page-notice h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.15rem;
+}
+
+.search-page-notice p {
+    margin: 0 0 10px 0;
+}
+
+/* The one thing to do on this page, so it looks like a button rather than
+   another sentence with an underline in it. */
+.search-page-cta {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.search-page-cta:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+.search-page-notice .search-page-note {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.search-page-notice kbd {
+    padding: 1px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-inset);
+    font-family: inherit;
+    font-size: 0.85em;
+}
+
 .search-empty {
     padding: 12px 0;
 }
