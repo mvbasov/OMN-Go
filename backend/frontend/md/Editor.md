@@ -33,6 +33,14 @@ Left to right:
 
   Moving the cursor or selecting something else resets the cycle, so the next
   click always starts back at "select the current line".
+- <i class="material-icons">wrap_text</i> **Word wrap** — wrap long lines to
+  the width of the window, or let them run off the edge and scroll sideways.
+- <i class="material-icons">format_list_numbered</i> **Line numbers** — show a
+  numbered gutter down the left. Only available with word wrap *off*: a
+  wrapped line occupies several rows on screen but is still one line, so the
+  numbers and the text cannot stay in step.
+- <i class="material-icons">search</i> **Find / replace** — open the search
+  bar. See [below](#find-and-replace).
 - <i class="material-icons">save</i> **Save** — write the note and return to
   the rendered view. Keyboard shortcut: **Ctrl/Cmd + S**.
 - <i class="material-icons">close</i> **Cancel** — leave without saving. If
@@ -42,6 +50,71 @@ The note's name is shown at the bottom of the editor ("Editing …"). Drag an
 image file onto the text area to upload it and insert an `<img>` tag (with
 the `omn-imported-image` class, which caps its width so it doesn't render at
 full native resolution) at the cursor.
+
+## Find and replace
+
+Press <i class="material-icons">search</i>, or **Ctrl/Cmd + F**. **Ctrl/Cmd +
+H** opens it with the replace field already showing. The bar appears between
+the toolbar and the text and pushes the note down rather than covering it, so
+you can see what you are changing while you change it. If you had text
+selected when you opened it, that text is already the query.
+
+Every match is highlighted; the one the counter is pointing at also gets a
+ring around it. The counter reads **3 / 17**, or *no matches*, or *bad
+pattern*. Very large notes stop counting at 1000 and say **1000+** rather than
+pretending to a number nobody would read.
+
+### Moving between matches
+
+| Key | Does |
+| --- | --- |
+| **Enter** | next match |
+| **Shift + Enter** | previous match |
+| **F3** / **Ctrl + G** | next match, from anywhere |
+| **Shift + F3** | previous match |
+| **Esc** | close, leaving the cursor in the text where you were |
+
+Searching wraps around: past the last match it continues from the first.
+
+### The three switches
+
+To the right of the query field:
+
+- **Aa** — match case. Off by default, so `note` finds `Note` and `NOTE`.
+- **ab** — whole word. `note` then stops matching inside `notes` or
+  `footnote`. This understands any alphabet, not only the Latin one, so it
+  works the same on Russian text.
+- **.\*** — regular expression. In this mode the query is a pattern rather
+  than literal text, and in the replacement `$1`, `$2` … stand for the
+  bracketed groups of the pattern and `$&` for the whole match. A pattern that
+  does not compile turns the field red and the counter says *bad pattern* —
+  it never quietly finds nothing instead.
+
+  Outside this mode nothing is special. Searching for `a.b` finds `a.b` and
+  not `axb`, and a `$` in the replacement is a dollar sign.
+
+All three are remembered per device, so if you work in regular expressions you
+stay in regular expressions.
+
+### Replacing
+
+The chevron at the left of the bar shows and hides the replace field.
+
+- **Replace** changes the match you are on and moves to the next one, so
+  pressing it repeatedly walks forward through the note.
+- **All** changes every match and reports how many.
+
+Both are a single step for **Ctrl + Z**: one undo puts the note back as it
+was, even after replacing hundreds of matches.
+
+### What is being searched
+
+The note's **source** — the same text you are editing, not the rendered page.
+So the header lines at the top of the file are searched like any other, and so
+is anything inside a `<script>` block or a fenced code block. This is a
+different search from the magnifier in the page header, which looks through
+your notes as they are *published*; see
+[Searching](UserManual#searching) in the User Manual for that one.
 
 ## Tab and Emmet
 

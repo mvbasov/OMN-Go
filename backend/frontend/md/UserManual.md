@@ -137,36 +137,17 @@ page reloads with your changes.
 `images/` and a ready-to-use Markdown image reference is inserted at the
 cursor.
 
-### Find and replace
-
-Press <i class="material-icons">search</i> in the editor toolbar, or
-**Ctrl-F** (**Ctrl-H** to start with replace showing). A bar opens between the
-toolbar and the text — it pushes the note down rather than covering it, so you
-can see what you are changing. If you had text selected, it is already the
-query.
-
-**Enter** goes to the next match, **Shift-Enter** to the previous, **Esc**
-closes and puts the cursor back in the text. The counter reads *3 / 17*.
-
-Three switches sit at the right of the find field:
-
-- **Aa** — match case. Off by default.
-- **ab** — whole word: *note* stops matching inside *notes* or *footnote*.
-  It understands any alphabet, not just the Latin one.
-- **.\*** — regular expression. `$1`, `$2` … in the replacement stand for
-  the bracketed groups in the pattern, and `$&` for the whole match. A pattern
-  that does not compile is marked in red and says *bad pattern* rather than
-  quietly finding nothing. Outside this mode nothing is special: searching for
-  `a.b` finds `a.b`, and a `$` in the replacement is a dollar sign.
-
-The chevron at the left shows and hides the replace field. **Replace** changes
-the current match and moves to the next; **All** changes every match and says
-how many. Both are a single undo step — **Ctrl-Z** puts the note back.
-
-Every match is highlighted, with a ring around the one the counter is pointing
-at. One thing to know: the search covers the note's *source*, which is what you
-are editing — text inside a `<script>` block or a code fence is found like any
-other, and so are the header lines at the top.
+**Find and replace.** Press <i class="material-icons">search</i> in the editor
+toolbar, or **Ctrl-F** (**Ctrl-H** to start with the replace field showing). A
+bar opens between the toolbar and the text and pushes the note down rather than
+covering it. Every match is highlighted, with a ring around the current one and
+a **3 / 17** counter; **Enter** and **Shift-Enter** step through them and
+**Esc** closes. Three switches turn on case sensitivity, whole-word matching
+and regular expressions, and **Replace** / **All** change one match or all of
+them - as a single **Ctrl-Z** either way. Note that this searches the note's
+*source*, which is what you are editing, so header lines and the contents of
+code blocks are found like any other text. Full details in
+[The editor and Emmet](Editor#find-and-replace).
 
 ## Page format: the header block
 
@@ -376,6 +357,11 @@ simply omitted.
 
 Tap the magnifier in the page header (or press **Ctrl-K**, or **/**, on a
 keyboard) to open the search panel.
+
+This searches your notes as they are *published*. To search the text of the
+note you are currently *editing* - including its header lines and the contents
+of its code blocks - use the editor's own find bar instead: see
+[Find and replace](Editor#find-and-replace).
 
 There are two searches, and the chips at the top of the panel say which one
 you are using:

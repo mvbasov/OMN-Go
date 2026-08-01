@@ -3,7 +3,7 @@
 Reference for every HTTP endpoint exposed by the Go backend
 (`backend/server.go`, `backend/logger.go`).
 
-Applies to OMN-Go **26.07.52** (`backend/version.go`, `APP_VERSION`).
+Applies to OMN-Go **26.08.1** (`backend/version.go`, `APP_VERSION`).
 
 ---
 
