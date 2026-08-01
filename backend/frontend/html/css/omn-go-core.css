@@ -223,6 +223,20 @@
     -webkit-font-smoothing: antialiased;
 }
 
+/* Both of these are display:inline-block, which makes them block containers
+   in their own right. text-indent is INHERITED and applies to the first line
+   of any block container, so inside a note paragraph - "#preview p" sets
+   text-indent: 1em, the legacy paragraph indent - each one indented its own
+   contents by another 1em, leaving a body-em of dead space to the LEFT of
+   every icon and a paragraph that starts with one indented twice.
+   Elsewhere (page header, config, editor) the inherited value is already 0
+   and this declaration changes nothing. KaTeX ships the same guard for the
+   same reason: .katex { text-indent: 0 }. */
+.material-icons,
+.title-arrow {
+    text-indent: 0;
+}
+
 /* ==========================================================================
    3. Base & page layout
    ========================================================================== */

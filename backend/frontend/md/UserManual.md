@@ -7,7 +7,8 @@ Category: System
 Welcome to the OMN-Go manual. The first half covers everyday use;
 the second half covers configuration, synchronization, LAN sharing and
 troubleshooting. This page is itself a normal OMN-Go note — open it in
-edit mode (pencil button) to see how any example on it is written.
+edit mode (<i class="material-icons">edit</i>) to see how any example on it
+is written.
 
 ## Table of contents
 

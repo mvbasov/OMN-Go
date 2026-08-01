@@ -4,3 +4,4 @@
 * Add copy button to QuickNote dialog
 * Add search in current or all notes
 * Add find and replace to internal editor
+* Add file index page
