@@ -5,19 +5,30 @@ Tags: Document
 
 # JavaScript Guidelines for OMN-Go
 
-Because OMN-Go is rendered server-side, standard scripts running on layout structures should scope state securely.
+The backend compiles a note to HTML. A note script then runs on every view of that
+page. Unscoped variables from one note script collide with the variables of another
+note. They also collide with the variables of OMN-Go itself. Keep the state of each
+note script inside its own scope.
 
 ### How embedded scripts execute
 
-Plain `<script>` blocks embedded in a note run **immediately, while the page is still being parsed** — exactly like in classic OMN. All OMN-Go helpers (`openDatabase`, `omnGoOpenDatabase`, `executeScripts`, page variables like `PageName`, `Title`, `currentNote`, ...) are already available at that moment, and everything the script prints or throws (including syntax errors) is captured by the JS console button.
+A plain note script runs **immediately, while the browser still parses the page**.
+Classic OMN does the same. All OMN-Go helpers are available at that moment. These
+helpers are `openDatabase`, `omnGoOpenDatabase`, `executeScripts` and page variables
+such as `PageName`, `Title` and `currentNote`. The JS console button captures
+everything the note script prints or throws, including syntax errors.
 
-Because a plain script runs during parsing, page elements *below* the script (for example the `#status` footer) do not exist yet. If a script needs the complete page, either:
+A plain note script runs during parsing. The page elements *below* the note script,
+for example the `#status` footer, do not exist yet. If a note script needs the
+complete page, use one of these two methods:
 
-* run it on load: `window.onload = function() { ... };` (or `window.addEventListener('load', ...)`), or
-* use `<script type="module">` — module scripts are always deferred by the browser and run after the whole page is parsed.
+* Run the note script on load with `window.onload = function() { ... };` or with `window.addEventListener('load', ...)`.
+* Use `<script type="module">`. The browser defers every module script and runs it after it parses the whole page.
 
 ### Rule 1: Isolate variables using Block Scopes or IIFEs
-Never leave `const` or `let` in the top-level global scope. Wrap the script in an Anonymous Block `{ ... }` or an Immediately Invoked Function Expression (IIFE).
+Do not leave a `const` or a `let` in the top-level global scope. Put the note script
+in an anonymous block `{ ... }` or in an immediately invoked function expression
+(IIFE).
 
 ```javascript
 {
@@ -27,7 +38,8 @@ Never leave `const` or `let` in the top-level global scope. Wrap the script in a
 ```
 
 ### Rule 2: Explicitly attach required globals to `window`
-If a function is needed for an HTML `onclick` event, attach it directly to the `window` object.
+If an HTML `onclick` event needs a function, attach the function to the `window`
+object.
 
 ```javascript
 window.doSomething = function() {
@@ -37,7 +49,7 @@ window.doSomething = function() {
 
 ### See also
 
-On Android, a raw HTML button can also fire an Android intent — open a Settings
-screen, launch an app, or run a Termux command. See
+On Android, a raw HTML button can also fire an Android intent. The intent can open a
+Settings screen, start another application, or run a Termux command. See
 [Android Intents & Termux](AndroidIntents).
 

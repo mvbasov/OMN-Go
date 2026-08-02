@@ -5,42 +5,43 @@ Tags: Android, Intent, Termux
 
 # Android Intents & Termux
 
-On Android, a link or button in a note can fire an Android **intent** — open a
-system Settings screen, launch another app, run a command in **Termux**, or scan
-a barcode straight into your Quick Notes. This is an Android-only feature: the
-same links do nothing in the desktop app or in a LAN browser.
+On Android, a link or a button in a note can fire an Android **intent**. An
+intent can open a system Settings screen or start another application. An
+intent can also run a command in **Termux**, or scan a barcode into the Quick
+Notes page. Only the Android application supports this feature. The same links
+do nothing in the desktop application or in a LAN browser.
 
-Everything here is **off by default** and gated on the [Config](Config) page,
-because a note is not always something you wrote yourself — it can arrive by
-[Git synchronization](UserManual#git-synchronization) or be edited by another
-device over [LAN sharing](UserManual#sharing-on-the-lan). See
+Everything on this page is **off by default**. You enable it on the
+[Config](Config) page. You do not write every note yourself. A note can
+arrive by [git synchronization](UserManual#git-synchronization), or another
+device can edit the note over [LAN sharing](UserManual#sharing-on-the-lan). See
 [Security](#security) below.
 
 ## Turning it on
 
 On the [Config](Config) page, under **Android Integration**:
 
-- **Enable intent: links** (`enable_intent_uri`) — the master switch. With it
-  off, no intent link does anything.
-- **Enable Termux commands** (`enable_termux_intent`) — additionally allows the
-  Termux path. Requires the master switch to be on as well.
+- **Enable intent: links** (`enable_intent_uri`) — the master switch. With this
+  switch off, no intent link does anything.
+- **Enable Termux commands** (`enable_termux_intent`) — this switch also
+  permits the Termux path. The master switch must be on as well.
 
-Both stay off until you turn them on, and a change applies on the next tap — no
-restart needed.
+Both switches stay off until you enable them. A change applies at the next
+press. You do not restart the application.
 
 ## A first example: Wi-Fi settings
 
-An intent link is just a Markdown link whose address is an `intent:` URI. This
-one opens the phone's Wi-Fi settings:
+An intent link is a Markdown link with an `intent:` URI as its address. This
+link opens the Wi-Fi settings of the device:
 
 ```
 [Open Wi-Fi settings](intent:#Intent;action=android.settings.WIFI_SETTINGS;end)
 ```
 
-Try it (needs *Enable intent: links* on):
+Try it. This link needs *Enable intent: links* on:
 [Open Wi-Fi settings](intent:#Intent;action=android.settings.WIFI_SETTINGS;end)
 
-Because notes render raw HTML, you can dress it up as a button too:
+A note renders raw HTML, so you can also write the link as a button:
 
 ```
 <a href="intent:#Intent;action=android.settings.WIFI_SETTINGS;end"><button>
@@ -52,13 +53,13 @@ Because notes render raw HTML, you can dress it up as a button too:
   <i class="material-icons">wifi</i> Wi-Fi settings
 </button></a>
 
-The `action=` part names what to do. `android.settings.WIFI_SETTINGS` opens
-Wi-Fi directly; the broader `android.settings.WIRELESS_SETTINGS` opens the whole
-network/wireless screen.
+The `action=` part names the task. `android.settings.WIFI_SETTINGS` opens the
+Wi-Fi screen directly. The wider `android.settings.WIRELESS_SETTINGS` opens the
+full network and wireless screen.
 
 ## More Settings screens
 
-Swap the `action=` for any of these:
+Replace the `action=` value with one of these values:
 
 ```
 [Bluetooth](intent:#Intent;action=android.settings.BLUETOOTH_SETTINGS;end)
@@ -69,9 +70,10 @@ Swap the `action=` for any of these:
 
 ## Launching apps
 
-An `intent:` URI can also target another app. If nothing installed can handle
-it, an optional `S.browser_fallback_url` extra is opened instead (its value is
-percent-encoded so it doesn't break the URI):
+An `intent:` URI can also address another application. If no installed
+application can handle the intent, Android opens the optional
+`S.browser_fallback_url` extra instead. Percent-encode the value of this extra,
+so that it does not break the URI:
 
 ```
 [Open a page](intent://example.com#Intent;scheme=https;S.browser_fallback_url=https%3A%2F%2Fexample.com;end)
@@ -79,8 +81,9 @@ percent-encoded so it doesn't break the URI):
 
 ## Scanning a barcode into Quick Notes
 
-A link can launch a scanner, wait for the result, and drop it into a review
-dialog you can edit before saving to [Quick Notes](QuickNotes). This example uses
+A link can start a scanner and wait for the result. OMN-Go then puts the result
+into a review dialog. You can edit the result before you save it to the
+[Quick Notes](QuickNotes) page. This example uses
 [Binary Eye](https://f-droid.org/en/packages/de.markusfisch.android.binaryeye/),
 an open-source scanner:
 
@@ -88,26 +91,27 @@ an open-source scanner:
 [Scan a code](intent:#Intent;action=com.google.zxing.client.android.SCAN;package=de.markusfisch.android.binaryeye;S.omngo_capture_extra=SCAN_RESULT;end)
 ```
 
-`S.omngo_capture_extra=SCAN_RESULT` is OMN-Go's own marker: it means "launch
-this for a result, then paste back the extra named `SCAN_RESULT`." When the scan
-finishes, the Quick Note dialog opens pre-filled with the decoded text for you to
-review and save. Cancel the scan and nothing happens. Only *Enable intent:
-links* is needed for this — Termux is not involved.
+`S.omngo_capture_extra=SCAN_RESULT` is the marker of OMN-Go. It tells OMN-Go to
+start the intent for a result, and then to paste back the extra with the name
+`SCAN_RESULT`. After the scan, the Quick Note dialog opens with the decoded
+text. You review the text and save it. If you cancel the scan, nothing happens.
+This example needs only *Enable intent: links* and does not use Termux.
 
 ## Termux integration
 
 With Termux installed and **Enable Termux commands** on, a note can run a shell
-command. Because that runs code on your device, this path always shows a
-**confirmation dialog** before anything runs.
+command. This runs code on your device. The Termux path therefore always shows
+a **confirmation dialog** before the command runs.
 
 ### Prerequisites
 
 1. Install [Termux](https://f-droid.org/en/packages/com.termux/) (the F-Droid
    build).
-2. Let other apps send it commands: in Termux, add `allow-external-apps=true` to
-   `~/.termux/termux.properties`, then run `termux-reload-settings`.
-3. The first time you run a command, OMN-Go asks for Termux's **RUN_COMMAND**
-   permission — grant it, then tap the link again.
+2. Permit other applications to send commands to Termux. In Termux, add
+   `allow-external-apps=true` to `~/.termux/termux.properties`. Then run
+   `termux-reload-settings`.
+3. At the first command, OMN-Go asks for the Termux **RUN_COMMAND** permission.
+   Grant the permission, then press the link again.
 
 ### The command URI
 
@@ -120,66 +124,68 @@ A minimal command that runs `uname -a`:
 The parts:
 
 - `action=com.termux.RUN_COMMAND` and
-  `component=com.termux/.app.RunCommandService` must be exactly as shown — they
-  address Termux's command service.
-- `S.com.termux.RUN_COMMAND_LABEL` — a short name shown in the confirmation
-  dialog (optional; spaces written as `%20`).
-- `S.com.termux.RUN_COMMAND_PATH` — the program to run, plus its packed
-  arguments (next).
+  `component=com.termux/.app.RunCommandService` must be exactly as shown. These
+  two parts address the command service of Termux.
+- `S.com.termux.RUN_COMMAND_LABEL` — a short name that the confirmation dialog
+  shows. This part is optional. Write a space as `%20`.
+- `S.com.termux.RUN_COMMAND_PATH` — the program to run, and its packed
+  arguments. See the next section.
 
 ### Passing arguments (the `?` and `&` convention)
 
-An intent URI can't carry a list, so arguments are **packed into the path**: put
-a `?` after the program, then separate arguments with `&`. A space *inside* one
-argument is written as `%20`:
+An intent URI cannot carry a list. Therefore you **pack the arguments into the
+path**. Put a `?` after the program. Separate the arguments with `&`. Write a
+space *inside* one argument as `%20`:
 
 ```
 S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/bash?-c&echo%20hello%20world
 ```
 
-That runs `bash -c "echo hello world"` — two arguments, `-c` and
-`echo hello world`. Two rules to remember:
+This runs `bash -c "echo hello world"` with two arguments, `-c` and
+`echo hello world`. There are two rules:
 
-- The path/arguments split happens on the **first** `?` only, so an argument may
-  itself contain `?`.
-- Arguments are separated on **every** `&`, so an argument cannot contain a
+- Only the **first** `?` splits the program from the arguments. An argument can
+  therefore contain a `?`.
+- **Every** `&` separates two arguments. An argument therefore cannot contain a
   literal `&`.
 
 ### Foreground or background
 
-Add Termux's own switch to choose how the command runs:
+Add the Termux switch to select how the command runs:
 
 ```
 B.com.termux.RUN_COMMAND_BACKGROUND=true
 ```
 
-- **Background** (`true`) runs silently and captures separate `stdout` and
-  `stderr`.
-- **Foreground** (`false`) opens a visible Termux terminal session; its output
-  comes back as one combined transcript.
+- **Background** (`true`) runs the command without a terminal. It captures
+  `stdout` and `stderr` separately.
+- **Foreground** (`false`) opens a visible Termux terminal session. Termux
+  returns the output as one combined transcript.
 
-When you ask OMN-Go to capture output (below) and don't set this, it defaults to
-**background** so capture works cleanly. Set it to `false` yourself if you want
-the terminal to open.
+If you ask OMN-Go to capture output (see below) and you do not set this switch,
+OMN-Go uses **background**. The capture then works correctly. Set the switch to
+`false` if you want the terminal to open.
 
 ### Capturing command output
 
-Add OMN-Go's `S.omngo_capture_output` marker to paste a command's output into the
-Quick Note review dialog. Its value chooses the stream:
+Add the `S.omngo_capture_output` marker of OMN-Go to paste the output of a
+command into the Quick Note review dialog. The value of the marker selects the
+stream:
 
 - `stdout` (the default) — standard output
-- `stderr` — error output (only separated in background mode)
+- `stderr` — error output (separate in background mode only)
 - `both` — both streams, combined
 
 ```
 [Kernel info](intent:#Intent;action=com.termux.RUN_COMMAND;component=com.termux/.app.RunCommandService;S.com.termux.RUN_COMMAND_LABEL=Kernel%20info;S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/uname?-a;S.omngo_capture_output=stdout;end)
 ```
 
-Tap it, confirm, and Termux runs `uname -a` in the background; its output
-pre-fills the Quick Note dialog for you to review and save. If the command
-fails, an `exit code: N` line is added — a successful (zero) exit adds nothing.
+Press the link and confirm. Termux then runs `uname -a` in the background. The
+output fills the Quick Note dialog. You review the output and save it. If the
+command fails, OMN-Go adds an `exit code: N` line. A successful (zero) exit adds
+nothing.
 
-Try it (needs Termux plus both switches on):
+Try it. This example needs Termux and both switches on:
 
 <a href="intent:#Intent;action=com.termux.RUN_COMMAND;component=com.termux/.app.RunCommandService;S.com.termux.RUN_COMMAND_LABEL=Kernel%20info;S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/uname?-a;S.omngo_capture_output=stdout;end"><button>
   <i class="material-icons">memory</i> Capture uname -a
@@ -187,27 +193,31 @@ Try it (needs Termux plus both switches on):
 
 ## Security
 
-Both switches are **off by default**, and the Termux path additionally needs
-Termux installed, its permission granted, and a per-command confirmation — four
-independent consents before a note can run anything. This matters because a note
-isn't always yours: it can arrive by Git sync or be edited by another device over
-the LAN. A captured result is never saved silently either — it always lands in a
-dialog you review first. Leave Termux off unless you author your own notes.
+Both switches are **off by default**. The Termux path needs three more things.
+Termux must be installed. You must grant the Termux permission. You must confirm
+each command. The two switches, the permission and the confirmation make four
+independent consents before a note can run anything.
+
+A note is not always your own note. A note can arrive by git synchronization.
+Another device can edit a note over LAN sharing. OMN-Go never saves a captured
+result silently. A captured result always goes into a dialog that you review
+first. Leave Termux off unless you write all of your notes yourself.
 
 ## Troubleshooting
 
-- **A link does nothing.** Check *Enable intent: links* is on. On desktop and in
-  a LAN browser these links are inert by design.
-- **A Termux command does nothing.** Check *Enable Termux commands* is on, Termux
-  is installed, you granted the RUN_COMMAND permission, and
-  `allow-external-apps=true` is set in Termux (followed by
-  `termux-reload-settings`).
-- **No output was pasted.** The command may have produced none, or you were
-  mid-edit on the editor page when it finished — in that case a plain Android
-  dialog appears with the text instead of the in-app Quick Note panel.
+- **A link does nothing.** Make sure that *Enable intent: links* is on. In the
+  desktop application and in a LAN browser these links do nothing by design.
+- **A Termux command does nothing.** Make sure that *Enable Termux commands* is
+  on and that Termux is installed. Make sure that you granted the RUN_COMMAND
+  permission. Make sure that you set `allow-external-apps=true` in Termux, and
+  that you then ran `termux-reload-settings`.
+- **No output appeared.** The command possibly gave no output. You were
+  possibly on the editor page when the command finished. In that case Android
+  shows a plain dialog with the text, and not the Quick Note panel of the
+  application.
 
 ## See also
 
-- [User Manual](UserManual) — everything else about authoring notes.
-- [Scripting Rules](ScriptRules) — the rules for raw HTML and JavaScript in
-  notes, which intent buttons rely on.
+- [User Manual](UserManual) — everything else about how to write notes.
+- [Scripting Rules](ScriptRules) — the rules for raw HTML and JavaScript in a
+  note. An intent button uses these rules.

@@ -1,8 +1,8 @@
 # OMN-Go (Open Markdown Notes)
 
-**OMN-Go** is a fast, offline-first, cross-platform Markdown note-taking application built with Go, HTML, and JavaScript.
+**OMN-Go** is a cross-platform Markdown note application. It uses Go, HTML, and JavaScript, and it works without an internet connection.
 
-It is designed to be the modern successor to the original [mvbasov/OMN](https://github.com/mvbasov/OMN) project. By leveraging a local Go web server and a native WebView, OMN-Go delivers a seamless experience across both Desktop (Linux) and Mobile (Android) environments without relying on bloated electron frameworks or external cloud services.
+OMN-Go replaces the original [mvbasov/OMN](https://github.com/mvbasov/OMN) project. It uses a local Go web server and a native WebView to run on the desktop (Linux) and on Android. It does not use an electron framework or an external cloud service.
 
 <p align="center">
   <a href="https://gitlab.com/mvbasov/OMN-Go/-/releases/permalink/latest">
@@ -18,99 +18,105 @@ F-Droid — uncomment once published (it's already in its own centered paragraph
 
 
 > [!NOTE]
-> **Not on Google Play.** OMN-Go will never be published on the Google Play Store. Google's policies don't allow some of the app's optional convenience features, such as its background web service, and I won't remove or restrict them just to comply.
+> **Not on Google Play.** OMN-Go will never be published on the Google Play Store. Google's policies do not allow some optional convenience features of OMN-Go, such as its background web service. I will not remove or restrict these features to comply.
 
 ## Features
 
-* **Cross-Platform:** Runs natively as a desktop application on Linux and as an Android app.
+* **Cross-Platform:** OMN-Go runs as a desktop application on Linux and as an Android application.
 
-* **Local Web Server:** Acts as a standalone web server, allowing you to access and manage your workspace directly through any standard web browser.
+* **Local Web Server:** OMN-Go runs its own web server. You can open and manage your storage directory in any standard web browser.
 
-* **Flexible Editing:** Seamlessly integrates with your preferred external editor (like Sublime Text, VS Code, or Nano) for heavy writing, while providing a tiny, built-in embedded editor as a quick and reliable fallback.
+* **Flexible Editing:** OMN-Go works with your preferred external editor (like Sublime Text, VS Code, or Kate) for long writing sessions. It also has a small built-in editor as a fallback.
 
-* **Offline First:** All rendering dependencies (like KaTeX for math and highlight.js for code) are bundled directly into the binary. No internet connection is required.
+* **Offline First:** OMN-Go holds all rendering dependencies (like KaTeX for math and highlight.js for code) in the binary. It does not need an internet connection.
 
-* **Markdown Native:** Notes are stored as plain `.md` files on your local file system, ensuring you completely own your data.
+* **Markdown Native:** OMN-Go stores notes as plain `.md` files on your local file system. You keep full ownership of your data.
 
-* **Intelligent File Storage:**
+* **File Storage:**
 
-  * On Desktop: Notes are saved to `./data/md/`
+  * On Desktop: OMN-Go saves notes to `./data/md/`
 
-  * On Android: Notes are securely saved to the public Media directory (`/storage/emulated/0/Android/media/net.basov.omngo/md/`) so they can be easily backed up.
+  * On Android: OMN-Go saves notes to the public Media directory (`/storage/emulated/0/Android/media/net.basov.omngo/md/`), so you can create a backup of them easily.
 
-* **Dynamic Media Uploads:** Paste or drag-and-drop images directly into the editor; they are automatically saved locally and linked in your Markdown.
+* **Image Uploads:** Paste or drag an image into the editor. OMN-Go saves the image on the device and adds a link to it in your Markdown source.
 
-* **Android "Share To" Integration:** Native Android intent handling allows you to share URLs or text directly from other apps straight into your OMN-Go Bookmarks or Quick Notes.
+* **Android "Share To" Integration:** OMN-Go handles Android intents. You can share a URL or text from another application into the Bookmarks page or the Quick Notes page.
 
-* **Optional Git Sync:** Synchronize your entire notes directory across devices over SSH, with clear conflict handling (manual-merge, or safe force pull/push).
+* **Optional Git Sync:** OMN-Go can synchronize your whole storage directory across devices over SSH. It shows each conflict clearly. You can then do a manual merge, or a safe force pull or push.
 
-* **Optional LAN Sharing:** Off by default — when enabled, other devices on your network can read or edit your notes over HTTP, protected by admin and guest passwords.
+* **Optional LAN Sharing:** LAN sharing is off by default. If you enable it, other devices on your network can read or edit your notes over HTTP. The admin password and the guest password protect this access.
 
-* **Embedded SQL Database:** Note `<script>` blocks can read and write a real SQL database (pure-Go, no CGO), with on-demand, git-trackable snapshots for backup and cross-device transfer.
+* **Embedded SQL Database:** A note script (a `<script>` block in a note) can read and write a real SQL database (pure-Go, no CGO). You can create a backup of the database at any time. Git can track the backup, and you can use it to move the data to another device.
 
-* **Automatic Tags Page:** Every note's `Tags:` header feeds an auto-generated, offline-friendly overview page that indexes all of your notes by tag.
+* **Automatic Tags Page:** OMN-Go reads the `Tags:` line in the header block of each note. From these lines it generates the Tags page, which indexes all of your notes by tag and works offline.
 
-* **Android Intents & Termux (opt-in):** Notes can open system settings screens, launch other apps, or run Termux shell commands via `intent:` links — disabled by default.
+* **Android Intents & Termux (opt-in):** A note can open a system settings screen or start another application. It can also run a Termux shell command. These links use an `intent:` URI, and the function is disabled by default.
 
-* **Theming:** Light, dark, and system-following themes, selectable per device.
+* **Theming:** OMN-Go has a light theme, a dark theme, and a theme that follows the system. You select the theme on each device.
 
 ## Architecture
 
-OMN-Go is a single Go binary that serves a local web UI, wrapped differently
-per platform:
+OMN-Go is one Go binary that serves the frontend from a local web server. Each
+platform wraps this binary in a different way:
 
-1. **The backend (`backend/`):** A Go package that runs the whole app — an
-   `http.ServeMux` (`server.go`) wiring request auth (`middleware.go`),
-   note and API handlers (`handlers.go`), Markdown compilation via goldmark
-   (`markdown.go`, `templates.go`) cached to disk (`render_cache.go`), an
-   embedded SQLite database (pure-Go `modernc.org/sqlite`, `sqlite.go` +
-   `db_backup.go`), and git-over-SSH sync (`git_helper.go`). All frontend
-   assets are compiled into the binary with `//go:embed` and lazily extracted
-   to the storage directory on first use — this is what makes OMN-Go
-   offline-first.
+1. **The backend (`backend/`):** A Go package that runs the whole
+   application. An `http.ServeMux` (`server.go`) connects request
+   authentication (`middleware.go`), the note and API handlers
+   (`handlers.go`), and Markdown compilation with goldmark (`markdown.go`,
+   `templates.go`). The backend writes the HTML cache to disk
+   (`render_cache.go`). It also holds an embedded SQLite database (pure-Go
+   `modernc.org/sqlite`, `sqlite.go` + `db_backup.go`) and runs git
+   synchronization over SSH (`git_helper.go`). The build compiles all
+   frontend assets into the binary with `//go:embed`, and the backend
+   extracts them to the storage directory when it first needs them. This is
+   why OMN-Go works without an internet connection.
 
 2. **The frontend (`backend/frontend/`):** Pure HTML, CSS, and vanilla
-   JavaScript — no React, no Vue, no external CDNs. Server-rendered page
-   templates live in `frontend/templates/`; static JS/CSS and the bundled
-   system notes live in `frontend/html/` and `frontend/md/`.
+   JavaScript, with no React, no Vue, and no external CDN. The page
+   templates that the backend renders live in `frontend/templates/`. The
+   static JavaScript and CSS assets and the bundled system notes live in
+   `frontend/html/` and `frontend/md/`.
 
 3. **The platform wrappers:**
 
-   * **Desktop (`main_desktop.go`):** Builds the backend as a normal
-     executable, starts the server, and opens your default browser. The
-     release pipeline cross-compiles both Linux and Windows binaries and
-     attaches them to [Releases](https://github.com/mvbasov/OMN-Go/releases);
-     Linux is the primary, tested target, while the Windows `.exe` is
-     published but not yet tested on real hardware. macOS is not built.
+   * **Desktop (`main_desktop.go`):** This wrapper builds the backend as a
+     normal executable, starts the server, and opens your default browser.
+     The release pipeline cross-compiles the Linux and the Windows binaries
+     and attaches them to
+     [Releases](https://github.com/mvbasov/OMN-Go/releases). Linux is the
+     primary target, and it is tested. The pipeline publishes the Windows
+     `.exe`, but nobody has tested it on real hardware yet. There is no
+     macOS build.
 
-   * **Android (`android/`):** A minimal Java WebView app. The backend is
-     compiled to a library with `gomobile bind`; a foreground `ServerService`
-     boots it and `MainActivity` displays the local UI in a WebView.
+   * **Android (`android/`):** A small Java application that uses a WebView.
+     The build compiles the backend to a library with `gomobile bind`. A
+     foreground `ServerService` starts the backend, and `MainActivity` shows
+     the frontend in the WebView.
 
 ## AI-Assisted Development
 
-This project is actively developed using an aggressive, AI-assisted pipeline (via Google Gemini, Claude, etc.). New code is delivered as atomic unified-diff patches (applied with `git apply`) rather than manual file editing. This keeps every change small, reviewable, and easy to roll back, for rapid prototyping with minimal regression drift.
+AI assistants (Google Gemini, Claude, and others) do much of the development work on this project. New code arrives as atomic unified-diff patches, which you apply with `git apply`, and not as manual file edits. This keeps each change small, easy to review, and easy to revert. It also makes fast prototyping possible with little regression drift.
 
 ## Build Instructions
 
-OMN-Go uses a fully containerized Docker build environment. You do not need to install Go, Android Studio, or Gradle on your host machine to compile this project.
+OMN-Go uses a Docker build environment. You do not need to install Go, Android Studio, or Gradle on your device to compile this project.
 
 ### Prerequisites
 
-* [Docker](https://docs.docker.com/get-docker/) must be installed on your machine.
+* You must install [Docker](https://docs.docker.com/get-docker/) on your device.
 
 ### 1. Fetch offline assets (first time only)
 
-The offline rendering libraries that get bundled into the binary — KaTeX (math),
-highlight.js (code), and their web fonts — are downloaded into the frontend
-rather than committed to the repository, so a fresh clone must fetch them once
+The build puts the offline rendering libraries into the binary. These libraries
+are KaTeX (math), highlight.js (code), and their web fonts. The repository does
+not hold these files. Download them into the frontend once after a fresh clone,
 before the first build:
 
 ```
 bash local/initial/offline_asset_downloader.sh
 ```
 
-Re-run it only when you want to refresh those vendored assets.
+Run this command again only when you want to update these vendored assets.
 
 ### 2. Compile & extract
 
@@ -118,16 +124,16 @@ Re-run it only when you want to refresh those vendored assets.
 bash local/build.sh
 ```
 
-The build itself runs entirely inside Docker (a cached base-toolchain image,
-then the app image). Once compilation finishes, the script *extracts* the
-resulting binaries out of the container onto your host — the desktop
-executables (Linux and Windows) and the Android APK are copied into
+The build runs inside Docker. It uses a cached base-toolchain image and then
+the application image. After compilation finishes, the script copies the
+binaries out of the container to your device. It copies the desktop
+executables (Linux and Windows) and the Android APK into
 `./output-binaries/`.
 
 ## Usage
 
 **On Desktop:**
-Simply execute the binary from your extracted outputs:
+Run the binary from your extracted outputs:
 
 ```
 mkdir ~/OMN-Go
@@ -138,10 +144,10 @@ cd ~/OMN-Go
 
 ```
 
-On launch it automatically opens your default browser at `http://localhost:8080` (or the port you set on the Config page). If the browser does not open on its own, visit that address manually.
+At start, OMN-Go opens your default browser at `http://localhost:8080`. If you set a different port on the Config page, OMN-Go uses that port. If the browser does not open, open that address manually.
 
 **On Android:**
-Install the generated APK onto your device. Launch the "OMN-Go" app from your launcher. The local server will boot automatically in the background, and the WebView will display your notes.
+Install the APK on your device. Start the "OMN-Go" application from your launcher. The backend starts in the background, and the WebView shows your notes.
 
 ## Versioning
 Versioning in this project is informal. Numbers do not indicate stability or roadmap progress.

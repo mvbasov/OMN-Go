@@ -1,6 +1,6 @@
 # OMN-Go Server API
 
-Reference for every HTTP endpoint exposed by the Go backend
+Reference for every HTTP endpoint that the backend exposes
 (`backend/server.go`, `backend/logger.go`).
 
 Applies to OMN-Go **26.08.2** (`backend/version.go`, `APP_VERSION`).
@@ -24,31 +24,30 @@ http://<host>:<port>/
 | Default port (Android, standard flavor) | `8080` |
 | Default port (Android, F-Droid flavor) | `8081` |
 
-The listening socket is bound **once at process start**. Changing
-`server_port` or `share_lan` requires a restart (see
-[`POST /api/restart`](#412-post-apirestart)); with sharing off no remote
-device can even complete a TCP handshake, regardless of any auth logic.
+The server binds the listening socket **once at process start**. A change to
+`server_port` or `share_lan` needs a restart (see
+[`POST /api/restart`](#412-post-apirestart)). With LAN sharing off, no remote
+device can complete a TCP handshake, whatever the authentication logic does.
 
-If the port is busy the server retries `net.Listen` ten times at 300 ms
-intervals (~3 s) before giving up — this covers the window during a
-self-restart where the replacement process races the old socket teardown.
+If the port is busy, the server retries `net.Listen` ten times at 300 ms
+intervals (~3 s) before it stops. This covers the window during a self-restart
+when the replacement process races the teardown of the old socket.
 
 ### 1.2 Routing model
 
-Routing uses the Go standard library `http.ServeMux`. Consequences worth
-knowing:
+Routing uses the Go standard library `http.ServeMux`. This has four effects:
 
-* Paths registered **without** a trailing slash (`/api/note`, `/login`, …)
-  match that exact path only.
-* Paths registered **with** a trailing slash (`/js/`, `/css/`, `/json/`,
-  `/images/`, `/user_json/`) match the whole subtree.
-* `/` is the catch-all: everything not matched above lands in
-  `serveFrontend`.
-* **`ServeMux` does not dispatch on method.** Unless an endpoint explicitly
-  checks `r.Method` (the table in §3 says which do), any method reaches the
-  handler. `r.FormValue` reads the URL query string *and* an
-  `application/x-www-form-urlencoded` / `multipart/form-data` body, so most
-  form-style endpoints accept parameters either way.
+* A route **without** a trailing slash (`/api/note`, `/login`, …)
+  matches that exact path only.
+* A route **with** a trailing slash (`/js/`, `/css/`, `/json/`,
+  `/images/`, `/user_json/`) matches the whole subtree.
+* `/` is the catch-all. `serveFrontend` receives every request that the
+  routes above do not match.
+* **`ServeMux` does not dispatch on method.** Any method reaches the
+  endpoint, unless that endpoint checks `r.Method` (the table in §3 says
+  which endpoints do). `r.FormValue` reads the URL query string *and* an
+  `application/x-www-form-urlencoded` / `multipart/form-data` body. Most
+  form-style endpoints therefore accept parameters either way.
 
 ### 1.3 Request encodings
 
@@ -61,17 +60,17 @@ knowing:
 
 ### 1.4 Response encodings
 
-There is no single envelope — three shapes are in use:
+There is no single envelope. The server uses three shapes:
 
 1. **Plain text** — short status words (`Saved`, `OK`, `Restarting`) or a
-   fragment to splice into a note. Returned by the legacy note/upload
-   endpoints.
+   fragment to splice into a note. The legacy note and upload endpoints
+   return this shape.
 2. **JSON** — `/api/config` (GET), `/api/sql`, `/api/db/*`, `/api/sync`,
    `/api/sync/preview`.
 3. **`text/event-stream`** — `/api/logs` only.
 
-Errors from `http.Error` are `text/plain; charset=utf-8` with the message
-in the body. Errors from the JSON endpoints keep their JSON shape and carry
+`http.Error` sends `text/plain; charset=utf-8` with the message in the body.
+The JSON endpoints keep their JSON shape for an error and add
 `"status": "error"`.
 
 ---
@@ -82,16 +81,16 @@ in the body. Errors from the JSON endpoints keep their JSON shape and carry
 
 `authMiddleware` (`backend/middleware.go`) wraps the protected endpoints:
 
-1. **Local connections bypass auth entirely.** If the peer address is
-   `127.0.0.1`, `::1` or `localhost`, the handler runs with no further
-   checks. This is what lets the app's own WebView / desktop browser work
-   without ever logging in.
-2. Otherwise a `session_role` cookie must be present and hold an accepted
-   role. Every currently protected route is registered with
-   `requireAdmin = true`, so remote callers need `session_role=admin`.
-   The `guest` role is accepted by the middleware only for routes
-   registered with `requireAdmin = false` — none exist today.
-3. A missing or insufficient cookie yields `401 Unauthorized` with the body
+1. **A local connection bypasses authentication.** If the peer address is
+   `127.0.0.1`, `::1` or `localhost`, the endpoint runs with no further
+   check. This lets the WebView of the Android application and the desktop
+   browser work without a login.
+2. For every other connection, the request must carry a `session_role`
+   cookie with an accepted role. The server registers every protected route
+   with `requireAdmin = true`, so a remote caller needs `session_role=admin`.
+   `authMiddleware` accepts the `guest` role only for a route registered
+   with `requireAdmin = false`. No such route exists today.
+3. A missing or insufficient cookie gives `401 Unauthorized` with the body
    `Unauthorized`.
 
 There is no CSRF token, no bearer token, and no rate limiting. Passwords
@@ -105,8 +104,8 @@ are stored in `config.json` in cleartext and compared with `==`.
 Set-Cookie: session_role=admin; Path=/
 ```
 
-It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
-`Secure`, and has no `SameSite` attribute.
+This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
+`HttpOnly`, it is not `Secure`, and it has no `SameSite` attribute.
 
 ### 2.3 Protection map
 
@@ -160,8 +159,8 @@ It is a session cookie (no `Max-Age`/`Expires`), not `HttpOnly`, not
 
 #### `POST /login`
 
-Exchange a password for a role cookie. Only needed by remote (non-loopback)
-clients.
+Exchange a password for a role cookie. Only a remote caller needs this
+endpoint.
 
 **Parameters** (query string or form body)
 
@@ -186,8 +185,8 @@ curl -i -c jar.txt -d 'password=admin_secret_changeme' http://host:8080/login
 
 #### `GET /api/note`
 
-Return the **source text** of a note or of an arbitrary static asset. This
-is what the internal editor fetches on load.
+Return the **Markdown source** of a note, or the bytes of any static asset.
+The internal editor reads this endpoint when it loads.
 
 **Parameters** (query string)
 
@@ -195,7 +194,7 @@ is what the internal editor fetches on load.
 | --- | --- | --- | --- | --- |
 | `name` | string | no | `Welcome` | Page name or asset path |
 
-`name` is resolved by `resolvePageName` (`backend/paths.go`):
+`resolvePageName` (`backend/paths.go`) resolves `name`:
 
 | Shape of `name` | Treated as | Source read |
 | --- | --- | --- |
@@ -205,11 +204,11 @@ is what the internal editor fetches on load.
 | `notes/Trip` | markdown page in a subdirectory | `md/notes/Trip.md` |
 | `js/omn-go-core.js`, `css/x.css`, any other extension | static asset | `html/js/omn-go-core.js` |
 
-**Behaviour when a page does not exist yet**
+**Behavior when a page does not exist yet**
 
-The endpoint **never 404s for a markdown page**. It falls back, in order,
-to the embedded default (`frontend/md/<name>.md`) or to a synthesized
-front-matter stub:
+The endpoint **never answers 404 for a page**. It falls back, in order, to
+the embedded default (`frontend/md/<name>.md`), or to a synthesized header
+block stub:
 
 ```
 Title: <name>
@@ -219,8 +218,8 @@ Author: <config.author, omitted when empty>
 
 ```
 
-The fallback is written to disk before being returned, so it only ever
-happens once per page.
+The endpoint saves the fallback to disk before it answers, so this happens
+only once for each page.
 
 **Responses**
 
@@ -248,15 +247,15 @@ Write a note or asset back to disk.
 
 **Side effects**
 
-* `\r\n` is normalized to `\n`.
-* For a markdown page, `ensureHeaderModified` stamps/updates
-  `Modified: YYYY-MM-DD HH:MM:SS` in the front matter.
-* The markdown source is written **first**; only then is the compiled HTML
-  cache (`html/<name>.html`) regenerated by `renderAndCache`. A cache
-  failure is logged but still reports success — the next page view
-  recompiles it.
-* For a non-page asset the bytes are written straight to
-  `html/<path>`, no rendering.
+* The endpoint changes `\r\n` to `\n`.
+* For a note, `ensureHeaderModified` writes or updates
+  `Modified: YYYY-MM-DD HH:MM:SS` in the header block.
+* The endpoint saves the Markdown source **first**. Only then does
+  `renderAndCache` compile the HTML cache (`html/<name>.html`). The server
+  logs a cache failure, but the endpoint still reports success. The next
+  page view compiles the cache again.
+* For a static asset, the endpoint saves the bytes straight to
+  `html/<path>` and renders nothing.
 
 **Responses**
 
@@ -278,33 +277,33 @@ Hello.'
 
 #### `POST /api/newpage`
 
-Create a new note **and** insert a link to it into the note it was created
-from.
+Create a note **and** insert a link to the new note into the source note.
 
 **Parameters** (form body or query string)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `target` | string | yes | Name of the page to create, without `.md` |
-| `title` | string | yes | Title written into the new page's front matter, and the link text |
+| `title` | string | yes | Title written into the header block of the new note, and the link text |
 | `source` | string | no | Page the link is inserted into |
 
-**Target resolution** (`resolveNewPageTarget`) mirrors how a bare relative
-link on `source` would resolve in the browser:
+**Target resolution** (`resolveNewPageTarget`) follows the way the browser
+resolves a bare relative link on `source`:
 
 | `target` | `source` | Created as |
 | --- | --- | --- |
 | `test` | `local/local` | `local/test` |
 | `test` | `Welcome` | `test` |
-| `/test` | anything | `test` (storage root) |
-| `sub/test` | anything | `sub/test` (storage root) |
+| `/test` | anything | `test` (storage directory) |
+| `sub/test` | anything | `sub/test` (storage directory) |
 
-The link written into `source` uses the **raw** target for the bare case
-(so the browser resolves it relative to `source` the same way) and an
-explicit leading `/` when the target carried its own directory.
+The endpoint writes the link into `source`. For the bare case the link uses
+the **raw** target, so the browser resolves it against `source` in the same
+way. When the target carries its own directory, the link gets an explicit
+leading `/`.
 
-An existing `target` file is never overwritten; only the link insertion
-runs. New pages get:
+The endpoint never overwrites an existing `target` file. In that case it
+only inserts the link. A new note gets this header block:
 
 ```
 Title: <title>
@@ -315,9 +314,10 @@ Author: <config.author, omitted when empty>
 
 ```
 
-The link `* [<title>](<href>)` is inserted just below `source`'s front
-matter (or prepended to a headerless note), `source` is re-stamped with
-`Modified:`, and its HTML cache is recompiled immediately.
+The endpoint inserts the link `* [<title>](<href>)` below the header block
+of `source`. If `source` has no header block, the endpoint puts the link at
+the top. It then updates `Modified:` in `source` and compiles the HTML cache
+of `source` again at once.
 
 **Responses**
 
@@ -338,8 +338,8 @@ Prepend a timestamped entry to `md/QuickNotes.md`.
 | --- | --- | --- | --- |
 | `note` | string | yes | Entry text |
 
-The entry is inserted immediately after the first blank line (the end of
-the Pelican-style header) as:
+The endpoint inserts the entry directly after the first blank line, which
+is the end of the header block:
 
 ```
 
@@ -349,8 +349,8 @@ the Pelican-style header) as:
 
 ```
 
-The page title is re-stamped as `Quick Notes` and the HTML cache is
-recompiled.
+The endpoint sets the title to `Quick Notes` and compiles the HTML cache
+again.
 
 **Responses**
 
@@ -374,7 +374,7 @@ Append a bookmark record to `md/Bookmarks.md`.
 | `tags` | string | no | Comma-separated; split on `,`, trimmed, empties dropped |
 | `notes` | string | no | Semicolon-separated; split on `;`, trimmed, empties dropped |
 
-The record is inserted directly after the marker line
+The endpoint inserts the record directly after the marker line
 `<!-- Don't edit body below this line -->` as an indented JSON object:
 
 ```json
@@ -387,8 +387,9 @@ The record is inserted directly after the marker line
   },
 ```
 
-Values are JSON-encoded (`<`, `>`, `&` become `\u`-escapes), so a note can
-never break out of the surrounding `<script>` block.
+The endpoint encodes the values as JSON. `<`, `>` and `&` become
+`\u`-escapes, so a note can never break out of the `<script>` block around
+it.
 
 **Responses**
 
@@ -402,19 +403,20 @@ never break out of the surrounding `<script>` block.
 
 #### `GET /api/search`
 
-Fuzzy search over the notes. Two scopes, one matcher: the response shape,
-the scoring and the meaning of a result are identical either way — only the
-haystack differs.
+Fuzzy search over the notes. There are two scopes and one matcher. The
+response shape, the scoring and the meaning of a result are the same for
+both scopes. Only the searched content differs.
 
 | Scope | Searches | Needs the index | Needs configuration |
 | --- | --- | --- | --- |
 | `page` | the one file named by `on` | no | **no — always available** |
 | `all` | every indexed document | yes | yes (`search_enabled`) |
 
-Page scope reads that single file per request and keeps nothing, which is why
-it has no setting: there is no standing cost to opt out of. Global scope is
-answered from the in-memory index (`backend/search_index.go`), which is built
-only when `search_enabled` is on.
+Page scope reads that one file for each request and keeps nothing. This is why
+page scope has no setting. There is no continuing cost that a setting could
+remove. The server answers global scope from the in-memory index
+(`backend/search_index.go`). The server builds that index only when
+`search_enabled` is on.
 
 **Parameters** (query string)
 
@@ -427,22 +429,24 @@ only when `search_enabled` is on.
 | `limit` | int | no | `50` | Max results (hard cap `200`); `scope=page` returns at most one |
 | `snippets` | int | no | `3` | Max snippet lines per result (hard cap `10`) |
 
-The default `scope` is the configured `search_scope`, except that it falls back
-to `page` whenever global search cannot answer — defaulting a caller who
-expressed no preference into a scope that can only fail would be a strange
-reading of silence. An **explicit** `scope=all` is still refused in that state,
-because hiding it would misreport what the server did.
+The default `scope` is the configured `search_scope`. When global search cannot
+answer, the default falls back to `page`. A caller that sends no `scope` states
+no preference. A default into a scope that can only fail would be a poor
+reading of that silence. The server still refuses an **explicit** `scope=all`
+in that state. To answer it with page scope would misreport what the server
+did.
 
 **Query syntax**
 
-Terms are whitespace-separated and combined with **AND**: every term must match
-somewhere in a document. A term may carry a field prefix — `title:`, `tag:`,
-`path:` — or `kind:` to filter. An unknown prefix is not a prefix, so
-`https://example.com` stays a search for that text.
+Whitespace separates the terms, and the matcher combines them with **AND**.
+Every term must match somewhere in a document. A term can carry a field prefix:
+`title:`, `tag:` or `path:`. A term can also carry `kind:` to filter. An
+unknown prefix is not a prefix, so `https://example.com` stays a search for
+that text.
 
-Each term is matched by the first of three rungs that hits, and matches compare
-by **(rung, score)** — never score alone, so a document containing the word
-outranks one that merely suggests it:
+The first of the three rungs that hits matches the term. Matches compare by
+**(rung, score)** and never by score alone. A document that contains the word
+therefore ranks above a document that only suggests it:
 
 1. **exact substring** (case- and diacritic-folded)
 2. **subsequence**, fzf-style — `andint` finds `Android Intents`
@@ -492,103 +496,112 @@ outranks one that merely suggests it:
 | `highlight` | The query's terms as typed, for the client to mark in whatever page it opens. Present on both scopes, and on a query that matched nothing |
 | `matches[].line` | 1-based line in the file **as stored** — the markdown source for a note |
 | `matches[].context` | `script` or `code` when the hit is inside a `<script>` or a fenced block; absent in prose |
-| `matches[].section` | The part of the document the hit fell in — a bookmark entry, a timestamped quick note, a heading's section. Absent for a flat document and for a note's preamble |
+| `matches[].section` | The part of the document the hit fell in — a bookmark entry, a timestamped quick note, a heading's section. Absent for a flat document and for the header block of a note |
 | `matches[].section.id` | The anchor in the compiled HTML. May be absent while `label` is present: a section that can be named but not linked |
 | `matches[].section.label` | What to show — the heading text, the bookmark's title (or its URL) |
 | `matches[].text` | The snippet, whitespace-trimmed and windowed to ~160 runes around the first hit, with `…` markers |
 | `matches[].spans` | `[start, length]` pairs in **rune** offsets into `text` |
 
-`spans` are rune offsets, not byte offsets and not UTF-16 units: slicing
-`text` by anything else cuts Cyrillic and emoji in half. In JavaScript,
-`Array.from(text)` gives the right units.
+`spans` are rune offsets. They are not byte offsets and not UTF-16 units. If
+you cut `text` by any other unit, you cut Cyrillic letters and emoji in half.
+In JavaScript, `Array.from(text)` gives the correct units.
 
 #### Sections
 
-A note whose body is a run of entries — QuickNotes and anything else built from
-`---` + `##### <timestamp>`, or simply a note with headings — is indexed as
-sections, and a result opens **at** the entry that matched rather than at the
-top of the page. `Bookmarks.md` is parsed rather than line-scanned, so each
-bookmark is its own section too.
+The index holds some notes as sections. This applies to a note whose body is a
+run of entries, such as QuickNotes and anything else built from `---` plus
+`##### <timestamp>`. It also applies to a note with headings. A result then
+opens **at** the entry that matched, not at the top of the page. The server
+parses `Bookmarks.md` instead of a scan line by line, so each bookmark is also
+its own section.
 
-The anchor is predicted, not observed: goldmark assigns heading ids at compile
-time and `Bookmarker.js` assigns bookmark ids at render time, and the server has
-to name them without reading either. Two consequences worth knowing:
+The server predicts the anchor. It does not observe it. goldmark assigns
+heading ids at compile time, and `Bookmarker.js` assigns bookmark ids at render
+time. The server must name these ids without a read of either result. This has
+two effects:
 
-- **An id may be absent while a label is present.** A heading containing a link,
-  inline code, math, an entity, inline HTML, an underscore or a closing `##` run
-  renders as text that differs from its source, so the id cannot be predicted
-  from the source and none is emitted. A wholly non-ASCII heading gets
-  goldmark's degenerate `heading` fallback, which is not emitted either. Once a
-  heading in a document is unreadable this way, **no** later heading in that
-  document gets an id — goldmark's collision counter has moved on by an unknown
-  amount.
-- **Anchors switch themselves off if the renderer changes.** At first use the
-  server compiles a probe document and checks that the ids coming back are the
-  ids it predicted. On a mismatch it logs
-  `[search] section anchors disabled` and every result links at the page
-  instead. The alternative — sending readers to the wrong section of the right
-  page — looks like a bug in the note.
+- **An id can be absent while a label is present.** A heading can contain a
+  link, inline code, math, an entity, inline HTML, an underscore or a closing
+  `##` run. Such a heading renders as text that differs from its source, so
+  the server predicts no id and emits none. A heading that is wholly
+  non-ASCII gets the degenerate `heading` fallback of goldmark, and the server
+  does not emit that id either. After one heading in a document is unreadable
+  in this way, **no** later heading in that document gets an id. The collision
+  counter of goldmark has moved on by an unknown amount.
+- **Anchors switch off if the renderer changes.** At first use the server
+  compiles a probe document. It then checks that the returned ids are the ids
+  that it predicted. After a mismatch it logs
+  `[search] section anchors disabled`, and every result links at the page
+  instead. The alternative is to send the reader to the wrong section of the
+  right page, which looks like a fault in the note.
 
-Page scope reports sections but never anchors a result: the reader is already on
-the page, and the dialog highlights in place rather than navigating.
+Page scope reports sections, but it never anchors a result. The reader is
+already on the page, and the search panel highlights in place instead of
+opening another page.
 
 `highlight` is not the same thing as `spans`. `spans` are offsets into a
-snippet of the **source**; `highlight` is literal text to look for in the
-**rendered** page, which is a different document — the source line
-`**fetch** the json` renders as `fetch the json`, and no span from one survives
-into the other. Field prefixes are stripped (`tag:hydro` → `hydro`), terms
-shorter than 2 runes are dropped, and the text is **not** folded: the client
-marks literal occurrences, and folding maps `ё` to `е`, so the folded form of a
-term may appear nowhere on the page. A term that only matched fuzzily will not
-be found and nothing is marked — which is the honest outcome.
+snippet of the **Markdown source**. `highlight` is literal text for the client
+to find in the **rendered** page. The rendered page is a different document.
+The source line `**fetch** the json` renders as `fetch the json`, so no span
+from the source is valid in the rendered page.
 
-**Files larger than 500 KiB** are searched up to that point, cut at a line
-boundary, and the result carries `"truncated": true` — "found nothing in the
-part I looked at" rather than silence.
+The server strips a field prefix from each `highlight` term (`tag:hydro` →
+`hydro`) and drops a term shorter than 2 runes. The server does **not** fold
+the text. The client marks literal occurrences, and folding maps `ё` to `е`,
+so the folded form of a term can appear nowhere on the page. If a term matched
+only fuzzily, the client finds nothing and marks nothing. This reports the true
+result.
+
+**For a file larger than 500 KiB**, the server searches up to that point and
+cuts at a line boundary. The result then carries `"truncated": true`. This
+tells the client that the server found nothing in the part that it read,
+instead of saying nothing at all.
 
 #### `GET /OMNGoSearch.html`
 
-The results page: the same search as `scope=all`, rendered as a shareable,
-JavaScript-free page. Special-cased in `serveHTMLPage` beside `Config` and
-`OMNGoTags`, and **dynamic like `Config`** - there is no `md/OMNGoSearch.md`,
-nothing is written to the `html/` cache, and `?refresh` means nothing here.
+The search page runs the same search as `scope=all` and renders it as a page
+that you can share and that needs no JavaScript. `serveHTMLPage` handles it as
+a special case beside `Config` and `OMNGoTags`. It is **dynamic like `Config`**
+- there is no `md/OMNGoSearch.md`, the server writes nothing to the `html/`
+cache, and `?refresh` has no effect here.
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `q` | string | no | — | The query. Absent or empty renders just the form |
 
-Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>` — see
+Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>`. See
 `?hl=` below.
 
-Global only. With `search_enabled` off it answers **200** with an explanation
-of what global search costs, a link to `/Config.html#cfg-search`, and no search
-form — submitting one would land straight back here. The query parameter is
-ignored in that state rather than producing an empty result list, which would
-read as "nothing matched".
+The search page is global only. With `search_enabled` off, it answers **200**
+with an explanation of what global search costs and a link to
+`/Config.html#cfg-search`. It shows no search form, because a submitted form
+would return to this same page. In that state the page ignores the query
+parameter. An empty result list would read as "nothing matched".
 
-It used to answer 404 on the reasoning that a permanently empty page is worse
-than an honest miss. That was wrong about who arrives here: the address is
-linkable and users put a "Search" link on their own notes, so the 404 was a
-dead end that named neither the cause nor the cure.
+The page answered 404 before. The reason was that a permanently empty page is
+worse than a true miss. That reason was wrong about who opens this address. The
+address is linkable, and users put a "Search" link on their own notes. The 404
+was therefore a dead end that named neither the cause nor the cure.
 
 #### `?hl=<term>` — highlight on arrival
 
-Any page accepts repeated `hl` parameters. On load the client marks every
-literal occurrence of those terms in `#preview`, scrolls to the first, and then
-removes the parameters from the address bar with `history.replaceState` — so
-the URL that gets copied, bookmarked or reloaded is the plain one, and a
-refresh does not re-apply the highlight.
+Any page accepts repeated `hl` parameters. At load the client marks every
+literal occurrence of those terms in `#preview` and scrolls to the first one.
+The client then removes the parameters from the address bar with
+`history.replaceState`. The URL that the user copies, bookmarks or reloads is
+therefore the plain one, and a refresh does not apply the highlight again.
 
-Repeated parameters rather than one comma-joined value: a term may itself
-contain a comma. Terms shorter than 2 runes are ignored (`OMN_HL_MIN` in
-`omn-go-core.js`, `highlightMinRunes` in `search.go` — the two ends agree).
+The parameter repeats instead of one comma-joined value, because a term can
+contain a comma. The client ignores a term shorter than 2 runes (`OMN_HL_MIN`
+in `omn-go-core.js`, `highlightMinRunes` in `search.go` — the two ends agree).
 
-Handled entirely in `omn-go-core.js`, so it works on a page opened from disk
-with no server running, and on pages the search dialog never loads on.
+`omn-go-core.js` handles all of this. The highlight therefore works on a page
+opened from disk with no server running, and on a page that the search panel
+never loads.
 
-When the URL also carries a fragment — `/Bookmarks.html?hl=cats#2026-06-15-200000`
-— the terms are still marked but the **scroll is left to the anchor**, which is
-the more precise target.
+When the URL also carries a fragment, for example
+`/Bookmarks.html?hl=cats#2026-06-15-200000`, the client still marks the terms.
+It leaves the **scroll to the anchor**, which is the more precise target.
 
 **Errors**
 
@@ -599,9 +612,9 @@ the more precise target.
 | `503` | `{"status":"disabled","error":"global search is off …"}` | `scope=all` with `search_enabled` false — the user can act on this |
 | `503` | `{"status":"unavailable","error":"the search index is not ready"}` | `scope=all`, enabled, but no index yet — the user cannot |
 
-A miss is always `200` with no results. `on` pointing outside the storage
-directory, or at a file that does not exist, is a miss — never a way to probe
-the filesystem.
+A miss is always `200` with no results. If `on` points outside the storage
+directory, or at a file that does not exist, the answer is a miss. The endpoint
+is never a way to probe the filesystem.
 
 ---
 
@@ -609,12 +622,12 @@ the filesystem.
 
 Both upload endpoints share `saveUploadedFile`:
 
-* the multipart form is parsed with a 10 MB in-memory threshold (this is
-  *not* the size cap);
-* the extension is checked case-insensitively against a whitelist;
-* `header.Size` is checked against `max_upload_size_mb` (default **3 MB**);
-* the file is written to its destination directory under its **original
-  filename** — an existing file with the same name is overwritten.
+* It parses the multipart form with a 10 MB in-memory threshold. This
+  threshold is *not* the size cap.
+* It checks the extension against a whitelist and ignores case.
+* It checks `header.Size` against `max_upload_size_mb` (default **3 MB**).
+* It saves the file to the destination directory under the **original
+  filename**. It overwrites an existing file with the same name.
 
 #### `POST /api/upload`
 
@@ -624,7 +637,8 @@ Both upload endpoints share `saveUploadedFile`:
 | --- | --- | --- | --- |
 | `image` | file | yes | Allowed: `.png .jpg .jpeg .gif .webp .svg` |
 
-Stored in `html/images/`, served from `/images/<filename>`.
+The server saves the file in `html/images/` and serves it from
+`/images/<filename>`.
 
 **Responses**
 
@@ -646,7 +660,8 @@ curl -F 'image=@shot.png' http://127.0.0.1:8080/api/upload
 | --- | --- | --- | --- |
 | `file` | file | yes | Allowed: `.json .jsonl` |
 
-Stored in `html/user_json/`, served from `/user_json/<filename>`.
+The server saves the file in `html/user_json/` and serves it from
+`/user_json/<filename>`.
 
 **Responses**
 
@@ -661,9 +676,9 @@ Stored in `html/user_json/`, served from `/user_json/<filename>`.
 
 #### `GET /api/config`
 
-Return the entire live configuration as JSON. **This includes
-`admin_password`, `guest_password` and every git server's SSH private key
-and password in cleartext.**
+Return the whole live configuration as JSON. **The response includes
+`admin_password`, `guest_password`, and the SSH private key and password of
+every git server slot, all in cleartext.**
 
 **Response** `200`, `application/json`:
 
@@ -715,18 +730,18 @@ and password in cleartext.**
 | `enable_termux_intent` | bool | `false` | Android only — allow Termux `RUN_COMMAND`; requires `enable_intent_uri` too |
 | `android_fullscreen` | string | `fullscreen` | `off` \| `fullscreen` \| `immersive` |
 
-`enable_intent_uri`, `enable_termux_intent`, `android_fullscreen` and
-`max_upload_size_mb` are read natively by `MainActivity` out of
-`config.json`, not through this API.
+`MainActivity` reads `enable_intent_uri`, `enable_termux_intent`,
+`android_fullscreen` and `max_upload_size_mb` natively from `config.json`,
+not through this API.
 
 #### `POST /api/config`
 
-Update the configuration and persist it to `config.json`.
+Update the configuration and save it to `config.json`.
 Content type: `application/x-www-form-urlencoded` (or query string).
 
-**Parameters** — every field is optional; an absent field leaves the stored
-value unchanged, *except* the checkbox and select fields noted below, where
-"absent" is meaningful.
+**Parameters** — every field is optional. An absent field leaves the stored
+value unchanged. The exceptions are the checkbox and select fields below,
+where an absent field has a meaning.
 
 | Name | Type | Applied when | Notes |
 | --- | --- | --- | --- |
@@ -750,11 +765,11 @@ value unchanged, *except* the checkbox and select fields noted below, where
 | `git_key_<i>` | string | | SSH private key text |
 | `git_pass_<i>` | string | | |
 
-A git slot `i` is rewritten **only if at least one** of
-`git_name_<i>` / `git_url_<i>` / `git_key_<i>` / `git_pass_<i>` is
-non-empty; when that holds, all four fields of the slot are replaced with
-the submitted values (so a single field can be cleared, but not all four at
-once).
+The endpoint rewrites git server slot `i` **only if at least one** of
+`git_name_<i>`, `git_url_<i>`, `git_key_<i>` or `git_pass_<i>` is non-empty.
+It then replaces all four fields of the slot with the submitted values. You
+can therefore clear one field, but you cannot clear all four at the same
+time.
 
 **Responses**
 
@@ -769,8 +784,9 @@ once).
 
 #### `POST /api/restart`
 
-Restart the whole process so start-up-bound state (above all the listen
-address) is rebuilt from the saved config.
+Restart the whole process. The process then builds its start-up state again
+from the saved configuration. The listen address is the main part of that
+state.
 
 No parameters.
 
@@ -781,15 +797,17 @@ No parameters.
 | `200` | `Restarting` — written *before* the restart, so the caller actually receives it |
 | `405` | `Method Not Allowed` |
 
-The actual restart happens ~500 ms later on a background goroutine:
+The restart itself happens about 500 ms later on a background goroutine:
 
 * **Android** — `os.Exit(0)`. `ServerService` is `START_STICKY`, so the
-  system recreates it; the UI closes and the user reopens the app.
-* **Desktop** — spawns a fresh copy of the executable with
-  `OMN_GO_RESTARTED=1` in the environment, then exits. If the spawn fails
-  the current process keeps running (a working old instance beats none).
+  system creates it again. The user interface closes, and the user opens the
+  Android application again.
+* **Desktop** — the process starts a new copy of the executable with
+  `OMN_GO_RESTARTED=1` in the environment, then exits. If that start fails,
+  the current process continues to run, because a working old instance is
+  better than none.
 
-The client should expect the connection to drop.
+The client must expect the connection to drop.
 
 ---
 
@@ -797,8 +815,8 @@ The client should expect the connection to drop.
 
 #### `GET /api/edit-external`
 
-Open a file in the platform's external editor. Reached by redirect from
-`/<path>?edit=true` when `use_internal_editor` is `false`.
+Open a file in the external editor of the platform. When
+`use_internal_editor` is `false`, `/<path>?edit=true` redirects here.
 
 **Parameters** (query string)
 
@@ -814,10 +832,11 @@ Open a file in the platform's external editor. Reached by redirect from
 | Desktop | `200`, `text/html` | A full "editing externally" wait page pointing back at the view URL (`<base>.html` for a page, the raw name otherwise) |
 | any | `400` | `Missing name` |
 
-The editor command is `desktop_ext_cmd` if set (split on whitespace, the
-file path appended as the last argument), otherwise `xdg-open` on Linux,
-`open` on macOS, `rundll32 url.dll,FileProtocolHandler` on Windows. A
-failure to launch is logged only — the wait page is still returned `200`.
+If `desktop_ext_cmd` is set, it is the editor command. The server splits it
+on whitespace and adds the file path as the last argument. If it is not set,
+the command is `xdg-open` on Linux, `open` on macOS, and
+`rundll32 url.dll,FileProtocolHandler` on Windows. The server only logs a
+failure to start the editor. It still returns the wait page with `200`.
 
 ---
 
@@ -825,12 +844,13 @@ failure to launch is logged only — the wait page is still returned `200`.
 
 #### `GET /api/logs`
 
-Server-Sent Events stream of everything the Go backend writes through the
-standard `log` package. Consumed by the frontend progress overlay
-(`omn-go-sse.js`) so sync progress reflects real backend stages.
+Server-Sent Events stream of everything the backend writes through the
+standard `log` package. The progress overlay of the frontend
+(`omn-go-sse.js`) reads this stream, so the sync progress shows the real
+stages of the backend.
 
-No parameters. **No authentication** — every log line the server emits is
-readable by any client that can reach the port.
+No parameters. **No authentication.** Any client that can reach the port can
+read every log line that the server writes.
 
 **Response headers**
 
@@ -849,11 +869,11 @@ data: 2026/07/27 14:05:01 [sync] fast-forward complete
 
 ```
 
-Each subscriber gets a 10-slot buffered channel; when it is full further
-messages for that subscriber are **dropped**, never blocked. The stream
-ends when the client disconnects (`r.Context().Done()`). If the
-`ResponseWriter` does not implement `http.Flusher` the handler returns
-immediately with an empty `200`.
+Each subscriber gets a buffered channel with 10 slots. When that channel is
+full, the server **drops** further messages for that subscriber and never
+blocks. The stream ends when the client disconnects (`r.Context().Done()`).
+If the `ResponseWriter` does not implement `http.Flusher`, the endpoint
+returns an empty `200` at once.
 
 ```js
 const es = new EventSource('/api/logs');
@@ -866,10 +886,10 @@ es.onmessage = e => console.log(e.data);
 
 #### `POST /api/sql`
 
-Run one atomic batch of SQL statements against one named server-side
-SQLite database, stored at `<storage>/db/<name>.sqlite`. Replaces the
-removed WebSQL API; the browser-side wrapper is `omnGoOpenDatabase()` in
-`omn-go-core.js`.
+Run one atomic batch of SQL statements against one named SQLite database on
+the server. The server stores the database at `<storage>/db/<name>.sqlite`.
+This endpoint replaces the removed WebSQL API. The wrapper in the browser is
+`omnGoOpenDatabase()` in `omn-go-core.js`.
 
 **Headers**: `Content-Type: application/json`
 
@@ -893,22 +913,24 @@ removed WebSQL API; the browser-side wrapper is `omnGoOpenDatabase()` in
 | `statements[].sql` | string | yes | Arbitrary SQL |
 | `statements[].args` | array | no | Positional `?` bindings; JSON scalars |
 
-Whole request body is capped at **1 MB** (`http.MaxBytesReader`).
+`http.MaxBytesReader` caps the whole request body at **1 MB**.
 
 **Execution semantics**
 
-* All statements run inside **one transaction**. Any failure rolls the
-  whole batch back — this is what gives the JS shim's `batch()` atomicity.
-* `Query` vs `Exec` is chosen per statement by first-keyword sniffing:
-  `SELECT`, `WITH`, `PRAGMA`, `EXPLAIN`, `VALUES` return rows; everything
-  else returns counters.
-* `[]byte` column values are returned as strings, not base64.
-* A stale-file-handle error (`SQLITE_READONLY_DBMOVED`, code 1032 — caused
-  by a git pull swapping the file underneath) is self-healed **once**: the
-  cached handle is evicted, the database reopened, and the whole batch
-  retried from scratch.
-* Opening a database that has backups but **no** `.sqlite` file at all
-  triggers the one automatic restore in the app (see
+* All statements run inside **one transaction**. Any failure rolls the whole
+  batch back. This gives the `batch()` function of the JavaScript shim its
+  atomicity.
+* The endpoint chooses `Query` or `Exec` for each statement from the first
+  keyword. `SELECT`, `WITH`, `PRAGMA`, `EXPLAIN` and `VALUES` return rows.
+  Every other statement returns counters.
+* The endpoint returns a `[]byte` column value as a string, not as base64.
+* The endpoint repairs a stale-file-handle error
+  (`SQLITE_READONLY_DBMOVED`, code 1032) **once**. It removes the cached
+  handle, opens the database again, and runs the whole batch again from the
+  start. A git pull that replaces the file under the open handle causes this
+  error.
+* If a database has backups but **no** `.sqlite` file, an open of that
+  database starts the one automatic restore in OMN-Go (see
   [§4.8](#48-database-backups)).
 
 **Success response** — `200`, `application/json`:
@@ -925,8 +947,8 @@ Whole request body is capped at **1 MB** (`http.MaxBytesReader`).
 }
 ```
 
-`results` is index-aligned with the statements that ran. `columns` and
-`rows` are omitted for non-row statements.
+`results` has the same index order as the statements that ran. A statement
+that returns no rows has no `columns` field and no `rows` field.
 
 **Error response**
 
@@ -951,9 +973,10 @@ Whole request body is capped at **1 MB** (`http.MaxBytesReader`).
 
 ### 4.9 Database backups
 
-Backups are **JSON Lines** (`.jsonl`) dumps of one user database, stored
-at `html/db_backup/<db>/<timestamp>_<hostname>.jsonl` — under `html/`, so
-they travel through git sync like any other file.
+A backup is a **JSON Lines** (`.jsonl`) copy of one user database. The
+server stores it at `html/db_backup/<db>/<timestamp>_<hostname>.jsonl`. This
+path is under `html/`, so a backup travels through git sync like any other
+file.
 
 Filename grammar (also the traversal guard for `file`):
 
@@ -961,21 +984,21 @@ Filename grammar (also the traversal guard for `file`):
 ^[0-9]{8}T[0-9]{6}Z(_[0-9]+)?_[A-Za-z0-9_-]{1,64}\.jsonl$
 ```
 
-e.g. `20260727T140500Z_pixel7.jsonl`. Lexicographic order equals
-chronological order, so listings are sorted newest-first.
+An example is `20260727T140500Z_pixel7.jsonl`. Lexicographic order is the
+same as chronological order, so the server sorts a listing newest-first.
 
-Each file starts with a header line, followed by one line per schema object
-and per row:
+Each file starts with a header line. After that line there is one line for
+each schema object and one line for each row:
 
 ```json
 {"format":"omngo-db-backup","version":1,"database":"mydata",
  "created":"2026-07-27T14:05:00Z","hostname":"pixel7","objects":3,"rows":42}
 ```
 
-Backups are **manual** — there is exactly one automatic case:
+Backups are **manual**. There is exactly one automatic case.
 `bootstrapIfMissing` restores the newest backup when a database has backups
-but no `.sqlite` file at all (a fresh device right after a pull), because
-there is no local state that could be destroyed.
+but no `.sqlite` file at all. This is a new device directly after a pull. In
+that state there is no local data that the restore could destroy.
 
 #### `POST /api/db/backup`
 
@@ -985,7 +1008,7 @@ there is no local state that could be destroyed.
 | --- | --- | --- | --- |
 | `db` | string | yes | `^[A-Za-z0-9_-]{1,64}$` |
 
-Creates a backup and prunes older ones beyond `backup_prune_depth`.
+Creates a backup and deletes the older backups beyond `backup_prune_depth`.
 
 **Responses**
 
@@ -996,12 +1019,14 @@ Creates a backup and prunes older ones beyond `backup_prune_depth`.
 | `405` | `{"status":"error","message":"POST only"}` |
 | `500` | `{"status":"error","message":"<reason>"}` |
 
-`pruned` holds storage-relative paths of the files removed.
+`pruned` holds the paths of the removed files, relative to the storage
+directory.
 
 #### `GET /api/db/backups`
 
-Everything the `/db_backups` page needs, in one read-only call — it never
-opens a database (opening would trigger the bootstrap restore).
+One read-only call that returns everything the Database Backups page needs.
+The endpoint never opens a database, because an open would start the
+bootstrap restore.
 
 No parameters.
 
@@ -1036,9 +1061,10 @@ No parameters.
 }
 ```
 
-`databases` is the union of names that have a `.sqlite` file and names that
-only have a backup directory, sorted alphabetically. `backups` is sorted
-newest-first and is always an array (never `null`).
+`databases` is the union of the names that have a `.sqlite` file and the
+names that only have a backup directory. The server sorts that union
+alphabetically. It sorts `backups` newest-first. `backups` is always an
+array, never `null`.
 
 **`state` values**
 
@@ -1066,11 +1092,11 @@ A backup entry with `"valid": false` carries `"error": "<reason>"`.
 | `db` | string | yes | `^[A-Za-z0-9_-]{1,64}$` |
 | `file` | string | yes | Must match the backup filename grammar above |
 
-Restores destructively into `<storage>/db/<db>.sqlite`. Serialized against
-the bootstrap restore by `dbRestoreMu`; the open handle is evicted so the
-next `/api/sql` call reopens the new file. The restored `.sqlite` mtime is
-set equal to the backup's, so the page's state dot reads `insync`
-immediately.
+Restores into `<storage>/db/<db>.sqlite` and destroys the current content.
+`dbRestoreMu` serializes this endpoint against the bootstrap restore. The
+endpoint removes the open handle, so the next `/api/sql` call opens the new
+file. It sets the mtime of the restored `.sqlite` file to the mtime of the
+backup. The state dot on the page therefore reads `insync` at once.
 
 **Responses**
 
@@ -1088,10 +1114,10 @@ immediately.
 #### `POST /api/sync`
 
 Run one git action against the active remote (`git_servers[active_git_index]`).
-All repository mutation is serialized by `GitMutex`.
+`GitMutex` serializes every change to the repository.
 
-**Parameters** — read with `r.FormValue`, so a POST body **or** a query
-string works (the frontend uses both).
+**Parameters** — the endpoint reads them with `r.FormValue`, so a POST body
+**or** a query string works. The frontend uses both.
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -1101,7 +1127,7 @@ string works (the frontend uses both).
 
 **Actions**
 
-| `action` | Aliases | Behaviour |
+| `action` | Aliases | Behavior |
 | --- | --- | --- |
 | `pull` | `pull_ff`, `download` | Fast-forward if possible; `conflict` if history diverged or local changes are in the way |
 | `pull_mark` | — | After a `pull` conflict: write 3-way conflict markers for manual resolution |
@@ -1110,7 +1136,7 @@ string works (the frontend uses both).
 | `push` | `upload` | Commit local changes (requires `message`) then push; stops on conflict |
 | `push_force` | `upload_force` | Commit if needed, then force-push, resetting the remote |
 
-**Responses** — always `200 OK` with `application/json`; the outcome is in
+**Responses** — always `200 OK` with `application/json`. The outcome is in
 `status`.
 
 | `status` | `message` | Extra |
@@ -1134,8 +1160,8 @@ curl -X POST http://127.0.0.1:8080/api/sync \
 
 #### `GET /api/sync/preview`
 
-Dry-run of what an upload would do: what there is to commit, **and** whether
-there is anything to push without committing anything.
+Dry run of an upload. It reports what there is to commit, **and** whether
+there is anything to push. It commits nothing.
 
 **Parameters** (query string)
 
@@ -1143,10 +1169,11 @@ there is anything to push without committing anything.
 | --- | --- | --- | --- |
 | `action` | string | yes | Must be `upload` — nothing else is supported |
 
-Files are taken from `git status`, minus anything matched by `.gitignore`
-and minus the root `config.json` (which is never synced — it holds
-per-device secrets). Database backups need no special handling: they are
-ordinary files under `html/db_backup/` and show up in the same scan.
+The endpoint takes the files from `git status`. It removes anything that
+`.gitignore` matches, and it removes the root `config.json`. The
+`config.json` file is never synced, because it holds the secrets of one
+device. Database backups need no special handling. They are ordinary files
+under `html/db_backup/`, and the same scan finds them.
 
 **Response** `200`
 
@@ -1162,29 +1189,33 @@ ordinary files under `html/db_backup/` and show up in the same scan.
 | `verified` | The remote itself was contacted, not just the local remote-tracking ref. Only the local-view-says-level path goes to the network, so this is absent whenever the local refs alone settled the answer |
 | `remote_error` | Why the remote could not be reached, when it could not |
 
-**`unpushed` is the reason this endpoint is not just a file list.** An empty
-`files` does not mean there is nothing to upload: a commit whose push failed,
-or a git profile switched after a successful push, leaves commits the active
-remote has never seen. A client that reads `files.length === 0` as "nothing to
-do" strands them.
+**`unpushed` is the reason this endpoint is more than a file list.** An empty
+`files` does not mean that there is nothing to upload. A commit with a failed
+push leaves commits that the active remote has never seen. A change of git
+server slot after a successful push does the same. A client that reads
+`files.length === 0` as "nothing to do" strands those commits.
 
-It is computed local-first and errs towards `true`:
+The server computes `unpushed` from local data first, and it prefers `true`
+when it is not sure:
 
 1. No local HEAD → `false`.
 2. `refs/remotes/<active>/master` missing, or different from HEAD → `true`.
-   Each profile slot owns its own named remote, so a never-contacted slot has
-   no such ref, which is the profile-switch case.
-3. Otherwise the local view says level — the one answer that would stop a
-   client pushing, so it is confirmed against the remote with a refs listing
-   (`ls-remote`; no objects are downloaded) before being reported. If that
-   fails, `remote_error` is set and `verified` stays absent.
+   Each git server slot owns its own named remote. A slot that the server has
+   never contacted has no such ref. This is the case of a changed slot.
+3. In every other case the local view says that HEAD is level with the
+   remote. This is the one answer that would stop a client from a push. The
+   server therefore confirms it against the remote with a refs listing
+   (`ls-remote`) before it reports the answer. This listing downloads no
+   objects. If the listing fails, the server sets `remote_error` and leaves
+   `verified` absent.
 
-`unpushed` is only computed when `files` is empty — with something to commit
-the upload proceeds regardless, so the answer would change nothing.
+The server computes `unpushed` only when `files` is empty. When there is
+something to commit, the upload runs anyway, so the answer would change
+nothing.
 
-A false `true` costs one round trip: `push` reports already-up-to-date
-harmlessly. A false `false` costs the user their commits, which is why the
-asymmetry is deliberate.
+A wrong `true` costs one round trip, because `push` then reports
+already-up-to-date and does no harm. A wrong `false` costs the user their
+commits. The asymmetry is deliberate for this reason.
 
 | Status | Content-Type | Body |
 | --- | --- | --- |
@@ -1196,11 +1227,12 @@ asymmetry is deliberate.
 
 ## 5. Page and asset routes
 
-Not JSON endpoints, but part of the server's URL surface.
+These are not JSON endpoints, but they are part of the URL surface of the
+server.
 
 ### 5.1 Markdown pages
 
-| URL | Behaviour |
+| URL | Behavior |
 | --- | --- |
 | `/` , `/index.html` | `303 See Other` → `/Welcome.html` |
 | `/<name>.html` | Rendered page. If the `.html` cache is missing or older than `md/<name>.md`, it is recompiled first. A missing `.md` is created from the embedded default or a stub — **a page URL does not 404** |
@@ -1218,11 +1250,11 @@ Not JSON endpoints, but part of the server's URL surface.
 | URL | Served by | Notes |
 | --- | --- | --- |
 | `/Config.html` | `serveConfigPage` | Rendered server-side; posts to `/api/config` |
-| `/OMNGoTags.html` | `serveTagsPage` | Auto-generated tag index; staleness is checked against the newest mtime of **all** notes, not one source. Honours `?refresh` |
-| `/db_backups` | `serveDBBackupsPage` | Admin page; all data comes from `GET /api/db/backups`. **Admin-protected**, unlike other pages |
-| `/OMNGoFiles.html` | `serveFilesPage` | Directory index of the embedded and on-disk file trees. **Admin-protected**; see §5.3 |
+| `/OMNGoTags.html` | `serveTagsPage` | Auto-generated tag index; staleness is checked against the newest mtime of **all** notes, not one source. Honors `?refresh` |
+| `/db_backups` | `serveDBBackupsPage` | Admin page. All data comes from `GET /api/db/backups`. **Admin-only**, unlike other pages |
+| `/OMNGoFiles.html` | `serveFilesPage` | The file index of the embedded and on-disk file trees. **Admin-only**. See §5.3 |
 
-Served pages have `injectRuntimeVars` applied, which splices in:
+`injectRuntimeVars` adds this block to every served page:
 
 ```html
 <script>var APP_VERSION = "1.11.32"; var USE_INTERNAL_ED = true; var OMN_THEME = "auto";
@@ -1249,14 +1281,14 @@ first:
 
 `.jsonl` resolves to `application/jsonl`.
 
-### 5.3 Directory index
+### 5.3 The file index
 
 #### `GET /OMNGoFiles.html`
 
-A listing of everything the app can serve, in the shape a browser uses for
-`file:///` — **one directory at a time**, with a breadcrumb up and links down.
-Two sections per directory, because a file can exist in one, the other, or both
-and the difference matters:
+The file index lists everything that OMN-Go can serve, in the shape that a
+browser uses for `file:///`. It shows **one directory at a time**, with a
+breadcrumb up and links down. Each directory has two sections, because a file
+can exist in one section, in the other, or in both, and the difference matters:
 
 | Section | Source | What a row means |
 | --- | --- | --- |
@@ -1270,57 +1302,61 @@ and the difference matters:
 | `dir` | string | no | root | Directory to show, relative to `html/`, e.g. `js/`, `Test/OMN-Go/` |
 | `all` | `1`, `true` | no | — | Show every file in the directory instead of the first 200 |
 
-`dir` is normalised by `normalizeFilesDir`: `..` segments are resolved and a
-result that would climb above the root collapses to the root. It is only ever
-used as a **string prefix over paths already collected** from the two roots —
-it is never joined onto a filesystem path, so a value naming nothing simply
+`normalizeFilesDir` normalizes `dir`. It resolves `..` segments, and a result
+that would climb above the root collapses to the root. The page uses `dir` only
+as a **string prefix over the paths already collected** from the two roots. It
+never joins `dir` onto a filesystem path. A value that names nothing therefore
 matches nothing and renders an empty directory with a working breadcrumb.
 
-**Authorization.** Admin, with the usual local-connection bypass. It is
-registered as its own exact route rather than dispatched from `serveHTMLPage`,
-because the catch-all that serves every other page is unauthenticated —
-`/db_backups` is a separate route for the same reason. It does **not** wrap
-`authMiddleware`: a guest gets a **200** and a page explaining that the listing
-is administrator-only and how to log in, not the middleware's one line of plain
-text. Same lesson as the search page's 404 (26.08.2) — this address is
-linkable, so a refusal has to name the cause and the cure. No filename appears
-anywhere in the refusal.
+**Authorization.** The page is admin-only, with the usual local connection
+bypass. The server registers it as its own exact route, and does not dispatch
+it from `serveHTMLPage`. The reason is that the catch-all that serves every
+other page needs no authentication. `/db_backups` is a separate route for the
+same reason.
+
+The page does **not** wrap `authMiddleware`. A guest gets a **200** and a page
+that says the listing is admin-only and how to log in. A guest does not get
+the one plain-text line of the middleware. This is the same lesson as the 404
+of the search page (26.08.2). The address is linkable, so a refusal must name
+the cause and the cure. No filename appears anywhere in the refusal.
 
 **What is never listed**
 
-* `frontend/templates` — it lives in `templatesFS`, a separate embed, so it
-  cannot appear by construction rather than by an exclusion rule.
-* `db_backup/` — database dumps, excluded by name. A listing decision, not an
-  access control: the files remain fetchable by anyone who can reach the
-  server, exactly as before this page existed.
+* `frontend/templates` — this directory lives in `templatesFS`, a separate
+  embed. It cannot appear for that reason, not because of an exclusion rule.
+* `db_backup/` — the page excludes the database backups by name. This is a
+  listing decision and not an access control. Anyone who can reach the server
+  can still fetch the files, exactly as before this page existed.
 
 **Row extras**
 
-* An **edit** link appears only where editing in place makes sense — text-ish
-  content by resolved content type (`.js`, `.json`, `.css`, `.md`, …). Never on
-  images, fonts, audio or video, and never on `.html`, which is edited by
-  opening it and using the page's own Edit button.
-* Embedded rows carry `on disk` / `not yet` and `app-owned` / `yours`.
-  App-owned means the file is in `versionDependentAssets`: on the next
-  `APP_VERSION` change `refreshEmbeddedAssets` backs your copy up and replaces
-  it. `yours` is extracted once and then left alone.
+* An **edit** link appears only where an edit in place makes sense. The page
+  decides this from the resolved content type and shows the link for text
+  content (`.js`, `.json`, `.css`, `.md`, …). There is no edit link on an
+  image, a font, audio or video. There is also no edit link on an `.html`
+  file. To edit a page, open it and press the Edit button of that page.
+* An embedded row carries `on disk` or `not yet`, and `app-owned` or `yours`.
+  `app-owned` means that the file is in `versionDependentAssets`. At the next
+  change of `APP_VERSION`, `refreshEmbeddedAssets` creates a backup of your
+  copy and replaces it. The server extracts a `yours` file once and then
+  leaves it alone.
 
-Directory totals are **recursive** — a directory row's file count and size
-cover its whole subtree, so the number answers "how big is this" rather than
+Directory totals are **recursive**. The file count and size in a directory row
+cover the whole subtree. The number therefore answers "how big is this" and not
 "how many rows are directly inside".
 
-**The 200-file cap** applies to files only; directory rows are never capped, so
-navigation always works. When it trims, the page says how many it withheld and
-offers `all=1` carrying the true total. Dynamic like `Config` and
-`OMNGoSearch`: no `md/` source, nothing written to the `html/` cache, and the
-page itself writes nothing at all.
+**The 200-file cap** applies to files only. The page never caps directory rows,
+so navigation always works. When the page trims the list, it says how many
+files it held back and offers `all=1` with the true total. The page is dynamic
+like `Config` and `OMNGoSearch`. There is no `md/` source, the server writes
+nothing to the `html/` cache, and the page itself writes nothing at all.
 
 ---
 
 ## 6. 404 handling
 
-Every miss funnels through `serveNotFound`, which **content-negotiates on
-the `Accept` header**:
+Every miss goes through `serveNotFound`. This function **negotiates the
+content type on the `Accept` header**:
 
 * `Accept` contains `text/html` (a browser navigation) → the full themed
   404 page, `text/html; charset=utf-8`.
@@ -1337,12 +1373,14 @@ Linked from: /Welcome.html
 Did you mean: /Notes.html
 ```
 
-`Linked from` appears only when the `Referer` points at this same server
-and contains no `..`; only its path is echoed. `Did you mean` appears when
-the failing path has no extension but a note of that name exists — the
-`[text](name)` instead of `[text](name.html)` mistake.
+`Linked from` appears only when the `Referer` points at this same server and
+contains no `..`. The server echoes the path of the `Referer` and nothing
+else. `Did you mean` appears when the failing path has no extension and a
+note with that name exists. This is the `[text](name)` mistake in place of
+`[text](name.html)`.
 
-Every miss also emits one log line, visible on the `/api/logs` stream:
+Every miss also writes one log line, which is visible on the `/api/logs`
+stream:
 
 ```
 [404] GET /js/missing.js (referer "/Welcome.html")
@@ -1366,23 +1404,22 @@ Every miss also emits one log line, visible on the `/api/logs` stream:
 
 ## 8. Notes for API clients
 
-* **Do not expose this server to an untrusted network.** `share_lan` plus
-  the admin password is the only barrier, there is no TLS, `GET
-  /api/config` hands out every stored secret in cleartext, `POST /api/sql`
-  is arbitrary SQL, and `/api/note` and `/api/logs` are unauthenticated
-  outright.
-* From `127.0.0.1` no authentication is needed at all — scripts on the same
-  device can drive the whole API directly.
-* Success is not always signalled by the status code: `/api/sync` returns
-  `200` with `{"status":"error"}`, and `/api/quick` returns `200` with an
-  empty body when it wrote nothing.
-* Plain-text endpoints return bare words without a trailing newline
-  (`Saved`, `OK`, `Restarting`); compare after trimming.
-* `/api/newpage` returns the *resolved* target, which may differ from what
-  was submitted — use the response, not the request, to build the follow-up
-  URL.
-* Two endpoints return content designed to be spliced into a note verbatim,
-  newlines included: `/api/upload` and `/api/upload_json`.
-* `/api/sync/preview` used to return a bare JSON array, and `null` rather
-  than `[]` when nothing had changed. It now returns an object whose `files`
-  is always an array — see §4 for why the extra fields exist.
+* **Do not expose this server to an untrusted network.** `share_lan` and the
+  admin password are the only barrier. There is no TLS. `GET /api/config`
+  returns every stored secret in cleartext. `POST /api/sql` runs arbitrary
+  SQL. `/api/note` and `/api/logs` need no authentication at all.
+* From `127.0.0.1` no authentication is needed. A script on the same device
+  can drive the whole API directly.
+* The status code does not always signal success. `/api/sync` returns `200`
+  with `{"status":"error"}`. `/api/quick` returns `200` with an empty body
+  when it wrote nothing.
+* A plain-text endpoint returns a bare word with no trailing newline
+  (`Saved`, `OK`, `Restarting`). Trim the response before you compare it.
+* `/api/newpage` returns the *resolved* target, which can differ from the
+  submitted target. Build the follow-up URL from the response, not from the
+  request.
+* Two endpoints return content for a verbatim splice into a note, with the
+  newlines: `/api/upload` and `/api/upload_json`.
+* `/api/sync/preview` returned a bare JSON array before, and `null` in place
+  of `[]` when nothing had changed. It now returns an object whose `files`
+  field is always an array. See §4 for the reason for the extra fields.

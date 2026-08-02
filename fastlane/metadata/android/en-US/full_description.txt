@@ -1,28 +1,28 @@
-OMN-Go is a self-hosted, Markdown-based personal wiki and notes app. It runs a small local web server on your device and serves your notes through a browser-style interface - no account, no cloud service, and no dependency on any third party to keep working.
+OMN-Go is a self-hosted personal wiki and note application that uses Markdown. It runs a small local web server on your device and shows your notes in a browser-style interface. It needs no account, no cloud service, and no third party to keep working.
 
-Notes are plain Markdown files with a small metadata header (title, date, tags), compiled to static HTML pages you can browse and link between using ordinary relative or absolute links.
+A note is a plain Markdown file with a small header block (title, date, tags). OMN-Go compiles each note to a static HTML page. You can read these pages and link between them with ordinary relative or absolute links.
 
 Key features:
 
-* Full Markdown editing, with an internal editor or your preferred external text editor.
-* Optional git synchronization over SSH, so the same notes stay up to date across every device you run OMN-Go on. Conflicts are shown clearly, with manual-merge and safe pull/push options.
-* Optional LAN sharing: off by default (the app only answers itself); when enabled, other devices on your network can reach your notes over HTTP with a password, useful for reading or editing from a second device without setting up sync.
-* An embedded SQL database that note scripts can read and write directly, with on-demand, git-trackable snapshots of its contents saved alongside your notes.
-* Quick capture: a one-tap quick-note box and a bookmark collector, including Android share-to-app support.
-* An automatically generated Tags page that indexes every note by its tags and works offline.
-* On Android, notes can open system settings screens, launch other apps, or run Termux commands through intent: links - off by default.
+* Full Markdown editing, with the built-in editor or your preferred external text editor.
+* Optional git synchronization over SSH, so the same notes stay up to date on every device that runs OMN-Go. OMN-Go shows each conflict clearly and gives you a manual merge or a safe pull or push.
+* Optional LAN sharing, off by default. In the default state, OMN-Go answers only local connections. If you enable LAN sharing, other devices on your network can reach your notes over HTTP with a password. This is useful to read or edit from a second device without git synchronization.
+* An embedded SQL database that note scripts can read and write directly. You can create a backup of its contents at any time. Git can track this backup, and OMN-Go saves it with your notes.
+* Quick capture: a quick-note box that opens with one press, and a bookmark collector. Both work with the Android share-to-application function.
+* The Tags page, which OMN-Go generates automatically. It indexes every note by its tags and works offline.
+* On Android, a note can open a system settings screen or start another application. It can also run a Termux command. These links use an intent: URI, and the function is off by default.
 * Math formulas (KaTeX, opt-in per page) and automatic syntax highlighting for fenced code blocks.
 * Light, dark, and system-following themes.
-* Material Design icons and small HTML/JS building blocks you can drop into any note.
+* Material Design icons and small HTML/JS building blocks that you can put into any note.
 
-OMN-Go also runs on the desktop. Linux and Windows builds are available at https://github.com/mvbasov/OMN-Go/releases - the same notes and the same interface, with optional git sync keeping a computer and a phone in step.
+OMN-Go also runs on the desktop. You can get the Linux and Windows builds at https://github.com/mvbasov/OMN-Go/releases - the same notes and the same interface. Optional git synchronization keeps a desktop device and a phone in step.
 
 I tried to describe as much as possible in the built-in documentation. Please read it.
 
 I design this application to my needs and use it everyday for several years. I will be glad if this application meets anybody needs also.
 
-The Telegram channel created to share news and usage tips for this application https://t.me/OMNNewsAndTips
+This Telegram channel shares news and usage tips for OMN-Go: https://t.me/OMNNewsAndTips
 
-OMN-Go does not include ads, analytics, or trackers of any kind, and does not require an internet connection for day-to-day note-taking - sync and LAN sharing are both entirely optional.
+OMN-Go does not include ads, analytics, or trackers of any kind. It does not need an internet connection for day-to-day work with your notes. Git synchronization and LAN sharing are both optional.
 
-AI coding assistants have been actively used in this app's development - for implementation, refactoring, and drafting supporting documentation such as this listing - alongside human review and direction.
+AI coding assistants did much of the development work on OMN-Go. They wrote code, refactored it, and drafted supporting documentation such as this listing. A human reviewed and directed this work.

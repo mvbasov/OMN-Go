@@ -28,7 +28,7 @@ This is ***your*** start page.
 Close [✕] the editor to click links.
 -->
 
-* [**User Manual**](UserManual) 🡄
+* [**User Manual**](UserManual) **☜**
 * [Bookmarks](Bookmarks)
 * [Quick Notes](QuickNotes)
 * [Search](OMNGoSearch)
