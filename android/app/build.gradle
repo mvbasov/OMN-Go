@@ -11,67 +11,40 @@ android {
         applicationId "net.basov.omngo"
         minSdk 24
         targetSdk 34
-        versionCode 2608005
-        versionName "26.08.5"
+        versionCode 2608006
+        versionName "26.08.6"
     }
 
 
-    // Two distribution channels, same source. "fdroid" gets its own
-    // applicationId (not just an ID suffix on the same one) so it can be
-    // installed alongside the standard build, and so F-Droid's own
-    // signing key never collides with the standard release's key - same
-    // package + a different signer would otherwise block installs or
-    // updates for anyone switching between the two sources. Gradle
-    // automatically overlays src/fdroid/res/ on top of src/main/res/ for
-    // this flavor (already used for the F-Droid launcher icon variant) -
-    // no extra wiring needed for that part.
-    //
-    // NOTE for CI: adding flavors changes the generated Gradle task
-    // names. `gradle assembleRelease` (used by Dockerfile.ci today) is
-    // no longer valid on its own - it becomes `assembleStandardRelease`
-    // / `assembleFdroidRelease` (or `assembleRelease` still works as an
-    // umbrella task that builds BOTH flavors' release variants, if
-    // that's preferred). Not changed here since the desktop/Docker build
-    // pipeline is out of scope for this change - flag for a follow-up
-    // once ready to wire the F-Droid build path into CI.
+    // The fdroid flavor needs its own applicationId, not an ID suffix, so
+    // both channels install side by side and the two signing keys never
+    // collide. Flavors also rename the Gradle tasks: assembleRelease is now
+    // an umbrella over assembleStandardRelease and assembleFdroidRelease.
     flavorDimensions "distribution"
     productFlavors {
         standard {
             dimension "distribution"
-            // Default channel: desktop-signed release (GitHub releases,
-            // direct APK download). No changes vs. current behavior.
             buildConfigField "int", "DEFAULT_SERVER_PORT", "8080"
         }
         fdroid {
             dimension "distribution"
-            // TODO: confirm exact spelling before first real submission -
-            // see accompanying notes.
+            // TODO: confirm this spelling before the first submission.
             applicationId "net.basov.omngo.fdroid"
             versionNameSuffix "-fdroid"
-            // Different DEFAULT port than the standard flavor: both
-            // flavors are installable side by side (that is the point of
-            // the separate applicationId above), but the loopback port is
-            // a device-global resource - with both defaulting to 8080,
-            // whichever app starts second loses the bind (and its WebView
-            // silently talks to the OTHER app's server). A user-configured
-            // server_port in config.json always wins over this default.
+            // The loopback port is device-global, so the flavors must differ.
             buildConfigField "int", "DEFAULT_SERVER_PORT", "8081"
         }
     }
 
-    // AGP 8 no longer generates BuildConfig by default; needed for the
-    // per-flavor DEFAULT_SERVER_PORT constants above.
+    // AGP 8 does not generate BuildConfig by default. The flavors need it.
     buildFeatures {
         buildConfig true
     }
 
     signingConfigs {
         release {
-            // KEYSTORE_FILE lets CI point at a BuildKit secret mount
-            // (e.g. /run/secrets/keystore) so the keystore never has to be
-            // COPYed into the image / baked into a layer. Local builds and
-            // F-Droid's own recipe fall back to the relative path in
-            // android/app, so their behavior is unchanged.
+            // KEYSTORE_FILE points CI at a secret mount, keeping the
+            // keystore out of every image layer.
             storeFile file(System.getenv("KEYSTORE_FILE") ?: 'omn-go.keystore')
             storePassword System.getenv("KEYSTORE_PASSWORD") ?: "fallback"
             keyAlias System.getenv("KEY_ALIAS") ?: "omn-go"
@@ -83,7 +56,7 @@ android {
             enable true
             reset()
             include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-            universalApk true // Set to false if you want ONLY the split APKs
+            universalApk true
         }
     }
 
@@ -107,16 +80,14 @@ android {
     }
 }
 
-// Per-ABI versionCode assignment for the F-Droid channel. Applies only
-// to the `fdroid` flavor; the standard flavor's versionCode is untouched.
-// Kept in a separate file so this main script stays focused on the build.
+// Per-ABI versionCode assignment, applied to the fdroid flavor only.
 apply from: 'fdroid-abi-versioncode.gradle'
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
 }
 
-// Suppress deprecated API usage notes during compilation (e.g. WebViewClient URL loading)
+// The WebViewClient URL loading API in use is deprecated but still needed.
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ["-Xlint:-deprecation"]
 }

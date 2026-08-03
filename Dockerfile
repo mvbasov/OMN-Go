@@ -5,29 +5,21 @@ ARG KEYSTORE_PASSWORD
 ARG KEY_ALIAS
 ARG KEY_PASSWORD
 
-# Set to 1 to skip the test gate for an emergency build:
-#   docker build --build-arg SKIP_TESTS=1 ...
+# Set to 1 to skip the test gate.
 ARG SKIP_TESTS=0
 
 COPY . .
 
-# Restore the fully-resolved go.mod/go.sum stashed by Dockerfile.base at
-# /root/lockfiles, undoing whatever the host's (go.sum-less, x/mobile-less)
-# copies the COPY above just brought in. No .dockerignore trickery needed.
+# The host go.mod from the COPY above has no go.sum.
 RUN cp /root/lockfiles/go.mod /root/lockfiles/go.sum ./
 
-# Safety net, not a resolution step: reconciles go.mod against the now-
-# fully-present source. Should be a no-op - and touch no network - as
-# long as go.mod hasn't drifted from what the source actually imports.
+# Safety net, not a resolution step. No network while go.mod matches
+# the source imports.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go mod tidy
 
-# Quality Gate: vet + unit tests must pass before ANY artifact is built.
-# Placed after go mod tidy (deps resolved) and before the desktop/APK
-# steps, so a red test aborts the build before minutes of gomobile/gradle
-# work. Deliberately run WITHOUT the release GOFLAGS (-s -w -trimpath)
-# exported inside the desktop build step below - those strip debug info
-# tests don't want anyway.
+# Quality gate before the desktop and APK steps, so a failing test aborts
+# early. The tests need the debug info the release GOFLAGS strip.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     if [ "$SKIP_TESTS" = "1" ]; then \
@@ -37,7 +29,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
         go test ./backend/...; \
     fi
 
-# Desktop Binary (OMN-Go naming convention)
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
@@ -45,18 +36,14 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
-# Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
+# Strictly no AndroidX or AppCompat.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p android/app/libs && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
-# Explicitly the "standard" flavor only - never "fdroid". The fdroid
-# variant is built exclusively by F-Droid's own build server, from its
-# own recipe (see metadata/net.basov.omngo.fdroid.yml); building it here
-# would be pointless (F-Droid re-signs with its own key regardless) and
-# risks producing/publishing an APK that looks official but isn't what
-# F-Droid actually distributes.
+# Standard flavor only. F-Droid builds and signs its own fdroid APK,
+# which an APK built here would not match.
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     cd android && \
     gradle assembleStandardRelease && \

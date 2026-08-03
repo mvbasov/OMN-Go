@@ -1,19 +1,8 @@
 // --- OMN-Go Core Architecture ---
-// These modules are strictly for offline viewing, Markdown rendering, and UI manipulation.
 
-// Single source of truth for KaTeX auto-render config, used by the one
-// call site in this file (see window.onload below). There used to be a
-// SECOND call inside a MutationObserver watching #preview for any DOM
-// change - including the very DOM changes KaTeX's own render produces
-// (replacing "$...$" text with <span class="katex">...</span> markup).
-// That mutation re-triggered the observer, which re-ran renderMathInElement
-// over content that now included KaTeX's own freshly-injected output -
-// re-scanning already-rendered math markup with the same delimiter regex,
-// which is what corrupted unrelated nearby plain text. #preview's content
-// is set once by the server and nothing in this file mutates it
-// afterward, so the observer wasn't needed for anything - it's removed
-// below rather than "fixed", since a feedback-prone mechanism with no job
-// to do is just risk with no benefit.
+// KaTeX auto-render config, used by the one call site in this file. The
+// server sets #preview once and nothing here mutates it, so math renders
+// exactly once.
 function omnGoRenderMath(container) {
     if (typeof OMN_GO_KATEX === 'undefined' || !OMN_GO_KATEX || !window.renderMathInElement) return;
     renderMathInElement(container, {
@@ -39,26 +28,15 @@ const UI = (function() {
                 });
             }
 
-    // Export to global scope to preserve HTML onclick attributes
+    // Global scope keeps HTML onclick attributes working.
     window.executeScripts = executeScripts;
     return { executeScripts };
 })();
 
 // --- Progress overlay ---
-// One shared "the server is busy" indicator, used by git sync
-// (omn-go-sse.js), the database backup/restore page and the slow-navigation
-// guard further down this file. Styling lives in omn-go-core.css
-// (.omn-progress-*).
-//
-// This file is parsed in <head>, so the markup CANNOT be built here - there
-// is no document.body yet (see the note below). build() therefore runs on
-// first show(), and show() defers itself to DOMContentLoaded if it is called
-// before the body exists.
-//
-// The overlay is intentionally non-blocking: it does not trap clicks, and
-// its close button dismisses the indicator WITHOUT cancelling the work
-// (go-git offers no safe mid-operation abort). A user who hits a hung sync
-// can therefore still reach the rest of the UI.
+// Shared busy indicator for git sync, the Database Backups page and the
+// slow-navigation guard. This file is parsed in <head>, so build() waits for
+// the first show(). Close hides the overlay without cancelling the work.
 window.OMNProgress = (function() {
     var el = null, titleEl = null, stageEl = null, detailEl = null,
         trackEl = null, fillEl = null;
@@ -69,8 +47,7 @@ window.OMNProgress = (function() {
         el = document.createElement('div');
         el.className = 'omn-progress-overlay';
         el.hidden = true;
-        // Static markup only - every caller-supplied string below is written
-        // with textContent, never innerHTML.
+        // Static markup only. Caller strings use textContent, never innerHTML.
         el.innerHTML =
             '<div class="omn-progress-card" role="status" aria-live="polite">' +
               '<div class="omn-progress-head">' +
@@ -96,7 +73,6 @@ window.OMNProgress = (function() {
     var api = {
         show: function(title) {
             if (!document.body) {
-                // Called from a <head> script before the body is parsed.
                 pendingTitle = title;
                 document.addEventListener('DOMContentLoaded', function() {
                     if (pendingTitle !== null) api.show(pendingTitle);
@@ -117,7 +93,7 @@ window.OMNProgress = (function() {
         detail: function(text) {
             if (detailEl) detailEl.textContent = text || '';
         },
-        // percent(null) -> indeterminate sweep; percent(0..100) -> real bar.
+        // percent(null) gives an indeterminate sweep. 0..100 gives a real bar.
         percent: function(n) {
             if (!trackEl) return;
             if (n === null || n === undefined || isNaN(n)) {
@@ -141,24 +117,13 @@ window.OMNProgress = (function() {
 })();
 
 // --- Search highlighting ---
-//
-// Marking query terms inside the rendered page. Two callers, and they are why
-// this lives here rather than beside the search dialog:
-//
-//   - the dialog (omn-go-sse.js), when a page-scope result is chosen;
-//   - arriving at a page with ?hl=<term> on the URL, which a search result
-//     links to - and which has to work on any page, including one opened from
-//     disk where the server half of the app never loads.
-//
-// Literal matching only, deliberately: a fuzzy or misspelled term does not
-// appear in the text as typed, so there is nothing to wrap. In that case
-// nothing is highlighted rather than something that is not what matched.
+// Marks query terms in the rendered page. It must also work on a page opened
+// from disk with no backend. Literal matching only: a fuzzy term is not in
+// the text as typed.
 
 var OMN_HL_MIN = 2;   // 1 character marks half the page
 
-// omnClearHighlights puts the DOM back exactly as it was: each
-// <mark> is replaced by its own text and the parent normalised, so
-// repeated searches cannot leave the page progressively more nested.
+// omnClearHighlights unwraps each mark, so repeated searches do not nest.
 function omnClearHighlights() {
     var preview = document.getElementById('preview');
     if (!preview) return;
@@ -172,13 +137,8 @@ function omnClearHighlights() {
     }
 }
 
-// omnHighlightTerms wraps literal occurrences of the query terms in the
-// rendered page and returns the first one.
-//
-// Literal only, on purpose: a fuzzy or misspelled term does not appear
-// in the text as typed, so there is nothing to wrap. In that case the
-// panel has already shown WHICH lines matched, and this returns null
-// rather than highlighting something that is not what matched.
+// omnHighlightTerms wraps literal occurrences of the terms and returns the
+// first mark.
 function omnHighlightTerms(terms) {
     omnClearHighlights();
     var preview = document.getElementById('preview');
@@ -189,8 +149,7 @@ function omnHighlightTerms(terms) {
         .filter(function (t) { return t.length >= OMN_HL_MIN; });
     if (!needles.length) return null;
 
-    // Collect first, mutate after: rewriting text nodes while walking
-    // the tree invalidates the walker.
+    // Collect first: rewriting text nodes during the walk breaks the walker.
     var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
     var nodes = [];
     var node;
@@ -199,9 +158,8 @@ function omnHighlightTerms(terms) {
         var p = node.parentNode, skip = false;
         while (p && p !== preview) {
             var tag = p.tagName ? p.tagName.toUpperCase() : '';
-            // Never touch executable or already-marked content: a note
-            // may carry inline <script>, and rewriting its text would
-            // corrupt source the console/editor still shows.
+            // Never rewrite a note script or marked text. It corrupts
+            // source the editor still shows.
             if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK' || tag === 'TEXTAREA') {
                 skip = true;
                 break;
@@ -254,33 +212,15 @@ function omnHighlightTerms(terms) {
 window.omnClearHighlights = omnClearHighlights;
 window.omnHighlightTerms = omnHighlightTerms;
 
-// omnMarkNear finds the highlighted occurrence belonging to one SOURCE line,
-// so choosing the third row in the search panel goes to the third match in the
-// page rather than back to the first.
-//
-// It cannot do this by counting, which is the obvious implementation and a
-// wrong one. The panel's rows are source lines; the page is compiled HTML, and
-// the two do not have the same occurrences in the same order:
-//
-//   - a note's <script> block is indexed but never rendered as text;
-//   - a link's URL is text in the source and absent from the page;
-//   - one rendered paragraph can be several source lines.
-//
-// Any of those makes "the Nth row is the Nth mark" wrong, and wrong by an
-// amount that varies silently per note. So the line is located by its TEXT.
-// Both sides are flattened the same way and the first mark at or after the
-// line's position wins. When the line cannot be found the caller is told so,
-// rather than handed a confident wrong answer.
+// omnMarkNear finds the mark for one Markdown source line. It matches by
+// text, not by counting: a note script, a link URL and multi-line paragraphs
+// break the rule that the Nth panel row is the Nth mark. A miss returns null.
 
-// Markdown syntax that leaves no trace in the rendered page. Flattened to a
-// space on BOTH sides, so a character that survives rendering (a literal
-// parenthesis in prose, say) is treated identically in the needle and in the
-// haystack and cannot cause a miss on its own.
+// Markdown syntax that leaves no trace in the page. Flattened on both sides.
 var OMN_HL_SYNTAX = /[*_`~#\[\]()!>|\\\u2026]/;
 
-// omnFlatten lowercases, drops that syntax, and collapses whitespace, while
-// recording where every surviving character came from - the map is what turns
-// a position in the flattened text back into a position among the marks.
+// omnFlatten drops that syntax and collapses whitespace. The map turns a
+// flattened position back into a source position.
 function omnFlatten(raw) {
     var out = '', map = [], lastSpace = true;
     for (var i = 0; i < raw.length; i++) {
@@ -300,9 +240,8 @@ function omnFlatten(raw) {
     return { text: out, map: map };
 }
 
-// omnPreviewText concatenates the page's visible text and notes where each
-// mark starts within it. Same skip rules as the highlighter, minus MARK: here
-// the marks' own text is wanted, it is just not to be marked again.
+// omnPreviewText concatenates the page's visible text and records where each
+// mark starts. Same skip rules as the highlighter, minus MARK.
 function omnPreviewText() {
     var preview = document.getElementById('preview');
     if (!preview) return null;
@@ -340,9 +279,8 @@ function omnMarkNear(snippet) {
     var needle = omnFlatten(snippet).text.trim();
     if (needle.length < 8) return null;   // too short to identify a line
 
-    // Shorten from the right on a miss: the tail of a line is the part most
-    // likely to carry a link or an entity that rendered differently, and the
-    // head is enough to place it.
+    // Shorten from the right on a miss. The tail often holds a link that
+    // rendered differently, and the head is enough to place the line.
     var at = flat.text.indexOf(needle);
     while (at < 0 && needle.length > 12) {
         var cut = needle.lastIndexOf(' ');
@@ -363,32 +301,20 @@ window.omnMarkNear = omnMarkNear;
 
 
 // --- ?hl= : highlight on arrival ---
-//
-// A search result links to /Note.html?hl=fetch&hl=json. On load, mark those
-// terms, scroll to the first, and strip the parameters from the address bar so
-// the URL is clean to copy, bookmark or reload - the highlight has already
-// been applied, and leaving the query on would re-apply it on every refresh.
-//
-// history.replaceState rather than a redirect: no navigation, no extra request,
-// and the back button behaves as though the parameters were never there.
-//
-// Deliberately NOT the #:~:text= scroll-to-text fragment, which browsers
-// implement inconsistently and the Android WebView largely does not.
+// Mark the terms, scroll to the first, then drop the parameters with
+// history.replaceState so a reload does not re-apply them. The #:~:text=
+// fragment is absent from the Android WebView.
 window.addEventListener('load', function () {
     var terms;
     try {
         terms = new URLSearchParams(window.location.search).getAll('hl');
     } catch (e) {
-        return; // no URLSearchParams, or an unparsable URL: nothing to do
+        return; // unparsable URL: nothing to do
     }
     if (!terms || !terms.length) return;
 
     var first = window.omnHighlightTerms(terms);
-    // A fragment is the more precise target, so it wins the scroll. A result
-    // that matched inside a bookmark entry or a timestamped section arrives as
-    // "?hl=cats#2026-06-15-200000": the browser is already taking the reader to
-    // that entry, and scrolling to the first marked word somewhere above it
-    // would undo the thing the anchor was for. The marks go on either way.
+    // A fragment is the more precise target, so it wins the scroll.
     if (first && first.scrollIntoView && !window.location.hash) {
         first.scrollIntoView({ block: 'center' });
         first.classList.add('omn-search-hit-current');
@@ -403,19 +329,14 @@ window.addEventListener('load', function () {
 });
 
 // --- Global Listeners & State ---
-// This file is loaded synchronously in <head>, BEFORE the body (and any
-// classic <script> embedded in a note) is parsed. That is deliberate and
-// mirrors classic OMN's functions.js: everything defined here - the
-// console interceptor, the uncaught-error handlers and the helper
-// globals - must already exist when a note's classic script executes
-// during parsing. Nothing at the top level of this file may touch
-// document.body or any element: the body does not exist yet. DOM work
-// belongs inside a DOMContentLoaded/load listener.
+// This file loads in <head> before the body and before any note script, so
+// the console interceptor and the error handlers exist first. Nothing at the
+// top level may touch document.body.
 if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
 
-// Try to load console interceptor as early as possible
+// Console interceptor.
 (function() {
             const originalLog = console.log;
             const originalError = console.error;
@@ -471,9 +392,8 @@ if (typeof currentNote === 'undefined') {
                 consoleBtn.onclick = () => {
                     consoleModal.style.display = 'flex';
                 };
-                // Footer dot tap-to-open is wired in updateConsoleFooterDot,
-                // because the footer (#status) is parsed after #preview and so
-                // may not exist yet when initConsoleUI first runs.
+                // The footer (#status) is parsed after #preview, so
+                // updateConsoleFooterDot wires the dot later.
                 updateConsoleFooterDot();
 
                 let metadataEl = Array.from(document.querySelectorAll('*')).find(el => {
@@ -484,24 +404,13 @@ if (typeof currentNote === 'undefined') {
                     return text.includes('metadata') || id.includes('metadata') || cls.includes('metadata');
                 });
 
-                //if (metadataEl && metadataEl.parentNode) {
-                //    metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
-                //} else {
-                //    consoleBtn.classList.add('btn-console-main-fixed');
-                //    document.body.appendChild(consoleBtn);
-                //}
                 var target = document.querySelector('.header-actions'); if (target) { target.appendChild(consoleBtn); } else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
-            // computeJump decides whether an uncaught error can be opened in
-            // the editor, and how. Only same-origin editable sources qualify:
-            //   - the current note itself: the reported line is a line in the
-            //     COMPILED html, so we later map it back to the markdown by
-            //     content (kind 'note').
-            //   - a served asset under /js /css /json (a verbatim file): its
-            //     lines map 1:1, so we jump by number (kind 'asset').
-            // Errors from OMN-Go's own bundled scripts, or cross-origin, get
-            // no jump.
+            // computeJump decides whether an uncaught error can open in the
+            // editor. Only same-origin editable sources qualify. A note line
+            // belongs to the HTML cache and maps back by content. An asset
+            // maps 1:1 and jumps by number.
             function computeJump(filename, line) {
                 if (!filename || !line) return null;
                 try {
@@ -510,9 +419,8 @@ if (typeof currentNote === 'undefined') {
                     const path = u.pathname;
                     if (path === window.location.pathname) return { kind: 'note', path: path, line: line };
                     if (/^\/(js|css|json|user_json)\//.test(path)) {
-                        // Skip OMN-Go's own bundled scripts and minified
-                        // libraries - jumping to "edit" those from an error is
-                        // never what the user wants.
+                        // OMN-Go's own bundled and minified scripts are not
+                        // editable targets.
                         if (/\.min\.(js|css)$/.test(path) || /\/omn-go-[^/]*\.js$/.test(path)) return null;
                         return { kind: 'asset', path: path, line: line };
                     }
@@ -520,11 +428,9 @@ if (typeof currentNote === 'undefined') {
                 } catch (e) { return null; }
             }
 
-            // jumpToEditor opens the editor positioned on the error's line.
-            // For a note it fetches the served page, reads the exact source
-            // line text at the error line, and hands it to the editor to
-            // locate by CONTENT - avoiding the markdown<->HTML line-number
-            // arithmetic entirely.
+            // jumpToEditor opens the editor on the error's line. For a note
+            // it passes the line text, avoiding Markdown source to HTML line
+            // arithmetic.
             async function jumpToEditor(jump) {
                 if (jump.kind === 'asset') {
                     window.location.href = jump.path + '?edit=true&line=' + jump.line;
@@ -537,29 +443,23 @@ if (typeof currentNote === 'undefined') {
                     const lineText = (lines[jump.line - 1] || '').trim();
                     if (lineText) url += '&find=' + encodeURIComponent(lineText.slice(0, 300));
                     else url += '&line=' + jump.line;
-                } catch (e) { /* fall back to just opening the editor */ }
+                } catch (e) { /* fall back to opening the editor */ }
                 window.location.href = url;
             }
 
-            // The header console button is hidden while the header is folded
-            // (the default). This footer dot is always visible, so it tells
-            // the user that console messages exist without unfolding. It's the
-            // same orange as the console button (#ff9800) and lives in the
-            // page footer (#status), added by the template.
+            // The header console button hides while the header is folded.
+            // This footer dot stays visible.
             function updateConsoleFooterDot() {
                 var fd = document.getElementById('omn-go-console-footer-dot');
                 if (!fd) return;
-                // Wire tap-to-open once the footer exists (it is parsed after
-                // #preview, so a note's parse-time log can run before it).
-                // consoleModal exists once initConsoleUI has run.
+                // Wire press-to-open once the footer and consoleModal exist.
                 if (!fd._wired && consoleModal) {
                     fd._wired = true;
                     fd.onclick = function () { consoleModal.style.display = 'flex'; };
                 }
                 fd.style.display = logs.length ? 'inline-block' : 'none';
             }
-            // After the body (hence the footer) is parsed, reflect any
-            // messages captured during parsing.
+            // Show messages captured during parsing, once the footer exists.
             document.addEventListener('DOMContentLoaded', updateConsoleFooterDot);
 
             function appendLog(type, args, jump) {
@@ -587,7 +487,7 @@ if (typeof currentNote === 'undefined') {
 
                     msg.textContent = `[${type.toUpperCase()}] ${text}`;
                     if (jump) {
-                        // Make the entry a tappable "open in editor" link.
+                        // Make the entry an "open in editor" link.
                         msg.style.cursor = 'pointer';
                         msg.style.textDecoration = 'underline';
                         msg.title = 'Open in editor at this line';
@@ -597,24 +497,18 @@ if (typeof currentNote === 'undefined') {
                     logsContainer.scrollTop = logsContainer.scrollHeight;
                 }
             }
-	    // Wrapper function creator
             function wrapConsole(methodName, originalMethod, level) {
                 console[methodName] = function(...args) {
-                    // Call original first (or after, depending on your needs)
                     try {
-                        // Use .apply with the array directly
                         originalMethod.apply(console, args);
                     } catch (e) {
-                        // Fallback if native apply fails
                         originalMethod(...args);
                     }
 
-                    // Capture
                     appendLog(level, args);
                };
             }   
 
-            // Override all major methods
             wrapConsole('log', originalLog, 'log');
             wrapConsole('error', originalError, 'error');
             wrapConsole('warn', originalWarn, 'warn');
@@ -625,24 +519,18 @@ if (typeof currentNote === 'undefined') {
             wrapConsole('dir', originalDir, 'dir');
             wrapConsole('time', originalTime, 'time');
             wrapConsole('timeEnd', originalTimeEnd, 'timeEnd');
-            // Installed at <head> time, before the body parses, so this
-            // catches errors from EVERY note script - including syntax
-            // errors in classic inline <script> blocks, which the browser
-            // reports while parsing the body (long before DOMContentLoaded).
+            // Installed at <head> time, so this catches syntax errors the
+            // browser reports while parsing the body.
             window.addEventListener('error', function(e) {
                 var where = e.filename ? ' at ' + e.filename + ':' + e.lineno + (e.colno ? ':' + e.colno : '') : '';
                 var msg = 'Uncaught Error: ' + e.message + where;
-                // Print to the real console and add a clickable, jump-enabled
-                // entry to the in-app console (when the error points at an
-                // editable source on this page). We call originalError +
-                // appendLog directly rather than the wrapped console.error so
-                // the jump metadata survives.
+                // Call originalError and appendLog directly, not the wrapped
+                // console.error, so the jump metadata survives.
                 try { originalError.call(console, msg); } catch (_) { }
                 appendLog('error', [msg], computeJump(e.filename, e.lineno));
                 return;
             });
-            // Async note code (fetch(), openDatabase() wrappers, ...) fails
-            // via rejected promises, not the error event - capture those too.
+            // A rejected promise never raises the error event.
             window.addEventListener('unhandledrejection', function(e) {
                 var reason = e.reason;
                 var msg = (reason && reason.stack) ? reason.stack : String(reason);
@@ -650,7 +538,6 @@ if (typeof currentNote === 'undefined') {
             });
 })();
 
-        // Intercept Markdown links for standard browser-side redirects
         function setupPreviewLinkInterceptor() {
             var preview = document.getElementById('preview');
             if (!preview) return;
@@ -659,8 +546,7 @@ if (typeof currentNote === 'undefined') {
             if(target) {
                 const href = target.getAttribute('href');
                 if (href) {
-                    // Pure anchors and javascript: actions - leave the
-                    // browser's native handling completely alone.
+                    // Anchors and javascript: actions keep native handling.
                     if (href.startsWith('#') || href.startsWith('javascript:')) {
                         return;
                     }

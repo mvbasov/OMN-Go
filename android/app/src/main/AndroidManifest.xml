@@ -4,57 +4,25 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <!--
-      Background-server support (ServerService). FOREGROUND_SERVICE covers
-      API 28+; FOREGROUND_SERVICE_DATA_SYNC is the typed companion required
-      by targetSdk 34 for the dataSync service type declared below.
-      POST_NOTIFICATIONS (runtime-requested on Android 13+) makes the
-      service's persistent notification visible. The battery-optimization
-      exemption (requested once from MainActivity) keeps network alive in
-      deep Doze while the screen is locked; note this permission is
-      restricted on Google Play but fine for self-distributed APKs.
-    -->
+    <!-- targetSdk 34 requires the typed DATA_SYNC permission for the dataSync
+      service below. The battery exemption keeps the network alive in deep
+      Doze, and Google Play restricts it. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!--
-      Pre-Oreo (API 24-25) home-screen shortcut fallback - see
-      MainActivity.createNoteShortcut(). ShortcutManager.requestPinShortcut
-      (used on API 26+) needs no permission, but the classic
-      ACTION_INSTALL_SHORTCUT broadcast some older launchers still expect
-      was historically gated on this permission. Harmless to declare even
-      where the launcher doesn't check it.
-    -->
+    <!-- Some API 24-25 launchers gate the ACTION_INSTALL_SHORTCUT broadcast
+      on this permission. Harmless where they do not. -->
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
 
-    <!--
-      Termux RUN_COMMAND integration (see MainActivity.launchTermuxIntent).
-      A note may launch an "intent:" link targeting
-      com.termux/.app.RunCommandService to run a shell command; this dangerous
-      permission (declared by Termux itself) is what lets that service accept
-      our request. Harmless when Termux is absent - the whole feature is gated
-      behind the enable_intent_uri / enable_termux_intent config toggles (both
-      default off) and additionally requires this permission to be granted at
-      runtime and a per-tap confirmation before anything runs.
-    -->
+    <!-- Termux's RunCommandService rejects a request without this permission.
+      The feature also needs both config toggles on, a runtime grant, and a
+      per-run confirmation. -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
-    <!--
-      Android 11+ (API 30+) hides other apps' components by default
-      (package visibility). MainActivity's shouldOverrideUrlLoading hands
-      off non-http(s) links (tel:, geo:, mailto:, sms:, market:, intent:,
-      ...) to the OS via an implicit ACTION_VIEW intent (or, for the
-      "intent:" scheme, Intent.parseUri - see handleIntentUri). Without
-      declaring those schemes here, resolveActivity()/startActivity()
-      silently find nothing even when a matching app (Dialer, Maps, Email,
-      Play Store...) is installed, which is what produced
-      ERR_UNKNOWN_URL_SCHEME. Each entry below matches a scheme the WebView
-      can actually hand off; the <package> entry makes the Termux app itself
-      visible so an intent: link can resolve and start its RunCommandService
-      (and so isPackageInstalled("com.termux") works) on API 30+.
-    -->
+    <!-- API 30+ package visibility hides other applications. Without an entry
+      per scheme, a WebView hand-off gets ERR_UNKNOWN_URL_SCHEME. -->
     <queries>
         <package android:name="com.termux" />
         <intent>
@@ -115,16 +83,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
-            <!--
-              Shared images/JSON land in Quick Notes, not the editor - see
-              the block comment above MainActivity.handleSharedFile() for
-              why. Two filters (Android matches SEND by declared mime type,
-              not actual content) rather than one combined filter, mirroring
-              the text/plain filter above; only image/* and
-              application/json are advertised, matching the "only images
-              and JSON accepted" whitelist saveUploadedFile enforces
-              server-side (backend/handlers.go).
-            -->
+            <!-- Android matches SEND by declared mime type, so each type needs
+              its own filter. Only these two pass the backend whitelist in
+              saveUploadedFile. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -137,21 +98,9 @@
             </intent-filter>
         </activity>
 
-        <!--
-          Second, always-visible launcher entry for jumping straight into
-          Quick Note, for launchers (e.g. KISS) that don't support the
-          long-press "app shortcuts" menu an ordinary dynamic/static
-          shortcut would otherwise rely on. An activity-alias is a distinct
-          app-drawer icon with its own icon/label that still runs
-          MainActivity - no separate Activity subclass, no second copy of
-          the WebView/server setup.
-          MainActivity tells this apart from a normal launch by checking
-          getIntent().getComponent()'s class name in onCreate/onNewIntent:
-          Android resolves the alias to MainActivity for actually running
-          it, but leaves the ORIGINAL alias component name on the Intent
-          the activity receives, rather than rewriting it to MainActivity's
-          own name.
-        -->
+        <!-- A second launcher icon that opens the Quick Notes page. Android
+          runs MainActivity but leaves the alias component name on the Intent,
+          which is how onCreate tells the two entry points apart. -->
         <activity-alias
             android:name=".QuickNoteAlias"
             android:targetActivity=".MainActivity"
@@ -166,12 +115,8 @@
             </intent-filter>
         </activity-alias>
 
-        <!--
-          Owns the Go HTTP server (see ServerService.java). stopWithTask=
-          "false" keeps the server answering even after the user swipes
-          the app out of recents - the notification's Stop button is the
-          intended way to shut it down.
-        -->
+        <!-- stopWithTask false keeps the backend answering after a swipe out
+          of recents. The notification's Stop button shuts it down. -->
         <service
             android:name=".ServerService"
             android:exported="false"

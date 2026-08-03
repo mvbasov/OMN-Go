@@ -12,16 +12,9 @@ public class MainActivity extends Activity {
     private WebView webView;
     private String currentEditingName;
 
-    // Storage dir and server port both used to be hardcoded here
-    // ("net.basov.omngo" and "8080"), which broke on the fdroid flavor
-    // (different applicationId -> different external media directory,
-    // see build.gradle's productFlavors) and on any install where the
-    // Config page's Server Port was changed away from the default. Both
-    // are now resolved live instead: storageDir() defers to
-    // ServerService.storageDir(), the same helper Backend.startServer()
-    // itself is started with (see ServerService.onStartCommand), and
-    // serverBase() reads the actual configured port via
-    // ServerService.serverPort() rather than assuming 8080.
+    // Both values resolve live through ServerService. The fdroid flavor has
+    // its own applicationId and media directory, and the Config page can
+    // change the port.
 
     private String storageDir() {
         return ServerService.storageDir(this);
@@ -31,29 +24,18 @@ public class MainActivity extends Activity {
         return "http://127.0.0.1:" + ServerService.serverPort(this);
     }
 
-    // Intent extra carrying the note name a pinned home-screen shortcut
-    // should open (see createNoteShortcut() and the omngo://shortcut
-    // interception below). Read back in onCreate/onNewIntent to send the
-    // WebView straight to that note instead of the usual Welcome.html.
+    // Intent extra with the note name a pinned home-screen shortcut opens.
     private static final String EXTRA_SHORTCUT_NOTE = "omngo_shortcut_note";
 
-    // Own-package broadcast createNoteShortcut() asks ShortcutManager to
-    // fire once the launcher actually finishes pinning a shortcut (as
-    // opposed to the user dismissing the confirmation), so we can toast a
-    // clear "done" instead of leaving the detour to the home screen
-    // unconfirmed. See the comment in createNoteShortcut() for why that
-    // detour happens at all and can't be skipped.
+    // Own-package broadcast ShortcutManager fires only after the launcher
+    // finishes pinning, not on a dismissed confirmation.
     private static final String ACTION_SHORTCUT_PINNED = "net.basov.omngo.SHORTCUT_PINNED";
     private static final String EXTRA_SHORTCUT_PINNED_LABEL = "label";
     private android.content.BroadcastReceiver shortcutPinnedReceiver;
 
-    // True when intent was launched via the QuickNoteAlias activity-alias
-    // (the second "OMN-Go Quick Note" app-drawer icon - see the manifest)
-    // rather than the normal MainActivity launcher entry. Android resolves
-    // the alias to MainActivity to actually run it, but leaves the
-    // ORIGINAL alias component name on the Intent the activity receives -
-    // it does not rewrite getComponent() to MainActivity's own name - which
-    // is what makes the two entry points distinguishable here at all.
+    // True when the launch came from the QuickNoteAlias activity-alias.
+    // Android runs MainActivity but leaves the alias component name on the
+    // Intent, which is what makes the two entry points distinguishable.
     private boolean isQuickNoteAliasLaunch(android.content.Intent intent) {
         return intent != null && intent.getComponent() != null
             && intent.getComponent().getClassName().endsWith(".QuickNoteAlias");
@@ -63,11 +45,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Restore the "which result extra were we waiting for" marker as early
-        // as possible (before onActivityResult can fire), in case the process
-        // was killed while a capture activity (e.g. the barcode scanner) was in
-        // the foreground. See launchCaptureIntent / handleCaptureResult and the
-        // onSaveInstanceState override below.
+        // Restore the pending-capture marker before onActivityResult can fire.
         if (savedInstanceState != null) {
             pendingCaptureExtra = savedInstanceState.getString(STATE_PENDING_CAPTURE_EXTRA);
         }
@@ -86,12 +64,8 @@ public class MainActivity extends Activity {
             registerReceiver(shortcutPinnedReceiver, shortcutPinnedFilter);
         }
 
-        // Receiver for Termux command results (see launchTermuxIntent's capture
-        // path). Same self-package, NOT_EXPORTED pattern as shortcutPinnedReceiver
-        // above. Dynamic (activity-scoped): if the OS kills this process while a
-        // long command is still running, the result can't be delivered - the
-        // command still runs, only the paste-back dialog is lost. Accepted for
-        // v1; typical captured commands finish in well under a second.
+        // Termux command results. Activity-scoped: process death loses the
+        // paste-back dialog, not the command.
         termuxResultReceiver = new android.content.BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context context, android.content.Intent intent) {
@@ -105,24 +79,15 @@ public class MainActivity extends Activity {
             registerReceiver(termuxResultReceiver, termuxResultFilter);
         }
 
-        // The Go server (plus storage-dir setup) is owned by ServerService.
-        // It is started with plain startService() - NOT
-        // startForegroundService() - on purpose: the service itself decides
-        // from config.json whether to promote to foreground (LAN sharing
-        // on) or stay a plain background service (sharing off), and
-        // startForegroundService() would impose the 5-second "must call
-        // startForeground" obligation even in the sharing-off case where
-        // no notification is wanted. Mismatches between how the service
-        // was started and what it did were exactly the source of the
-        // "notification doesn't match sharing state" bugs.
+        // ServerService owns the backend. Plain startService(), not
+        // startForegroundService(): the service reads config.json to decide
+        // whether to go foreground.
         boolean lanSharing = ServerService.isLanSharingEnabled(this);
 
-        // Permissions are requested ONLY when LAN sharing is actually
-        // enabled - i.e. at sharing start time (first launch after the
-        // ShareLAN restart), never on ordinary local-only app starts.
+        // Permissions are requested only when LAN sharing is enabled.
         if (lanSharing) {
-            // Android 13+ needs runtime consent for the sharing
-            // notification to be visible.
+            // Android 13+ needs runtime consent to show the sharing
+            // notification.
             if (android.os.Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -130,11 +95,8 @@ public class MainActivity extends Activity {
                     new String[]{ android.Manifest.permission.POST_NOTIFICATIONS }, 1002);
             }
 
-            // Deep Doze (long screen-off periods) suspends network for
-            // apps regardless of wake locks; the battery-optimization
-            // exemption is what keeps LAN requests answered with the
-            // screen locked. Asked at most once - if declined, it can be
-            // granted later via system Settings > Battery.
+            // Deep Doze suspends network regardless of wake locks. The
+            // exemption keeps LAN requests answered with the screen locked.
             try {
                 android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
                 if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
@@ -153,7 +115,6 @@ public class MainActivity extends Activity {
         }
 
         startService(new android.content.Intent(this, ServerService.class));
-        // Create Native Loading Layout
         android.widget.FrameLayout rootLayout = new android.widget.FrameLayout(this);
         rootLayout.setBackgroundColor(android.graphics.Color.parseColor("#f9f9f9"));
         
@@ -164,7 +125,6 @@ public class MainActivity extends Activity {
         pbParams.gravity = android.view.Gravity.CENTER;
         progressBar.setLayoutParams(pbParams);
 
-        // Initialize WebView
         webView = new WebView(this);
         webView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -212,15 +172,9 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
-            // The same spinner that covers the initial server-start wait is
-            // reused for every later navigation. Several pages are built by
-            // the Go server at request time - OMNGoTags rescans every note,
-            // and any note whose .md is newer than its cached .html is
-            // recompiled on first view, which is every changed note after a
-            // pull - so a tap could otherwise sit on the old screen with no
-            // feedback for seconds. Handling it here rather than in JS also
-            // covers the hardware Back button and shortcut launches, which
-            // no in-page click handler can observe.
+            // The server-start spinner is reused for every navigation, because
+            // the backend builds some pages at request time. Doing this here
+            // rather than in JS also covers Back and shortcut launches.
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 progressBar.setVisibility(android.view.View.VISIBLE);
@@ -229,14 +183,12 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(android.view.View.GONE);
-                // Saving on the Config page reloads it, so this is what makes
-                // a "Fullscreen mode" change apply straight away instead of
-                // waiting for an app restart.
+                // A Config page save reloads the page, so a fullscreen change
+                // applies at once.
                 applyFullscreenMode();
                 super.onPageFinished(view, url);
             }
-            // A failed load may never reach onPageFinished, which would
-            // strand the spinner on screen; clear it here too.
+            // A failed load may never reach onPageFinished.
             @Override
             public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
                                         android.webkit.WebResourceError error) {
@@ -277,15 +229,12 @@ public class MainActivity extends Activity {
                         name = android.net.Uri.decode(name);
                         currentEditingName = name;
                         
-                        // Disable strict mode exposed file exceptions
+                        // Allows the file:// Uri passed to the editor below.
                         android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
                         android.os.StrictMode.setVmPolicy(builder.build());
 
-                        // Determine correct subdirectory and extension.
-                        // MainActivity.this (not a bare storageDir() call)
-                        // because this whole block is inside the anonymous
-                        // WebViewClient below, where "this" means the
-                        // WebViewClient itself.
+                        // MainActivity.this, not a bare storageDir() call:
+                        // "this" here means the anonymous WebViewClient.
                         java.io.File file;
                         String editStorageDir = MainActivity.this.storageDir();
                         if (name.endsWith(".md")) {
@@ -310,18 +259,9 @@ public class MainActivity extends Activity {
                 }
 
                 if (url != null && url.startsWith("intent:")) {
-                    // Android intent-URI links authored in notes - both the
-                    // bare "intent:#Intent;...;end" form and the
-                    // "intent://host/...#Intent;...;end" form (both share the
-                    // "intent:" prefix). Gated behind the enable_intent_uri
-                    // config toggle (default off), read live from config.json
-                    // so a Settings change applies without an app restart -
-                    // the same native-read pattern readMaxUploadSizeMB() uses.
-                    // The Termux RUN_COMMAND convention (a note running a
-                    // shell command) is additionally gated and confirmed; see
-                    // handleIntentUri() and the block comment above it. This
-                    // is why the generic "any other scheme" branch below no
-                    // longer needs its own intent:// special-case.
+                    // Intent-URI links authored in notes, gated behind the
+                    // enable_intent_uri toggle read live from config.json.
+                    // handleIntentUri() gates Termux RUN_COMMAND separately.
                     handleIntentUri(url);
                     return true;
                 }
@@ -333,20 +273,13 @@ public class MainActivity extends Activity {
                         );
                         return true;
                     }
-                    // Local app traffic (our own Go server) - let the WebView load it itself.
+                    // Local backend traffic - the WebView loads it itself.
                     return false;
                 }
 
                 if (url != null) {
-                    // Any other scheme (tel:, mailto:, geo:, sms:, market:,
-                    // whatsapp:, etc.) is something the WebView has no
-                    // renderer for - it fails with ERR_UNKNOWN_URL_SCHEME if
-                    // we don't intercept it here. Hand it off to the OS so
-                    // the matching app (Dialer, Maps, Email, Messaging...)
-                    // can handle it instead. The "intent:" scheme (both the
-                    // bare "intent:#Intent;...;end" and "intent://..." forms)
-                    // is fully handled in its own branch above via
-                    // handleIntentUri(), so it never reaches here.
+                    // The WebView has no renderer for other schemes (tel:,
+                    // mailto:, geo:) and fails with ERR_UNKNOWN_URL_SCHEME.
                     try {
                         android.content.Intent intent = new android.content.Intent(
                             android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
@@ -354,10 +287,7 @@ public class MainActivity extends Activity {
                             view.getContext().startActivity(intent);
                         }
                     } catch (Exception e) {
-                        // No app installed to handle this scheme, or a
-                        // malformed URI - nothing sane to do with it, so
-                        // swallow it rather than crash or let the WebView
-                        // throw ERR_UNKNOWN_URL_SCHEME.
+                        // Unhandled scheme or malformed URI. Swallow it.
                         e.printStackTrace();
                     }
                     return true;
@@ -369,12 +299,11 @@ public class MainActivity extends Activity {
         rootLayout.addView(progressBar);
         setContentView(rootLayout);
 
-        // Applied before the first frame is drawn, so a user who has turned
-        // fullscreen off does not see the manifest theme's hidden status bar
-        // appear and then slide back in.
+        // Applied before the first frame, so a user with fullscreen off does
+        // not see the theme's hidden status bar slide back in.
         applyFullscreenMode();
 
-        // Wait for the Go server to bind before loading
+        // Wait for the backend to bind before loading.
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -382,17 +311,11 @@ public class MainActivity extends Activity {
                 android.content.Intent intent = getIntent();
                 String shortcutNote = intent.getStringExtra(EXTRA_SHORTCUT_NOTE);
                 if (shortcutNote != null && !shortcutNote.isEmpty()) {
-                    // Tapped a pinned shortcut (see createNoteShortcut()) -
-                    // go straight to that note instead of Welcome.html.
+                    // A pressed pinned shortcut opens its note, not Welcome.html.
                     startUrl = MainActivity.this.serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html";
                 } else if (isQuickNoteAliasLaunch(intent)) {
-                    // Tapped the second "OMN-Go Quick Note" app-drawer icon
-                    // (see the QuickNoteAlias activity-alias in the
-                    // manifest) - still loads Welcome.html so the app has a
-                    // normal page underneath, but with a query flag
-                    // omn-go-core.js's load handler uses to pop the Quick
-                    // Note panel open immediately, same as the share_text/
-                    // share_subject flags below do for shared text.
+                    // Welcome.html gives a normal page underneath. The flag
+                    // tells omn-go-core.js to open the Quick Note panel.
                     startUrl += "?quicknote=1";
                 } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                         && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
@@ -401,9 +324,7 @@ public class MainActivity extends Activity {
                     startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") +
                                 "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
                 } else if (isSharedFileIntent(intent)) {
-                    // Handled entirely natively (see handleSharedFile) -
-                    // startUrl is deliberately left alone; this cold start
-                    // still lands on Welcome.html like any other launch.
+                    // handleSharedFile works natively, so startUrl stays put.
                     android.net.Uri sharedUri = (android.net.Uri) intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM);
                     if (sharedUri != null) {
                         handleSharedFile(sharedUri, intent.getType());
@@ -411,28 +332,22 @@ public class MainActivity extends Activity {
                 }
                 webView.loadUrl(startUrl);
             }
-        }, 1000); // 1 second delay
+        }, 1000);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_CAPTURE_RESULT) {
-            // Result from a capture launch (e.g. a barcode scan) - paste it
-            // into Quick Notes. See handleCaptureResult for all the "no
-            // result" cases, which are handled gracefully.
+            // handleCaptureResult covers the no-result cases.
             handleCaptureResult(resultCode, data);
             return;
         }
         if (requestCode == 1001 && webView != null) {
             if (currentEditingName != null && !currentEditingName.isEmpty()) {
-                // currentEditingName already carries its extension (e.g. "Welcome.md"),
-                // since it comes straight from the omngo://edit?name= URL built by the
-                // frontend as currentNote + PAGE_EXT. Blindly appending ".html" here used
-                // to produce "Welcome.md.html", which the server then re-suffixed into a
-                // "Welcome.md.md" file on disk. Strip the existing extension first so we
-                // reload the actual page name, matching handleEditExternal's viewURL logic
-                // on the desktop side.
+                // currentEditingName already carries its extension. Appending
+                // ".html" gives "Welcome.md.html", which the backend
+                // re-suffixes into a "Welcome.md.md" file on disk.
                 String baseName = currentEditingName;
                 int dotIdx = baseName.lastIndexOf('.');
                 if (dotIdx > 0) {
@@ -441,7 +356,7 @@ public class MainActivity extends Activity {
                 webView.loadUrl(serverBase() + "/" + android.net.Uri.encode(baseName) + ".html");
                 currentEditingName = null;
             } else {
-                webView.reload(); // Refresh view when returning from external editor
+                webView.reload();
             }
         }
     }
@@ -449,9 +364,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(android.os.Bundle outState) {
         super.onSaveInstanceState(outState);
-        // Persist which result extra we're waiting for so a capture (e.g. a
-        // barcode scan) still pastes into Quick Notes even if the OS killed
-        // this process while the scanner was foreground. Restored in onCreate.
+        // Persist the pending-capture marker across process death. Restored in
+        // onCreate.
         if (pendingCaptureExtra != null) {
             outState.putString(STATE_PENDING_CAPTURE_EXTRA, pendingCaptureExtra);
         }
@@ -463,21 +377,14 @@ public class MainActivity extends Activity {
         setIntent(intent);
         String shortcutNote = intent.getStringExtra(EXTRA_SHORTCUT_NOTE);
         if (shortcutNote != null && !shortcutNote.isEmpty()) {
-            // App was already running (singleTask) and a pinned shortcut
-            // was tapped - jump the existing WebView straight to that note.
+            // Already running (singleTask): send the existing WebView there.
             if (webView != null) {
                 webView.loadUrl(serverBase() + "/" + android.net.Uri.encode(shortcutNote) + ".html");
             }
         } else if (isQuickNoteAliasLaunch(intent)) {
-            // App was already running and the Quick Note app-drawer icon
-            // was tapped. Unlike the cold-start case (onCreate, which
-            // reloads Welcome.html with ?quicknote=1), this just pops the
-            // panel open on whatever page is already showing - reloading
-            // here would throw away the current page the same way the
-            // shared-text branch below avoids doing for a warm start. A
-            // silent no-op (via the `p &&` guard) if the current page
-            // doesn't have #quickPanel at all (e.g. mid-edit on
-            // editor.html) mirrors the same caveat noted for window.handleShare.
+            // Warm start: open the panel on the current page, because a reload
+            // would throw it away. The `p &&` guard no-ops on a page without
+            // #quickPanel, such as editor.html.
             if (webView != null) {
                 webView.evaluateJavascript(
                     "javascript:(function(){ var p=document.getElementById('quickPanel'); if(p) p.classList.remove('hidden'); })();",
@@ -494,12 +401,8 @@ public class MainActivity extends Activity {
                 webView.evaluateJavascript(js, null);
             }
         } else if (isSharedFileIntent(intent)) {
-            // Unlike the text/plain branch above, this never touches
-            // webView at all - see the block comment above
-            // handleSharedFile() for why a warm-start share can't safely
-            // assume anything about what the WebView is currently
-            // showing (e.g. it could be mid-edit of some other note on
-            // editor.html, which doesn't even define window.handleShare).
+            // Never touches webView: the current page may not define
+            // window.handleShare.
             android.net.Uri sharedUri = (android.net.Uri) intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM);
             if (sharedUri != null) {
                 handleSharedFile(sharedUri, intent.getType());
@@ -520,35 +423,16 @@ public class MainActivity extends Activity {
     // Fullscreen / system bars (Config page -> "Fullscreen mode")
     // ----------------------------------------------------------------------
     //
-    // The app used to be unconditionally fullscreen via
-    // Theme.NoTitleBar.Fullscreen in AndroidManifest.xml. That theme is still
-    // declared - it is what makes the DEFAULT case (status bar hidden) draw
-    // correctly from the very first frame, with no visible bar flashing away
-    // once this code runs - and applyFullscreenMode() then takes over as the
-    // single source of truth for what is actually shown.
-    //
-    // Reading the mode from config.json on each call mirrors readConfigFlag /
-    // readMaxUploadSizeMB: no HTTP round-trip, and a Settings change applies
-    // as soon as the Config page saves and reloads (see the onPageFinished
-    // hook) rather than needing an app restart. config.json is a couple of KB,
-    // so re-reading it on navigation is cheaper than keeping a cache coherent
-    // with an edit made inside the WebView.
-    //
-    // Deliberately platform-only, no androidx.core.view.WindowInsetsController
-    // compat wrapper, matching this project's no-AndroidX constraint: the
-    // API 30+ path uses android.view.WindowInsetsController directly and the
-    // older path uses View.setSystemUiVisibility, which is deprecated from
-    // API 30 but still functional and is the only platform option on API
-    // 24-29 (this app's minSdk is 24).
+    // The manifest theme draws the default case from the first frame.
+    // applyFullscreenMode() then decides what is shown. It re-reads
+    // config.json each call, so a Config page save needs no restart.
+    // Platform APIs only, per the no-AndroidX rule.
     private static final String FULLSCREEN_OFF = "off";
     private static final String FULLSCREEN_ON = "fullscreen";
     private static final String FULLSCREEN_IMMERSIVE = "immersive";
 
-    // Mirrors backend/config.go's normalizeFullscreen: an unknown or absent
-    // value means "fullscreen", so a config.json written before this setting
-    // existed keeps the behaviour that install already had. Changing the
-    // default here without changing it there (or vice versa) would make the
-    // Config page disagree with what the window actually does.
+    // Mirrors normalizeFullscreen in backend/config.go: an unknown or absent
+    // value means "fullscreen". Change the default in both places together.
     private String readFullscreenMode() {
         String mode = readConfigString("android_fullscreen");
         if (FULLSCREEN_OFF.equals(mode) || FULLSCREEN_IMMERSIVE.equals(mode)) {
@@ -563,9 +447,7 @@ public class MainActivity extends Activity {
         if (window == null) return;
 
         // The manifest theme sets FLAG_FULLSCREEN. On API 30+ that legacy flag
-        // overrides WindowInsetsController, so "off" could never show the
-        // status bar while it was still set; clear it unconditionally and let
-        // the branches below be the only thing deciding.
+        // overrides WindowInsetsController, so "off" cannot show the bar.
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
@@ -576,9 +458,7 @@ public class MainActivity extends Activity {
             if (FULLSCREEN_OFF.equals(mode)) {
                 controller.show(status | nav);
             } else if (FULLSCREEN_IMMERSIVE.equals(mode)) {
-                // Swiping from an edge reveals the bars briefly, then they
-                // hide again - without this they would stay up for good after
-                // the first swipe.
+                // Without this the bars stay up for good after the first swipe.
                 controller.setSystemBarsBehavior(
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
                 controller.hide(status | nav);
@@ -596,9 +476,8 @@ public class MainActivity extends Activity {
             decor.setSystemUiVisibility(
                     android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
                             | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            // STICKY, not plain IMMERSIVE: the bars come back
-                            // for a moment on a swipe and then re-hide by
-                            // themselves, matching the API 30+ behaviour above.
+                            // STICKY, not plain IMMERSIVE: the bars re-hide by
+                            // themselves, matching the API 30+ path above.
                             | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
             decor.setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN);
@@ -608,24 +487,21 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Covers coming back from another app, and a mode change made on
-        // another device that arrived via git sync.
+        // Covers a return from another application, and a mode change that
+        // arrived through git sync.
         applyFullscreenMode();
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        // Regaining focus (dismissing the keyboard, closing a dialog, the
-        // Termux confirmation returning) clears the hidden-bar state on some
-        // builds, so re-assert it rather than silently falling back to a
-        // half-visible bar.
+        // Regaining focus clears the hidden-bar state on some builds, so
+        // re-assert it.
         if (hasFocus) applyFullscreenMode();
     }
 
-    // Reads a string value out of config.json (empty string when the file or
-    // key is missing/unreadable, which every caller must treat as "use the
-    // default"). String counterpart to readConfigFlag below.
+    // Reads a string out of config.json. Returns "" when the file or key is
+    // missing, which callers must treat as "use the default".
     private String readConfigString(String key) {
         try {
             java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
@@ -650,15 +526,14 @@ public class MainActivity extends Activity {
             try {
                 unregisterReceiver(shortcutPinnedReceiver);
             } catch (Exception e) {
-                // Already unregistered, or never successfully registered -
-                // either way there's nothing left to clean up.
+                // Already unregistered, or never registered.
             }
         }
         if (termuxResultReceiver != null) {
             try {
                 unregisterReceiver(termuxResultReceiver);
             } catch (Exception e) {
-                // As above - nothing left to clean up.
+                // As above.
             }
         }
     }
@@ -667,45 +542,17 @@ public class MainActivity extends Activity {
     // Shared file handling (images / JSON via Android's "Share to" chooser)
     // ----------------------------------------------------------------------
     //
-    // Shared TEXT is handled via window.handleShare in JS (see the
-    // text/plain branches above): that works regardless of app state
-    // because it always targets a page-independent modal (Quick Note /
-    // Bookmark) that exists on every ordinary view page. A shared FILE
-    // doesn't have an equivalent safe target: the WebView can't read a
-    // content:// Uri without a JS bridge, and there's no guarantee the app
-    // is even showing a page that has window.handleShare defined (e.g. it
-    // could currently be on editor.html, mid-edit of some unrelated note,
-    // which doesn't load omn-go-core.js at all).
+    // Shared TEXT goes through window.handleShare in JS. A shared FILE has no
+    // safe target: the WebView cannot read a content:// Uri without a JS
+    // bridge, and the current page may not define window.handleShare.
     //
-    // So this is handled entirely natively, independent of whatever the
-    // WebView is doing:
-    //   1. Validate + copy the shared file straight onto the same on-disk
-    //      tree the Go server serves from (storageDir()/html/images or
-    //      .../user_json), enforcing the same extension whitelist and
-    //      max-size limit (read from config.json's max_upload_size_mb)
-    //      that saveUploadedFile enforces server-side for the editor's
-    //      own drag-and-drop upload (see backend/handlers.go). Keep the
-    //      whitelist here in sync with imageUploadExtensions /
-    //      jsonUploadExtensions there if either changes.
-    //   2. Build the same snippet format those Go handlers return (an
-    //      HTML <img class="omn-imported-image"> tag for images,
-    //      [name](/user_json/name) markdown link syntax for JSON) and
-    //      POST it as a Quick Note via the existing
-    //      /api/quick endpoint - reusing the server's QuickNotes.md
-    //      append/compile logic (handleQuickNote) rather than duplicating
-    //      it here. Loopback requests bypass authMiddleware entirely (see
-    //      backend/middleware.go), so no session/cookie handling is needed.
-    // Runs entirely on a background thread and never touches webView, so
-    // it's safe no matter what page (if any) is currently loaded. Only
-    // single-file shares are handled (ACTION_SEND, not
-    // ACTION_SEND_MULTIPLE) - matching the scope of the existing
-    // text/plain share handling above.
+    // A shared file is handled natively on a background thread: copy it into
+    // storageDir()/html/{images,user_json} under the same whitelist and
+    // max_upload_size_mb limit as backend/handlers.go, then POST the snippet
+    // to /api/quick. Loopback requests skip authMiddleware. ACTION_SEND only.
 
-    // JSON and image extensions this app accepts via share - kept in sync
-    // with jsonUploadExtensions / imageUploadExtensions in
-    // backend/handlers.go. These two sets are the single source within this
-    // file: both isSharedFileIntent and handleSharedFile use them, so the
-    // lists are never re-typed inline.
+    // Kept in sync with jsonUploadExtensions / imageUploadExtensions in
+    // backend/handlers.go.
     private static final java.util.Set<String> SHARED_JSON_EXT =
         new java.util.HashSet<>(java.util.Arrays.asList(".json", ".jsonl"));
     private static final java.util.Set<String> SHARED_IMAGE_EXT =
@@ -719,15 +566,8 @@ public class MainActivity extends Activity {
         if (type != null && (type.startsWith("image/") || "application/json".equals(type))) {
             return true;
         }
-        // Many senders (file managers, chat apps, "Files") hand a JSON (or
-        // occasionally an image) share over with a generic/wrong MIME type
-        // - application/octet-stream, text/plain, or no type at all -
-        // rather than "application/json" or "image/*". That's exactly why
-        // JSON sharing "did nothing" in practice: the type check above
-        // never matched, so isSharedFileIntent returned false and the
-        // whole share was silently dropped, even though the file itself
-        // was perfectly fine. Fall back to sniffing the shared file's own
-        // display name/extension instead of trusting the declared type.
+        // Many senders declare a generic or wrong MIME type for a shared file,
+        // so the check above drops it. Sniff the display name extension.
         String name = queryDisplayName(stream);
         if (name != null) {
             String lower = name.toLowerCase(java.util.Locale.ROOT);
@@ -775,21 +615,9 @@ public class MainActivity extends Activity {
                         return;
                     }
 
-                    // Same format handleUpload/handleUploadJSON in
-                    // backend/handlers.go produce - keep these in sync by
-                    // hand if either changes. Images went from markdown
-                    // image syntax to an HTML <img> tag (with the
-                    // .omn-imported-image class - see omn-go-core.css) so
-                    // dropped images get a sane default size instead of
-                    // rendering at full native resolution; this native
-                    // share path builds its own snippet independently of
-                    // the Go server (see the block comment above) and was
-                    // still emitting the old markdown form here, so images
-                    // shared into a fresh Android install rendered without
-                    // the class desktop drag-and-drop already got. JSON
-                    // stays markdown link syntax, now with the same
-                    // leading/trailing newline handleUploadJSON already
-                    // wraps it in, so a shared file lands on its own line.
+                    // Must match handleUpload/handleUploadJSON in
+                    // backend/handlers.go. The .omn-imported-image class
+                    // sets a default image size. See omn-go-core.css.
                     String snippet;
                     if (isJson) {
                         snippet = "\n[" + filename + "](/user_json/" + filename + ")\n";
@@ -825,9 +653,8 @@ public class MainActivity extends Activity {
         return name;
     }
 
-    // Falls back to a generated name when the content provider doesn't
-    // supply one, and strips any path separators a provider might smuggle
-    // into DISPLAY_NAME so this can never write outside destDir.
+    // Generates a name when the provider supplies none, and strips path
+    // separators so this can never write outside destDir.
     private String sanitizeSharedFilename(String displayName, boolean isJson) {
         String name = displayName;
         if (name == null || name.trim().isEmpty()) {
@@ -842,12 +669,8 @@ public class MainActivity extends Activity {
         return name;
     }
 
-    // Reads max_upload_size_mb straight out of config.json - this path
-    // writes the shared file directly to disk rather than going through
-    // the Go server's /api/upload(_json), so it can't rely on
-    // a.maxUploadBytes() server-side and duplicates the same default
-    // (defaultMaxUploadSizeMB in backend/config.go) if config.json is
-    // missing or unreadable.
+    // This path writes to disk directly, not through /api/upload, so it reads
+    // max_upload_size_mb itself and repeats the backend default.
     private int readMaxUploadSizeMB() {
         try {
             java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
@@ -862,15 +685,13 @@ public class MainActivity extends Activity {
             int mb = cfg.optInt("max_upload_size_mb", 3);
             return mb > 0 ? mb : 3;
         } catch (Exception e) {
-            return 3; // matches backend/config.go's defaultMaxUploadSizeMB
+            return 3; // defaultMaxUploadSizeMB
         }
     }
 
-    // Copies uri's bytes to destFile, aborting (returns -1; the partial
-    // file is left for the caller to delete) once the stream exceeds
-    // maxBytes. There's no multipart header with a declared size here
-    // (unlike saveUploadedFile server-side), so the limit is enforced
-    // while streaming instead of checked up front.
+    // Returns -1 once the stream passes maxBytes and leaves the partial file
+    // for the caller to delete. The size is unknown up front, so the limit is
+    // checked during the copy.
     private long copyUriToFile(android.net.Uri uri, java.io.File destFile, long maxBytes) throws java.io.IOException {
         java.io.InputStream in = getContentResolver().openInputStream(uri);
         if (in == null) throw new java.io.IOException("could not open shared file");

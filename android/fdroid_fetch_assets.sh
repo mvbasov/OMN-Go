@@ -1,39 +1,13 @@
 #!/bin/sh
-# android/fdroid_fetch_assets.sh
+# Fetches and sha256-verifies the vendored third-party frontend assets
+# into backend/frontend/html/{js,css,css/fonts}/. The F-Droid build must
+# be reproducible and cannot trust the copies committed to the repository.
+# Its recipe metadata/net.basov.omngo.fdroid.yml calls this script from
+# the prebuild: step. Local and Docker builds keep the committed copies,
+# which also make the application work offline.
 #
-# Fetches and sha256-verifies the vendored, offline-first third-party
-# frontend assets (highlight.js, KaTeX + its fonts, Material Icons font,
-# github-markdown-css) into backend/frontend/html/{js,css,css/fonts}/,
-# instead of relying on the copies normally committed to the repo for
-# local/Docker builds.
-#
-# WHY THIS EXISTS: these files are committed to the repo so the app is
-# fully offline out of the box (see UserManual.md) and so
-# local/build.sh / Dockerfile.base builds don't need network access.
-# But F-Droid's own build recipe (metadata/net.basov.omngo.fdroid.yml)
-# would rather fetch-and-verify third-party binaries at build time than
-# trust ones already sitting in the source tree - this script is called
-# from that recipe's prebuild: step for exactly that reason. It is not
-# used by the normal Docker pipeline, which keeps using the committed
-# copies as-is (this script is safe to run there too - it just
-# re-fetches and overwrites the same files - but nothing currently
-# requires that).
-#
-# USAGE:
-#   sh android/fdroid_fetch_assets.sh                 # fetch + verify, run from repo root
-#   sh android/fdroid_fetch_assets.sh --print-hashes   # fetch only, print "name sha256sum"
-#                                                       # for every asset instead of verifying -
-#                                                       # use this once, on any machine with
-#                                                       # normal internet access, to populate the
-#                                                       # SHA256 map below, then commit the result.
-#
-# STATUS: every entry in the SHA256 map below is a REPLACE_WITH_SHA256
-# placeholder. This script fails closed (refuses to proceed) as long as
-# any placeholder remains, the same way the fdroiddata recipe's Go
-# toolchain checksum TODO does - see the recipe file for the matching
-# note. Run this script with --print-hashes on a normal machine, then
-# replace the placeholders below with the printed values before this can
-# be used in an actual F-Droid build.
+# Run with --print-hashes to print "name sha256sum" per asset and paste
+# the values below. Any REPLACE_WITH_SHA256 left in the table aborts.
 
 set -eu
 
@@ -49,8 +23,7 @@ fi
 
 mkdir -p "$JS_DIR" "$CSS_DIR" "$FONT_DIR"
 
-# name|url|dest|sha256 (one asset per line; sha256 is a placeholder until
-# populated via --print-hashes - see STATUS above)
+# name|url|dest|sha256, one asset per line.
 ASSETS='
 github-markdown.min.css|https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css|CSS_DIR/markdown.css|a7a15c52ec7512eb6c15c593fb289616c6987dd0e33e8e072d9be3fe79eedb18
 highlight.min.js|https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js|JS_DIR/highlight.min.js|837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846
@@ -82,8 +55,7 @@ material-icons.woff2|https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZcl
 '
 
 resolve_dest() {
-    # translate the FONT_DIR/JS_DIR/CSS_DIR prefix in the table above to
-    # the real absolute path, without relying on eval
+    # Expand the *_DIR prefix in the table above without using eval.
     case "$1" in
         JS_DIR/*)   echo "$JS_DIR/${1#JS_DIR/}" ;;
         CSS_DIR/*)  echo "$CSS_DIR/${1#CSS_DIR/}" ;;

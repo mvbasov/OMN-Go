@@ -19,11 +19,9 @@ jobs:
         env:
           GITLAB_PAT: ${{ secrets.GITLAB_PAT }}
         run: |
-          # 1. Register GitLab as an alternate authenticated remote target
           git remote add gitlab "https://oauth2:${GITLAB_PAT}@gitlab.com/mvbasov/OMN-Go.git"
           
-          # 2. Sync all branch heads and prune deleted ones
+          # Map origin's remote-tracking refs onto GitLab branch heads.
           git push --prune gitlab "+refs/remotes/origin/*:refs/heads/*"
           
-          # 3. Explicitly push tag history safely
           git push --tags gitlab
