@@ -158,6 +158,7 @@ var gitignorePatterns = []string{
 	"/html/js/highlight.min.js",
 	"/html/js/Bookmarker.js",
 	"/md/AndroidIntents.md",
+	"/md/BookmarksHowTo.md",
 	"/md/Database.md",
 	"/md/Editor.md",
 	"/md/OMNGoTags.md",

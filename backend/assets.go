@@ -74,6 +74,7 @@ var versionDependentAssets = []string{
 	"html/css/katex.min.css",
 	"html/css/markdown.css",
 	"md/AndroidIntents.md",
+	"md/BookmarksHowTo.md",
 	"md/Database.md",
 	"md/Editor.md",
 	"md/ScriptRules.md",

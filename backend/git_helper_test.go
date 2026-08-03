@@ -123,6 +123,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/js/highlight.min.js\n" +
 		"/html/js/Bookmarker.js\n" +
 		"/md/AndroidIntents.md\n" +
+		"/md/BookmarksHowTo.md\n" +
 		"/md/Database.md\n" +
 		"/md/Editor.md\n" +
 		"/md/OMNGoTags.md\n" +

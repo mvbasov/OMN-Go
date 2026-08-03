@@ -716,10 +716,17 @@ if (typeof currentNote === 'undefined') {
         // precedent). Runs unconditionally on load, not gated on
         // login/session state like checkRole(), since there's no
         // guest/admin distinction for "can this device pin a shortcut".
+        //
+        // An explicit "flex", not "" (which only drops the inline style and
+        // hands the decision back to the cascade): the CSS now hides these
+        // controls with a selector that wins inside .header-actions, so ""
+        // would leave the button hidden on Android as well. "flex" is what
+        // ".header-actions a, .header-actions button" gives every other
+        // control in that bar, so the revealed button matches its neighbours.
         function applyPlatformUI() {
             if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
                 document.querySelectorAll('.android-only').forEach(el => {
-                    el.style.display = '';
+                    el.style.display = 'flex';
                 });
             }
         }

@@ -73,6 +73,11 @@
     --info:          #17a2b8;   /* create / note / bookmark teal */
     --secondary:     #6c757d;   /* refresh / settings gray */
 
+    /* Start-page buttons (see .omn-start-buttons in section 6) */
+    --start-notes-bg:     #0056b3;   /* "My Quick Notes" card */
+    --start-bookmarks-bg: #17a2b8;   /* "My Bookmarks" card */
+    --start-btn-text:     #ffffff;   /* label on both cards */
+
     /* Tags */
     --tag-bg:        #E7E7E7;
     --tag-border:    #505050;
@@ -126,6 +131,10 @@
     --accent:        #4d9fff;
     --accent-hover:  #6cb0ff;
 
+    --start-notes-bg:     #1c5ea8;
+    --start-bookmarks-bg: #14707e;
+    --start-btn-text:     #eef3f8;
+
     --tag-bg:        #3a3d40;
     --tag-border:    #808080;
     --tag-selected:  #5a5f63;
@@ -176,6 +185,10 @@
 
         --accent:        #4d9fff;
         --accent-hover:  #6cb0ff;
+
+        --start-notes-bg:     #1c5ea8;
+        --start-bookmarks-bg: #14707e;
+        --start-btn-text:     #eef3f8;
 
         --tag-bg:        #3a3d40;
         --tag-border:    #808080;
@@ -1271,6 +1284,17 @@ mark.omn-search-hit.omn-search-hit-current {
     display: none;
 }
 
+/* The bare .android-only rule above is specificity 0-1-0, and every control
+   in the header bar is also matched by ".header-actions a, .header-actions
+   button" (0-1-1), which sets display:flex - so "Add to home screen" was
+   visible in the DESKTOP header too, where createNoteShortcut() has no
+   native shell to ask. This selector restores "hidden by default" for the
+   header case. On Android, applyPlatformUI (omn-go-core.js) sets an
+   explicit inline display on the element, which beats both rules. */
+.header-actions .android-only {
+    display: none;
+}
+
 /* -- Editing controls -- */
 .btn-metadata-toggle {
     display: block;
@@ -1390,6 +1414,86 @@ mark.omn-search-hit.omn-search-hit-current {
         width: 100%;
         animation: none;
         opacity: 0.55;
+    }
+}
+
+/* -- Start-page buttons --
+   The two large entry points ("My Quick Notes", "My Bookmarks") at the top
+   of the start page. They are plain <a> elements written in the Markdown
+   source of Welcome.md, NOT page chrome: a user who does not want them
+   deletes the block from the note. The classes live here so that the note
+   stays short and so that both themes stay correct without inline colors.
+
+   The card colors are their own tokens (--start-notes-bg,
+   --start-bookmarks-bg, --start-btn-text in section 1) rather than --accent
+   and --info: the dark palette lightens --accent to #4d9fff, which is a
+   good link color on a dark background but leaves too little contrast under
+   white label text on a filled card. Hover uses a brightness filter, so it
+   needs no token of its own in either theme.
+
+   One column by default - a full-width target is the easy one to press on
+   a phone - and two columns from 700px up, where a full-width button only
+   looks stretched. */
+.omn-start-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0 0 22px 0;
+}
+
+.omn-start-button {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-sizing: border-box;
+    min-height: 72px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: var(--start-notes-bg);
+    color: var(--start-btn-text);
+    text-decoration: none;
+    text-indent: 0;      /* #preview p sets 1em - see .material-icons above */
+    box-shadow: 0 2px 4px var(--shadow);
+}
+
+.omn-start-button:hover,
+.omn-start-button:focus {
+    filter: brightness(1.12);
+}
+
+.omn-start-button-bookmarks {
+    background: var(--start-bookmarks-bg);
+}
+
+.omn-start-icon {
+    font-size: 34px;
+    flex: 0 0 auto;
+}
+
+.omn-start-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.omn-start-label {
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1.25;
+}
+
+.omn-start-hint {
+    font-size: 13px;
+    line-height: 1.3;
+    opacity: 0.85;
+}
+
+@media (min-width: 700px) {
+    .omn-start-buttons {
+        flex-direction: row;
+    }
+    .omn-start-button {
+        flex: 1 1 0;
     }
 }
 

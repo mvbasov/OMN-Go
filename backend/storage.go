@@ -89,9 +89,24 @@ func (a *App) initStorage(overrideDir string) {
 		}
 	}
 
+	// The start page's two large buttons are markup in the note, not page
+	// chrome (see the .omn-start-buttons block in omn-go-core.css), so this
+	// fallback carries them too - an install that lands here must still get
+	// the same two entry points as the embedded Welcome.md.
 	initDefaultPage("Welcome.md", `Title: Welcome
 Date: 2026-06-14 12:00:00
 Category: System
+
+<div class="omn-start-buttons">
+<a class="omn-start-button" href="QuickNotes">
+<i class="material-icons omn-start-icon">insert_comment</i>
+<span class="omn-start-text"><span class="omn-start-label">My Quick Notes</span><span class="omn-start-hint">Write it down now. Sort it later.</span></span>
+</a>
+<a class="omn-start-button omn-start-button-bookmarks" href="Bookmarks">
+<i class="material-icons omn-start-icon">bookmark</i>
+<span class="omn-start-text"><span class="omn-start-label">My Bookmarks</span><span class="omn-start-hint">Keep a link. Find it again.</span></span>
+</a>
+</div>
 
 Yo! Welcome to OMN-Go! Start editing.
 

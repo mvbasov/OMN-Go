@@ -1,21 +1,21 @@
 Title: Bookmarks
 Date: 2026-06-15 20:00:00
-Modified: 2026-06-16 18:28:20
+Modified: 2026-08-03 12:00:00
 Category: System
 Tags: Bookmarks
 
 <script>bookmarks = [
 <!-- Don't edit body below this line -->
   {
-    "date": "2026-06-16 17:58:30",
-    "url": "Welcome",
-    "title": "Welcome to OMN-Go",
+    "date": "2026-08-03 12:00:00",
+    "url": "/BookmarksHowTo.html",
+    "title": "How to use Bookmarks — start here",
     "tags": [
       "Local",
       "Bookmarks"
     ],
     "notes": [
-      "This is the first bookmark"
+      "How to add a bookmark and how to find it again"
     ]
   }
 ];

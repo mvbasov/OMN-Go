@@ -1,18 +1,30 @@
 Title: Welcome
 Date: 2026-08-01 11:12:03
-Modified: 2026-08-01 23:55:13
+Modified: 2026-08-03 12:00:00
 Category: Notes
 Author: Mikhail Basov
-
----
 
 <!--
   Good job, you have opened the editor.
 This is the .md source
 that will be compiled to .html
   Also the User Manual has a lot of useful stuff.
+  The two buttons below are ordinary links. Delete the <div> block if you
+do not want them.
 -->
 
+<div class="omn-start-buttons">
+<a class="omn-start-button" href="QuickNotes">
+<i class="material-icons omn-start-icon">insert_comment</i>
+<span class="omn-start-text"><span class="omn-start-label">My Quick Notes</span><span class="omn-start-hint">Write it down now. Sort it later.</span></span>
+</a>
+<a class="omn-start-button omn-start-button-bookmarks" href="Bookmarks">
+<i class="material-icons omn-start-icon">bookmark</i>
+<span class="omn-start-text"><span class="omn-start-label">My Bookmarks</span><span class="omn-start-hint">Keep a link. Find it again.</span></span>
+</a>
+</div>
+
+---
 
 #### **Welcome to OMN-GO.**
 

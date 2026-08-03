@@ -15,6 +15,7 @@ written.
 **Basics**
 
 - [First run and where your data lives](#first-run-and-where-your-data-lives)
+- [The start page](#the-start-page)
 - [Login and roles](#login-and-roles)
 - [The interface](#the-interface)
 - [Creating a new page](#creating-a-new-page)
@@ -68,7 +69,39 @@ Inside it:
 On first start, OMN-Go creates the storage directory, a default
 `config.json`, and a few starter pages ([Welcome](Welcome),
 [QuickNotes](QuickNotes), [Bookmarks](Bookmarks),
-[ScriptRules](ScriptRules), [Editor](Editor)).
+[BookmarksHowTo](BookmarksHowTo), [ScriptRules](ScriptRules),
+[Editor](Editor)).
+
+## The start page
+
+The [Welcome](Welcome) page is the start page. The
+<i class="material-icons">home</i> button of the header opens it, and the Android application opens it at launch.
+
+A new installation starts with two large buttons at the top of the page:
+
+- **My Quick Notes** opens the [QuickNotes](QuickNotes) page, where each note that you write with the <i class="material-icons">insert_comment</i> button comes with a timestamp.
+- **My Bookmarks** opens the [Bookmarks](Bookmarks) page, where each link that you save with the <i class="material-icons">bookmark_add</i> button comes with its tags and its notes.
+
+If you use only these two functions, you do not have to open the editor at all. The first quick note and the first bookmark tell you how to add a note and a bookmark on your device; see also [How to use Bookmarks](BookmarksHowTo).
+
+The buttons are two links in the Markdown source of the note, not part of the header. The start page is your page: open it in edit mode (<i class="material-icons">edit</i>) and change the buttons, move them, or delete the `<div class="omn-start-buttons">` block. An installation that was made before the buttons existed keeps its own start page; to add the buttons there, copy the block from this manual or from a new installation.
+
+The block looks like this:
+
+```
+<div class="omn-start-buttons">
+<a class="omn-start-button" href="QuickNotes">
+<i class="material-icons omn-start-icon">insert_comment</i>
+<span class="omn-start-text"><span class="omn-start-label">My Quick Notes</span><span class="omn-start-hint">Write it down now. Sort it later.</span></span>
+</a>
+<a class="omn-start-button omn-start-button-bookmarks" href="Bookmarks">
+<i class="material-icons omn-start-icon">bookmark</i>
+<span class="omn-start-text"><span class="omn-start-label">My Bookmarks</span><span class="omn-start-hint">Keep a link. Find it again.</span></span>
+</a>
+</div>
+```
+
+Keep the block without empty lines in it: an empty line ends a raw HTML block, and the rest of the block then shows as text.
 
 ## Login and roles
 
