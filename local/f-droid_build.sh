@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 #
-# Local F-Droid build check of net.basov.omngo.fdroid in the F-Droid
-# buildserver podman image. Gradle 8.5 from gradle-wrapper.properties
-# runs on the image stock JDK 21, the closest match to F-Droid's Debian
-# trixie buildserver. No JDK mount is needed.
+# build-omngo.sh — local F-Droid build check of net.basov.omngo.fdroid
+# in the F-Droid buildserver podman image.
+#
+# Now that the app repo pins Gradle 8.5 via gradle-wrapper.properties
+# (runs on JDK 17 AND 21), the build runs on the image's stock JDK 21 —
+# the closest match to F-Droid's real (Debian trixie) buildserver. No
+# JDK mount needed anymore.
+#
+# Builds the LATEST build entry in the metadata (-l), so a version bump
+# in the .yml needs no change here.
+
+# Repeat build
+# cd ~/git/fdroiddata
+# rm -f unsigned/net.basov.omngo.fdroid_*.apk unsigned/net.basov.omngo.fdroid_*_src.tar.gz
+# rm -rf ~/git/fdroiddata/tmp                            # fdroid scratch
+# rm -rf ~/fdroid-cache/gradle/caches
 
 set -euo pipefail
 
+# ---- paths (edit if yours differ) ----
 FDROIDDATA="$HOME/git/fdroiddata"           # metadata checkout (mounts to /build)
 FDROIDSERVER="$HOME/git/fdroidserver"       # git fdroidserver checkout
 CACHE="$HOME/fdroid-cache"
@@ -15,15 +28,18 @@ APP="net.basov.omngo.fdroid"                # -l picks the latest Builds entry
 IMAGE="registry.gitlab.com/fdroid/fdroidserver:buildserver"
 NDK_URL="https://dl.google.com/android/repository/android-ndk-r25c-linux.zip"
 NDK_DIR="android-ndk-r25c"                  # r25c == 25.2.9519653 (matches recipe + Docker)
+# --------------------------------------
 
 mkdir -p "$CACHE"
 
+# 1. Seed a persistent copy of the image's SDK (one-time)
 if [ ! -e "$SDKCACHE/licenses" ]; then
     echo "==> seeding persistent Android SDK to $SDKCACHE (one-time)..."
     podman run --rm -v "$CACHE":/hc:z --entrypoint /bin/bash "$IMAGE" \
         -c 'cp -a /opt/android-sdk /hc/android-sdk'
 fi
 
+# 2. NDK into the persistent SDK (one-time)
 if [ ! -d "$SDKCACHE/ndk/$NDK_DIR" ]; then
     echo "==> installing NDK $NDK_DIR ..."
     mkdir -p "$SDKCACHE/ndk"
@@ -32,8 +48,8 @@ if [ ! -d "$SDKCACHE/ndk/$NDK_DIR" ]; then
     rm -f /tmp/ndk.zip
 fi
 
-# Same SDK versions as the Docker build. Quote each package so the ';'
-# survives the F-Droid python sdkmanager.
+# 3. SDK platform + build-tools (one-time) — same versions as the Docker build.
+#    F-Droid python sdkmanager; each package quoted so the ';' survives.
 if ! ls -d "$SDKCACHE"/platforms/android-34 >/dev/null 2>&1; then
     echo "==> installing platforms;android-34 build-tools;33.0.1 ..."
     podman run --rm -v "$SDKCACHE":/opt/android-sdk:z --entrypoint /bin/bash "$IMAGE" \
@@ -41,6 +57,7 @@ if ! ls -d "$SDKCACHE"/platforms/android-34 >/dev/null 2>&1; then
             yes | sdkmanager "platforms;android-34" "build-tools;33.0.1"'
 fi
 
+# 4. Register the NDK path in config.yml (persists on the /build mount)
 if ! grep -q '^ndk_paths:' "$FDROIDDATA/config.yml"; then
     echo "==> registering ndk_paths in config.yml..."
     cat >> "$FDROIDDATA/config.yml" <<EOF
@@ -52,8 +69,9 @@ EOF
 fi
 chmod 600 "$FDROIDDATA/config.yml" 2>/dev/null || true
 
-# Mount the whole ~/.cache. A subdir-only mount leaves a root-owned
-# .cache parent that breaks the Go build cache.
+# 5. Build. Whole ~/.cache is mounted (a subdir-only mount leaves a root-owned
+#    .cache parent that breaks Go's build cache). Gradle + gradlew-fdroid +
+#    go-build caches all persist across runs.
 mkdir -p "$CACHE/gradle" "$CACHE/vagrant-cache"
 echo "==> building $APP (latest build entry) ..."
 podman run --rm -it --http-proxy=false --userns=keep-id \

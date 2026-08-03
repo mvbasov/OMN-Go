@@ -5,7 +5,7 @@
         count INTEGER NOT NULL DEFAULT 0
     )`);
 
-    // Atomic upsert - two tabs can load at once.
+    // Atomic upsert - safe even if two tabs load this page at once.
     await db.exec(
         `INSERT INTO hits (page, count) VALUES (?, 1)
          ON CONFLICT(page) DO UPDATE SET count = count + 1`,

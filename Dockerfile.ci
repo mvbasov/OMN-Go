@@ -1,8 +1,24 @@
-# CI only (android-gomobile-release.yml). Both stages build as one BuildKit
-# graph because the docker-container driver has its own image store: a
-# second build cannot resolve `FROM omn-go-base:latest` and tries to pull
-# it. Keep in sync with Dockerfile.base and Dockerfile.
+# Combined single-file, single-stage-graph version of Dockerfile.base +
+# Dockerfile, used ONLY by CI (see android-gomobile-release.yml).
+#
+# Why this exists as a separate file instead of two `docker buildx build`
+# invocations: GitHub's setup-buildx-action creates a builder using the
+# `docker-container` driver, which runs BuildKit in an isolated container
+# with its OWN image store - it does not share the local Docker daemon's
+# image store for FROM resolution, even after a prior build `--load`ed a
+# result into that daemon. Two separate `docker buildx build` calls where
+# the second does `FROM omn-go-base:latest` therefore tries to PULL that
+# name from a registry and fails ("pull access denied"). Building both
+# stages as one BuildKit graph sidesteps the problem entirely - there is
+# no cross-invocation image reference to resolve.
+#
+# Local development is unaffected: Dockerfile.base and Dockerfile remain
+# the two-file setup for `docker buildx build -f Dockerfile.base ...` then
+# `docker buildx build ...` on a machine using the default `docker`
+# driver (which DOES share the local image store). Keep this file's
+# content in sync with those two if you change either.
 
+# ============================== STAGE 1 ===============================
 FROM golang:1.26-bookworm AS base_env
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -33,9 +49,13 @@ ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
 
 WORKDIR /app
 
-# The host has no Go toolchain, so go.sum and the x/mobile tool dependency
-# are resolved here. /root/lockfiles is a path the `COPY . .` in stage 2
-# never touches, so the result survives it and gets restored afterward.
+# The host has no Go toolchain, so go.sum is generated here, inside the
+# container, once. golang.org/x/mobile isn't in the committed go.mod
+# either, so it's added here as a `tool` dependency. The result is
+# stashed under /root/lockfiles - a path the project_builder stage's
+# later `COPY . .` never touches - so it survives that copy intact and
+# gets restored afterward instead of being silently reverted to the
+# host's incomplete go.mod.
 COPY go.mod ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile && \
@@ -45,21 +65,29 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     gomobile init && \
     mkdir -p /root/lockfiles && cp go.mod go.sum /root/lockfiles/
 
+# ============================== STAGE 2 ===============================
 FROM base_env AS project_builder
 
+# NOTE: signing secrets (keystore password, key alias, key password) are no
+# longer passed as ARG/--build-arg. They are mounted with BuildKit
+# --mount=type=secret in the gradle step below, so they never end up in the
+# image layers or `docker history`.
 ARG SKIP_TESTS=0
 
 COPY . .
 
-# Restore stage 1's resolved go.mod and go.sum over the host's copies.
+# Restore the fully-resolved go.mod/go.sum from stage 1, undoing whatever
+# the host's (go.sum-less, x/mobile-less) copies the line above just
+# brought in.
 RUN cp /root/lockfiles/go.mod /root/lockfiles/go.sum ./
 
-# Safety net, not a resolution step. A no-op that touches no network while
-# go.mod matches what the source imports.
+# Safety net, not a resolution step: reconciles go.mod against the now-
+# fully-present source. Should be a no-op - and touch no network - as
+# long as go.mod hasn't drifted from what the source actually imports.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go mod tidy
 
-# Vet and the unit tests must pass before any artifact is built.
+# Quality Gate: vet + unit tests must pass before ANY artifact is built.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     if [ "$SKIP_TESTS" = "1" ]; then \
@@ -69,6 +97,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
         go test ./backend/...; \
     fi
 
+# Desktop Binary (OMN-Go naming convention)
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
@@ -76,19 +105,30 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOOS=linux GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
-# The Android application carries strictly zero AndroidX or AppCompat.
+# Android APK - Webview Wrapper via Gradle & gomobile bind (strictly zero AndroidX/AppCompat)
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p android/app/libs && \
     gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
-# Standard flavor only. F-Droid builds and re-signs its own variant from
-# metadata/net.basov.omngo.fdroid.yml, so an APK built here would look
-# official without being what F-Droid distributes.
+# Explicitly the "standard" flavor only - never "fdroid". The fdroid
+# variant is built exclusively by F-Droid's own build server, from its
+# own recipe (see metadata/net.basov.omngo.fdroid.yml); building it here
+# would be pointless (F-Droid re-signs with its own key regardless) and
+# risks producing/publishing an APK that looks official but isn't what
+# F-Droid actually distributes.
 #
-# Secrets are mounted, not ARGs, so no keystore and no password reaches an
-# image layer. The four secret ids are the contract every CI system must
-# satisfy. required=true fails the step at once when a job omits one.
+# Signing material is mounted here only, and exported into the environment
+# for gradle to read. --mount=type=secret files live at /run/secrets/<id>,
+# are readable only during this RUN, and are never persisted to any layer -
+# so neither the keystore nor the passwords end up in the image history.
+# KEYSTORE_FILE points build.gradle's signingConfig at the mounted keystore.
+# The secret ids (keystore, keystore_password, key_alias, key_password) are
+# the contract every CI system must satisfy - see GitHub/GitLab notes.
+# required=true makes BuildKit fail this step immediately with a clear
+# "secret <id> is required" message if a CI job forgets to pass one, instead
+# of silently skipping the mount and failing ~40s later inside gradle with a
+# confusing "keystore not found" / bad-password error.
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     --mount=type=secret,id=keystore,required=true \
     --mount=type=secret,id=keystore_password,required=true \
@@ -102,9 +142,17 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     gradle assembleStandardRelease && \
     cp app/build/outputs/apk/standard/release/*.apk ../bin/
 
-# Build with `--target export --output type=local,dest=artifacts`. Loading
-# the multi-GB toolchain image into the Docker daemon fills the disk on a
-# small runner. This is the last stage, so a plain `docker build` with no
-# --target produces the artifacts-only image.
+# ============================== EXPORT ===============================
+# Minimal final stage containing ONLY the build outputs. Build this with
+#   docker buildx build --target export --output type=local,dest=artifacts .
+# to have BuildKit write just these files to the host - instead of --load'ing
+# the multi-GB toolchain image into the Docker daemon (which exhausted disk
+# on GitLab's small runner: "no space left on device" during import-to-docker).
+# No image tar, no daemon import, no `docker create`/`docker cp` needed.
+#
+# NOTE: because this is the LAST stage, it is also the default build target.
+# Both CI pipelines pass --target export explicitly, so that is moot for them,
+# but a plain `docker build` with no --target would now produce this
+# artifacts-only image rather than the full builder.
 FROM scratch AS export
 COPY --from=project_builder /app/bin/ /

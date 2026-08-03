@@ -8,6 +8,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y \
     openjdk-17-jdk wget unzip cmake ninja-build
 
+# Install Android CMD Line Tools
 RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
     wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O /tmp/dl/cmd.zip && \
     mkdir -p /opt/android/cmdline-tools && \
@@ -21,6 +22,7 @@ RUN --mount=type=cache,target=/opt/android/.android/cache,sharing=locked \
     yes | sdkmanager --licenses && \
     sdkmanager "platforms;android-34" "build-tools;33.0.1" "platform-tools" "ndk;25.2.9519653"
 
+# Install Gradle
 RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
     wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/dl/gradle.zip && \
     mkdir -p /opt/gradle && \
@@ -29,10 +31,21 @@ ENV PATH=$PATH:/opt/gradle/gradle-8.5/bin
 
 WORKDIR /app
 
-# The host has no Go toolchain, so go.sum can only be generated here.
-# The committed go.mod also lacks golang.org/x/mobile, so the RUN below
-# adds it as a tool dependency. The stash goes to /root/lockfiles, not
-# /app, so the COPY in stage 2 cannot overwrite it.
+# The host has no Go toolchain, so go.sum can only be generated here,
+# inside the container - once, whenever go.mod changes. golang.org/x/mobile
+# isn't in the committed go.mod either (nothing on the host could have
+# added it), so it's added here as a `tool` dependency, matching stage 2's
+# `go mod tidy` expectations.
+#
+# The result is stashed under /root/lockfiles - NOT under /app - so that
+# stage 2's later `COPY . .` (which brings in the host's incomplete,
+# go.sum-less go.mod) can't overwrite it. Stage 2 restores it explicitly
+# instead. (Earlier revisions tried to solve this with a second
+# .dockerignore file to exclude go.mod/go.sum from stage 2's COPY - that
+# works but is fragile: BuildKit's per-Dockerfile ignore file REPLACES the
+# root .dockerignore rather than merging with it, so it silently drops
+# every other exclusion too unless kept in careful sync by hand. This
+# stash-and-restore approach needs no ignore-file trickery at all.)
 COPY go.mod ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go get -tool golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile && \

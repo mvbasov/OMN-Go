@@ -6,22 +6,33 @@ if [ ! -f android/app/omn-go.keystore ]; then \
            -dname "CN=OMN-Go, O=Basov"; \
 fi 
 
+# 0. Build descktop and android binary
 echo "-------- STAGE 1 -------"
 docker buildx build -f Dockerfile.base -t omn-go-base:latest .
 echo "-------- STAGE 2 -------"
 docker buildx build -t omn-go-builder:latest . \
    $(grep -v '^#' .env | xargs -I {} echo --build-arg {})
 
+## Extract the keystore after first run
+#docker create --name tmp omn-go-builder
+#docker cp tmp:/app/android/app/omn-go.keystore android/app/
+#docker rm tmp
+
+# 1. Clean up the old directory 
 rm -rf ./output-binaries/
 
+# 2. Recreate a fresh, empty directory
 mkdir -p ./output-binaries/
 
+# 3. Create the temporary container from the latest build image
 docker create --name omn-go-extract omn-go-builder
 
-# The /. suffix copies the contents of bin, not the directory itself.
+# 4. Copy the CONTENTS of the bin folder (using the critical /. syntax)
 docker cp omn-go-extract:/app/bin/. ./output-binaries/
 
+# 5. Clean up the temporary container
 docker rm omn-go-extract
 
+# 6. Show result
 ls -l ./output-binaries/
 echo "Binaries successfully extracted to perfectly clean ./output-binaries/ directory!"

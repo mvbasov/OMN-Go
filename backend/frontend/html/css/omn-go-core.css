@@ -1,11 +1,35 @@
 /* ==========================================================================
    OMN-Go Core Stylesheet
    ==========================================================================
-   All colors are custom properties in section 1. injectRuntimeVars in
-   templates.go sets <html data-theme="auto|light|dark">. "auto", or no
-   attribute at all, follows prefers-color-scheme with no JS.
-   The dark palette is defined TWICE: for [data-theme="dark"] and in the
-   media query. Update both copies.
+   Table of contents:
+     1. Design tokens (theming: light / dark / auto)
+     2. Fonts & icons
+     3. Base & page layout
+     4. Page chrome (header, title, tags, footer)
+     5. Content area (preview / editor)
+     6. Components (overlays, modals, panels, buttons, search)
+     7. Config page
+     8. External editor page
+     9. JS console
+    10. Markdown content (tables, TOC, paragraph style)
+    11. Utilities & legacy compatibility
+    12. Responsive
+
+   Theming model:
+     - All colors live in custom properties defined in section 1.
+     - The server sets  <html data-theme="auto|light|dark">  at runtime via
+       an injected head script (see injectRuntimeVars in templates.go), so
+       cached pages pick up config changes without recompiling.
+     - "light" and "dark" pin the palette explicitly. "auto" - or NO
+       attribute at all, e.g. an exported page opened via file:// where the
+       runtime script is never injected - follows the OS/browser setting
+       through the prefers-color-scheme media query. No JS is involved in
+       the auto case.
+     - IMPORTANT: the dark palette is defined TWICE below (once for
+       [data-theme="dark"], once inside the media query for auto). Plain
+       CSS has no way to share a declaration block between an attribute
+       selector and a media query, so when you touch a dark token, update
+       BOTH copies.
    ========================================================================== */
 
 /* ==========================================================================
@@ -17,37 +41,37 @@
     color-scheme: light;
 
     /* Surfaces */
-    --bg:            #f9f9f9;
+    --bg:            #f9f9f9;   /* page background */
     --bg-surface:    #ffffff;   /* cards, modals, preview */
     --bg-band:       #e8e8e8;   /* page header / footer strips */
     --bg-inset:      #f5f5f5;   /* pre blocks, title arrow, subtle fills */
-    --bg-metadata:   #e9ecef;
-    --bg-toc:        #fafafa;
-    --bg-hover:      #d0d0d0;
+    --bg-metadata:   #e9ecef;   /* metadata panel */
+    --bg-toc:        #fafafa;   /* table of contents box */
+    --bg-hover:      #d0d0d0;   /* header button / tag hover */
 
     /* Text */
-    --text:          #333333;
-    --text-strong:   #1a1a1a;
-    --text-heading:  #444444;
-    --text-muted:    #555555;
-    --text-faint:    #666666;
-    --text-dim:      #888888;
+    --text:          #333333;   /* body text */
+    --text-strong:   #1a1a1a;   /* titles, headings */
+    --text-heading:  #444444;   /* labels, secondary headings */
+    --text-muted:    #555555;   /* hints, descriptions */
+    --text-faint:    #666666;   /* footer, minor hints */
+    --text-dim:      #888888;   /* version footer */
 
     /* Borders */
-    --border:        #cccccc;
-    --border-soft:   #dddddd;
-    --border-card:   #e1e4e8;
-    --border-strong: #999999;
-    --border-title:  #eaecef;
+    --border:        #cccccc;   /* inputs, general borders */
+    --border-soft:   #dddddd;   /* editor, cards */
+    --border-card:   #e1e4e8;   /* config / ext-edit panels */
+    --border-strong: #999999;   /* header action buttons */
+    --border-title:  #eaecef;   /* config title underline */
 
-    /* Semantic accents - shared by both themes unless overridden */
-    --accent:        #0056b3;
+    /* Semantic accents (shared by both themes unless overridden) */
+    --accent:        #0056b3;   /* primary blue */
     --accent-hover:  #004494;
-    --success:       #28a745;
+    --success:       #28a745;   /* save / confirm green */
     --success-hover: #218838;
-    --danger:        #dc3545;
-    --info:          #17a2b8;
-    --secondary:     #6c757d;
+    --danger:        #dc3545;   /* cancel / destructive red */
+    --info:          #17a2b8;   /* create / note / bookmark teal */
+    --secondary:     #6c757d;   /* refresh / settings gray */
 
     /* Tags */
     --tag-bg:        #E7E7E7;
@@ -63,7 +87,7 @@
     --table-text:    #000000;
 
     /* Search */
-    --search-hit-bg:   #ffe08a;   /* matched text in results and page */
+    --search-hit-bg:   #ffe08a;   /* matched text in results and in the page */
     --search-hit-text: #1a1a1a;
 
     /* Effects */
@@ -73,7 +97,8 @@
     --shadow-strong: rgba(0, 0, 0, 0.2);
 }
 
-/* -- Dark palette, explicit. Keep in sync with the auto copy below. -- */
+/* -- Dark palette, explicit: <html data-theme="dark"> --
+   (Keep in sync with the auto copy inside the media query below.) */
 :root[data-theme="dark"] {
     color-scheme: dark;
 
@@ -119,7 +144,10 @@
     --shadow-strong: rgba(0, 0, 0, 0.6);
 }
 
-/* -- Dark palette, automatic. A copy of [data-theme="dark"] above. -- */
+/* -- Dark palette, automatic: theme "auto" (or no data-theme attribute,
+   e.g. exported pages opened via file://) follows the system setting.
+   This block is a byte-for-byte copy of [data-theme="dark"] above -
+   update BOTH when changing a dark token. -- */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]):not([data-theme="dark"]),
     :root[data-theme="auto"] {
@@ -195,8 +223,15 @@
     -webkit-font-smoothing: antialiased;
 }
 
-/* Both are inline-block block containers, so they inherit the 1em
-   text-indent of "#preview p" and indent their own contents again. */
+/* Both of these are display:inline-block, which makes them block containers
+   in their own right. text-indent is INHERITED and applies to the first line
+   of any block container, so inside a note paragraph - "#preview p" sets
+   text-indent: 1em, the legacy paragraph indent - each one indented its own
+   contents by another 1em, leaving a body-em of dead space to the LEFT of
+   every icon and a paragraph that starts with one indented twice.
+   Elsewhere (page header, config, editor) the inherited value is already 0
+   and this declaration changes nothing. KaTeX ships the same guard for the
+   same reason: .katex { text-indent: 0 }. */
 .material-icons,
 .title-arrow {
     text-indent: 0;
@@ -221,8 +256,13 @@ body {
     display: flex;
     flex: 1;
     flex-direction: column;
-    /* A flex item's implicit min-height:auto stops #mainUI from shrinking
-       below its content, so a long page scrolls the header and footer away. */
+    /* Without this, a flex item's implicit min-height:auto keeps #mainUI from
+       shrinking below its content's natural height. On a long page (e.g.
+       UserManual) that let the whole body grow past 100vh and scroll as one -
+       carrying the header off the top and hiding the footer until the very
+       bottom. min-height:0 clamps #mainUI to its flex share so #preview scrolls
+       internally instead, keeping the header and footer always visible. The
+       inner .page-content already sets this; #mainUI was the missing link. */
     min-height: 0;
 }
 
@@ -285,8 +325,14 @@ body {
     background: var(--bg-hover);
 }
 
-/* The sync "force" toggle. The weight and danger color carry the warning
-   the one-character label cannot. It is a <label>, so chrome is explicit. */
+/* The sync "force" toggle. Labelled "!" rather than "Force": it sits between
+   the two sync buttons it modifies, where a word costs more width than it
+   earns, and the tooltip carries the meaning. Given a one-character label, the
+   danger has to be legible in the character itself - hence the weight and the
+   danger colour, rather than the 12px muted grey a word could get away with.
+
+   It is a <label>, not a <button>, so it needs the surrounding chrome spelled
+   out to line up with its neighbours. */
 .header-actions .btn-force {
     display: flex;
     align-items: center;
@@ -398,8 +444,8 @@ a.taglink {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow: hidden;    /* children scroll, not this box */
+    min-height: 0;       /* allow shrinking below content size */
+    overflow: hidden;    /* prevent double scrollbars; children scroll */
 }
 
 #preview {
@@ -411,8 +457,16 @@ a.taglink {
     overflow-y: auto;
     box-sizing: border-box;
     line-height: 1.6;
-    /* Without containment, descendant KaTeX output inflates the document
-       height and a touch drag then pulls the whole shell off screen. */
+    /* Layout containment keeps #preview's descendants from affecting the
+       layout OUTSIDE it. Without it, some rendered content - notably KaTeX
+       math output (e.g. on UserManual, which sets OMN_GO_KATEX) - escaped this
+       scroll box and inflated the whole document's height by thousands of px.
+       That phantom height was itself unreachable by mouse wheel (the wheel
+       scrolls #preview), but a touch drag that hit #preview's bottom then
+       chained into it, dragging the entire shell - header and footer included -
+       off screen. contain:layout removes the phantom height entirely (the
+       document stays exactly one viewport tall) while #preview still scrolls
+       its content normally, so there is nothing left to chain into. */
     contain: layout;
 }
 .page-content #preview {
@@ -422,7 +476,7 @@ a.taglink {
     flex: 1;
     min-height: 0;
     width: 100%;
-    overflow-y: auto;
+    overflow-y: auto;    /* scroll if content overflows */
 }
 
 #editor {
@@ -442,7 +496,7 @@ a.taglink {
     flex: 1;
     min-height: 0;
     width: 100%;
-    resize: vertical;
+    resize: vertical;    /* allow manual resize if desired */
     box-sizing: border-box;
 }
 
@@ -472,13 +526,16 @@ a.taglink {
     z-index: 50;
 }
 
-/* Sync conflict modal: the .hidden class drives visibility, not
-   style.display. */
+/* Sync conflict modal (index.html): unlike the other overlays, which JS
+   shows by setting style.display, its visibility is driven purely by the
+   .hidden class (window.runSync / window.performSync in omn-go-sse.js). */
 #conflict-modal:not(.hidden) {
     display: flex;
 }
 
-/* Filled by populateConflictFiles in omn-go-sse.js. */
+/* Conflict modal file list: the files in contention (populated by
+   populateConflictFiles in omn-go-sse.js) - exactly what "Mark Conflicts"
+   would inject markers into. Scrolls when there are many. */
 .conflict-files {
     text-align: left;
     margin-bottom: 10px;
@@ -566,7 +623,7 @@ a.taglink {
     background: var(--danger);
 }
 
-/* -- Form controls pick up theme colors -- */
+/* -- Form controls pick up theme colors (inputs inside modals/panels) -- */
 .modal input, .modal textarea,
 .panel input, .panel textarea {
     background: var(--bg-surface);
@@ -574,8 +631,10 @@ a.taglink {
     border: 1px solid var(--border);
 }
 
-/* -- Bookmark "Tags" autocomplete. The wrapper carries the margin-bottom
-   from ".panel input", so #bmTags is zeroed to avoid a doubled gap. -- */
+/* -- Bookmark "Tags" autocomplete (see initBookmarkTagAutocomplete in
+   omn-go-core.js). The wrapper takes over the margin-bottom that
+   ".panel input" normally provides, so #bmTags itself is zeroed out -
+   otherwise the gap would be doubled. -- */
 .panel .tag-input-wrap {
     position: relative;
     margin-bottom: 10px;
@@ -608,8 +667,9 @@ a.taglink {
     background: var(--bg-hover);
 }
 
-/* -- Search panel (omnSearchOpen in omn-go-sse.js) --
-   Anchored to the top: a panel that re-centers as results arrive is
+/* -- Search overlay (omnSearchOpen in omn-go-sse.js) --
+   Anchored to the top of the viewport rather than centred: results grow
+   downwards, and a panel that re-centres itself as the list changes length is
    unusable to type into. */
 .omn-search-overlay {
     position: fixed;
@@ -652,7 +712,7 @@ a.taglink {
     flex: 1 1 auto;
     min-width: 0;
     padding: 6px 4px;
-    font-size: 16px;             /* stops the WebView zooming on focus */
+    font-size: 16px;             /* 16px stops iOS/WebView zooming on focus */
     color: var(--text);
     background: transparent;
     border: none;
@@ -694,7 +754,9 @@ a.taglink {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-/* Global search only: the note the snippets came from. */
+/* A document heading in global scope: the note a group of snippets came from.
+   Page scope has no equivalent - there, every row is from the page you are
+   already looking at. */
 .omn-search-doc {
     display: flex;
     align-items: baseline;
@@ -730,7 +792,8 @@ a.taglink {
     color: var(--text-faint);
     font-size: 11px;
 }
-/* With global search off the scope row is a label, not a control. */
+/* Only clickable when there is a choice to make: with global search off the
+   scope row is a label, not a control. */
 .omn-search-chip[role="button"] {
     cursor: pointer;
 }
@@ -769,7 +832,8 @@ a.taglink {
     font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
-/* A hit inside a script or a fenced block. Marked, never ranked down. */
+/* A hit inside a script or a fenced block. Marked, never ranked down: code
+   in notes is a normal thing to search for. */
 .omn-search-ctx {
     flex: 0 0 auto;
     color: var(--text-faint);
@@ -790,8 +854,12 @@ a.taglink {
     font-size: 12px;
     border-top: 1px solid var(--border-soft);
 }
-/* "See all results". No display property here: one would beat [hidden]'s
-   display:none, and hidden is how the button comes and goes. */
+/* "See all results", in the scope row rather than at the foot of the list.
+   margin-left:auto parks it at the far end, opposite the chips, so it reads as
+   a way out of the panel rather than as one more thing to search.
+
+   No display property here on purpose: setting one would beat [hidden]'s
+   display:none, and hidden is how it comes and goes with the query. */
 .omn-search-seeall {
     margin-left: auto;
     padding: 2px 8px;
@@ -816,7 +884,9 @@ a.taglink {
     outline-offset: 1px;
 }
 
-/* -- The search page (/OMNGoSearch.html, serveSearchPage) -- */
+/* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
+   The shareable, JS-free counterpart to the dialog. Same match styling, laid
+   out for reading rather than for speed. */
 .search-page {
     max-width: 900px;
 }
@@ -915,8 +985,9 @@ a.taglink {
     color: var(--text-faint);
     font-size: 12px;
 }
-/* Shown when global search is off. The address stays legitimate, so the page
-   explains itself instead of reading as an error. */
+/* The page you get when global search is off. It is not an error page - the
+   address is legitimate and people link to it from their own notes - so it
+   reads as an explanation with a way forward, not as a miss. */
 .search-page.is-disabled .search-page-form,
 .search-page.is-disabled .search-page-summary {
     display: none;

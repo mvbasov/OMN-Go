@@ -3,11 +3,12 @@ stages:
   - upload
   - release
 
-# Global variables must live outside the default block.
+# Global variables must live outside the default block
 variables:
   DOCKER_TLS_CERTDIR: "/certs"
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}"
 
+# Default options applied globally to jobs
 default:
   image: docker:24.0.7
   services:
@@ -21,9 +22,13 @@ build_job:
     - if: $CI_COMMIT_BRANCH == "DS"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
     - if: $CI_COMMIT_TAG =~ /^v/
-  # A local buildx cache fills the runner's small disk. Cache to the registry.
+  # NOTE: the local `cache: .buildx-cache` block was removed. mode=max local
+  # cache wrote several GB of toolchain layers to the small runner's disk and
+  # ran it out of space ("no space left on device" during cache export). The
+  # build now caches to GitLab's container registry instead (see below), which
+  # streams off-disk and doesn't touch the runner's limited local storage.
 
-  # The Docker-in-Docker daemon is not up when the job starts.
+  # FIXED: Wait for the Docker-in-Docker service daemon to become active before starting build steps
   before_script:
     - |
       echo "Waiting for Docker daemon to start..."
@@ -37,14 +42,23 @@ build_job:
       done
 
   script:
-    # buildx reads the DinD TLS endpoint from an explicit context, not the env.
+    # FIXED: create an explicit docker context so buildx picks up the DinD TLS
+    # endpoint instead of failing to load TLS data from the environment.
     - docker context create builder
     - docker buildx create --use --driver docker-container --name omngo-builder builder
-    # /tmp is outside the build context, so `COPY . .` never takes the keystore.
+    # Decode the keystore to a path OUTSIDE the build context (/tmp), so it is
+    # never captured by `COPY . .` and never baked into an image layer. It is
+    # handed to the build only as a BuildKit secret.
     - echo "${KEYSTORE_BASE64}" | base64 -d > /tmp/omn-go.keystore
+    # Log in to GitLab's container registry so buildx can push/pull the build
+    # cache there (CI_REGISTRY_USER / CI_REGISTRY_PASSWORD are predefined).
     - echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
-    # Loading the multi-GB toolchain image into the daemon fills the runner's
-    # disk, so export only the build outputs. A failed cache push is not fatal.
+    # FIXED: export ONLY the build outputs to ./artifacts via the `export`
+    # stage, instead of --load'ing the multi-GB toolchain image into the
+    # Docker daemon (that import step ran the small runner out of disk).
+    # Cache goes to the GitLab registry (type=registry), NOT local disk, so
+    # mode=max no longer fills the runner. ignore-error=true means a cache
+    # push hiccup never fails the job - artifacts are already exported by then.
     - |
       docker buildx build \
         -f Dockerfile.ci \
@@ -58,7 +72,7 @@ build_job:
         --cache-to type=registry,ref=${CI_REGISTRY_IMAGE}:buildcache,mode=max,ignore-error=true \
         .
     - rm -f /tmp/omn-go.keystore
-    # BusyBox grep has no -P, so use awk.
+    # FIXED: docker image is Alpine/BusyBox — grep has no -P/\K. Use awk instead.
     - VERSION=$(awk -F'"' '/APP_VERSION[[:space:]]*=/{print $2; exit}' backend/version.go)
     - echo "APP_VERSION=$VERSION" >> build.env
     - echo "App version is $VERSION"
@@ -79,9 +93,13 @@ upload_job:
   dependencies:
     - build_job
   script:
-    # Re-derive APP_VERSION rather than trust the dotenv hand-off. An empty
-    # value strips the version segment and GitLab rejects the PUTs. Anchor on
-    # the `=` so the unquoted doc comment line cannot match first.
+    # FIXED: re-derive APP_VERSION locally instead of trusting the build.env
+    # dotenv hand-off. When it arrived empty, every upload URL lost its version
+    # segment, GitLab rejected the PUTs, and plain curl (exit 0 on HTTP errors)
+    # let the job go green while nothing was stored -> Packages registry = 0 B.
+    # Anchor on the `=` so the DOC COMMENT line (`// APP_VERSION is ...`, which
+    # has no quotes) can't match first and yield an empty $2. Matches only the
+    # `const APP_VERSION = "x.y.z"` assignment line.
     - APP_VERSION=$(awk -F'"' '/APP_VERSION[[:space:]]*=/{print $2; exit}' backend/version.go)
     - '[ -n "$APP_VERSION" ] || { echo "ERROR: APP_VERSION is empty, aborting"; exit 1; }'
     - echo "Generating SHA256 checksums and uploading all assets for version $APP_VERSION..."
@@ -96,7 +114,9 @@ upload_job:
           sha_filename="${filename}.sha256"
 
           echo "Uploading $filename..."
-          # Plain curl exits 0 on an HTTP error and leaves the job green.
+          # --fail-with-body: turn any HTTP >=400 into a non-zero exit (and print
+          # GitLab's error body) so a rejected upload fails the job LOUDLY instead
+          # of silently leaving the package registry empty.
           curl --fail-with-body --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
                --upload-file "$filepath" \
                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/omn-go/${APP_VERSION}/${filename}"
@@ -122,7 +142,8 @@ upload_job:
 
     - echo "]" >> assets.json
     - cat assets.json
-    # An empty assets.json means nothing uploaded. Fail rather than publish.
+    # Guard: if the loop matched nothing, assets.json is just "[]" and no package
+    # was uploaded. Fail rather than publish a release with empty asset links.
     - '[ "$(cat assets.json)" != "[]" ] || { echo "ERROR: no artifacts matched, nothing uploaded"; exit 1; }'
   artifacts:
     expire_in: 8 hours
@@ -138,12 +159,17 @@ release_job:
     - if: $CI_COMMIT_TAG =~ /^v/
   dependencies:
     - upload_job
-  # glab authenticates with GITLAB_TOKEN. CI_JOB_TOKEN gets a 403 here, so
-  # RELEASE_TOKEN must be a masked token with `api` scope and the Developer role.
+  # glab authenticates with GITLAB_TOKEN. CI_JOB_TOKEN can't create releases
+  # via glab's API path (bare 403 Forbidden), so this must be a Project/Personal
+  # Access Token with `api` scope and at least the Developer role. Store it as a
+  # masked CI/CD variable named RELEASE_TOKEN (see project Settings > CI/CD).
   variables:
     GITLAB_TOKEN: "$RELEASE_TOKEN"
   script:
-    # APP_VERSION does not reach here, so take the name from CI_COMMIT_TAG.
+    # Name from CI_COMMIT_TAG so this job doesn't depend on the build.env
+    # dotenv reaching it (it depends on upload_job, not build_job, so
+    # APP_VERSION isn't guaranteed here). assets.json already carries the
+    # fully-formed package URLs built earlier.
     - echo "Publishing release for tag $CI_COMMIT_TAG..."
     - |
       glab release create "$CI_COMMIT_TAG" \

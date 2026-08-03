@@ -1,6 +1,7 @@
 #!/bin/bash
 SEARCH_WHERE="backend/frontend/html/js/omn-go-core.js backend/frontend/html/js/omn-go-sse.js"
 
+# Define color codes for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'

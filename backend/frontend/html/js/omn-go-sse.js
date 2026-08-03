@@ -1,10 +1,13 @@
 // --- OMN-Go Server Extensions ---
-// These modules call the backend API and disable themselves on file: pages.
+// These modules interact with the Go backend API. They will cleanly bypass themselves
+// if the user is merely viewing an exported HTML file locally without the server.
 
 if (window.location.protocol !== 'file:') {
 
-    // /api/logs SSE subscribers. The caller must call the returned
-    // unsubscribe function, or a finished operation keeps reacting.
+    // Subscribers to the /api/logs SSE stream (registered below, fed by the
+    // EventSource at the bottom of this file). Returns an unsubscribe
+    // function - callers MUST call it, or a finished operation keeps
+    // reacting to unrelated server log lines.
     const logSubscribers = [];
     window.omnGoOnServerLog = function(fn) {
         logSubscribers.push(fn);
@@ -14,8 +17,11 @@ if (window.location.protocol !== 'file:') {
         };
     };
 
-    // Maps a backend "[sync] ..." log line to a stage label. First match
-    // wins. An unmatched line keeps the stage and updates only the detail.
+    // Maps a backend "[sync] ..." log line to a human-readable stage. First
+    // match wins, so more specific prefixes come first. Anything unmatched
+    // leaves the current stage alone and only updates the detail line - that
+    // way a log message added to git_helper.go later degrades to "still
+    // working" rather than blanking the stage.
     const SYNC_STAGES = [
         ['Opening repo',            'Opening repository…'],
         ['Repo not found',          'Initializing repository…'],
@@ -52,7 +58,8 @@ if (window.location.protocol !== 'file:') {
         ['pull_abort',              'Restoring local state…'],
         ['Pushing to',              'Uploading to remote…'],
         ['push:',                   'Finishing upload…'],
-        // go-git sideband text relayed from the remote.
+        // go-git sideband text relayed from the remote (see
+        // syncProgressWriter in git_helper.go).
         ['remote:',                 'Transferring…'],
         ['Counting objects',        'Transferring…'],
         ['Compressing objects',     'Transferring…'],
@@ -61,8 +68,9 @@ if (window.location.protocol !== 'file:') {
         ['Writing objects',         'Transferring…']
     ];
 
-    // Feeds one backend log line into the progress overlay. A non-"[sync]"
-    // line is ignored so an unrelated log cannot hijack the display.
+    // Feeds one server log line into the progress overlay. Only "[sync]"
+    // lines are relevant; everything else on the stream is ignored so an
+    // unrelated background log cannot hijack the display.
     function applySyncLogLine(msg) {
         const at = msg.indexOf('[sync]');
         if (at === -1) return;
@@ -85,9 +93,14 @@ if (window.location.protocol !== 'file:') {
     };
 
     const Logger = (function() {
-        // runSync is the only caller of the /api/sync endpoint. It POSTs
-        // action, force and message in the request body, where the backend
-        // reads them.
+        // runSync is the single place that talks to /api/sync. It always
+        // POSTs action/force/message together and always expects a JSON
+        // {status, message} response — the backend previously only read
+        // "action" from the URL query string while this file posted it in
+        // the body, so the action was silently ignored and every request
+        // fell back to a plain "pull". Both syncAction and the conflict
+        // modal handler (performSync below) go through this one function
+        // so the two can't drift out of sync with each other.
         window.runSync = async function(action, opts) {
             opts = opts || {};
             const fd = new URLSearchParams();
@@ -95,8 +108,11 @@ if (window.location.protocol !== 'file:') {
             if (opts.force) fd.append('force', 'true');
             if (opts.message) fd.append('message', opts.message);
 
-            // The overlay is fed by the backend "[sync]" log lines. Hide it
-            // before any alert() or modal, which would block on top of it.
+            // The overlay is fed by the server's own "[sync]" log lines over
+            // the /api/logs stream, so it reports real backend stages rather
+            // than a guess. It is torn down before any alert()/modal below,
+            // otherwise a blocking dialog would sit on top of a still-
+            // spinning bar.
             let data, netErr = null;
             window.OMNProgress.show(SYNC_TITLES[action] || 'Sync');
             window.OMNProgress.stage('Contacting server…');
@@ -144,9 +160,13 @@ if (window.location.protocol !== 'file:') {
             }
         };
 
-        // populateConflictFiles lists the files the backend reports in
-        // conflict. An empty list means the histories diverged with no
-        // per-file overlap. textContent stops a filename injecting markup.
+        // populateConflictFiles fills the conflict modal's file list with the
+        // files the backend reported as being in contention (the ones "Mark
+        // Conflicts" would inject markers into). An empty list means the
+        // histories diverged with no per-file overlap (a clean local tree with
+        // its own commits) - Force Pull is then the meaningful choice - so the
+        // modal says so rather than showing an empty box. Built with
+        // textContent, never innerHTML, so a note filename can't inject markup.
         function populateConflictFiles(files) {
             const box = document.getElementById('conflict-files');
             const list = document.getElementById('conflict-file-list');
@@ -168,12 +188,17 @@ if (window.location.protocol !== 'file:') {
             box.classList.remove('hidden');
         }
 
-        // performSync handles the three buttons on the conflict modal.
+        // performSync handles the three buttons on the conflict modal in
+        // index.html (moved here from an inline <script> in that file so
+        // all sync UI logic lives together). It goes through window.runSync
+        // above, so the modal and the header sync buttons can't disagree
+        // about the wire format or response handling.
         window.performSync = async function(action) {
             const modal = document.getElementById('conflict-modal');
             if (action === 'abort') {
-                // A plain pull does not change local state before it reports
-                // a conflict, so abort is a UI cancel with nothing to undo.
+                // A plain "pull" never mutates local state before reporting a
+                // conflict, so aborting here is purely a UI cancel — there is
+                // nothing on the server to undo.
                 if (modal) modal.classList.add('hidden');
                 return;
             }
@@ -181,7 +206,8 @@ if (window.location.protocol !== 'file:') {
 
             const data = await window.runSync(action);
             if (data && data.status === 'success') {
-                // pull_force and pull_mark change the files under this page.
+                // pull_force / pull_mark both change what's on disk under this
+                // page, so reload to show it.
                 location.reload();
             }
         };
@@ -197,6 +223,8 @@ if (window.location.protocol !== 'file:') {
             if (forceCb) forceCb.checked = false;
 
             if (action === 'upload') {
+                // Uploads always go through the commit-message modal, which
+                // also shows the file list and handles "nothing to commit".
                 previewAndCommit(force);
                 return;
             }
@@ -208,6 +236,7 @@ if (window.location.protocol !== 'file:') {
                 }
             }
         }
+        // Export to global scope to preserve HTML onclick attributes
 
     window.saveConfig = async function() {
         const form = document.getElementById('configForm');
@@ -216,18 +245,20 @@ if (window.location.protocol !== 'file:') {
         try {
             const res = await fetch('/api/config', { method: 'POST', body: fd });
             if (res.ok) {
-                // Clear the dirty flag before either reload path, or the
-                // save re-triggers its own "leave site?" prompt.
+                // Config is now persisted server-side; clear the dirty flag
+                // before either reload path below so the save doesn't
+                // immediately re-trigger its own "leave site?" prompt.
                 if (window.configMarkClean) window.configMarkClean();
                 const body = await res.text();
                 if (body === 'RestartRequired') {
-                    // LAN sharing changed. The listen socket is bound once
-                    // at startup, so the backend must restart to rebind.
+                    // ShareLAN changed: the listen socket is bound once at
+                    // startup, so the server must fully restart to rebind.
                     alert('LAN sharing changed - the application will now restart to apply it.\n\nDesktop: this page reloads automatically in a few seconds.\nAndroid: the app will close; reopen it manually.');
-                    try { await fetch('/api/restart', { method: 'POST' }); } catch (e) { /* the connection drops as the backend exits */ }
-                    // Desktop: the replacement process is up in 1-3s, so
-                    // reload to reconnect. On Android the process exits
-                    // during the restart and a response may never arrive.
+                    try { await fetch('/api/restart', { method: 'POST' }); } catch (e) { /* connection drops as the server exits - expected */ }
+                    // Desktop: the replacement process is up within ~1-3s
+                    // (bind retry included); reload to reconnect. On
+                    // Android the whole app process exits before this
+                    // timer matters.
                     setTimeout(function(){ window.location.reload(); }, 3000);
                     return;
                 }
@@ -245,8 +276,9 @@ if (window.location.protocol !== 'file:') {
     })();
 
     window.previewAndCommit = async function(force) {
-        // The preview walks the whole worktree diff, the slow half of an
-        // upload.
+        // Building the preview walks the whole worktree diff, which is the
+        // slow half of an upload on a large note collection - show progress
+        // here too, not just during the commit/push that follows.
         let res, preview, err = null;
         window.OMNProgress.show('Upload');
         window.OMNProgress.stage('Collecting pending changes…');
@@ -272,9 +304,14 @@ if (window.location.protocol !== 'file:') {
             const files = (preview && preview.files) || [];
 
             if (files.length === 0) {
-                // A clean worktree can still hold commits the remote has
-                // never seen. With nothing to commit, no commit message is
-                // asked for and the upload goes straight to the push.
+                // A clean worktree is NOT nothing to upload. A commit whose
+                // push failed, or a git profile switched after a successful
+                // push, leaves commits the active remote has never seen -
+                // and this branch used to end the upload right here, with no
+                // way to retry them short of making a new change.
+                //
+                // There is nothing to commit, so no commit message is asked
+                // for: the upload goes straight to the push.
                 if (preview.unpushed) {
                     const data = await window.runSync('upload', { force });
                     if (data && data.status === 'success') {
@@ -284,7 +321,9 @@ if (window.location.protocol !== 'file:') {
                     }
                     return;
                 }
-                // Name the remote: several git server slots may be set up.
+                // Only now is "nothing to do" an honest thing to say - and it
+                // says which remote it is true OF, because with several
+                // profiles configured that is the part that matters.
                 var where = preview.remote ? ' on ' + preview.remote : '';
                 if (preview.remote_error) {
                     alert('Nothing to commit.\n\nCould not reach the remote' + where +
@@ -326,7 +365,12 @@ if (window.location.protocol !== 'file:') {
         document.getElementById('commitMessage').value = '';
     };
 
-    // Editing a note opens the editor page (?edit=true, omn-go-editor.js).
+    // NOTE: In-page editing was removed. Editing a note now opens the
+    // dedicated editor page (any URL with ?edit=true, served by the Go
+    // backend and driven by omn-go-editor.js), which fetches the source
+    // from /api/note itself. The view page therefore no longer embeds an
+    // #editor textarea, and the old toggleMode / loadNoteIntoEditor /
+    // setupEditorDragDrop / saveNote helpers that manipulated it are gone.
 
     window.login = async function() {
         const pwd = document.getElementById('pwdInput').value;
@@ -365,8 +409,11 @@ if (window.location.protocol !== 'file:') {
 
         const res = await fetch('/api/newpage', { method: 'POST', body: fd });
         if (res.ok) {
-            // The backend resolves fileName relative to the current page's
-            // directory, so a bare name becomes a sibling of src.
+            // The server resolves fileName relative to the current page's
+            // directory (a bare name becomes a sibling of src, not a
+            // root-level page), so the actual created page may live at
+            // e.g. "local/test" even though fileName was just "test".
+            // Redirect using what the server tells us it actually created.
             const resolvedTarget = await res.text();
             window.location.href = '/' + resolvedTarget + '.html?edit=true';
         } else {
@@ -402,14 +449,19 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
-    // --- Bookmark capture UI ---
+    // --- Bookmark capture UI (moved here from omn-go-core.js in Phase 5a) ---
+    // handleShare (Android share-to), the URL drag-and-drop, and the tag
+    // autocomplete all belong to the server-backed bookmark/quick-note
+    // capture flow whose submit handlers already live in this file.
     window.handleShare = function(text, subject) {
         text = text || '';
         subject = subject || '';
 
+        // Regex to find the first valid URL
         const urlMatch = text.match(/(https?:\/\/[^\s]+)/) || subject.match(/(https?:\/\/[^\s]+)/);
 
         if (urlMatch) {
+            // URL Found -> Route to Bookmark Panel
             const url = urlMatch[0];
             document.getElementById('bmUrl').value = url;
 
@@ -423,6 +475,7 @@ if (window.location.protocol !== 'file:') {
             window.showBookmarkPanel();
             document.getElementById('quickPanel').classList.add('hidden');
         } else {
+            // No URL -> Route to Quick Note Panel
             let content = '';
             if (subject) content += subject + "\n\n";
             if (text) content += text;
@@ -433,9 +486,15 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
-    // Called from Android (MainActivity.insertCapturedText). Always targets
-    // the Quick Note panel, never the bookmark panel, even for a URL.
-    // Returns false when the page has no panel.
+    // Called from Android (MainActivity.insertCapturedText) to pre-fill the
+    // Quick Note panel with a captured result - a scanned barcode, or a Termux
+    // command's output - for the user to review and save. Unlike handleShare,
+    // this ALWAYS targets the Quick Note panel (never the bookmark panel), so a
+    // scanned URL still lands in Quick Notes as the user asked, rather than
+    // being re-routed. Returns true only if the panel actually exists on the
+    // current page; the native side uses that to fall back to its own dialog
+    // when the WebView is on a page without the panel (e.g. mid-edit on
+    // editor.html, which doesn't load this file at all).
     window.omnGoInsertCapture = function(text, label) {
         var q = document.getElementById('quickText');
         var p = document.getElementById('quickPanel');
@@ -450,8 +509,10 @@ if (window.location.protocol !== 'file:') {
         return true;
     };
 
-    // Registered on DOMContentLoaded: this file runs in <head>, where
-    // document.body is still null and touching it would throw.
+    // Global Drag & Drop for URLs (Bookmarks). Registered on
+    // DOMContentLoaded: this file now runs in <head>, where
+    // document.body is still null - touching it directly here would
+    // throw and kill the rest of this script.
     document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('dragover', e => {
             if (!e.target.closest('#editor')) e.preventDefault();
@@ -476,16 +537,37 @@ if (window.location.protocol !== 'file:') {
     });
 
     // --- Bookmark "Tags" autocomplete ---
-    // Only the fragment after the last comma is matched, once it reaches
-    // the #bmTags minChars attribute (default 2). A failed fetch means "no
-    // suggestions", so the field stays a plain comma-separated input.
+    // Suggests existing tags while typing into the Ingest Bookmark modal's
+    // #bmTags field. Tags are typed comma-separated ("work, recipe, ita|" -
+    // the "|" marks the caret); suggestions are computed against only the
+    // fragment after the last comma, and are only shown once that fragment
+    // reaches #bmTags's minChars attribute (default 2, set in index.html).
+    // Picking a suggestion completes the fragment and appends ", " so the
+    // next tag can be typed right away.
+    //
+    // This is plain same-origin UI sugar, not a "server extension" - unlike
+    // the sync/login/etc. calls in omn-go-sse.js it doesn't need a protocol
+    // guard: a failed fetch (e.g. the page opened offline) is treated as "no
+    // suggestions" rather than an error, so the field still works as a plain
+    // comma-separated text input either way.
+    //
+    // Both the DOM wiring and the tag-list fetch are deliberately lazy: they
+    // only run the first time the Ingest Bookmark modal is actually opened,
+    // not on every page load (most page views never touch this panel).
+    // window.showBookmarkPanel()/toggleBookmarkPanel() below are the only
+    // places that reveal #bmPanel - the header's "add bookmark" button, the
+    // URL drag-and-drop handler, and window.handleShare all go through one of
+    // them now instead of poking #bmPanel's classList directly - so "the
+    // modal is opening" is caught in exactly one place.
     (function () {
-        var tagsCache = null;    // array once loaded, even if empty
+        var tagsCache = null;    // null until prepared; array once loaded (even if empty)
         var tagsPromise = null;  // in-flight fetch, if any
-        var wired = false;       // listeners attach only once
+        var wired = false;       // #bmTags/#bmTagsSuggestions listeners attached only once
 
-        // Fetches the tag list at most once per page. Safe to call on
-        // every modal open.
+        // Fetches /json/bookmarker-tags.json at most once per page. Safe to
+        // call every time the modal opens: if the list is already prepared
+        // (tagsCache set) or already loading (tagsPromise set) this reuses
+        // that instead of firing a second request.
         function ensureTagsLoaded() {
             if (tagsCache) return Promise.resolve(tagsCache);
             if (tagsPromise) return tagsPromise;
@@ -504,8 +586,10 @@ if (window.location.protocol !== 'file:') {
             return { done: done, fragment: fragment.replace(/^\s+/, '') };
         }
 
-        // The wired guard makes repeat calls no-ops, so reopening the
-        // panel never double-attaches listeners.
+        // Attaches the input/keydown/click listeners to #bmTags exactly once.
+        // Called from showBookmarkPanel()/toggleBookmarkPanel() every time the
+        // modal opens; the `wired` guard makes repeat calls no-ops so reopening
+        // the panel never double-attaches listeners.
         function wireBookmarkTagAutocomplete() {
             if (wired) return;
             var input = document.getElementById('bmTags');
@@ -533,7 +617,9 @@ if (window.location.protocol !== 'file:') {
             function pick(tag) {
                 var split = splitTags(input.value);
                 var used = split.done.concat([tag]);
-                // The trailing ", " primes the field for the next tag.
+                // Rebuilding from scratch (rather than splicing) keeps this
+                // correct even if the fragment was picked mid-string; the
+                // trailing ", " primes the field for the next tag.
                 input.value = used.join(', ') + ', ';
                 hide();
                 input.focus();
@@ -548,8 +634,8 @@ if (window.location.protocol !== 'file:') {
                     var li = document.createElement('li');
                     li.textContent = tag;
                     li.className = 'tag-suggestion-item';
-                    // mousedown fires before #bmTags blurs, so the pick
-                    // survives the input losing focus.
+                    // mousedown (not click) fires before #bmTags's blur, so
+                    // the pick survives the input losing focus.
                     li.addEventListener('mousedown', function (e) {
                         e.preventDefault();
                         pick(tag);
@@ -565,7 +651,8 @@ if (window.location.protocol !== 'file:') {
                 var fragment = split.fragment;
                 if (fragment.length < minChars) { hide(); return; }
                 ensureTagsLoaded().then(function (tags) {
-                    // Drop a stale response: the field may have moved on.
+                    // The field may have moved on while this fetch/cache
+                    // lookup was pending - drop a stale response.
                     if (splitTags(input.value).fragment !== fragment) return;
                     var lower = fragment.toLowerCase();
                     var used = split.done.map(function (t) { return t.toLowerCase(); });
@@ -603,7 +690,8 @@ if (window.location.protocol !== 'file:') {
             });
         }
 
-        // Always shows #bmPanel. Never toggles it.
+        // Unconditionally shows #bmPanel (used by drag-and-drop and
+        // handleShare, which only ever want it open, never toggled).
         window.showBookmarkPanel = function () {
             var panel = document.getElementById('bmPanel');
             if (!panel) return;
@@ -612,7 +700,9 @@ if (window.location.protocol !== 'file:') {
             ensureTagsLoaded();
         };
 
-        // Toggles #bmPanel. Prepares the autocomplete only when opening.
+        // Toggles #bmPanel (used by the header's "add bookmark" button, which
+        // both opens and closes it). Only prepares the autocomplete on the
+        // transition into "visible" - closing the panel does nothing extra.
         window.toggleBookmarkPanel = function () {
             var panel = document.getElementById('bmPanel');
             if (!panel) return;
@@ -625,10 +715,18 @@ if (window.location.protocol !== 'file:') {
         };
     })();
 
-    // --- Server-backed SQLite ---
-    // Data lives in <storage>/db/<name>.sqlite, so every device sees the
-    // same data. Requires the admin role, which a local connection has.
-    // db.batch([...]) is atomic.
+    // --- Server-backed SQLite (replacement for the removed WebSQL API) ---
+    // Data lives server-side in <storage>/db/<name>.sqlite, so unlike the
+    // old per-browser window.openDatabase, every device sees the same
+    // data. Requires admin role (local connections qualify automatically).
+    //
+    // Modern API (preferred for new note scripts):
+    //   const db = omnGoOpenDatabase('mydata');
+    //   await db.exec('CREATE TABLE IF NOT EXISTS t(a,b)');
+    //   const r = await db.exec('SELECT * FROM t WHERE a > ?', [5]);
+    //   r.rows._array.forEach(row => console.log(row.a, row.b));
+    //   await db.batch([['INSERT INTO t VALUES(?,?)', [1,2]],
+    //                   ['INSERT INTO t VALUES(?,?)', [3,4]]]); // atomic
     window.omnGoOpenDatabase = function(name) {
         async function post(statements) {
             const res = await fetch('/api/sql', {
@@ -645,7 +743,7 @@ if (window.location.protocol !== 'file:') {
             return data.results;
         }
 
-        // Backend result -> WebSQL-shaped result set.
+        // Server result -> WebSQL-shaped result set.
         function wrap(r) {
             const cols = r.columns || [];
             const arr = (r.rows || []).map(row => {
@@ -670,10 +768,13 @@ if (window.location.protocol !== 'file:') {
                     : { sql: s.sql, args: s.args || [] });
                 return (await post(norm)).map(wrap);
             },
-            // Statements queued synchronously in the callback run as one
-            // atomic transaction. Statements queued from success callbacks
-            // run as a separate batch, which real WebSQL kept in the same
-            // transaction.
+            // WebSQL-compatible: db.transaction(tx => tx.executeSql(...)).
+            // All statements queued synchronously inside the callback run
+            // as ONE atomic server-side transaction. Statements queued
+            // from inside success callbacks run as a FOLLOW-UP atomic
+            // batch (a separate transaction) - the one semantic
+            // difference from real WebSQL, where the whole cascade shared
+            // a transaction.
             transaction: function(cb, errCb, doneCb) {
                 const queue = [];
                 const tx = {
@@ -696,7 +797,7 @@ if (window.location.protocol !== 'file:') {
                         batch.forEach((q, i) => {
                             if (q.okCb) try { q.okCb(tx, wrap(results[i])); } catch (_) {}
                         });
-                        // okCb calls may have queued more statements.
+                        // okCb calls may have queued more statements; loop.
                     }
                     if (doneCb) doneCb();
                 })();
@@ -704,12 +805,16 @@ if (window.location.protocol !== 'file:') {
         };
         db.readTransaction = db.transaction;
 
-        // Backups are whole-database and managed from the /db_backups page.
+        // db.exportBackup / db.restoreBackup were removed together with
+        // the per-table db_json backup mechanism: backups are now
+        // whole-database snapshots managed from the /db_backups page
+        // (see db_backup.go).
         return db;
     };
 
-    // Stand-in for the WebSQL entry point. version, displayName and size
-    // are accepted and ignored.
+    // Drop-in stand-in for the deprecated WebSQL entry point, so old note
+    // scripts keep working with the original call shape. version /
+    // displayName / size are accepted and ignored.
     window.openDatabase = function(name, version, displayName, size, creationCallback) {
         const db = window.omnGoOpenDatabase(name);
         if (typeof creationCallback === 'function') {
@@ -728,16 +833,20 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.checkSession = async function() {
-        // The backend injects #loginOverlay. An exported page has no login
-        // gate, so leave the visible content alone.
+        // #loginOverlay is a server-injected modal (see injectRuntimeVars); an
+        // exported/offline page has no login gate, so if it isn't present just
+        // leave the already-visible content alone rather than dereferencing
+        // null. #mainUI stays in the page, but guard it too for safety.
         const overlay = document.getElementById('loginOverlay');
         const main = document.getElementById('mainUI');
         if (!overlay || !main) return;
+        // Unhide UI if role cookies exist
         if (document.cookie.includes('session_role=')) {
             overlay.style.display = 'none';
             main.style.display = 'flex';
             checkRole();
         } else {
+            // Check if server is configured with public role or check backend
             const test = await fetch('/api/config');
             if (test.status === 401) {
                 overlay.style.display = 'flex';
@@ -749,10 +858,19 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
-    // Bridges backend logs to the frontend. Every log.Printf reaches this
-    // stream, which is what feeds the sync progress overlay.
-    // Each subscriber has a 10-slot buffered channel that DROPS messages
-    // rather than blocking, so never drive state that must see every event.
+    // GoOMN Log Interceptor - Bridges Go background logs to JS UI
+    //
+    // Every log.Printf in the backend already reaches this stream (see
+    // logger.go), which is why the sync progress overlay needs no transport
+    // of its own: git_helper.go's "[sync] ..." lines are the progress feed.
+    // Subscribers registered through window.omnGoOnServerLog get each line in
+    // addition to the console mirroring that has always happened here.
+    //
+    // Caveat worth knowing: JSLogger drops a message rather than blocking
+    // when a client's 10-slot channel is full, so this stream is a live
+    // sample, not a guaranteed-complete transcript. That is fine for a
+    // progress display (it only ever shows the newest line) but means it
+    // must never be used to drive state that has to see every event.
     document.addEventListener('DOMContentLoaded', () => {
         try {
             const logSource = new EventSource('/api/logs');
@@ -773,11 +891,29 @@ if (window.location.protocol !== 'file:') {
     });
 
     // --- Search overlay ---
-    // Two scopes: page (the open note, always available) and all (indexed
-    // notes, offered only when OMN_SEARCH_GLOBAL says the backend can answer).
-    // Response text goes in with textContent, never innerHTML.
+    //
+    // The everyday entry point to search: a spotlight-style panel over the
+    // current page. It has two scopes and one control to pick between them:
+    //
+    //   page - the open note only. No index, no configuration, always
+    //          available, so this panel works on any device and in any state
+    //          of the app: there is nothing to switch on first.
+    //   all  - every indexed note. Offered only when the server says it can
+    //          answer (OMN_SEARCH_GLOBAL), so the control never leads nowhere.
+    //
+    // It lives in this file rather than a new asset for two reasons: this file
+    // is already inside the `protocol !== 'file:'` guard, so an exported page
+    // gets the stub version for free; and it is already in
+    // versionDependentAssets + gitignorePatterns, so no new plumbing is needed
+    // to ship it.
+    //
+    // Everything the server returns is written with textContent (or into a
+    // <mark> element's textContent). Nothing from a response is ever assigned
+    // to innerHTML - the same discipline OMNProgress.build documents in
+    // omn-go-core.js, and it matters more here because the text being rendered
+    // is the user's own notes.
     (function () {
-        var DEBOUNCE_MS = 150;   // skips intermediate keystrokes
+        var DEBOUNCE_MS = 150;   // long enough to skip intermediate keystrokes
         var MIN_QUERY = 2;       // 1 rune matches nearly everything
         var MAX_SNIPPETS = 10;   // the API's own cap
 

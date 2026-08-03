@@ -15,28 +15,67 @@ import android.os.PowerManager;
 import net.basov.omngo.backend.Backend;
 
 /**
- * Owns the backend for the lifetime of the process. The notification, the
- * wake lock and the foreground promotion exist only while LAN sharing is
- * enabled in config.json. Every start re-reads that file, so the
- * notification cannot disagree with the address the backend binds.
+ * Service that owns the Go HTTP server for the lifetime of the process.
+ *
+ * FOREGROUND STATE IS DERIVED FROM CONFIG, NOT FROM HOW WE WERE STARTED.
+ * The persistent notification, the wake lock and the foreground promotion
+ * exist ONLY while LAN sharing is enabled in config.json:
+ *
+ *  - Sharing OFF: the only client of the server is this app's own WebView,
+ *    which needs the server only while it is on screen - and while it is
+ *    on screen, the process is foreground anyway. So the service runs as a
+ *    plain started service: no notification, no wake lock, no permissions,
+ *    and the process may be frozen in the background without anyone
+ *    noticing.
+ *
+ *  - Sharing ON: other devices must reach the server with the app
+ *    invisible or the screen locked, so the service promotes itself to
+ *    foreground with a persistent notification (showing the LAN address)
+ *    and holds a partial wake lock. This exempts the process from the
+ *    cached-app freezer that otherwise stops every Go goroutine the moment
+ *    the app leaves the screen.
+ *
+ * Because the decision is (re)made from config.json on every start, and a
+ * ShareLAN change forces a full process restart (see /api/restart on the
+ * Go side), the notification can no longer disagree with the actual
+ * sharing state - both are computed from the same file at the same moment.
  */
 public class ServerService extends Service {
+    /** Intent action for the notification's Stop button. */
     public static final String ACTION_STOP = "net.basov.omngo.action.STOP_SERVER";
 
     private static final String CHANNEL_ID = "omngo_server";
     private static final int NOTIFICATION_ID = 1;
 
     /**
-     * Backend.startServer binds the TCP port, so it must run once per OS
-     * process. Static because the service object is recreated in-process.
+     * Backend.startServer() must run at most ONCE per OS process: the Go
+     * side binds the TCP port, and a second call would collide with the
+     * first bind. The service object can be destroyed and recreated within
+     * the same process, so the guard must be static - it resets exactly
+     * when the process (and with it the Go runtime and its socket) dies,
+     * including the deliberate os.Exit(0) that /api/restart performs.
      */
     private static boolean backendStarted = false;
 
     private PowerManager.WakeLock wakeLock;
 
+    // ---------------------------------------------------------------
+    // Config access (shared with MainActivity via the static helpers)
+    // ---------------------------------------------------------------
+
     /**
-     * getExternalMediaDirs resolves per the running applicationId, so the
-     * storage directory is right for both flavors without a package literal.
+     * The Go backend's storage root on this device. getExternalMediaDirs()
+     * is Android's own answer to "this app's external media directory",
+     * which already resolves per the ACTUALLY RUNNING applicationId
+     * (net.basov.omngo vs net.basov.omngo.fdroid - see the productFlavors
+     * block in build.gradle) with no need to know the package name up
+     * front. Passed into Backend.startServer() below so the Go side (see
+     * initStorage's overrideDir in backend/storage.go) uses the same
+     * directory instead of a hardcoded "net.basov.omngo" literal that was
+     * wrong for the fdroid flavor. Falls back to building the same path
+     * from getPackageName() if the media-dirs API returns nothing (should
+     * be rare in practice), which - unlike the old literal - is still
+     * correct for whichever flavor is actually running.
      */
     public static String storageDir(Context ctx) {
         java.io.File[] dirs = ctx.getExternalMediaDirs();
@@ -47,8 +86,10 @@ public class ServerService extends Service {
     }
 
     /**
-     * @return null when config.json is missing or unparsable. Callers read
-     *         null as sharing off with default values.
+     * Reads config.json from the same scoped-storage directory the Go
+     * backend uses. Returns null if the file doesn't exist yet (first
+     * launch) or can't be parsed - both treated as "sharing off, defaults"
+     * by the callers.
      */
     private static org.json.JSONObject readConfig(Context ctx) {
         try {
@@ -73,14 +114,21 @@ public class ServerService extends Service {
         }
     }
 
+    /** True when config.json says share_lan is enabled. */
     public static boolean isLanSharingEnabled(Context ctx) {
         org.json.JSONObject cfg = readConfig(ctx);
         return cfg != null && cfg.optBoolean("share_lan", false);
     }
 
     /**
-     * The fallback must stay BuildConfig.DEFAULT_SERVER_PORT. A fresh
-     * install has no config.json, and the WebView polls what the backend binds.
+     * Configured server port. The fallback is the per-flavor
+     * BuildConfig.DEFAULT_SERVER_PORT (8080 standard / 8081 fdroid - see
+     * build.gradle), NOT a hardcoded 8080: this helper feeds
+     * MainActivity.serverBase()'s WebView URL, so on a fresh install
+     * (no config.json yet) it MUST agree with the default the Go side
+     * applies via Backend.startServer(..., DEFAULT_SERVER_PORT) below,
+     * or the WebView polls a port nothing (or worse - the OTHER
+     * flavor's app) is listening on.
      */
     public static int serverPort(Context ctx) {
         org.json.JSONObject cfg = readConfig(ctx);
@@ -90,8 +138,10 @@ public class ServerService extends Service {
     }
 
     /**
-     * @return the site-local IPv4 address other devices reach, or 0.0.0.0
-     *         when no network is up and LAN sharing is unreachable.
+     * First non-loopback site-local IPv4 address - the address other LAN
+     * devices use to reach this phone. Falls back to "0.0.0.0" when no
+     * network is up (Wi-Fi off), which is honest: sharing is bound but
+     * currently unreachable.
      */
     private static String lanAddress() {
         try {
@@ -116,6 +166,10 @@ public class ServerService extends Service {
         return "0.0.0.0";
     }
 
+    // ---------------------------------------------------------------
+    // Service lifecycle
+    // ---------------------------------------------------------------
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -134,14 +188,19 @@ public class ServerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
-            // The backend has no stop endpoint. Dropping foreground state
-            // returns the process to cached priority, which is the stop.
+            // The Go server has no stop API; leaving foreground state is
+            // enough - the process drops back to cached priority and the
+            // OS freezes/kills it in due course. Reopening the app starts
+            // the service (and, if the process died, the backend) again.
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
         }
 
-        // config.json also gives the backend its bind address, so both agree.
+        // Decide foreground state from config.json - the same file the Go
+        // side derives its bind address from, so the two cannot disagree.
+        // Re-evaluated on every start, including the null-intent
+        // START_STICKY restart after the deliberate /api/restart exit.
         boolean lan = isLanSharingEnabled(this);
 
         if (lan) {
@@ -152,8 +211,8 @@ public class ServerService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, n);
             }
-            // The wake lock exempts the process from the cached-app freezer.
-            // A locked screen stops the backend without a battery optimization exemption.
+            // Keep the CPU available for LAN requests while the screen is
+            // off. Non-reference-counted so repeated starts never stack.
             if (wakeLock == null) {
                 try {
                     PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -167,31 +226,40 @@ public class ServerService extends Service {
                 }
             }
         } else {
-            // Clear foreground state left by a start with sharing enabled.
+            // Sharing off: plain background service. Make sure no stale
+            // foreground state or notification survives from a previous
+            // configuration of this same service object.
             stopForeground(true);
             releaseWakeLock();
         }
 
-        // Android must mount scoped storage before the backend touches it.
+        // Ensure Android OS mounts scoped storage directories for native
+        // C/Go access BEFORE the Go server first touches them.
         java.io.File[] mediaDirs = getExternalMediaDirs();
         if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
             mediaDirs[0].mkdirs();
         }
 
         if (!backendStarted) {
-            // Per-flavor default port, so side-by-side installs do not collide.
+            // storageDir(this) is resolved from the actually-running
+            // applicationId (see the field comment on storageDir above),
+            // not a hardcoded literal - correct for both the standard and
+            // fdroid flavors. DEFAULT_SERVER_PORT is likewise per-flavor
+            // (8080 standard / 8081 fdroid) so side-by-side installs
+            // don't fight over one loopback port; a user-configured
+            // server_port in config.json still wins on the Go side.
             Backend.startServer(storageDir(this), BuildConfig.DEFAULT_SERVER_PORT);
             backendStarted = true;
         }
 
-        // START_STICKY makes Android recreate the service after the process
-        // exits, which is what makes a self-restart work.
+        // Sticky so the LAN-sharing server comes back if the system
+        // reclaims it; with sharing off a restart is harmless (it comes
+        // back as a plain background service).
         return START_STICKY;
     }
 
-    // Android 13 and later need notification permission. LAN sharing works
-    // without it, but shows no address and no Stop button.
     private Notification buildNotification() {
+        // Tapping the notification brings the existing UI back.
         Intent open = new Intent(this, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent contentPI = PendingIntent.getActivity(
@@ -201,6 +269,7 @@ public class ServerService extends Service {
         PendingIntent stopPI = PendingIntent.getService(
                 this, 1, stop, PendingIntent.FLAG_IMMUTABLE);
 
+        // The address other devices should type into their browser.
         String shareUrl = "http://" + lanAddress() + ":" + serverPort(this);
 
         Notification.Builder b;
