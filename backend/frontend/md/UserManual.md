@@ -4,18 +4,19 @@ Category: System
 
 # OMN-Go User Manual
 
-Welcome to the OMN-Go manual. The first half covers everyday use. The
-second half covers configuration, git synchronization, LAN sharing and
-troubleshooting. This page is a normal OMN-Go note. Open it in edit mode
-(<i class="material-icons">edit</i>) to see how each example on it is
-written.
+Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions that need no editor: quick notes and bookmarks. Basics covers the everyday use of notes and pages. Advanced covers configuration, git synchronization, LAN sharing and troubleshooting. This page is a normal OMN-Go note. Open it in edit mode (<i class="material-icons">edit</i>) to see how each example on it is written.
 
 ## Table of contents
+
+**Easy start**
+
+- [The start page](#the-start-page)
+- [Quick notes](#quick-notes)
+- [Bookmarks](#bookmarks)
 
 **Basics**
 
 - [First run and where your data lives](#first-run-and-where-your-data-lives)
-- [The start page](#the-start-page)
 - [Login and roles](#login-and-roles)
 - [The interface](#the-interface)
 - [Creating a new page](#creating-a-new-page)
@@ -29,7 +30,6 @@ written.
 - [Material icons in notes](#material-icons-in-notes)
 - [Buttons and shortcuts inside a page](#buttons-and-shortcuts-inside-a-page)
 - [Android intents and Termux](AndroidIntents)
-- [Quick Notes and Bookmarks](#quick-notes-and-bookmarks)
 - [The Tags page](#the-tags-page)
 - [Searching](#searching)
 - [Theme](#theme)
@@ -45,6 +45,100 @@ written.
 - [Troubleshooting](#troubleshooting)
 
 ---
+
+# Easy start
+
+This part is for a user who only writes short notes and keeps links. This user does not open the editor. Most users run OMN-Go on Android, so each list gives the Android ways first.
+
+## The start page
+
+The [Welcome](Welcome) page is the start page. The <i class="material-icons">home</i> button of the header opens it. The Android application opens it at start.
+
+A new installation shows two large buttons at the top of the page:
+
+- **My Quick Notes** opens the [QuickNotes](QuickNotes) page. OMN-Go puts each note that you write with the <i class="material-icons">insert_comment</i> button on that page, with a timestamp.
+- **My Bookmarks** opens the [Bookmarks](Bookmarks) page. OMN-Go puts each link that you save with the <i class="material-icons">bookmark_add</i> button on that page, with its tags and its notes.
+
+The [QuickNotes](QuickNotes) page starts with one note. That note tells you how to write a quick note. The [Bookmarks](Bookmarks) page starts with one bookmark. That bookmark opens [How to use Bookmarks](BookmarksHowTo). Both texts are short. Both point to this part of the manual.
+
+The buttons are two links in the Markdown source of the note. They are not part of the header. The start page is your page. Open it in edit mode (<i class="material-icons">edit</i>) to change the buttons, to move them, or to delete the `<div class="omn-start-buttons">` block.
+
+An installation from an older version keeps its own start page. To put the buttons on that page, copy this block into it:
+
+```
+<div class="omn-start-buttons">
+<a class="omn-start-button" href="QuickNotes">
+<i class="material-icons omn-start-icon">insert_comment</i>
+<span class="omn-start-text"><span class="omn-start-label">My Quick Notes</span><span class="omn-start-hint">Write it down now. Sort it later.</span></span>
+</a>
+<a class="omn-start-button omn-start-button-bookmarks" href="Bookmarks">
+<i class="material-icons omn-start-icon">bookmark</i>
+<span class="omn-start-text"><span class="omn-start-label">My Bookmarks</span><span class="omn-start-hint">Keep a link. Find it again.</span></span>
+</a>
+</div>
+```
+
+Do not put an empty line in the block. An empty line ends a raw HTML block. The rest of the block then shows as text.
+
+## Quick notes
+
+A quick note is one short text with a timestamp. OMN-Go puts every quick note on the [QuickNotes](QuickNotes) page. The newest note is at the top. OMN-Go writes over no note, and you give no name to a note.
+
+**With the Android icon.** The Android application installs a second icon, *OMN-Go Quick Note*. This icon opens the start page with the note box open.
+
+**With Android sharing.** Press *Share* in a different application and select OMN-Go. A text without a link goes to the note box. A text with a link goes to the bookmark form. See [Bookmarks](#bookmarks).
+
+**With the button.** This method works on each device.
+
+1. Press the title of the page to expand the header.
+2. Press <i class="material-icons">insert_comment</i>.
+3. Write the text and press *Save*.
+
+*Copy* puts the text on the clipboard and saves nothing. Use *Copy* when a text came into the box from a share or from a scan and you only want to paste it into a different application.
+
+**With a browser bookmark on a desktop.** A query in the address also opens the note box. Make a bookmark of this address in your browser. Open that bookmark when you want to write a note. Use the port of your server:
+
+```
+http://localhost:8080/Welcome.html?quicknote=1
+```
+
+The [QuickNotes](QuickNotes) page is a normal note. Open it in edit mode (<i class="material-icons">edit</i>) to change or to delete a note on it. You can also move a note from it into a note of its own.
+
+## Bookmarks
+
+A bookmark is a link with a title, tags and notes. OMN-Go keeps your bookmarks in the [Bookmarks](Bookmarks) note, not in a browser. The bookmarks stay with your notes. They go to each device that you synchronize.
+
+### To save a link
+
+**With Android sharing.** Press *Share* in your browser or in a different application. Select OMN-Go. The bookmark form opens with the address and the title in it.
+
+**With the button.** This method works on each device.
+
+1. Press the title of the page to expand the header.
+2. Press <i class="material-icons">bookmark_add</i>.
+3. Write the address. A title, tags and notes are not necessary.
+4. Press *Save*.
+
+Write a comma between two tags (`work, recipe`). Write a semicolon between two notes. The *Tags* field shows the tags that you used before.
+
+**With drag and drop on a desktop.** Drag a link from your browser and drop it on an OMN-Go page. The bookmark form opens with the address in it. If the browser sends a title, the form also shows the title.
+
+**With a browser bookmark on a desktop.** A bookmark in your browser can send the page that you read to OMN-Go. Make a bookmark and write this text in its address field. Use the port of your server:
+
+```
+javascript:window.open('http://localhost:8080/Welcome.html?share_text='+encodeURIComponent(location.href)+'&share_subject='+encodeURIComponent(document.title));
+```
+
+### To find a link
+
+Open the [Bookmarks](Bookmarks) page:
+
+- Write a word in the search box and press *Search*. The page shows only the bookmarks with that word.
+- Press a tag button to show only the bookmarks with that tag. Press *All* to show all bookmarks again.
+- Press the number in the top right corner to show or hide the list of tags.
+- Press **ⓘ** before a bookmark to show its tags and its notes. *Expand* and *Collapse* do this for all bookmarks.
+
+If you enable global search in the [settings](#configuration-reference), the header search (<i class="material-icons">search</i>) also finds bookmarks together with your notes.
 
 # Basics
 
@@ -71,37 +165,6 @@ On first start, OMN-Go creates the storage directory, a default
 [QuickNotes](QuickNotes), [Bookmarks](Bookmarks),
 [BookmarksHowTo](BookmarksHowTo), [ScriptRules](ScriptRules),
 [Editor](Editor)).
-
-## The start page
-
-The [Welcome](Welcome) page is the start page. The
-<i class="material-icons">home</i> button of the header opens it, and the Android application opens it at launch.
-
-A new installation starts with two large buttons at the top of the page:
-
-- **My Quick Notes** opens the [QuickNotes](QuickNotes) page, where each note that you write with the <i class="material-icons">insert_comment</i> button comes with a timestamp.
-- **My Bookmarks** opens the [Bookmarks](Bookmarks) page, where each link that you save with the <i class="material-icons">bookmark_add</i> button comes with its tags and its notes.
-
-If you use only these two functions, you do not have to open the editor at all. The first quick note and the first bookmark tell you how to add a note and a bookmark on your device; see also [How to use Bookmarks](BookmarksHowTo).
-
-The buttons are two links in the Markdown source of the note, not part of the header. The start page is your page: open it in edit mode (<i class="material-icons">edit</i>) and change the buttons, move them, or delete the `<div class="omn-start-buttons">` block. An installation that was made before the buttons existed keeps its own start page; to add the buttons there, copy the block from this manual or from a new installation.
-
-The block looks like this:
-
-```
-<div class="omn-start-buttons">
-<a class="omn-start-button" href="QuickNotes">
-<i class="material-icons omn-start-icon">insert_comment</i>
-<span class="omn-start-text"><span class="omn-start-label">My Quick Notes</span><span class="omn-start-hint">Write it down now. Sort it later.</span></span>
-</a>
-<a class="omn-start-button omn-start-button-bookmarks" href="Bookmarks">
-<i class="material-icons omn-start-icon">bookmark</i>
-<span class="omn-start-text"><span class="omn-start-label">My Bookmarks</span><span class="omn-start-hint">Keep a link. Find it again.</span></span>
-</a>
-</div>
-```
-
-Keep the block without empty lines in it: an empty line ends a raw HTML block, and the rest of the block then shows as text.
 
 ## Login and roles
 
@@ -385,21 +448,6 @@ a button can do more. It can open a system screen, start another Android
 application, run a Termux command, or scan a barcode into the Quick Notes
 page. OMN-Go disables this function by default. See
 [Android Intents & Termux](AndroidIntents).
-
-## Quick Notes and Bookmarks
-
-- <i class="material-icons">insert_comment</i> **Quick note** opens a small text box.
-  OMN-Go adds the text you type, with a timestamp, to the
-  [QuickNotes](QuickNotes) page. Use it for capture-first-sort-later notes.
-  The **Copy** button puts the text on the clipboard and does not save it.
-  This is useful when you shared or scanned something into the box and only
-  want to paste it somewhere else.
-- <i class="material-icons">bookmark_add</i> **Add bookmark** asks for a
-  URL, a title, tags and notes. OMN-Go stores the entry in the data block
-  of the [Bookmarks](Bookmarks) page. That page renders your bookmark
-  collection.
-- **Android sharing:** share text or a link from another Android
-  application to OMN-Go. The text arrives in the bookmark form, prefilled.
 
 ## The Tags page
 
