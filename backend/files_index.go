@@ -219,6 +219,17 @@ func (a *App) filesEditable(logical string) bool {
 	if strings.HasSuffix(strings.ToLower(logical), ".html") {
 		return false
 	}
+	return a.editableFileType(logical)
+}
+
+// editableFileType reports whether the content type of logical is text that
+// an editor can open. It is the "anything that is not text" half of
+// filesEditable, split out because the editor routes need the same answer
+// without the .html rule: ?edit=true on a compiled page resolves to its
+// markdown source and must stay editable, while ?edit=true on a picture, a
+// font, an audio file or a video file must not open an editor at all (see
+// serveEditor, handleEditExternal, handleGetNote and handleSaveNote).
+func (a *App) editableFileType(logical string) bool {
 	ct := a.resolveContentType(logical)
 	if i := strings.IndexByte(ct, ';'); i >= 0 {
 		ct = ct[:i] // drop "; charset=utf-8"

@@ -121,6 +121,7 @@ var (
 	externalEditTmpl  = loadTemplate("external_edit.html")
 	editorPageTmpl    = loadTemplate("editor.html")
 	notFoundTmpl      = loadTemplate("not_found.html")
+	notEditableTmpl   = loadTemplate("not_editable.html")
 	searchPageTmpl    = loadTemplate("search_page.html")
 	filesPageTmpl     = loadTemplate("files_page.html")
 	// modalsHTML is the block of server-only modals (login, quick note,
@@ -415,6 +416,28 @@ type notFoundView struct {
 // Referer it passes in.
 func safeLocalPath(s string) bool {
 	return strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "//")
+}
+
+// notEditableView holds what the "not a text file" page shows. Path and
+// Type are raw values that renderNotEditablePage escapes itself.
+type notEditableView struct {
+	Path string // "/css/fonts/x.woff2"
+	Type string // the resolved content type, "unknown" when there is none
+}
+
+// renderNotEditablePage builds the body of the page an editor route answers
+// with when the file is not text (see serveEditor). The view link is the
+// same path without the edit query, so the user reaches the file itself.
+func renderNotEditablePage(v notEditableView) string {
+	typ := v.Type
+	if typ == "" {
+		typ = "unknown"
+	}
+	return fill(notEditableTmpl, map[string]string{
+		"PATH":     escapeHTML(v.Path),
+		"TYPE":     escapeHTML(typ),
+		"VIEW_URL": escapeHTML(v.Path),
+	})
 }
 
 func renderNotFoundPage(v notFoundView) string {

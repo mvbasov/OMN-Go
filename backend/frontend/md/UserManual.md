@@ -357,6 +357,11 @@ If the editor cannot read the file, it shows a red message and turns the
 *Save* button off. This keeps an empty editor from replacing a file that
 has content.
 
+OMN-Go does not open a picture, a font, an audio file or a video file in
+an editor. An editor writes text, and a save would damage such a file.
+The link answers with a short page and a link to the file. The
+[file index](OMNGoFiles) gives no edit link for these files.
+
 If you do not know the name of a file, open
 [the file index](OMNGoFiles). It lists every file that OMN-Go serves and
 gives the same link ready-made.

@@ -1265,7 +1265,7 @@ document.documentElement.setAttribute('data-theme', OMN_THEME);</script>
 
 | Prefix | Source | Extraction |
 | --- | --- | --- |
-| `/js/`, `/css/`, `/json/` | `html/js`, `html/css`, `html/json` | Lazily extracted from the embedded frontend on first request, then user-editable via `?edit=true` |
+| `/js/`, `/css/`, `/json/` | `html/js`, `html/css`, `html/json` | Lazily extracted from the embedded frontend on first request, then user-editable via `?edit=true` (text files only: a picture, a font, an audio file or a video file answers `415`) |
 | root catch-all (`/favicon.ico`, `/robots.txt`, …) | `html/` | Same lazy extraction |
 | `/images/` | `html/images/` | Pure user content, never embedded |
 | `/user_json/` | `html/user_json/` | Pure user content, never embedded |
@@ -1398,6 +1398,7 @@ stream:
 | --- | --- |
 | `200 OK` | Success on every endpoint; also the JSON error responses of `/api/sync` |
 | `303 See Other` | `/` → `/Welcome.html`; `?edit=true` → `/api/edit-external`; Android `omngo://edit` handoff |
+| `415 Unsupported Media Type` | `?edit=true`, `/api/edit-external`, `/api/note` or `/api/save` on a file that is not text (picture, font, audio, video) |
 | `400 Bad Request` | Missing/invalid parameters, rejected uploads, SQL errors |
 | `401 Unauthorized` | `/login` with a wrong password; `authMiddleware` for a remote caller without an admin cookie |
 | `404 Not Found` | Missing static asset or `/api/note` for a missing non-page file |

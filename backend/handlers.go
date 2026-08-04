@@ -301,12 +301,17 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	if isPage {
 		filePath = mdPath
 	} else {
-		// Same reason as in serveEditor: a shipped html/ asset that nothing
-		// requested yet is not on disk, and an external editor (or the
-		// Android intent below) would open a path with no file behind it.
-		// serveEditor already did this for the redirect that lands here,
-		// but /api/edit-external is a route of its own and can be called
-		// directly. A no-op when the file is there or is not embedded.
+		// Same two rules as serveEditor, which redirects here - but
+		// /api/edit-external is a route of its own and answers a direct
+		// call as well. First: no editor for a file that is not text.
+		if !a.editableFileType(name) {
+			a.serveNotEditable(w, r, name)
+			return
+		}
+		// Second: a shipped html/ asset that nothing requested yet is not
+		// on disk, and the external editor (or the Android intent below)
+		// would open a path with no file behind it. A no-op when the file
+		// is there or is not embedded.
 		a.materializeAsset("/" + filepath.ToSlash(name))
 	}
 
@@ -655,6 +660,13 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	mdPath, htmlPath, baseName, isPage := a.resolvePageName(name)
 
 	if !isPage {
+		// The editor loads its content from here. Binary content in a
+		// textarea is unreadable, and a save would write the mangled text
+		// back, so this route refuses the same files serveEditor refuses.
+		if !a.editableFileType(name) {
+			a.serveNotEditable(w, r, name)
+			return
+		}
 		data, err := os.ReadFile(htmlPath)
 		if err != nil {
 			// Not on disk. An html/ asset that ships with the build only
@@ -819,6 +831,13 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	mdPath, htmlPath, baseName, isPage := a.resolvePageName(name)
 
 	if !isPage {
+		// The last of the four guards, and the one that matters: this is
+		// the write. Everything above it can be reached with a crafted
+		// request, so the refusal lives here as well.
+		if !a.editableFileType(name) {
+			a.serveNotEditable(w, r, name)
+			return
+		}
 		if err := os.MkdirAll(filepath.Dir(htmlPath), 0755); err != nil {
 			log.Printf("handleSaveNote: mkdir failed for %q: %v", name, err)
 			http.Error(w, "Failed to save", http.StatusInternalServerError)
@@ -985,14 +1004,23 @@ func (a *App) serveConfigPage(w http.ResponseWriter) {
 func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	relPath := strings.TrimPrefix(path, "/")
 
-	// Put a shipped-but-not-yet-extracted html/ asset on disk before any
-	// editor opens it. The internal editor gets the same content through
-	// /api/note (handleGetNote runs this too), but the EXTERNAL editor and
-	// the Android omngo://edit intent open the file path directly, and a
-	// missing file gives them nothing to show and everything to overwrite.
-	// A no-op for a markdown page, for a file already on disk, and for a
-	// path that is not embedded at all.
 	if _, _, _, isPage := a.resolvePageName(relPath); !isPage {
+		// A picture, a font, an audio file or a video file has nothing to
+		// type into, and a save through a textarea would damage it. Refuse
+		// before the extraction below, so a request for an editor cannot
+		// even write the file to disk. Markdown pages skip this: ?edit=true
+		// on a page resolves to its markdown source.
+		if !a.editableFileType(relPath) {
+			a.serveNotEditable(w, r, relPath)
+			return
+		}
+		// Put a shipped-but-not-yet-extracted html/ asset on disk before any
+		// editor opens it. The internal editor gets the same content through
+		// /api/note (handleGetNote runs this too), but the EXTERNAL editor and
+		// the Android omngo://edit intent open the file path directly, and a
+		// missing file gives them nothing to show and everything to overwrite.
+		// A no-op for a file already on disk and for a path that is not
+		// embedded at all.
 		a.materializeAsset("/" + filepath.ToSlash(relPath))
 	}
 

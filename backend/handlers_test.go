@@ -198,6 +198,97 @@ func TestServeStorageSubdirHonorsEditIntent(t *testing.T) {
 	}
 }
 
+// A picture, a font, an audio file or a video file has nothing to type
+// into, and a save through a textarea would damage it. Each of the four
+// routes that can reach an editor refuses such a file with 415, and
+// serveEditor refuses it BEFORE it writes the file to disk.
+func TestEditorRoutesRefuseBinaryFiles(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.UseInternalEd = true
+
+	imgDir := filepath.Join(a.StorageDir, "html", "images")
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	png := []byte("\x89PNG\r\n\x1a\n binary")
+	if err := os.WriteFile(filepath.Join(imgDir, "photo.png"), png, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	const rel = "images/photo.png"
+
+	// 1. the editor page
+	rec := httptest.NewRecorder()
+	a.serveEditor(rec, httptest.NewRequest(http.MethodGet, "/"+rel+"?edit=true", nil), "/"+rel)
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("serveEditor: status %d, want 415", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "editorSave") {
+		t.Error("serveEditor answered with the editor page for a picture")
+	}
+
+	// 2. the external editor route
+	rec = httptest.NewRecorder()
+	a.handleEditExternal(rec, httptest.NewRequest(http.MethodGet, "/api/edit-external?name="+url.QueryEscape(rel), nil))
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("handleEditExternal: status %d, want 415", rec.Code)
+	}
+
+	// 3. the content route the editor loads from
+	rec = httptest.NewRecorder()
+	a.handleGetNote(rec, httptest.NewRequest(http.MethodGet, "/api/note?name="+url.QueryEscape(rel), nil))
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("handleGetNote: status %d, want 415", rec.Code)
+	}
+
+	// 4. the save, which is where the damage would happen
+	form := url.Values{"name": {rel}, "content": {"text over a picture"}}
+	req := httptest.NewRequest(http.MethodPost, "/api/save", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	a.handleSaveNote(rec, req)
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("handleSaveNote: status %d, want 415", rec.Code)
+	}
+	after, err := os.ReadFile(filepath.Join(imgDir, "photo.png"))
+	if err != nil || !bytes.Equal(after, png) {
+		t.Error("the picture was changed by a save that must have been refused")
+	}
+
+	// A refused editor request must not extract a shipped binary either.
+	rec = httptest.NewRecorder()
+	a.serveEditor(rec, httptest.NewRequest(http.MethodGet, "/css/fonts/material-icons.woff2?edit=true", nil),
+		"/css/fonts/material-icons.woff2")
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("serveEditor on a font: status %d, want 415", rec.Code)
+	}
+	if _, err := os.Stat(filepath.Join(a.StorageDir, "html", "css", "fonts", "material-icons.woff2")); !os.IsNotExist(err) {
+		t.Error("a refused editor request extracted the font to disk")
+	}
+}
+
+// The rule is about binary files, not about the editor. A page, a note and
+// a text asset must still open.
+func TestEditorRoutesStillOpenTextFiles(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.UseInternalEd = true
+
+	if err := os.WriteFile(filepath.Join(a.StorageDir, "md", "Welcome.md"),
+		[]byte("Title: Welcome\n\nbody"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/Welcome.html", "/css/omn-go-custom.css", "/js/omn-go-custom.js"} {
+		rec := httptest.NewRecorder()
+		a.serveEditor(rec, httptest.NewRequest(http.MethodGet, p+"?edit=true", nil), p)
+		if rec.Code != http.StatusOK {
+			t.Errorf("serveEditor(%q): status %d, want 200", p, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "editorSave") {
+			t.Errorf("serveEditor(%q) did not answer with the editor page", p)
+		}
+	}
+}
+
 func TestHandleGetNoteStaticAssetNotFound(t *testing.T) {
 	a := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/note?name=missing.js", nil)

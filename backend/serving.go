@@ -287,6 +287,40 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 	w.Write(a.injectRuntimeVars(compiled))
 }
 
+// serveNotEditable is the one answer for "you asked an editor to open a file
+// that is not text". Same content negotiation as serveNotFound: a page for a
+// browser navigation, plain text for a fetch - the editor's loadContent()
+// shows that text to the user, so markup there would hide the reason.
+//
+// 415 Unsupported Media Type, not 404: the file exists and is served
+// normally. Only the editor refuses it.
+func (a *App) serveNotEditable(w http.ResponseWriter, r *http.Request, relPath string) {
+	urlPath := "/" + strings.TrimPrefix(relPath, "/")
+	ct := a.resolveContentType(relPath)
+
+	log.Printf("[edit] refused %s (%s): not a text file", urlPath, ct)
+
+	if !wantsHTMLError(r) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		typ := ct
+		if typ == "" {
+			typ = "unknown"
+		}
+		fmt.Fprintf(w, "415 Not a text file\n\nFile: %s\nType: %s\n\n"+
+			"OMN-Go does not open a picture, a font, an audio file or a video\n"+
+			"file in an editor. Open %s to view it.\n", urlPath, typ, urlPath)
+		return
+	}
+
+	body := renderNotEditablePage(notEditableView{Path: urlPath, Type: ct})
+	compiled := a.compilePageWithBody("Not a text file",
+		[]byte("Title: Not a text file\nCategory: Error\n\n"), body)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusUnsupportedMediaType)
+	w.Write(a.injectRuntimeVars(compiled))
+}
+
 // notFoundInterceptor lets a handler we do not control (http.FileServer,
 // behind serveStorageSubdir) keep its path-resolution and range handling
 // while its 404 is replaced with ours. Wrapping the ResponseWriter rather
