@@ -18,9 +18,21 @@ RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
 ENV ANDROID_HOME=/opt/android
 ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
+# build-tools 34.0.0, because that is the version the build asks for. The
+# Gradle plugin (com.android.tools.build:gradle:8.2.2 - see
+# android/build.gradle) carries a default build-tools version, and
+# android/app/build.gradle pins none. With 33.0.1 in the image, the gradle
+# step of stage 2 stopped to accept a license and to download 34.0.0 on
+# each build. That download needs the network at build time. It also
+# writes into the image, and the next build cannot use the result. The
+# SDK lives here, and not under the /root/.gradle cache mount.
+#
+# The Gradle configuration stays as it is. F-Droid builds this project
+# from that configuration, on their own server and with their own SDK.
+# The image follows the build, and not the other way.
 RUN --mount=type=cache,target=/opt/android/.android/cache,sharing=locked \
     yes | sdkmanager --licenses && \
-    sdkmanager "platforms;android-34" "build-tools;33.0.1" "platform-tools" "ndk;25.2.9519653"
+    sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "ndk;25.2.9519653"
 
 # Install Gradle
 RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
