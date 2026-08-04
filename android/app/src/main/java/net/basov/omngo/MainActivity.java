@@ -7,10 +7,19 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.os.Handler;
 import android.os.Looper;
+import net.basov.omngo.backend.Backend;
 
 public class MainActivity extends Activity {
     private WebView webView;
     private String currentEditingName;
+
+    /**
+     * The cache of the WebView is cleared a maximum of one time in the
+     * life of the process. onCreate operates again after a recreate of
+     * the activity, but Backend.assetsRefreshed() keeps its answer until
+     * the process stops, thus the guard must be static.
+     */
+    private static boolean assetCacheCleared = false;
 
     // Storage dir and server port both used to be hardcoded here
     // ("net.basov.omngo" and "8080"), which broke on the fdroid flavor
@@ -409,6 +418,26 @@ public class MainActivity extends Activity {
                         handleSharedFile(sharedUri, intent.getType());
                     }
                 }
+
+                // An update of the application writes the shipped
+                // scripts and style sheets again (refreshEmbeddedAssets
+                // in backend/assets.go). The WebView can hold the
+                // previous copy of those files in its disk cache, and
+                // then some new pages do not operate correctly. The Go
+                // side tells if it wrote such a file at this start, thus
+                // the cache goes away only at the start after an update.
+                //
+                // The server is up at this point: startService above
+                // sends onStartCommand to this same main thread, and
+                // Backend.startServer completes the work with the assets
+                // before it returns (see initStorage in
+                // backend/storage.go). This runnable comes 1 second
+                // later.
+                if (!assetCacheCleared && Backend.assetsRefreshed()) {
+                    assetCacheCleared = true;
+                    webView.clearCache(true);
+                }
+
                 webView.loadUrl(startUrl);
             }
         }, 1000); // 1 second delay

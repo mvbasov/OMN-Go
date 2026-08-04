@@ -73,6 +73,22 @@ There is no single envelope. The server uses three shapes:
 The JSON endpoints keep their JSON shape for an error and add
 `"status": "error"`.
 
+**Cache-Control.** Each response carries `Cache-Control: no-cache`. The
+header is set in `connectionMiddleware` (`backend/middleware.go`). That
+function wraps each route. The header thus applies to a page, to an API
+answer and to a static file.
+
+`no-cache` does not stop the cache. The client keeps its copy, but it
+asks the server each time. The server answers `304 Not Modified` while
+the file does not change. The cost is thus one small request.
+
+Without the header, `http.ServeFile` sends `Last-Modified` only. A
+browser then applies its own rule. An old `omn-go-core.js` can stay for
+days after an update of the application.
+
+A handler that writes `Cache-Control` later replaces this value.
+`/api/logs` does this.
+
 ---
 
 ## 2. Authentication and authorization
@@ -1272,7 +1288,7 @@ and the Android WebView paints nothing else.
 | `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author` |
 | `git` | two object reads | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}`, `remote_ref`, `remote_head{…}` |
 | `search` | one pass over the index | `enabled`, `docs`, `lines`, `bytes`, `index_bytes_estimate`, `built`, `checked`, `dirty`, `kinds`, `scope` |
-| `runtime` | none | `go_version`, `goroutines`, `heap_alloc`, `sys`, `assets_version` |
+| `runtime` | none | `go_version`, `goroutines`, `heap_alloc`, `sys`, `assets_version`, `assets_refreshed` |
 | `android` | none | `package`, `default_port`, `fullscreen` (the section is absent off Android) |
 | `storage` | a walk of the storage directory | `dir` and one `{files,bytes}` group each for `notes`, `pages`, `images`, `user_json`, `databases`, `backups`, `asset_backups`, `total` |
 | `git_dirty` | a walk of the worktree | `dirty`, `changed`, `untracked` |
@@ -1310,6 +1326,14 @@ no remote server, so the value is what this device knows, and it can be old. A
 reader compares `head.hash` with `remote_head.hash` to see whether the two ends
 agree. A branch that this device never fetched leaves both fields absent, and
 so does a detached HEAD.
+
+`assets_refreshed` tells if this start installed or replaced a
+version-dependent asset. This occurs one time, after an update of the
+application. Android reads the same fact through the `AssetsRefreshed`
+binding, immediately before the WebView loads the first page. If the
+answer is yes, Android clears the cache of the WebView. An old script in
+that cache made some new pages operate incorrectly. A user then had to
+stop the application and clear the cache by hand.
 
 The answer never carries a password, an SSH key, or a remote URL with a
 password in it. The user name of a remote URL stays: it is part of the

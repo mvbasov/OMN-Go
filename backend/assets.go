@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 )
 
 // ----------------------------------------------------------------------
@@ -50,6 +51,30 @@ import (
 // most recently refreshed the extracted assets.
 const assetsVersionFilename = "assets_version"
 
+// assetsRefreshed tells if refreshEmbeddedAssets wrote a minimum of one
+// file after this process started. A start that finds the same version
+// stamp writes no file, thus the value stays false.
+//
+// The Android WebView keeps a copy of a script and of a style sheet in
+// its own disk cache. After an update of the application the new pages
+// can use the old scripts, and some pages then do not operate correctly.
+// A user had to stop the application and clear the cache by hand. The
+// Android layer reads this value instead, and clears the cache only when
+// the assets changed. See AssetsRefreshed.
+var assetsRefreshed atomic.Bool
+
+// AssetsRefreshed tells if this start installed or replaced a minimum of
+// one version-dependent asset. The value stays the same until the
+// process stops.
+//
+// The function is exported for the gomobile binding. MainActivity.java
+// calls it immediately before the first loadUrl. If the answer is true,
+// the activity calls WebView.clearCache(true) one time. A start with no
+// change of the assets thus keeps the cache.
+func AssetsRefreshed() bool {
+	return assetsRefreshed.Load()
+}
+
 // backupLabelSanitizer keeps backup directory names safe regardless of
 // what an old/garbled version stamp contains.
 var backupLabelSanitizer = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -83,6 +108,9 @@ var versionDependentAssets = []string{
 }
 
 func (a *App) refreshEmbeddedAssets() {
+	// The flag reports the work of this start only.
+	assetsRefreshed.Store(false)
+
 	verFile := filepath.Join(a.StorageDir, assetsVersionFilename)
 	prevRaw, _ := os.ReadFile(verFile) // missing file => "" => first run
 	prev := strings.TrimSpace(string(prevRaw))
@@ -159,6 +187,9 @@ func (a *App) refreshEmbeddedAssets() {
 		log.Printf("[assets] cannot write version stamp %s: %v", verFile, err)
 	}
 	if refreshed > 0 {
+		// The client caches must go. AssetsRefreshed tells the Android
+		// layer to clear the cache of the WebView one time.
+		assetsRefreshed.Store(true)
 		log.Printf("[assets] %d embedded asset(s) refreshed for v%s (previous: %s)", refreshed, APP_VERSION, prevLabel)
 	}
 }

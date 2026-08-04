@@ -233,6 +233,9 @@ type statusRuntime struct {
 	HeapAlloc     uint64 `json:"heap_alloc"`
 	Sys           uint64 `json:"sys"`
 	AssetsVersion string `json:"assets_version"`
+	// AssetsRefreshed tells if this start wrote a version-dependent
+	// asset. It is true one time, after an update of the application.
+	AssetsRefreshed bool `json:"assets_refreshed"`
 }
 
 type statusAndroid struct {
@@ -640,11 +643,12 @@ func (a *App) statusRuntimeSection() *statusRuntime {
 		stamp = strings.TrimSpace(string(raw))
 	}
 	return &statusRuntime{
-		GoVersion:     runtime.Version(),
-		Goroutines:    runtime.NumGoroutine(),
-		HeapAlloc:     mem.HeapAlloc,
-		Sys:           mem.Sys,
-		AssetsVersion: stamp,
+		GoVersion:       runtime.Version(),
+		Goroutines:      runtime.NumGoroutine(),
+		HeapAlloc:       mem.HeapAlloc,
+		Sys:             mem.Sys,
+		AssetsVersion:   stamp,
+		AssetsRefreshed: AssetsRefreshed(),
 	}
 }
 
@@ -970,6 +974,7 @@ func renderStatusMarkdown(res *statusResponse) string {
 			{"heap_alloc", strconv.FormatUint(rt.HeapAlloc, 10)},
 			{"sys", strconv.FormatUint(rt.Sys, 10)},
 			{"assets_version", rt.AssetsVersion},
+			{"assets_refreshed", yes(rt.AssetsRefreshed)},
 		})
 	}
 	if an := res.Android; an != nil {

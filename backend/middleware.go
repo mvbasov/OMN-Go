@@ -20,6 +20,26 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 		// concurrently; a bare ++/-- here was a data race. Use atomics.
 		atomic.AddInt64(&a.ActiveConns, 1)
 		defer atomic.AddInt64(&a.ActiveConns, -1)
+
+		// Each response goes through this function, thus this is the one
+		// place that controls the cache of the client.
+		//
+		// The static files go out through http.ServeFile. It sends
+		// Last-Modified, but it sends no expiry time. A browser then
+		// applies its own rule and keeps the file for a part of its age.
+		// The Android WebView does the same. After an update of the
+		// application the new pages used the old omn-go-core.js for
+		// days, and a user had to clear the cache by hand.
+		//
+		// "no-cache" does not stop the cache. The client keeps the file,
+		// but it asks the server each time. The server answers 304 Not
+		// Modified while the file does not change, thus the cost is one
+		// small request.
+		//
+		// A handler that needs other words writes them later and wins.
+		// The log stream does this (see logger.go).
+		w.Header().Set("Cache-Control", "no-cache")
+
 		next.ServeHTTP(w, r)
 	})
 }
