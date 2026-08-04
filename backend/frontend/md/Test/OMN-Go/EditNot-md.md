@@ -1,10 +1,12 @@
 Title: Edit not .md
 Date: 2026-06-24 14:05:01
-Modified: 2026-07-12 11:03:47
+Modified: 2026-08-04 10:00:00
 Category: Test
 Author: Mikhail Basov
 Tags: Test
 
+* [Edit /css/omn-go-custom.css](/css/omn-go-custom.css?edit=true)
+* [Edit /js/omn-go-custom.js](/js/omn-go-custom.js?edit=true)
 * [Edit /json/bookmarker-tags.json](/json/bookmarker-tags.json?edit=true)
 * [Edit /css/test.css](/css/test.css?edit=true)
 * [Edit /js/test.js](/js/test.js?edit=true)

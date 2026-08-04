@@ -42,6 +42,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [The file index](#the-file-index)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
+- [Your own CSS and JavaScript](#your-own-css-and-javascript)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -346,9 +347,9 @@ static assets:
 The link opens the raw file in the internal editor. If you configured an
 external editor, the link opens the file there. When you save, OMN-Go
 writes the file back in place. A file that comes with OMN-Go opens with
-its content, also when OMN-Go did not write it to the storage directory
-yet. If the file does not exist, the editor opens an empty page, and your
-first save makes the file.
+its content, also when the storage directory does not hold that file yet.
+If the file does not exist, the editor opens an empty page. Your first
+save makes the file.
 
 If the editor cannot read the file, it shows a red message and turns the
 *Save* button off. This keeps an empty editor from replacing a file that
@@ -777,6 +778,31 @@ stores its data in a note script. Two rules keep note scripts correct. See
 
 Note scripts run with full access to the page. Put only note scripts that
 you understand and trust in your notes.
+
+## Your own CSS and JavaScript
+
+Two files hold your own changes to the application:
+
+- `/css/omn-go-custom.css`
+- `/js/omn-go-custom.js`
+
+Each page loads the two files. The stylesheet is the last one in the head. The script is the last one before the end of the body. This order gives you control. Your rule wins over a rule of the application that has the same specificity. Your code can use each function that the application scripts define.
+
+To open a file, use its edit link. Example: `[My styles](/css/omn-go-custom.css?edit=true)`. The [Edit not .md](/Test/OMN-Go/EditNot-md) test note has a link to each of the two files.
+
+OMN-Go writes the two files one time. Each file gets a comment that says what the file is for. After that the files are yours. An update keeps your version. Git synchronization copies the files to your other devices.
+
+To change one color everywhere, set the design token in your stylesheet. The tokens are at the top of `css/omn-go-core.css`:
+
+```
+:root { --accent: #8e44ad; }
+```
+
+Put your code in a block scope, as in a note script (see [Scripting Rules](ScriptRules)). A `var` at the top level of the file becomes a global name on each page.
+
+One page is different. The [Bookmarks](Bookmarks) page loads `css/Bookmarker.css` from the note. The browser reads that stylesheet after the head. To change that page, give your rule a higher specificity.
+
+**The editor page does not load the two files.** This is deliberate. A rule that hides a control cannot keep you out of the editor. An error in your code cannot keep you out of the editor. The editor always opens, and you repair the file there.
 
 ## Troubleshooting
 

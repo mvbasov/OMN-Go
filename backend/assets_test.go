@@ -65,6 +65,8 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 	for _, userOwned := range []string{
 		filepath.Join(dir, "md", "Welcome.md"),
 		filepath.Join(dir, "html", "json", "bookmarker-tags.json"),
+		filepath.Join(dir, "html", "css", "omn-go-custom.css"),
+		filepath.Join(dir, "html", "js", "omn-go-custom.js"),
 	} {
 		if _, err := os.Stat(userOwned); !os.IsNotExist(err) {
 			t.Errorf("refresh created a user-owned file that must stay lazy-only: %s", userOwned)

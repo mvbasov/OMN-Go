@@ -118,6 +118,51 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	// view; here we only assert what we passed in came through.
 }
 
+// The user files must be LAST: the stylesheet after every stylesheet of
+// the application, the script after every script of it. That order is the
+// whole feature - it is what lets a user rule win and a user function
+// replace an application function. The editor page must NOT load them, so
+// a bad rule or a bad line can never keep the user out of the editor that
+// repairs it.
+func TestRenderIndexPageLoadsCustomAssetsLast(t *testing.T) {
+	out := renderIndexPage(indexPageView{
+		Title:       "T",
+		PageName:    "T",
+		PageExt:     ".md",
+		IsMarkdown:  true,
+		AssetPrefix: "/",
+		PreviewHTML: "<p>x</p>",
+	})
+
+	customCSS := strings.Index(out, "css/omn-go-custom.css")
+	if customCSS < 0 {
+		t.Fatal("page does not load css/omn-go-custom.css")
+	}
+	for _, sheet := range []string{"css/omn-go-core.css", "css/highlight.default.min.css", "css/katex.min.css"} {
+		if i := strings.Index(out, sheet); i < 0 || i > customCSS {
+			t.Errorf("%s must load BEFORE css/omn-go-custom.css", sheet)
+		}
+	}
+
+	customJS := strings.Index(out, "js/omn-go-custom.js")
+	if customJS < 0 {
+		t.Fatal("page does not load js/omn-go-custom.js")
+	}
+	for _, script := range []string{
+		"js/omn-go-core.js", "js/omn-go-sse.js", "js/highlight.min.js",
+		"js/katex.min.js", "js/auto-render.min.js",
+	} {
+		if i := strings.Index(out, script); i < 0 || i > customJS {
+			t.Errorf("%s must load BEFORE js/omn-go-custom.js", script)
+		}
+	}
+
+	editor := renderEditorPage(editorPageView{Title: "T", Name: "T", PageExt: ".md", ViewURL: "/T.html"})
+	if strings.Contains(editor, "omn-go-custom") {
+		t.Error("the editor page must not load the user CSS or the user script")
+	}
+}
+
 func TestRenderEditorPage(t *testing.T) {
 	out := renderEditorPage(editorPageView{
 		Title:   `Weird'Page"Name`,

@@ -105,6 +105,16 @@ func loadTemplate(filename string) string {
 }
 
 var (
+	// index.html loads css/omn-go-custom.css as the last stylesheet and
+	// js/omn-go-custom.js as the last script. The position is the feature:
+	// a user rule beats an application rule of the same specificity, and
+	// the user script sees everything the application scripts define. Both
+	// files are user-owned - they are NOT in versionDependentAssets, so
+	// materializeAsset creates each one from the embedded copy on first
+	// request and no upgrade replaces it. editor.html loads neither, so a
+	// bad rule or a script error can never keep the user out of the editor
+	// that repairs it. Do not put these notes in the template itself: it
+	// ships to the browser with every page.
 	indexPageTmpl     = loadTemplate("index.html")
 	configPageTmpl    = loadTemplate("config_page.html")
 	gitServerCardTmpl = loadTemplate("git_server_card.html")
