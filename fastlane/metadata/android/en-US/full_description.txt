@@ -4,16 +4,16 @@ A note is a plain Markdown file with a small header block (title, date, tags). O
 
 Key features:
 
-* Full Markdown editing, with the built-in editor or your preferred external text editor.
-* Optional git synchronization over SSH, so the same notes stay up to date on every device that runs OMN-Go. OMN-Go shows each conflict clearly and gives you a manual merge or a safe pull or push.
-* Optional LAN sharing, off by default. In the default state, OMN-Go answers only local connections. If you enable LAN sharing, other devices on your network can reach your notes over HTTP with a password. This is useful to read or edit from a second device without git synchronization.
-* An embedded SQL database that note scripts can read and write directly. You can create a backup of its contents at any time. Git can track this backup, and OMN-Go saves it with your notes.
-* Quick capture: a quick-note box that opens with one press, and a bookmark collector. Both work with the Android share-to-application function.
-* The Tags page, which OMN-Go generates automatically. It indexes every note by its tags and works offline.
-* On Android, a note can open a system settings screen or start another application. It can also run a Termux command. These links use an intent: URI, and the function is off by default.
-* Math formulas (KaTeX, opt-in per page) and automatic syntax highlighting for fenced code blocks.
-* Light, dark, and system-following themes.
-* Material Design icons and small HTML/JS building blocks that you can put into any note.
+• Full Markdown editing, with the built-in editor or your preferred external text editor.
+• Optional git synchronization over SSH, so the same notes stay up to date on every device that runs OMN-Go. OMN-Go shows each conflict clearly and gives you a manual merge or a safe pull or push.
+• Optional LAN sharing, off by default. In the default state, OMN-Go answers only local connections. If you enable LAN sharing, other devices on your network can reach your notes over HTTP with a password. This is useful to read or edit from a second device without git synchronization.
+• An embedded SQL database that note scripts can read and write directly. You can create a backup of its contents at any time. Git can track this backup, and OMN-Go saves it with your notes.
+• Quick capture: a quick-note box that opens with one press, and a bookmark collector. Both work with the Android share-to-application function.
+• The Tags page, which OMN-Go generates automatically. It indexes every note by its tags and works offline.
+• On Android, a note can open a system settings screen or start another application. It can also run a Termux command. These links use an intent: URI, and the function is off by default.
+• Math formulas (KaTeX, opt-in per page) and automatic syntax highlighting for fenced code blocks.
+• Light, dark, and system-following themes.
+• Material Design icons and small HTML/JS building blocks that you can put into any note.
 
 OMN-Go also runs on the desktop. You can get the Linux and Windows builds at https://github.com/mvbasov/OMN-Go/releases - the same notes and the same interface. Optional git synchronization keeps a desktop device and a phone in step.
 

@@ -1,0 +1,9 @@
+• Fix empty embeded file edit on fresh install
+• Fix DB backup details download on Android
+• Fix. Disable binary files editing
+• Fix. Clean cache on new version install
+• Fix. Local build 2 phase now offline again
+• Add easy start
+• Add user controlled global .js and .css
+• Organize tags of embeded pages
+• Add status page/API

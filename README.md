@@ -9,13 +9,10 @@ OMN-Go replaces the original [mvbasov/OMN](https://github.com/mvbasov/OMN) proje
     <img alt="Get it on GitLab" src="https://img.shields.io/badge/Get_it_on-GitLab-FC6D26?style=for-the-badge&amp;logo=gitlab&amp;logoColor=white">
   </a><img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png"><a href="https://github.com/mvbasov/OMN-Go/releases/latest">
     <img alt="Get it on GitHub" src="https://img.shields.io/badge/Get_it_on-GitHub-6e5494?style=for-the-badge&amp;logo=github&amp;logoColor=white">
+  </a><img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png"><a href="https://f-droid.org/packages/net.basov.omngo">
+    <img alt="Get it on F-Droid" src="https://img.shields.io/badge/Get_it_on-F--Droid-1976D2?style=for-the-badge&amp;logo=fdroid&amp;logoColor=white">
   </a>
 </p>
-<!--
-F-Droid — uncomment once published (it's already in its own centered paragraph, so it stays on the line below the other two on every screen size):
-<p align="center"><a href="https://f-droid.org/packages/net.basov.omngo"><img alt="Get it on F-Droid" src="https://img.shields.io/badge/Get_it_on-F--Droid-1976D2?style=for-the-badge&amp;logo=fdroid&amp;logoColor=white"></a></p>
--->
-
 
 > [!NOTE]
 > **Not on Google Play.** OMN-Go will never be published on the Google Play Store. Google's policies do not allow some optional convenience features of OMN-Go, such as its background web service. I will not remove or restrict these features to comply.
