@@ -1,0 +1,23 @@
+/* omn-go-custom.css - your own styles.
+ *
+ * Each page loads this file as the LAST stylesheet. Your rule wins over
+ * a rule of the application that has the same specificity.
+ *
+ * This file is yours. OMN-Go writes it one time. OMN-Go never writes
+ * over it again. An update keeps your version of it. Git
+ * synchronization copies it to your other devices.
+ *
+ * To change one color everywhere, set the design token. The tokens are
+ * at the top of css/omn-go-core.css.
+ *
+ *   :root { --accent: #8e44ad; }
+ *
+ * To change the page, write ordinary rules.
+ *
+ *   #preview { max-width: 60em; margin: 0 auto; }
+ *   body     { font-size: 18px; }
+ *
+ * The editor page does not load this file. A rule that hides a control
+ * can therefore not keep you out of the editor. To repair a rule, open
+ * /css/omn-go-custom.css?edit=true.
+ */
