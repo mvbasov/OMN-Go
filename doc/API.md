@@ -1270,7 +1270,7 @@ and the Android WebView paints nothing else.
 | --- | --- | --- |
 | `server` | none | `app_version`, `started`, `uptime_s`, `bind_port`, `share_lan`, `lan_urls[]`, `active_conns`, `hostname`, `goos`, `goarch` |
 | `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author` |
-| `git` | one object read | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}` |
+| `git` | two object reads | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}`, `remote_ref`, `remote_head{…}` |
 | `search` | one pass over the index | `enabled`, `docs`, `lines`, `bytes`, `index_bytes_estimate`, `built`, `checked`, `dirty`, `kinds`, `scope` |
 | `runtime` | none | `go_version`, `goroutines`, `heap_alloc`, `sys`, `assets_version` |
 | `android` | none | `package`, `default_port`, `fullscreen` (the section is absent off Android) |
@@ -1302,6 +1302,14 @@ cannot name different addresses.
 report the true size of a live object graph. The number counts the line
 masks, the trigram signature and the strings of each indexed document,
 with a flat allowance for the structure.
+
+`remote_head` is the commit that the remote-tracking ref names, for example
+`refs/remotes/gitserver0/master`, and `remote_ref` names that ref in the short
+form `gitserver0/master`. The last pull or push wrote it. This endpoint asks
+no remote server, so the value is what this device knows, and it can be old. A
+reader compares `head.hash` with `remote_head.hash` to see whether the two ends
+agree. A branch that this device never fetched leaves both fields absent, and
+so does a detached HEAD.
 
 The answer never carries a password, an SSH key, or a remote URL with a
 password in it. The user name of a remote URL stays: it is part of the
@@ -1351,7 +1359,15 @@ GET /api/status?sections=server,git&format=json
       "author": "Mikhail Basov",
       "date": "2026-08-04T08:12:00Z"
     },
-    "remote": { "name": "home", "url": "https://user@example.com/notes.git" }
+    "remote": { "name": "home", "url": "https://user@example.com/notes.git" },
+    "remote_ref": "gitserver0/master",
+    "remote_head": {
+      "hash": "3d5a1c0b7e8f9021a3b4c5d6e7f8091a2b3c4d5e",
+      "short": "3d5a1c0",
+      "subject": "Tag every page that comes with OMN-Go",
+      "author": "Mikhail Basov",
+      "date": "2026-08-03T19:40:00Z"
+    }
   }
 }
 ```

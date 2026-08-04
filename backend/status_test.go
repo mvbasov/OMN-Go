@@ -9,6 +9,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 // getStatus runs the handler and returns the decoded document.
@@ -248,11 +252,104 @@ func TestStatusGitCreatesNothing(t *testing.T) {
 	if res.Git == nil || res.Git.RepoExists {
 		t.Error("git section reports a repository that does not exist")
 	}
+	if res.Git.RemoteHead != nil || res.Git.RemoteRef != "" {
+		t.Error("git section reports a remote head without a repository")
+	}
 	if res.GitDirty == nil || res.GitDirty.Dirty {
 		t.Error("git_dirty reports changes without a repository")
 	}
 	if _, err := os.Stat(filepath.Join(a.StorageDir, ".git")); !os.IsNotExist(err) {
 		t.Error("a status request created a git repository")
+	}
+}
+
+// The remote head comes from the remote-tracking ref that the last sync
+// left in this repository. Nothing asks the remote server.
+func TestStatusRemoteHeadFromLocalRefs(t *testing.T) {
+	a := newTestApp(t)
+
+	repo, err := git.PlainInit(a.StorageDir, false)
+	if err != nil {
+		t.Skipf("cannot init a repository here: %v", err)
+	}
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(a.StorageDir, "note.txt"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wt.Add("note.txt"); err != nil {
+		t.Fatal(err)
+	}
+	local, err := wt.Commit("a local commit", &git.CommitOptions{
+		Author: &object.Signature{Name: "Tester", Email: "t@example.com", When: time.Now()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := repo.Head()
+	if err != nil {
+		t.Fatal(err)
+	}
+	branch := head.Name().Short()
+
+	// Without a remote-tracking ref the two fields stay absent.
+	res, _ := getStatus(t, a, "sections=git")
+	if res.Git.RemoteHead != nil || res.Git.RemoteRef != "" {
+		t.Errorf("a repository with no fetch reports %v / %q",
+			res.Git.RemoteHead, res.Git.RemoteRef)
+	}
+
+	// A fetch writes such a ref. This writes one the same way.
+	ref := plumbing.NewHashReference(plumbing.NewRemoteReferenceName("origin", branch), local)
+	if err := repo.Storer.SetReference(ref); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _ = getStatus(t, a, "sections=git")
+	if res.Git.RemoteHead == nil {
+		t.Fatal("no remote head after a remote-tracking ref exists")
+	}
+	if res.Git.RemoteHead.Hash != local.String() {
+		t.Errorf("remote head hash = %q, want %q", res.Git.RemoteHead.Hash, local.String())
+	}
+	if res.Git.RemoteHead.Short != local.String()[:7] {
+		t.Errorf("remote head short = %q, want %q", res.Git.RemoteHead.Short, local.String()[:7])
+	}
+	if res.Git.RemoteHead.Subject != "a local commit" {
+		t.Errorf("remote head subject = %q", res.Git.RemoteHead.Subject)
+	}
+	if res.Git.RemoteRef != "origin/"+branch {
+		t.Errorf("remote ref = %q, want %q", res.Git.RemoteRef, "origin/"+branch)
+	}
+}
+
+// The remote to look in: the remote of the active server slot first, then
+// the bootstrap remote of an older installation.
+func TestRemoteRefCandidates(t *testing.T) {
+	cfg := Config{
+		ActiveGitIndex: 1,
+		GitServers: []GitServerConfig{
+			{Name: "first", URL: "https://example.com/a.git"},
+			{Name: "second", URL: "https://example.com/b.git"},
+		},
+	}
+	got := remoteRefCandidates(cfg, "master")
+	want := []string{"gitserver1", "origin"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("candidates = %v, want %v", got, want)
+	}
+
+	// A slot with no address contributes no remote.
+	cfg.GitServers[1].URL = "  "
+	if got := remoteRefCandidates(cfg, "master"); strings.Join(got, ",") != "origin" {
+		t.Errorf("candidates = %v, want [origin]", got)
+	}
+
+	// A detached HEAD has no remote-tracking ref.
+	if got := remoteRefCandidates(cfg, ""); len(got) != 0 {
+		t.Errorf("candidates = %v for a detached HEAD, want none", got)
 	}
 }
 

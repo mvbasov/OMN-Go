@@ -758,7 +758,7 @@ The page reads the `/api/status` endpoint and shows what comes back:
 
 - **Server** — the port of the server, and the addresses that another device on your network can open. It also gives the time since the start.
 - **Configuration** — the settings that change behavior, for example the editor, the theme and the upload limit.
-- **Git** — the branch, the commit that your notes are at, and the remote. The password of a remote never appears.
+- **Git** — the branch, the commit that your notes are at, and the remote. It also gives the commit of the remote from your last synchronization. OMN-Go asks no server for it, so it can be older than the server. The password of a remote never appears.
 - **Search** — how many notes the index holds, how large it is, and when OMN-Go built it.
 - **Runtime** and **Android** — the Go version, the memory in use, and the package name of the Android application.
 

@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 )
@@ -197,6 +198,14 @@ type statusGit struct {
 	Branch     string           `json:"branch,omitempty"`
 	Head       *statusGitHead   `json:"head,omitempty"`
 	Remote     *statusGitRemote `json:"remote,omitempty"`
+
+	// RemoteRef and RemoteHead are what the LAST sync left in this
+	// repository, for example "gitserver0/master". Nothing here asks the
+	// remote server. A branch that this device never fetched leaves both
+	// fields absent. A reader compares head.hash with remote_head.hash to
+	// see whether the two ends agree.
+	RemoteRef  string         `json:"remote_ref,omitempty"`
+	RemoteHead *statusGitHead `json:"remote_head,omitempty"`
 }
 
 type statusGitDirty struct {
@@ -483,23 +492,59 @@ func (a *App) statusGitSection(cfg Config) (*statusGit, error) {
 	if head.Name().IsBranch() {
 		out.Branch = head.Name().Short()
 	}
-	commit, err := repo.CommitObject(head.Hash())
-	if err != nil {
-		return out, fmt.Errorf("read HEAD commit: %v", err)
+	out.Head = commitSummary(repo, head.Hash())
+
+	// The remote-tracking ref: what the last pull or push wrote into this
+	// repository for the branch of HEAD. This is a local read of a local
+	// file. It contacts no server, so it costs nothing and it can be old.
+	for _, remote := range remoteRefCandidates(cfg, out.Branch) {
+		refName := plumbing.NewRemoteReferenceName(remote, out.Branch)
+		ref, err := repo.Reference(refName, true)
+		if err != nil || ref == nil {
+			continue
+		}
+		out.RemoteRef = remote + "/" + out.Branch
+		out.RemoteHead = commitSummary(repo, ref.Hash())
+		break
 	}
-	hash := head.Hash().String()
+	return out, nil
+}
+
+// remoteRefCandidates names the git remotes to look in, most specific
+// first. ensureSlotRemotes gives each configured server slot a remote of
+// its own ("gitserver0"), and "origin" is the bootstrap remote that an
+// older installation carries. An empty branch (a detached HEAD) has no
+// remote-tracking ref at all.
+func remoteRefCandidates(cfg Config, branch string) []string {
+	if branch == "" {
+		return nil
+	}
+	out := []string{}
+	if idx := cfg.ActiveGitIndex; idx >= 0 && idx < len(cfg.GitServers) &&
+		strings.TrimSpace(cfg.GitServers[idx].URL) != "" {
+		out = append(out, slotRemoteName(idx))
+	}
+	return append(out, "origin")
+}
+
+// commitSummary reads one commit and reports it. A hash whose object is
+// not in this repository still gives the hash, because the hash is the
+// answer that the caller asked for.
+func commitSummary(repo *git.Repository, h plumbing.Hash) *statusGitHead {
+	hash := h.String()
 	short := hash
 	if len(short) > 7 {
 		short = short[:7]
 	}
-	out.Head = &statusGitHead{
-		Hash:    hash,
-		Short:   short,
-		Subject: strings.TrimSpace(strings.SplitN(commit.Message, "\n", 2)[0]),
-		Author:  commit.Author.Name,
-		Date:    statusTime(commit.Author.When),
+	out := &statusGitHead{Hash: hash, Short: short}
+	commit, err := repo.CommitObject(h)
+	if err != nil {
+		return out
 	}
-	return out, nil
+	out.Subject = strings.TrimSpace(strings.SplitN(commit.Message, "\n", 2)[0])
+	out.Author = commit.Author.Name
+	out.Date = statusTime(commit.Author.When)
+	return out
 }
 
 // statusGitDirtySection is the slow half of the git answer. go-git hashes
@@ -883,6 +928,17 @@ func renderStatusMarkdown(res *statusResponse) string {
 			rows = append(rows,
 				[2]string{"remote_name", g.Remote.Name},
 				[2]string{"remote_url", g.Remote.URL})
+		}
+		if g.RemoteRef != "" {
+			rows = append(rows, [2]string{"remote_ref", g.RemoteRef})
+		}
+		if g.RemoteHead != nil {
+			rows = append(rows,
+				[2]string{"remote_head_hash", g.RemoteHead.Hash},
+				[2]string{"remote_head_short", g.RemoteHead.Short},
+				[2]string{"remote_head_subject", g.RemoteHead.Subject},
+				[2]string{"remote_head_author", g.RemoteHead.Author},
+				[2]string{"remote_head_date", g.RemoteHead.Date})
 		}
 		table("Git", rows)
 	}
