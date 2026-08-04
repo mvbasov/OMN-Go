@@ -1,8 +1,7 @@
 Title: Test page variables
 Date: 2023-01-27 22:47:02
 Modified: 2023-02-21 19:39:34
-Author: Mikhail Basov
-Tags: JavaScript, Test
+Tags: JavaScript, Test, OMN-Go, OMN-Go user
 
 |Variable|Value|
 |--------|:---:|

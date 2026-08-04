@@ -1,7 +1,8 @@
 Title: Databases
 Date: 2026-07-15 12:00:00
 Category: System
-Tags: Database, Backup, SQL
+Author: Mikhail Basov
+Tags: Database, Backup, SQL, OMN-Go, OMN-Go app
 
 # Databases in Notes
 

@@ -2,8 +2,7 @@ Title: Test OMN-Go
 Date: 2026-06-22 23:48:01
 Modified: 2026-07-18 12:34:04
 Category: Notes
-Author: Mikhail Basov
-Tags: Index, Test
+Tags: Index, Test, OMN-Go, OMN-Go user
 
 * [KaTeX test](KaTeXTest)
 * [Link test](LinkTest)

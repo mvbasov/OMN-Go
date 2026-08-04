@@ -1,6 +1,8 @@
 Title: User Manual
 Date: 2026-07-07 12:00:00
 Category: System
+Author: Mikhail Basov
+Tags: Document, OMN-Go, OMN-Go app
 
 # OMN-Go User Manual
 
@@ -470,6 +472,19 @@ hand. A "do not edit" comment at the top gives this warning, and the next
 rebuild overwrites your changes. The page is plain static HTML with no
 note scripts, so it also works when you open the compiled `html/` tree
 offline. OMN-Go omits the notes that have no tags.
+
+### The tags of the pages that come with OMN-Go
+
+Each page that comes with OMN-Go has the tag `OMN-Go`. A second tag says who owns the page:
+
+- **`OMN-Go app`** — the application owns the page. An update writes the shipped text over your version of it. OMN-Go first copies your version to `asset_backups/<previous version>/md/`, and writes the path in the log. This manual and the other documentation pages have this tag.
+- **`OMN-Go user`** — you own the page. OMN-Go writes the page one time: at the first start, or at the first view. After that an update keeps your text. The [Welcome](Welcome) page, the [Quick Notes](QuickNotes) page, the [Bookmarks](Bookmarks) page and the test pages have this tag.
+
+Press a tag pill in the header of such a page to see the full list. The [Tags](OMNGoTags) page also holds the three sections.
+
+Before you write in a page with the tag `OMN-Go app`, copy the text into a page of your own. Your notes are safe: OMN-Go touches only the pages that come with it.
+
+The other files use the same two words. The [file index](OMNGoFiles) marks each file *app-owned* or *user-owned*. `css/omn-go-custom.css` and `js/omn-go-custom.js` are user-owned, like a page with the tag `OMN-Go user`.
 
 ## Searching
 

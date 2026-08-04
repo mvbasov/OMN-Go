@@ -1,7 +1,8 @@
 Title: The Editor
 Date: 2026-07-10 12:00:00
 Category: System
-Tags: Document
+Author: Mikhail Basov
+Tags: Document, OMN-Go, OMN-Go app
 
 # The OMN-Go Editor
 

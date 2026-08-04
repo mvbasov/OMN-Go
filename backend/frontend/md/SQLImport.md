@@ -1,5 +1,7 @@
 Title: SQL Import
 Category: Settings
+Author: Mikhail Basov
+Tags: Database, SQL, OMN-Go, OMN-Go app
 
 # SQL Import
 

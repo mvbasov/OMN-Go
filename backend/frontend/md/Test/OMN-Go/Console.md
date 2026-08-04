@@ -2,8 +2,7 @@ Title: Console
 Date: 2026-06-23 00:21:00
 Modified: 2026-07-05 08:12:53
 Category: Test
-Author: Mihail Basov
-Tags: Test
+Tags: Test, OMN-Go, OMN-Go user
 
 ### See console messages
 <script type="module">

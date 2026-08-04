@@ -2,7 +2,7 @@ Title: Welcome
 Date: 2026-08-01 11:12:03
 Modified: 2026-08-03 12:00:00
 Category: Notes
-Author: Mikhail Basov
+Tags: OMN-Go, OMN-Go user
 
 <!--
   Good job, you have opened the editor.

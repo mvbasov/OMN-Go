@@ -2,7 +2,7 @@ Title: KaTeX test
 Date: 2026-07-18 12:34:04
 Modified: 2026-07-18 12:57:58
 Category: Notes
-Author: Mikhail Basov
+Tags: Test, OMN-Go, OMN-Go user
 
 <script>var OMN_GO_KATEX=true;</script>
 

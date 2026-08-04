@@ -1,7 +1,8 @@
 Title: JS Scripting Rules
 Date: 2026-06-15 12:00:00
 Category: System
-Tags: Document
+Author: Mikhail Basov
+Tags: Document, OMN-Go, OMN-Go app
 
 # JavaScript Guidelines for OMN-Go
 

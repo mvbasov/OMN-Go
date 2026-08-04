@@ -1,8 +1,7 @@
 Title: Test/OMN-Go/DBTest
 Date: 2026-07-18 13:50:14
 Category: Notes
-Author: Mikhail Basov
-Tags: Test
+Tags: Test, OMN-Go, OMN-Go user
 Modified: 2026-07-18 13:53:18
 
 #### Local counters

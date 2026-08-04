@@ -1,7 +1,8 @@
 Title: Android Intents & Termux
 Date: 2026-07-17 12:00:00
 Category: System
-Tags: Android, Intent, Termux
+Author: Mikhail Basov
+Tags: Android, Intent, Termux, OMN-Go, OMN-Go app
 
 # Android Intents & Termux
 

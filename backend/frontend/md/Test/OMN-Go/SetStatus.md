@@ -1,8 +1,7 @@
 Title: Test/OMN-Go/SetStatus
 Date: 2026-06-24 14:37:29
 Category: Test
-Author: Mikhail Basov
-Tags: Test
+Tags: Test, OMN-Go, OMN-Go user
 Modified: 2026-07-09 22:01:54
 
 **see the status at the bottom of the page**

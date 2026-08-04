@@ -1,9 +1,8 @@
 Title: Test/OMNGo/Fetch
 Date: 2026-06-23 00:29:26
 Category: Test
-Author: Mikhail Basov
 Modified: 2026-07-09 21:59:56
-Tags: Test
+Tags: Test, OMN-Go, OMN-Go user
 
 ### `fetch()` test
 See console

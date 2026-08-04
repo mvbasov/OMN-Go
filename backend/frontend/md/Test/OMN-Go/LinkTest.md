@@ -2,8 +2,7 @@ Title: Link test
 Date: 2026-07-04 20:52:56
 Modified: 2026-07-18 06:24:49
 Category: Test
-Tags: Test
-Author: Mikhail Basov
+Tags: Test, OMN-Go, OMN-Go user
 
 ### URL paraneters
 <pre id="result">

@@ -1,7 +1,8 @@
 Title: How to use Bookmarks
 Date: 2026-08-03 12:00:00
 Category: System
-Tags: Bookmarks
+Author: Mikhail Basov
+Tags: Bookmarks, OMN-Go, OMN-Go app
 
 Your links stay on the [Bookmarks](Bookmarks) page.
 
