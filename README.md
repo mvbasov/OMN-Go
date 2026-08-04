@@ -9,7 +9,7 @@ OMN-Go replaces the original [mvbasov/OMN](https://github.com/mvbasov/OMN) proje
     <img alt="Get it on GitLab" src="https://img.shields.io/badge/Get_it_on-GitLab-FC6D26?style=for-the-badge&amp;logo=gitlab&amp;logoColor=white">
   </a><img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png"><a href="https://github.com/mvbasov/OMN-Go/releases/latest">
     <img alt="Get it on GitHub" src="https://img.shields.io/badge/Get_it_on-GitHub-6e5494?style=for-the-badge&amp;logo=github&amp;logoColor=white">
-  </a><img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png"><a href="https://f-droid.org/packages/net.basov.omngo">
+  </a><img width="14" alt="" src="https://placehold.co/14x28/transparent/transparent.png"><a href="https://f-droid.org/packages/net.basov.omngo.fdroid/">
     <img alt="Get it on F-Droid" src="https://img.shields.io/badge/Get_it_on-F--Droid-1976D2?style=for-the-badge&amp;logo=fdroid&amp;logoColor=white">
   </a>
 </p>
