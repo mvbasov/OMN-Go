@@ -294,3 +294,61 @@ func TestStatusSearchEstimate(t *testing.T) {
 		t.Error("built time missing")
 	}
 }
+
+// ----------------------------------------------------------------------
+// The page (phase 2)
+// ----------------------------------------------------------------------
+
+// The page holds no facts of its own. It must carry the reader script and
+// the buttons for the two slow sections, and it must NOT carry a value
+// that only /api/status knows.
+func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
+	a := newTestApp(t)
+
+	rec := httptest.NewRecorder()
+	a.serveStatusPage(rec, httptest.NewRequest(http.MethodGet, "/OMNGoStatus.html", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"/api/status", "stStorage", "stDirty", "stCopy", "stReload",
+		"sections=all&amp;format=md",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page misses %q", want)
+		}
+	}
+	// The body of the page starts empty. Each value comes from the
+	// endpoint, so the template can carry no status value of its own.
+	if !strings.Contains(body, "Loading…") {
+		t.Error("the page does not start empty; it must read /api/status")
+	}
+	if !strings.Contains(body, "execCommand") {
+		t.Error("copy must use select + execCommand, which is what the Android WebView has")
+	}
+}
+
+// A guest gets a page, not the line of plain text that authMiddleware
+// writes. This is the rule the file index follows.
+func TestStatusPageAnswersAGuestWithAPage(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.ShareLAN = true
+
+	req := httptest.NewRequest(http.MethodGet, "/OMNGoStatus.html", nil)
+	req.RemoteAddr = "192.168.1.44:51000" // another machine on the network
+	req.AddCookie(&http.Cookie{Name: "session_role", Value: "guest"})
+
+	rec := httptest.NewRecorder()
+	a.serveStatusPage(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want a page", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "for the admin of this device") {
+		t.Error("a guest did not get the refusal page")
+	}
+	if strings.Contains(body, "stStorage") {
+		t.Error("a guest got the reader script")
+	}
+}

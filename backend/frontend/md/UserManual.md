@@ -42,6 +42,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [Git synchronization](#git-synchronization)
 - [Database backups](#database-backups)
 - [The file index](#the-file-index)
+- [The Status page](#the-status-page)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
 - [Your own CSS and JavaScript](#your-own-css-and-javascript)
@@ -748,6 +749,27 @@ OMN-Go and not part of your data. The `db_backup/` folder appears on the
 [Database backups](#database-backups) screen instead.
 
 The page only reads. Nothing on it deletes, moves, or creates a file.
+
+## The Status page
+
+The Status page tells what OMN-Go does now. Open it from the last line of the [Config](Config) menu, or open [Status](OMNGoStatus) here. The page is for the admin of the device. A guest sees a short note instead.
+
+The page reads the `/api/status` endpoint and shows what comes back:
+
+- **Server** — the address that the server listens on. It also gives the addresses for another device on your network, and the time since the start.
+- **Configuration** — the settings that change behavior, for example the editor, the theme and the upload limit.
+- **Git** — the branch, the commit that your notes are at, and the remote. The password of a remote never appears.
+- **Search** — how many notes the index holds, how large it is, and when OMN-Go built it.
+- **Runtime** and **Android** — the Go version, the memory in use, and the package name of the Android application.
+
+Two parts cost time, so the page loads them when you ask:
+
+- **Storage** counts the files in the storage directory.
+- **Git worktree** reads the state of each tracked file.
+
+Press the button of the part that you want. A progress bar runs while OMN-Go reads.
+
+*Copy as Markdown* puts the full text on the clipboard. Use it in a bug report. *Open as text* and *Open as JSON* show the same facts in the browser.
 
 ## Sharing on the LAN
 

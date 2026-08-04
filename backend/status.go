@@ -249,6 +249,29 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// statusDeniedBody is what a guest sees. A page answers with a page, like
+// the file index does - not with the line of plain text that
+// authMiddleware writes.
+const statusDeniedBody = `<div class="config-panel">` +
+	`<h2 class="config-title">Status</h2>` +
+	`<p class="config-hint">This page is for the admin of this device. ` +
+	`Log in as admin on a note page, then open the page again.</p>` +
+	`</div>`
+
+// serveStatusPage answers /OMNGoStatus.html. The page holds no facts of
+// its own: it reads /api/status and draws what comes back. Phase 2 of the
+// status work, and the reason the endpoint came first.
+func (a *App) serveStatusPage(w http.ResponseWriter, r *http.Request) {
+	body := statusPageTmpl
+	if !a.hasRole(r, true) {
+		body = statusDeniedBody
+	}
+	compiled := a.compilePageWithBody("Status",
+		[]byte("Title: Status\nCategory: System\n\n"), body)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(a.injectRuntimeVars(compiled))
+}
+
 // parseStatusSections turns the "sections" parameter into a set. Empty
 // means the cheap sections. "all" means every section, the slow ones
 // included. An unknown name is an error rather than a silent omission:

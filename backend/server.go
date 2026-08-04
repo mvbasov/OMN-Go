@@ -224,6 +224,10 @@ func StartServer(storageDir string, defaultPort int) *App {
 		// Admin only: the answer carries LAN addresses, absolute paths and
 		// a commit subject (see status.go).
 		a.Router.HandleFunc("/api/status", a.authMiddleware(a.handleStatus, true))
+		// The Status page. Registered WITHOUT authMiddleware for the same
+		// reason as /OMNGoFiles.html above: the handler asks hasRole
+		// itself, so a guest gets a page instead of a line of plain text.
+		a.Router.HandleFunc("/OMNGoStatus.html", a.serveStatusPage)
 
 		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
 		// i.e. before any HTTP handler can possibly be invoked concurrently.

@@ -117,6 +117,7 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | `GET /api/logs` | **none** |
 | `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/db_backups` | admin (local bypass applies) |
 | `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
+| `GET /OMNGoStatus.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
 
 ---
@@ -148,6 +149,7 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | GET | `/db_backups` | no | admin | HTML |
 | GET | `/OMNGoSearch.html` | no | none | HTML (explains how to turn global search on when it is off; used to 404) |
 | GET | `/OMNGoFiles.html` | no | admin | HTML (a page for a guest, not a 401) |
+| GET | `/OMNGoStatus.html` | no | admin | HTML (a page for a guest, not a 401) |
 | GET | `/`, `/<name>.html`, `/<asset>` | no | none | HTML / asset |
 | GET | `/js/…`, `/css/…`, `/json/…` | no | none | asset |
 | GET | `/images/…`, `/user_json/…` | no | none | asset |
@@ -1471,6 +1473,26 @@ so navigation always works. When the page trims the list, it says how many
 files it held back and offers `all=1` with the true total. The page is dynamic
 like `Config` and `OMNGoSearch`. There is no `md/` source, the server writes
 nothing to the `html/` cache, and the page itself writes nothing at all.
+
+---
+
+### 5.4 The Status page
+
+#### `GET /OMNGoStatus.html`
+
+The page of the status endpoint. It holds no facts of its own. It reads
+`/api/status` and draws each section that comes back. Admin only, and the
+handler asks `hasRole` itself, so a guest gets a page and not a line of plain
+text.
+
+The page loads the cheap sections at once. The *Storage* and *Git worktree*
+buttons ask for one slow section each, and the shared progress overlay runs
+while the request is open. *Copy as Markdown* asks for `format=md` and puts
+the answer on the clipboard with `select` and `execCommand`, because
+`navigator.clipboard` is unusable in the Android WebView.
+
+The Config menu carries the link to this page, after the buttons of the
+settings screens.
 
 ---
 

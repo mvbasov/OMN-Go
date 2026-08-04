@@ -1,0 +1,231 @@
+<div class="config-panel">
+    <h2 class="config-title">Status</h2>
+    <div class="config-field">
+        <span class="config-hint">What this application does now. The page reads <code class="st-code">/api/status</code>. Two parts cost time, so they load when you ask for them: the storage counts and the git worktree state.</span>
+    </div>
+
+    <div class="st-actions">
+        <button type="button" class="st-btn" id="stReload">Reload</button>
+        <button type="button" class="st-btn" id="stStorage">Storage</button>
+        <button type="button" class="st-btn" id="stDirty">Git worktree</button>
+        <button type="button" class="st-btn" id="stCopy">Copy as Markdown</button>
+        <a class="st-btn" href="/api/status?sections=all&amp;format=md">Open as text</a>
+        <a class="st-btn" href="/api/status?sections=all">Open as JSON</a>
+    </div>
+
+    <div id="stBody" class="st-body">Loading…</div>
+</div>
+
+<!-- The clipboard copy needs a real textarea to select. navigator.clipboard
+     is unusable in the Android WebView (see copyQuickNote in
+     omn-go-core.js), so this page uses the same select + execCommand path. -->
+<textarea id="stClip" class="st-clip" aria-hidden="true" tabindex="-1"></textarea>
+
+<style>
+/* Each color comes from the design tokens in omn-go-core.css. This page
+   therefore follows the light, dark and auto theme, like each other page. */
+.st-actions { display:flex; flex-wrap:wrap; gap:0.5em; margin:0.6em 0 1em 0; }
+.st-btn {
+    display:inline-flex; align-items:center; min-height:2.4em;
+    padding:0.3em 0.9em; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); background:var(--bg-inset);
+    color:var(--text); font-size:0.95em; text-decoration:none;
+}
+.st-btn:hover { background:var(--bg-hover); border-color:var(--border-strong); }
+.st-btn[disabled] { opacity:0.5; cursor:default; }
+.st-section { margin:0 0 1.2em 0; }
+.st-section h3 { margin:0 0 0.3em 0; color:var(--text-strong); font-size:1.05em; }
+/* The page body renders inside #preview, where a table gets the markdown
+   look: a 2px blue border and striped rows. Those rules carry an id, so
+   these carry #preview too. */
+#preview .st-table { width:100%; border-collapse:collapse; border:0; }
+#preview .st-table td {
+    padding:0.3em 0.4em; vertical-align:top; font-size:0.95em;
+    border:0; border-bottom:1px solid var(--border-soft);
+}
+#preview .st-table tr:nth-child(odd),
+#preview .st-table tr:nth-child(even) { background:transparent; color:var(--text); }
+#preview .st-table .st-key { color:var(--text-faint); width:38%; }
+#preview .st-table .st-val { color:var(--text); overflow-wrap:anywhere; }
+.st-code, .st-val code { font-family:monospace; background:var(--bg-inset); padding:0.1em 0.35em; border-radius:4px; }
+.st-note { color:var(--text-faint); font-size:0.9em; margin:0.2em 0 0 0; }
+.st-error { color:var(--danger); }
+.st-clip { position:absolute; left:-9999px; top:0; width:1px; height:1px; opacity:0; }
+</style>
+
+<script>
+(function () {
+    // The page holds what it loaded so far. A second request for a slow
+    // section adds to this object, and the page draws it again.
+    var state = {};
+    var loaded = ['server', 'config', 'git', 'search', 'runtime', 'android'];
+
+    var body = document.getElementById('stBody');
+
+    // Titles for the sections, in the order the page shows them.
+    var ORDER = [
+        ['server', 'Server'],
+        ['config', 'Configuration'],
+        ['git', 'Git'],
+        ['git_dirty', 'Git worktree'],
+        ['search', 'Search'],
+        ['runtime', 'Runtime'],
+        ['android', 'Android'],
+        ['storage', 'Storage'],
+        ['errors', 'Errors']
+    ];
+
+    // Fields whose value is a count of bytes. The page adds a readable
+    // size after the exact number, because a phone screen is small and
+    // 18874368 says less than 18.0 MB.
+    var BYTE_KEYS = /(^|_)(bytes|heap_alloc|sys)$/;
+
+    function human(n) {
+        if (typeof n !== 'number' || n < 1024) { return null; }
+        var units = ['kB', 'MB', 'GB'], v = n / 1024, i = 0;
+        while (v >= 1024 && i < units.length - 1) { v = v / 1024; i++; }
+        return v.toFixed(1) + ' ' + units[i];
+    }
+
+    function valueText(key, value) {
+        if (value === null || value === undefined) { return ''; }
+        if (Array.isArray(value)) { return value.length ? value.join(', ') : '—'; }
+        if (typeof value === 'boolean') { return value ? 'yes' : 'no'; }
+        if (typeof value === 'number' && BYTE_KEYS.test(key)) {
+            var h = human(value);
+            return h ? h + ' (' + value + ' bytes)' : value + ' bytes';
+        }
+        return String(value);
+    }
+
+    // Every value goes in through textContent. A commit subject, a path
+    // and a remote name are content, not markup.
+    function row(table, key, value) {
+        var tr = document.createElement('tr');
+        var k = document.createElement('td');
+        k.className = 'st-key';
+        k.textContent = key;
+        var v = document.createElement('td');
+        v.className = 'st-val';
+        v.textContent = value;
+        tr.appendChild(k);
+        tr.appendChild(v);
+        table.appendChild(tr);
+    }
+
+    function rowsFor(table, prefix, obj) {
+        Object.keys(obj).forEach(function (key) {
+            var value = obj[key];
+            var name = prefix ? prefix + '.' + key : key;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                if (typeof value.files === 'number' && typeof value.bytes === 'number') {
+                    // A storage group: one line reads better than two.
+                    var h = human(value.bytes);
+                    row(table, name,
+                        value.files + (value.files === 1 ? ' file, ' : ' files, ') +
+                        (h ? h + ' (' + value.bytes + ' bytes)' : value.bytes + ' bytes'));
+                    return;
+                }
+                rowsFor(table, name, value);
+                return;
+            }
+            row(table, name, valueText(key, value));
+        });
+    }
+
+    function render() {
+        body.textContent = '';
+        ORDER.forEach(function (pair) {
+            var data = state[pair[0]];
+            if (!data) { return; }
+            var section = document.createElement('div');
+            section.className = 'st-section';
+            var h = document.createElement('h3');
+            h.textContent = pair[1];
+            section.appendChild(h);
+            var table = document.createElement('table');
+            table.className = 'st-table';
+            rowsFor(table, '', data);
+            section.appendChild(table);
+            body.appendChild(section);
+        });
+        if (state.generated) {
+            var p = document.createElement('p');
+            p.className = 'st-note';
+            p.textContent = 'Generated ' + state.generated;
+            body.appendChild(p);
+        }
+    }
+
+    function fail(message) {
+        body.textContent = '';
+        var p = document.createElement('p');
+        p.className = 'st-error';
+        p.textContent = message;
+        body.appendChild(p);
+    }
+
+    async function load(sections, note) {
+        var url = '/api/status';
+        if (sections) { url += '?sections=' + encodeURIComponent(sections); }
+        if (note && window.OMNProgress) {
+            window.OMNProgress.show('Status');
+            window.OMNProgress.stage(note);
+        }
+        try {
+            var res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) { throw new Error('HTTP ' + res.status); }
+            var data = await res.json();
+            Object.keys(data).forEach(function (key) { state[key] = data[key]; });
+            render();
+        } catch (e) {
+            if (Object.keys(state).length === 0) {
+                fail('Could not read the status: ' + e.message);
+            }
+        } finally {
+            if (note && window.OMNProgress) { window.OMNProgress.hide(); }
+        }
+    }
+
+    function ask(id, sections, note) {
+        var btn = document.getElementById(id);
+        btn.addEventListener('click', async function () {
+            btn.disabled = true;
+            if (loaded.indexOf(sections) < 0) { loaded.push(sections); }
+            await load(sections, note);
+            btn.disabled = false;
+        });
+    }
+
+    ask('stStorage', 'storage', 'Counting the files in the storage directory');
+    ask('stDirty', 'git_dirty', 'Reading the git worktree state');
+
+    document.getElementById('stReload').addEventListener('click', function () {
+        state = {};
+        load(loaded.join(','), null);
+    });
+
+    // Copy asks the server for the Markdown form of the sections that the
+    // page holds. The text is therefore the same text that "Open as text"
+    // gives, and a bug report gets each fact in one paste.
+    document.getElementById('stCopy').addEventListener('click', async function () {
+        var btn = this;
+        var clip = document.getElementById('stClip');
+        var label = btn.textContent;
+        try {
+            var res = await fetch('/api/status?format=md&sections=' +
+                encodeURIComponent(loaded.join(',')), { cache: 'no-store' });
+            if (!res.ok) { throw new Error('HTTP ' + res.status); }
+            clip.value = await res.text();
+            clip.focus();
+            clip.select();
+            btn.textContent = document.execCommand('copy') ? 'Copied' : 'Copy failed';
+        } catch (e) {
+            btn.textContent = 'Copy failed';
+        }
+        setTimeout(function () { btn.textContent = label; }, 1400);
+    });
+
+    load(null, null);
+})();
+</script>

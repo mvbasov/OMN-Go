@@ -342,6 +342,9 @@ func TestBaseline_RouteSet(t *testing.T) {
 		// is a page that needs authorization, and the catch-all is
 		// unauthenticated.
 		"/OMNGoFiles.html",
+		// 26.08.16: the Status page. An exact pattern, like the file index
+		// above, and admin-only through hasRole inside the handler.
+		"/OMNGoStatus.html",
 	}
 	sort.Strings(want)
 
