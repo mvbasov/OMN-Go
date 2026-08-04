@@ -305,8 +305,15 @@ func TestStatusSearchEstimate(t *testing.T) {
 func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 	a := newTestApp(t)
 
+	// httptest.NewRequest gives each request the address 192.0.2.1, which
+	// is another machine as far as hasRole is concerned. The owner of the
+	// device connects from the loopback address, and that is the request
+	// this test makes (see isLocalConnection in middleware.go).
+	req := httptest.NewRequest(http.MethodGet, "/OMNGoStatus.html", nil)
+	req.RemoteAddr = "127.0.0.1:41000"
+
 	rec := httptest.NewRecorder()
-	a.serveStatusPage(rec, httptest.NewRequest(http.MethodGet, "/OMNGoStatus.html", nil))
+	a.serveStatusPage(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d, want 200", rec.Code)
 	}
