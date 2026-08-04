@@ -138,12 +138,19 @@ public class ServerService extends Service {
     }
 
     /**
-     * First non-loopback site-local IPv4 address - the address other LAN
-     * devices use to reach this phone. Falls back to "0.0.0.0" when no
-     * network is up (Wi-Fi off), which is honest: sharing is bound but
-     * currently unreachable.
+     * Every non-loopback site-local IPv4 address of this device, in the
+     * order the system lists the interfaces. These are the addresses that
+     * another device on the LAN uses to reach this phone.
+     *
+     * Java can read them and Go cannot. java.net.NetworkInterface reads
+     * them through getifaddrs(), which an application may call. Go asks
+     * the kernel over a NETLINK_ROUTE socket, and Android denies that to
+     * an application since Android 11. lanAddresses() therefore also
+     * feeds the Go side through Backend.setLANAddresses. The Status page
+     * and this notification then show the same addresses.
      */
-    private static String lanAddress() {
+    private static java.util.List<String> lanAddresses() {
+        java.util.List<String> out = new java.util.ArrayList<>();
         try {
             java.util.Enumeration<java.net.NetworkInterface> ifaces =
                     java.net.NetworkInterface.getNetworkInterfaces();
@@ -156,14 +163,36 @@ public class ServerService extends Service {
                     if (addr instanceof java.net.Inet4Address
                             && !addr.isLoopbackAddress()
                             && addr.isSiteLocalAddress()) {
-                        return addr.getHostAddress();
+                        String text = addr.getHostAddress();
+                        if (text != null && !out.contains(text)) {
+                            out.add(text);
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "0.0.0.0";
+        return out;
+    }
+
+    /**
+     * The first address of lanAddresses(), for the notification. Falls
+     * back to "0.0.0.0" when no network is up (Wi-Fi off), which is
+     * honest: sharing is bound but currently unreachable.
+     *
+     * It also hands the full list to the Go side. This runs each time the
+     * service builds the notification, so a new Wi-Fi network reaches the
+     * Status page as well.
+     */
+    private static String lanAddress() {
+        java.util.List<String> all = lanAddresses();
+        try {
+            Backend.setLANAddresses(android.text.TextUtils.join(",", all));
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+        return all.isEmpty() ? "0.0.0.0" : all.get(0);
     }
 
     // ---------------------------------------------------------------

@@ -63,6 +63,92 @@ func TestStatusDefaultSectionsAreCheap(t *testing.T) {
 	}
 }
 
+// The listen address is not in the answer. "[::]:8080" and "::" tell a
+// person nothing, on a phone and on a desktop alike. The port stays.
+func TestStatusHasNoBindAddress(t *testing.T) {
+	a := newTestApp(t)
+
+	_, rec := getStatus(t, a, "sections=server")
+	body := rec.Body.String()
+	for _, gone := range []string{"bind_addr", "bind_host"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the answer still carries %q", gone)
+		}
+	}
+	if !strings.Contains(body, "bind_port") {
+		t.Error("bind_port is missing")
+	}
+}
+
+// Each LAN address must be usable as an address: no loopback, no
+// link-local, no duplicate. The list is empty on a machine with no
+// network, which is why the test asserts the shape and not the count.
+func TestStatusLANURLShape(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.ShareLAN = true
+
+	res, _ := getStatus(t, a, "sections=server")
+	seen := map[string]bool{}
+	for _, u := range res.Server.LANURLs {
+		if !strings.HasPrefix(u, "http://") {
+			t.Errorf("%q does not start with http://", u)
+		}
+		if strings.Contains(u, "127.0.0.1") || strings.Contains(u, "[::1]") {
+			t.Errorf("%q is a loopback address", u)
+		}
+		if strings.Contains(u, "169.254.") || strings.Contains(u, "[fe80") {
+			t.Errorf("%q is a link-local address", u)
+		}
+		if seen[u] {
+			t.Errorf("%q appears two times", u)
+		}
+		seen[u] = true
+	}
+
+	// Sharing off: the list stays empty, because no other device can
+	// reach this server.
+	a.Config.ShareLAN = false
+	res, _ = getStatus(t, a, "sections=server")
+	if len(res.Server.LANURLs) != 0 {
+		t.Errorf("lan_urls = %v with sharing off, want none", res.Server.LANURLs)
+	}
+}
+
+// The Android layer hands its addresses to Go, because Go cannot read
+// them on a phone. They must reach lan_urls, without a duplicate of the
+// address that the probe already found.
+func TestStatusLANAddressesFromAndroid(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.ShareLAN = true
+
+	SetLANAddresses(" 192.168.5.5 , 10.0.0.7 ,, 192.168.5.5 ")
+	t.Cleanup(func() { SetLANAddresses("") })
+
+	res, _ := getStatus(t, a, "sections=server")
+	got := strings.Join(res.Server.LANURLs, " ")
+	for _, want := range []string{"http://192.168.5.5:", "http://10.0.0.7:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lan_urls %v misses %q", res.Server.LANURLs, want)
+		}
+	}
+	count := 0
+	for _, u := range res.Server.LANURLs {
+		if strings.HasPrefix(u, "http://192.168.5.5:") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("192.168.5.5 appears %d times in %v, want 1", count, res.Server.LANURLs)
+	}
+
+	// Sharing off answers with no address, whatever Android sent.
+	a.Config.ShareLAN = false
+	res, _ = getStatus(t, a, "sections=server")
+	if len(res.Server.LANURLs) != 0 {
+		t.Errorf("lan_urls = %v with sharing off, want none", res.Server.LANURLs)
+	}
+}
+
 // A named section, and only that one.
 func TestStatusSectionsParameter(t *testing.T) {
 	a := newTestApp(t)
@@ -300,8 +386,8 @@ func TestStatusSearchEstimate(t *testing.T) {
 // ----------------------------------------------------------------------
 
 // The page holds no facts of its own. It must carry the reader script and
-// the buttons for the two slow sections, and it must NOT carry a value
-// that only /api/status knows.
+// the buttons for the two slow sections. It must carry no value that only
+// /api/status knows.
 func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 	a := newTestApp(t)
 

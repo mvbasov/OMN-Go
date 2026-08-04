@@ -80,6 +80,41 @@ func SetAndroidPackage(name string) {
 	androidPackageMu.Unlock()
 }
 
+// lanAddressList holds what the Android layer enumerated. Go cannot read
+// the addresses on a phone. java.net.NetworkInterface uses getifaddrs(),
+// which an application may call. Go asks the kernel over a NETLINK_ROUTE
+// socket, which Android denies to an application since Android 11.
+var (
+	lanAddressesMu sync.RWMutex
+	lanAddressList []string
+)
+
+// SetLANAddresses records the addresses of this device, as one
+// comma-separated list. ServerService.java calls it with each
+// non-loopback site-local IPv4 address that it finds. The call happens
+// at each build of the notification, so the notification and the Status
+// page name the same addresses.
+//
+// One string and not a slice, because the gomobile binding carries no
+// slice of strings. An empty list clears the value.
+func SetLANAddresses(list string) {
+	out := []string{}
+	for _, part := range strings.Split(list, ",") {
+		if text := strings.TrimSpace(part); text != "" {
+			out = append(out, text)
+		}
+	}
+	lanAddressesMu.Lock()
+	lanAddressList = out
+	lanAddressesMu.Unlock()
+}
+
+func androidLANAddresses() []string {
+	lanAddressesMu.RLock()
+	defer lanAddressesMu.RUnlock()
+	return append([]string(nil), lanAddressList...)
+}
+
 func (a *App) statusAndroidPackage() string {
 	androidPackageMu.RLock()
 	name := androidPackage
@@ -111,13 +146,14 @@ type statusResponse struct {
 	Errors    map[string]string `json:"errors,omitempty"`
 }
 
+// statusServer holds no listen ADDRESS. The listener binds "::" or
+// "0.0.0.0", and "[::]:8080" answers no question that a person asks. The
+// port is the useful half, and share_lan with lan_urls says the rest.
 type statusServer struct {
 	AppVersion  string   `json:"app_version"`
 	Started     string   `json:"started"`
 	UptimeS     int64    `json:"uptime_s"`
-	BindHost    string   `json:"bind_host"`
 	BindPort    int      `json:"bind_port"`
-	BindAddr    string   `json:"bind_addr"`
 	ShareLAN    bool     `json:"share_lan"`
 	LANURLs     []string `json:"lan_urls"`
 	ActiveConns int64    `json:"active_conns"`
@@ -365,15 +401,11 @@ func (a *App) buildStatus(want map[string]bool) *statusResponse {
 // ----------------------------------------------------------------------
 
 func (a *App) statusServerSection(cfg Config) *statusServer {
-	host, portStr, addr := a.boundAddress()
+	_, portStr, addr := a.boundAddress()
 	port, _ := strconv.Atoi(portStr)
 	if addr == "" {
-		// Asked before the listener came up: report what the config says
-		// and mark the address as not bound yet.
-		host, port = "127.0.0.1", cfg.ServerPort
-		if cfg.ShareLAN {
-			host = "0.0.0.0"
-		}
+		// Asked before the listener came up. The config then answers.
+		port = cfg.ServerPort
 	}
 
 	hostname := sanitizeHostname(cfg.Hostname)
@@ -385,9 +417,7 @@ func (a *App) statusServerSection(cfg Config) *statusServer {
 		AppVersion:  APP_VERSION,
 		Started:     statusTime(a.startedAt),
 		UptimeS:     int64(time.Since(a.startedAt).Seconds()),
-		BindHost:    host,
 		BindPort:    port,
-		BindAddr:    addr,
 		ShareLAN:    cfg.ShareLAN,
 		LANURLs:     []string{},
 		ActiveConns: a.ActiveConnCount(),
@@ -643,32 +673,103 @@ func statusTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-// lanURLs lists the addresses another device on the network can open.
-// Loopback and link-local are dropped: the first is not reachable from
-// anywhere else, and the second needs a zone index that no URL carries.
+// lanURLs lists the addresses that another device on the network can
+// open. Loopback and link-local are dropped. The first is reachable from
+// nowhere else, and the second needs a zone index that no URL carries.
+//
+// The address of the default route comes first, because that is the one
+// a phone or a laptop on the same network uses. A desktop can carry
+// several more (a docker bridge, a virtual machine bridge), and those
+// follow it in sorted order.
 func lanURLs(port int) []string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return []string{}
+	usable := func(ip net.IP) bool {
+		return ip != nil && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() &&
+			!ip.IsLinkLocalMulticast() && ip.IsGlobalUnicast()
 	}
-	out := []string{}
-	for _, addr := range addrs {
-		ipNet, ok := addr.(*net.IPNet)
-		if !ok || ipNet.IP == nil {
-			continue
-		}
-		ip := ipNet.IP
-		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || !ip.IsGlobalUnicast() {
-			continue
-		}
+	format := func(ip net.IP) string {
 		host := ip.String()
 		if ip.To4() == nil {
 			host = "[" + host + "]"
 		}
-		out = append(out, fmt.Sprintf("http://%s:%d", host, port))
+		return fmt.Sprintf("http://%s:%d", host, port)
 	}
-	sort.Strings(out)
+
+	out := []string{}
+	seen := map[string]bool{}
+	add := func(ip net.IP) {
+		if !usable(ip) {
+			return
+		}
+		url := format(ip)
+		if seen[url] {
+			return
+		}
+		seen[url] = true
+		out = append(out, url)
+	}
+
+	// 1. The address of the default route, read now. A phone or a laptop
+	// on the same network opens this one, so it comes first.
+	add(defaultRouteIP())
+
+	// 2. What the Android layer enumerated (see SetLANAddresses). It can
+	// be older than the answer above, because ServerService writes it
+	// when it builds the notification.
+	for _, text := range androidLANAddresses() {
+		add(net.ParseIP(text))
+	}
+
+	// 3. Each interface address that this process can read. This is the
+	// desktop path, and it adds the bridges of a docker or a virtual
+	// machine setup after the address of the network.
+	rest := []string{}
+	restSeen := map[string]bool{}
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || !usable(ipNet.IP) {
+				continue
+			}
+			url := format(ipNet.IP)
+			if seen[url] || restSeen[url] {
+				continue
+			}
+			restSeen[url] = true
+			rest = append(rest, url)
+		}
+	}
+	sort.Strings(rest)
+	for _, url := range rest {
+		seen[url] = true
+		out = append(out, url)
+	}
 	return out
+}
+
+// defaultRouteIP reports the address of the interface that carries the
+// default route, or nil.
+//
+// It exists for Android. net.InterfaceAddrs asks the kernel through
+// NETLINK, and Android denies NETLINK_ROUTE to an application since
+// Android 11. The call therefore fails on a phone, and the list of LAN
+// addresses came back empty on the one platform where a user needs it.
+//
+// A UDP "connection" sends no packet. The kernel only selects the route
+// and gives the local address of it, which is the address that another
+// device reaches this server on.
+func defaultRouteIP() net.IP {
+	for _, target := range []string{"8.8.8.8:53", "192.168.1.1:9"} {
+		conn, err := net.Dial("udp4", target)
+		if err != nil {
+			continue
+		}
+		addr, ok := conn.LocalAddr().(*net.UDPAddr)
+		conn.Close()
+		if ok && addr.IP != nil && !addr.IP.IsUnspecified() {
+			return addr.IP
+		}
+	}
+	return nil
 }
 
 // redactGitURL removes the password from a remote URL. A user name stays:
@@ -738,8 +839,6 @@ func renderStatusMarkdown(res *statusResponse) string {
 			{"app_version", s.AppVersion},
 			{"started", s.Started},
 			{"uptime_s", strconv.FormatInt(s.UptimeS, 10)},
-			{"bind_addr", s.BindAddr},
-			{"bind_host", s.BindHost},
 			{"bind_port", strconv.Itoa(s.BindPort)},
 			{"share_lan", yes(s.ShareLAN)},
 			{"lan_urls", strings.Join(s.LANURLs, ", ")},

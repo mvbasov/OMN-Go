@@ -756,7 +756,7 @@ The Status page tells what OMN-Go does now. Open it from the last line of the [C
 
 The page reads the `/api/status` endpoint and shows what comes back:
 
-- **Server** — the address that the server listens on. It also gives the addresses for another device on your network, and the time since the start.
+- **Server** — the port of the server, and the addresses that another device on your network can open. It also gives the time since the start.
 - **Configuration** — the settings that change behavior, for example the editor, the theme and the upload limit.
 - **Git** — the branch, the commit that your notes are at, and the remote. The password of a remote never appears.
 - **Search** — how many notes the index holds, how large it is, and when OMN-Go built it.

@@ -1268,7 +1268,7 @@ and the Android WebView paints nothing else.
 
 | Section | Cost | Fields |
 | --- | --- | --- |
-| `server` | none | `app_version`, `started`, `uptime_s`, `bind_host`, `bind_port`, `bind_addr`, `share_lan`, `lan_urls[]`, `active_conns`, `hostname`, `goos`, `goarch` |
+| `server` | none | `app_version`, `started`, `uptime_s`, `bind_port`, `share_lan`, `lan_urls[]`, `active_conns`, `hostname`, `goos`, `goarch` |
 | `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author` |
 | `git` | one object read | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}` |
 | `search` | one pass over the index | `enabled`, `docs`, `lines`, `bytes`, `index_bytes_estimate`, `built`, `checked`, `dirty`, `kinds`, `scope` |
@@ -1277,10 +1277,26 @@ and the Android WebView paints nothing else.
 | `storage` | a walk of the storage directory | `dir` and one `{files,bytes}` group each for `notes`, `pages`, `images`, `user_json`, `databases`, `backups`, `asset_backups`, `total` |
 | `git_dirty` | a walk of the worktree | `dirty`, `changed`, `untracked` |
 
-`bind_addr` is what the listener bound, not what the configuration asked
-for. The two differ when the retry loop in `StartServer` ends on another
-port. `lan_urls` holds one address per network interface, and it is empty
-when `share_lan` is off.
+`bind_port` is what the listener bound, not what the configuration asked for.
+The two differ when the retry loop in `StartServer` ends on another port.
+There is no listen address in the answer: the listener binds `::` or
+`0.0.0.0`, and `[::]:8080` answers no question that a person asks.
+
+`lan_urls` is empty when `share_lan` is off. With sharing on it holds the
+address of the default route first, then the addresses that the Android layer
+sent, then each other interface address in sorted order. Each address appears
+one time.
+
+The address of the default route comes from a UDP dial that sends no packet.
+Android needs that: `net.InterfaceAddrs` asks the kernel over `NETLINK_ROUTE`,
+and Android denies that socket to an application since Android 11, so the list
+was empty on a phone.
+
+`ServerService.java` also hands its own list to the backend through
+`SetLANAddresses`, a comma-separated string. Java reads the addresses through
+`getifaddrs()`, which an application may call, and it is the same list that
+the LAN notification shows. The notification and this endpoint therefore
+cannot name different addresses.
 
 `index_bytes_estimate` is an estimate, and the name says so. Go cannot
 report the true size of a live object graph. The number counts the line
@@ -1316,9 +1332,7 @@ GET /api/status?sections=server,git&format=json
     "app_version": "26.08.14",
     "started": "2026-08-04T09:30:00Z",
     "uptime_s": 1800,
-    "bind_host": "0.0.0.0",
     "bind_port": 8080,
-    "bind_addr": "0.0.0.0:8080",
     "share_lan": true,
     "lan_urls": ["http://192.168.1.5:8080"],
     "active_conns": 1,
