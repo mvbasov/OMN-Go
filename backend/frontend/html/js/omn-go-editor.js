@@ -38,6 +38,7 @@
     var gutterEl = null;   // line-number gutter
     var wrapBtn = null, lnBtn = null; // the two toggle buttons
     var loaded = false;    // has the initial content arrived?
+    var loadFailed = false;// the load errored - never save over the file
     var dirty = false;     // unsaved changes?
     var wrapOn = true;     // word wrap (default on, like a plain textarea)
     var lnOn = false;      // line numbers requested by the user
@@ -534,21 +535,39 @@
         if (!dirty) { dirty = true; setDot('dirty'); }
     }
 
+    // A load that failed is NOT the same as a file that does not exist.
+    // 404 is the documented "open a path that does not exist yet and save
+    // to create it" case, so an empty buffer is correct there. Any other
+    // failure means the file may hold content this editor never received,
+    // and saving would replace that content with an empty buffer - so the
+    // editor keeps the error on screen and refuses to save (see save()).
     async function loadContent() {
         setStatus('Loading…');
         setDot('loading');
         try {
             var res = await fetch('/api/note?name=' + encodeURIComponent(NAME), { cache: 'no-store' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            ta.value = await res.text();
+            if (res.ok) {
+                ta.value = await res.text();
+            } else if (res.status === 404) {
+                ta.value = '';
+            } else {
+                throw new Error('HTTP ' + res.status);
+            }
         } catch (e) {
-            setStatus('Could not load note: ' + e.message, 'error');
+            loadFailed = true;
             ta.value = '';
+            var sb = document.getElementById('editorSave');
+            if (sb) sb.disabled = true;
         }
         loaded = true;
         dirty = false;
-        setStatus(NAME);          // just the name - no "Editing" prefix
-        setDot('clean');
+        if (loadFailed) {
+            setStatus('Could not load ' + NAME + ' — save is off', 'error');
+            setDot('error');
+        } else {
+            setStatus(NAME);      // just the name - no "Editing" prefix
+            setDot('clean');
+        }
         renderGutter();
         // Land on the error line if we arrived from a console error,
         // otherwise put the caret right after the Pelican-style header
@@ -593,7 +612,7 @@
     }
 
     async function save(thenView) {
-        if (!loaded) return;
+        if (!loaded || loadFailed) return;
         setStatus('Saving…');
         var body = new URLSearchParams();
         body.append('name', NAME);

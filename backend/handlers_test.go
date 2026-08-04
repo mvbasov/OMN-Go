@@ -99,6 +99,105 @@ func TestHandleGetNoteMissingSynthesizesAndPersists(t *testing.T) {
 	}
 }
 
+// A shipped html/ asset that the user has never opened is not on disk yet
+// (lazy extraction - materializeAsset). /api/note must answer with the
+// EMBEDDED content, not 404: the editor turns a 404 into an empty buffer,
+// and the first Save would write that emptiness over the shipped file for
+// good, since lazy extraction only fills a file that is MISSING.
+func TestHandleGetNoteEmbeddedAssetFallsBackToEmbed(t *testing.T) {
+	const rel = "json/bookmarker-tags.json"
+
+	embedded, err := staticFS.ReadFile("frontend/html/" + rel)
+	if err != nil {
+		t.Skipf("%s is not embedded in this build: %v", rel, err)
+	}
+
+	a := newTestApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/note?name="+url.QueryEscape(rel), nil)
+	rec := httptest.NewRecorder()
+	a.handleGetNote(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != string(embedded) {
+		t.Error("served content is not the embedded content")
+	}
+	// The extraction is persisted, so the next request reads it from disk.
+	onDisk, err := os.ReadFile(filepath.Join(a.StorageDir, "html", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("asset not extracted to disk: %v", err)
+	}
+	if !bytes.Equal(onDisk, embedded) {
+		t.Error("extracted file differs from the embedded content")
+	}
+}
+
+// serveEditor puts the shipped asset on disk before ANY editor opens it -
+// the external editor and the Android omngo://edit intent open the file
+// path directly and never call /api/note.
+func TestServeEditorMaterializesEmbeddedAsset(t *testing.T) {
+	const rel = "json/bookmarker-tags.json"
+
+	embedded, err := staticFS.ReadFile("frontend/html/" + rel)
+	if err != nil {
+		t.Skipf("%s is not embedded in this build: %v", rel, err)
+	}
+
+	a := newTestApp(t)
+	a.Config.UseInternalEd = true
+	req := httptest.NewRequest(http.MethodGet, "/"+rel+"?edit=true", nil)
+	rec := httptest.NewRecorder()
+	a.serveEditor(rec, req, "/"+rel)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	onDisk, err := os.ReadFile(filepath.Join(a.StorageDir, "html", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("asset not extracted before the editor opened: %v", err)
+	}
+	if !bytes.Equal(onDisk, embedded) {
+		t.Error("extracted file differs from the embedded content")
+	}
+}
+
+// /images/ and /user_json/ have routes of their own, so an edit request
+// there never reaches serveFrontend. The trees still answer "?edit=true"
+// with the editor, which is what the User Manual documents.
+func TestServeStorageSubdirHonorsEditIntent(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.UseInternalEd = true
+
+	dir := filepath.Join(a.StorageDir, "html", "user_json")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "inventory.json"), []byte(`{"a":1}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := a.serveStorageSubdir("user_json", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/user_json/inventory.json?edit=true", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit request: status %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "editorSave") {
+		t.Error("edit request did not answer with the editor page")
+	}
+
+	// Without the query the file itself is served, exactly as before.
+	req = httptest.NewRequest(http.MethodGet, "/user_json/inventory.json", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if body := rec.Body.String(); body != `{"a":1}` {
+		t.Errorf("plain request served %q, want the file", body)
+	}
+}
+
 func TestHandleGetNoteStaticAssetNotFound(t *testing.T) {
 	a := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/note?name=missing.js", nil)

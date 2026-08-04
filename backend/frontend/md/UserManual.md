@@ -345,8 +345,14 @@ static assets:
 
 The link opens the raw file in the internal editor. If you configured an
 external editor, the link opens the file there. When you save, OMN-Go
-writes the file back in place. If the file does not exist, OMN-Go creates
-an empty one.
+writes the file back in place. A file that comes with OMN-Go opens with
+its content, also when OMN-Go did not write it to the storage directory
+yet. If the file does not exist, the editor opens an empty page, and your
+first save makes the file.
+
+If the editor cannot read the file, it shows a red message and turns the
+*Save* button off. This keeps an empty editor from replacing a file that
+has content.
 
 If you do not know the name of a file, open
 [the file index](OMNGoFiles). It lists every file that OMN-Go serves and

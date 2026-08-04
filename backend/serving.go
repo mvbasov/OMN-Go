@@ -139,6 +139,15 @@ func (a *App) serveStorageSubdir(subDir, forcedType string) http.Handler {
 	os.MkdirAll(dirPath, 0755)
 	fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// "?edit=true opens any file that OMN-Go serves" holds for these two
+		// trees as well. They have their own routes, so an edit request here
+		// never reaches serveFrontend, and the documented link
+		// "[Edit shared data](/user_json/inventory.json?edit=true)" used to
+		// serve the raw JSON instead of opening the editor.
+		if r.URL.Query().Get("edit") == "true" {
+			a.serveEditor(w, r, r.URL.Path)
+			return
+		}
 		if forcedType != "" {
 			w.Header().Set("Content-Type", forcedType)
 		} else if ct := a.resolveContentType(r.URL.Path); ct != "" {

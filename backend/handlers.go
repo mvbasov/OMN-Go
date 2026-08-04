@@ -300,6 +300,14 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	filePath := htmlPath
 	if isPage {
 		filePath = mdPath
+	} else {
+		// Same reason as in serveEditor: a shipped html/ asset that nothing
+		// requested yet is not on disk, and an external editor (or the
+		// Android intent below) would open a path with no file behind it.
+		// serveEditor already did this for the redirect that lands here,
+		// but /api/edit-external is a route of its own and can be called
+		// directly. A no-op when the file is there or is not embedded.
+		a.materializeAsset("/" + filepath.ToSlash(name))
 	}
 
 	if runtime.GOOS == "android" {
@@ -649,10 +657,28 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if !isPage {
 		data, err := os.ReadFile(htmlPath)
 		if err != nil {
-			// Plain text in practice: the editor fetches this without an
-			// html Accept, and serveNotFound negotiates on that - so
-			// loadContent() still surfaces a readable message, now with
-			// the requested path in it.
+			// Not on disk. An html/ asset that ships with the build only
+			// reaches disk when something requests it (materializeAsset,
+			// serving.go), so on a fresh install every embedded asset the
+			// user has not opened yet is missing here. Answering 404 makes
+			// the editor open an EMPTY buffer for a file that does have
+			// shipped content, and the first Save writes that emptiness to
+			// disk - where it shadows the embedded copy forever, because
+			// lazy extraction only ever fills a MISSING file
+			// (json/bookmarker-tags.json is the one users hit). Run the
+			// same extraction the view path runs, then read it back.
+			if physPath, ok := a.materializeAsset("/" + strings.TrimPrefix(filepath.ToSlash(name), "/")); ok {
+				data, err = os.ReadFile(physPath)
+			}
+		}
+		if err != nil {
+			// Genuinely nowhere: not on disk, not embedded. Plain text in
+			// practice - the editor fetches this without an html Accept,
+			// and serveNotFound negotiates on that - so loadContent() still
+			// surfaces a readable message with the requested path in it.
+			// This is also the documented "open a path that does not exist
+			// yet, save to create it" case (see the User Manual), which is
+			// why it stays a 404 rather than an error page.
 			a.serveNotFound(w, r)
 			return
 		}
@@ -958,6 +984,17 @@ func (a *App) serveConfigPage(w http.ResponseWriter) {
 // it hands off to the external-editor flow, exactly as before.
 func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 	relPath := strings.TrimPrefix(path, "/")
+
+	// Put a shipped-but-not-yet-extracted html/ asset on disk before any
+	// editor opens it. The internal editor gets the same content through
+	// /api/note (handleGetNote runs this too), but the EXTERNAL editor and
+	// the Android omngo://edit intent open the file path directly, and a
+	// missing file gives them nothing to show and everything to overwrite.
+	// A no-op for a markdown page, for a file already on disk, and for a
+	// path that is not embedded at all.
+	if _, _, _, isPage := a.resolvePageName(relPath); !isPage {
+		a.materializeAsset("/" + filepath.ToSlash(relPath))
+	}
 
 	if !a.GetConfig().UseInternalEd {
 		http.Redirect(w, r, "/api/edit-external?name="+url.QueryEscape(relPath), http.StatusSeeOther)
