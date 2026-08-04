@@ -115,7 +115,7 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | `GET /api/note` | **none — deliberately open** |
 | `GET /api/search` | **none — deliberately open** |
 | `GET /api/logs` | **none** |
-| `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/db_backups` | admin (local bypass applies) |
+| `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/db_backups` | admin (local bypass applies) |
 | `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
 
@@ -144,6 +144,7 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | GET | `/api/sync/preview` | yes (405 otherwise) | admin | JSON |
 | GET | `/api/edit-external` | no | admin | HTML or 303 |
 | GET | `/api/logs` | no | none | SSE |
+| GET | `/api/status` | yes (405 otherwise) | admin | JSON / Markdown |
 | GET | `/db_backups` | no | admin | HTML |
 | GET | `/OMNGoSearch.html` | no | none | HTML (explains how to turn global search on when it is off; used to 404) |
 | GET | `/OMNGoFiles.html` | no | admin | HTML (a page for a guest, not a 401) |
@@ -1225,6 +1226,122 @@ commits. The asymmetry is deliberate for this reason.
 
 ---
 
+### 4.11 Status
+
+#### `GET /api/status`
+
+Reports what this process does now. It gives the address that the server
+listens on, the git commit of the notes, the size of the search index and
+the Android package. The endpoint is admin only, because the answer
+carries LAN addresses, absolute paths and a commit subject. The local
+bypass applies, so the Android WebView and a desktop browser reach it with
+no login.
+
+Nothing in this endpoint opens a network connection. Nothing in it creates
+or changes a file. The git section opens the repository read-only, so a
+status request on an installation that never synchronized reports
+`repo_exists: false` and creates no repository.
+
+**Parameters**
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `sections` | `server`, `config`, `git`, `search`, `runtime`, `android`, `storage`, `git_dirty`, `all` | the six cheap sections |
+| `format` | `json`, `md` | `json` |
+
+Two sections cost real work, so they are never in the default answer:
+`storage` walks the storage directory, and `git_dirty` walks the git
+worktree. Ask for them by name. A page can therefore paint the cheap facts
+at once and run a progress bar over the slow request alone. `git_dirty`
+writes one `[status]` line to the log stream before it starts.
+
+`sections=all` selects each section, the two slow ones included. An unknown
+section name answers `400`.
+
+`format=md` answers with the same facts as a Markdown document, with the
+content type `text/plain; charset=utf-8`. A browser paints `text/plain`,
+and the Android WebView paints nothing else.
+
+**Sections**
+
+| Section | Cost | Fields |
+| --- | --- | --- |
+| `server` | none | `app_version`, `started`, `uptime_s`, `bind_host`, `bind_port`, `bind_addr`, `share_lan`, `lan_urls[]`, `active_conns`, `hostname`, `goos`, `goarch` |
+| `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author` |
+| `git` | one object read | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}` |
+| `search` | one pass over the index | `enabled`, `docs`, `lines`, `bytes`, `index_bytes_estimate`, `built`, `checked`, `dirty`, `kinds`, `scope` |
+| `runtime` | none | `go_version`, `goroutines`, `heap_alloc`, `sys`, `assets_version` |
+| `android` | none | `package`, `default_port`, `fullscreen` (the section is absent off Android) |
+| `storage` | a walk of the storage directory | `dir` and one `{files,bytes}` group each for `notes`, `pages`, `images`, `user_json`, `databases`, `backups`, `asset_backups`, `total` |
+| `git_dirty` | a walk of the worktree | `dirty`, `changed`, `untracked` |
+
+`bind_addr` is what the listener bound, not what the configuration asked
+for. The two differ when the retry loop in `StartServer` ends on another
+port. `lan_urls` holds one address per network interface, and it is empty
+when `share_lan` is off.
+
+`index_bytes_estimate` is an estimate, and the name says so. Go cannot
+report the true size of a live object graph. The number counts the line
+masks, the trigram signature and the strings of each indexed document,
+with a flat allowance for the structure.
+
+The answer never carries a password, an SSH key, or a remote URL with a
+password in it. The user name of a remote URL stays: it is part of the
+address, and it is not a secret.
+
+**Responses**
+
+| Status | Body |
+| --- | --- |
+| `200` | the status document, as JSON or as Markdown |
+| `400` | `unknown section: <name>` |
+| `401` | `Unauthorized` |
+| `405` | `GET only` |
+
+A section that fails does not fail the answer. The section is absent, and
+`errors` names it with the reason.
+
+**Example**
+
+```
+GET /api/status?sections=server,git&format=json
+```
+
+```json
+{
+  "generated": "2026-08-04T10:00:00Z",
+  "server": {
+    "app_version": "26.08.14",
+    "started": "2026-08-04T09:30:00Z",
+    "uptime_s": 1800,
+    "bind_host": "0.0.0.0",
+    "bind_port": 8080,
+    "bind_addr": "0.0.0.0:8080",
+    "share_lan": true,
+    "lan_urls": ["http://192.168.1.5:8080"],
+    "active_conns": 1,
+    "hostname": "pixel7",
+    "goos": "android",
+    "goarch": "arm64"
+  },
+  "git": {
+    "repo_exists": true,
+    "configured": true,
+    "branch": "master",
+    "head": {
+      "hash": "9f1c0f1d2b3a4c5d6e7f8091a2b3c4d5e6f70819",
+      "short": "9f1c0f1",
+      "subject": "Add user-owned omn-go-custom.css and omn-go-custom.js",
+      "author": "Mikhail Basov",
+      "date": "2026-08-04T08:12:00Z"
+    },
+    "remote": { "name": "home", "url": "https://user@example.com/notes.git" }
+  }
+}
+```
+
+---
+
 ## 5. Page and asset routes
 
 These are not JSON endpoints, but they are part of the URL surface of the
@@ -1399,6 +1516,7 @@ stream:
 | `200 OK` | Success on every endpoint; also the JSON error responses of `/api/sync` |
 | `303 See Other` | `/` → `/Welcome.html`; `?edit=true` → `/api/edit-external`; Android `omngo://edit` handoff |
 | `415 Unsupported Media Type` | `?edit=true`, `/api/edit-external`, `/api/note` or `/api/save` on a file that is not text (picture, font, audio, video) |
+| `400 Bad Request` | `/api/status` with an unknown `sections` name |
 | `400 Bad Request` | Missing/invalid parameters, rejected uploads, SQL errors |
 | `401 Unauthorized` | `/login` with a wrong password; `authMiddleware` for a remote caller without an admin cookie |
 | `404 Not Found` | Missing static asset or `/api/note` for a missing non-page file |

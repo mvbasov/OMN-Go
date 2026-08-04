@@ -40,6 +40,39 @@ type App struct {
 	defaultPort int
 
 	ready chan struct{} // closed once the HTTP listener is actually serving
+
+	// startedAt is when StartServer ran. boundAddr is what the listener
+	// bound, not what the config asked for. /api/status reports both
+	// (status.go). Until now only a log line carried the address, and the
+	// retry loop below can end on another port than the configured one.
+	// metaMu guards boundAddr. The goroutine that binds writes it, and
+	// request goroutines read it.
+	metaMu    sync.RWMutex
+	startedAt time.Time
+	boundAddr string
+}
+
+// boundAddress reports the address the HTTP listener is actually on, as
+// host, port and the joined form. Every value is empty before the bind
+// (see statusServerSection, which falls back to the config then).
+func (a *App) boundAddress() (host, port, addr string) {
+	a.metaMu.RLock()
+	addr = a.boundAddr
+	a.metaMu.RUnlock()
+	if addr == "" {
+		return "", "", ""
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", "", addr
+	}
+	return host, port, addr
+}
+
+func (a *App) setBoundAddress(addr string) {
+	a.metaMu.Lock()
+	a.boundAddr = addr
+	a.metaMu.Unlock()
 }
 
 // fallbackPort is the port to use when config.json has nothing usable to say.
@@ -114,8 +147,9 @@ var templatesFS embed.FS
 // historical default of 8080 (desktop does).
 func StartServer(storageDir string, defaultPort int) *App {
 	a := &App{
-		Router: http.NewServeMux(),
-		ready:  make(chan struct{}),
+		Router:    http.NewServeMux(),
+		ready:     make(chan struct{}),
+		startedAt: time.Now(),
 	}
 
 	// Set BEFORE initStorage: that is what loads (and, on a fresh install,
@@ -187,6 +221,9 @@ func StartServer(storageDir string, defaultPort int) *App {
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
+		// Admin only: the answer carries LAN addresses, absolute paths and
+		// a commit subject (see status.go).
+		a.Router.HandleFunc("/api/status", a.authMiddleware(a.handleStatus, true))
 
 		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
 		// i.e. before any HTTP handler can possibly be invoked concurrently.
@@ -235,6 +272,10 @@ func StartServer(storageDir string, defaultPort int) *App {
 			close(a.ready) // unblock any waiter rather than hang forever
 			return
 		}
+
+		// The listener knows better than bindAddr does: a port of 0, or a
+		// retry that landed elsewhere, resolves here (see boundAddress).
+		a.setBoundAddress(listener.Addr().String())
 
 		log.Printf("OMN-Go Backend running on %s", bindAddr)
 		close(a.ready)

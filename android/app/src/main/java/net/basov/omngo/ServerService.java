@@ -248,6 +248,10 @@ public class ServerService extends Service {
             // (8080 standard / 8081 fdroid) so side-by-side installs
             // don't fight over one loopback port; a user-configured
             // server_port in config.json still wins on the Go side.
+            // The Go runtime cannot ask Android which applicationId it
+            // runs under, and /api/status reports it. Set before the
+            // server starts, so the first status request already has it.
+            Backend.setAndroidPackage(getPackageName());
             Backend.startServer(storageDir(this), BuildConfig.DEFAULT_SERVER_PORT);
             backendStarted = true;
         }
