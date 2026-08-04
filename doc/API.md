@@ -1279,7 +1279,11 @@ first:
 3. Go's `mime.TypeByExtension`
 4. nothing set → `net/http` sniffs the content
 
-`.jsonl` resolves to `application/jsonl`.
+`.jsonl` resolves to `text/plain; charset=utf-8`. A database backup is JSON
+Lines, not one JSON document, and this type shows the file in the browser and
+in the Android WebView. `application/json` would send a browser JSON viewer to
+a parse error, and `application/jsonl` would start a download that the WebView
+cannot do.
 
 ### 5.3 The file index
 

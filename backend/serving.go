@@ -35,17 +35,25 @@ import (
 
 // builtinMIME is OMN-Go's canonical content-type table. It supersedes the
 // startup mime.AddExtensionType(...) calls that used to seed the process
-// mime table (so those are removed from StartServer), adds JSON Lines
+// mime table (so those are removed from StartServer), carries JSON Lines
 // (.jsonl, used by the database backups in db_backup.go), and keeps the
 // web-font types explicit for minimal containers whose stdlib mime tables
 // are sparse.
 var builtinMIME = map[string]string{
-	".html":  "text/html; charset=utf-8",
-	".css":   "text/css; charset=utf-8",
-	".js":    "text/javascript; charset=utf-8",
-	".mjs":   "text/javascript; charset=utf-8",
-	".json":  "application/json",
-	".jsonl": "application/jsonl", // JSON Lines - database backups (db_backup.go)
+	".html": "text/html; charset=utf-8",
+	".css":  "text/css; charset=utf-8",
+	".js":   "text/javascript; charset=utf-8",
+	".mjs":  "text/javascript; charset=utf-8",
+	".json": "application/json",
+	// JSON Lines - database backups (db_backup.go). text/plain, NOT
+	// application/jsonl: a browser renders text/plain inline, and the
+	// Android WebView has no download handler at all, so any type it
+	// cannot render leaves the user with a link that does nothing (the
+	// "view" link on the Database Backups page is exactly that link).
+	// text/plain and not application/json either - a backup is JSON
+	// Lines, not one JSON document, so a browser JSON viewer reports a
+	// parse error on the second line instead of showing the file.
+	".jsonl": "text/plain; charset=utf-8",
 	".md":    "text/markdown; charset=utf-8",
 	".svg":   "image/svg+xml",
 	".png":   "image/png",

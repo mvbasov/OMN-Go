@@ -244,7 +244,9 @@ dot never starts an action on its own.
 Press **Details** to expand a row. The row then shows the creation time of
 each backup, the device (hostname) that created it, its object count, its
 row count and its size. Each backup also has a **Restore** button and a
-plain **download** link.
+**view** link. The view link opens the backup file as text, in the same
+window. On a desktop you save the file from there with the menu of your
+browser. Press the back button to come back to the page.
 
 ### Making a backup
 

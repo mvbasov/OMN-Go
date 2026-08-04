@@ -235,6 +235,10 @@ func (a *App) filesEditable(logical string) bool {
 		return false
 	case strings.HasPrefix(ct, "text/"):
 		return true
+	// "application/jsonl" is not in the builtin table any more (.jsonl is
+	// served as text/plain, so the "view" link on the Database Backups page
+	// works in the Android WebView), but a config.json mime_types override
+	// can still put it back - keep accepting it as text.
 	case ct == "application/javascript", ct == "application/x-javascript",
 		ct == "application/json", ct == "application/jsonl",
 		ct == "application/xml":

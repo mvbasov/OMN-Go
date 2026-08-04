@@ -154,7 +154,7 @@ func StartServer(storageDir string, defaultPort int) *App {
 		// /images and /user_json are pure user content (never embedded),
 		// served straight from their storage subdirectory. Both resolve the
 		// content-type per file so /user_json serves .json as application/json
-		// and .jsonl as application/jsonl (see resolveContentType).
+		// and .jsonl as text/plain (see resolveContentType).
 		a.Router.Handle("/images/", a.serveStorageSubdir("images", ""))
 		a.Router.Handle("/user_json/", a.serveStorageSubdir("user_json", ""))
 

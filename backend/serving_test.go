@@ -10,14 +10,15 @@ import (
 )
 
 // TestResolveContentType pins the single MIME resolver's builtin table,
-// including the two types added in Phase 3: .jsonl (database backups) and
-// the web fonts. newTestApp has an empty Config.MimeTypes, so these exercise
+// including .jsonl (database backups) and the web fonts. .jsonl is
+// text/plain so a browser - and above all the Android WebView, which has no
+// download handler - shows a backup instead of doing nothing with it. newTestApp has an empty Config.MimeTypes, so these exercise
 // the builtin layer directly.
 func TestResolveContentType(t *testing.T) {
 	a := newTestApp(t)
 	cases := map[string]string{
-		"/backup.jsonl":      "application/jsonl", // NEW in Phase 3
-		"/css/fonts/x.woff":  "font/woff",         // was only in the startup mime table
+		"/backup.jsonl":      "text/plain; charset=utf-8", // shown inline, never downloaded
+		"/css/fonts/x.woff":  "font/woff",                 // was only in the startup mime table
 		"/css/fonts/x.woff2": "font/woff2",
 		"/css/fonts/x.ttf":   "font/ttf",
 		"/img.svg":           "image/svg+xml",
@@ -89,8 +90,9 @@ func TestMaterializeAssetDirectory(t *testing.T) {
 }
 
 // TestServeEmbeddableAssetSetsContentType is the end-to-end proof that a
-// .jsonl asset (a database backup) is now served with the correct
-// content-type through the single asset handler.
+// .jsonl asset (a database backup) is served with the content-type that
+// makes the "view" link on the Database Backups page work on each
+// platform.
 func TestServeEmbeddableAssetSetsContentType(t *testing.T) {
 	a := newTestApp(t)
 	body := "{\"kind\":\"row\"}\n"
@@ -105,8 +107,8 @@ func TestServeEmbeddableAssetSetsContentType(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/jsonl" {
-		t.Errorf("Content-Type = %q, want application/jsonl", ct)
+	if ct := rec.Header().Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/plain; charset=utf-8", ct)
 	}
 	if rec.Body.String() != body {
 		t.Errorf("body = %q, want %q", rec.Body.String(), body)
@@ -127,8 +129,8 @@ func TestServeEmbeddableAssetMissing(t *testing.T) {
 // TestServeStorageSubdir covers the /images and /user_json handler: both now
 // resolve the content-type per file through resolveContentType (forcedType
 // == ""). /user_json therefore serves .json as application/json AND .jsonl as
-// application/jsonl - the Phase 6 change that lets JSON Lines uploads be
-// served with their own type instead of being forced to application/json.
+// text/plain, so an uploaded JSON Lines file opens in the browser instead of
+// being forced to one type for the whole tree.
 func TestServeStorageSubdir(t *testing.T) {
 	a := newTestApp(t)
 
@@ -146,7 +148,7 @@ func TestServeStorageSubdir(t *testing.T) {
 	uj := a.serveStorageSubdir("user_json", "")
 	for name, wantCT := range map[string]string{
 		"data.json":  "application/json",
-		"data.jsonl": "application/jsonl",
+		"data.jsonl": "text/plain; charset=utf-8",
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/user_json/"+name, nil)
 		rec := httptest.NewRecorder()
