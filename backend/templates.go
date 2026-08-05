@@ -614,11 +614,16 @@ func renderFilesSection(b *strings.Builder, sec filesSection, v filesPageView, l
 		return
 	}
 
+	// The facts on the right go in one files-tags group. The group does not
+	// break apart, and it does not go to a second line. The row thus keeps
+	// the shape of a column down the list. The name takes the space that is
+	// left. A name that is longer than that space wraps inside its own
+	// column: no name is cut (see .files-name in omn-go-core.css).
 	b.WriteString(`<ul class="files-list">`)
 	for _, d := range sec.Dirs {
 		fmt.Fprintf(b, `<li class="files-row files-dir">`+
 			`<a class="files-name" href="%s">%s</a>`+
-			`<span class="files-meta">%s · %s</span></li>`,
+			`<span class="files-tags"><span class="files-meta">%s · %s</span></span></li>`,
 			escapeHTML(filesPageURL(d.Dir, false)), escapeHTML(d.Name+"/"),
 			escapeHTML(filesCountLabel(d.Files)), escapeHTML(filesSize(d.Bytes)))
 	}
@@ -626,29 +631,39 @@ func renderFilesSection(b *strings.Builder, sec filesSection, v filesPageView, l
 		b.WriteString(`<li class="files-row">`)
 		fmt.Fprintf(b, `<a class="files-name" href="%s">%s</a>`,
 			escapeHTML(f.URL), escapeHTML(f.Name))
+		b.WriteString(`<span class="files-tags">`)
 		fmt.Fprintf(b, `<span class="files-size">%s</span>`, escapeHTML(filesSize(f.Size)))
 
 		if f.IsLocal {
-			fmt.Fprintf(b, `<span class="files-meta">%s</span>`,
-				escapeHTML(f.Mod.Format("2006-01-02 15:04")))
+			// The date only. The hour and the minute made the row too
+			// wide for a phone, and each other fact went to a second
+			// line. The full time stays in the title.
+			fmt.Fprintf(b, `<span class="files-meta" title="%s">%s</span>`,
+				escapeHTML(f.Mod.Format("2006-01-02 15:04")),
+				escapeHTML(f.Mod.Format("2006-01-02")))
 		} else {
 			state, cls := "not yet", "files-state-absent"
 			if f.OnDisk {
 				state, cls = "on disk", "files-state-present"
 			}
-			owner, ocls := "yours", "files-owner-yours"
-			if f.AppOwned {
-				owner, ocls = "app-owned", "files-owner-app"
-			}
-			fmt.Fprintf(b, `<span class="files-meta %s">%s</span><span class="files-meta %s" title="%s">%s</span>`,
-				cls, escapeHTML(state), ocls,
-				escapeHTML(filesOwnerHint(f.AppOwned)), escapeHTML(owner))
+			fmt.Fprintf(b, `<span class="files-meta %s">%s</span>`, cls, escapeHTML(state))
+		}
+
+		// Only an app-owned file gets a word. A user-owned file needs no
+		// label: it is the normal case, and a word on each other row made
+		// the list wide and said nothing. The mark is in the two sections.
+		// It is more important in the disk section: that row is a file
+		// that a user can edit now, and an app-owned file loses those
+		// edits at the next version change.
+		if f.AppOwned {
+			fmt.Fprintf(b, `<span class="files-meta files-owner-app" title="%s">app-owned</span>`,
+				escapeHTML(filesOwnerHint))
 		}
 
 		if f.EditURL != "" {
 			fmt.Fprintf(b, `<a class="files-edit" href="%s">edit</a>`, escapeHTML(f.EditURL))
 		}
-		b.WriteString(`</li>`)
+		b.WriteString(`</span></li>`)
 	}
 	b.WriteString(`</ul>`)
 
@@ -661,12 +676,10 @@ func renderFilesSection(b *strings.Builder, sec filesSection, v filesPageView, l
 	}
 }
 
-func filesOwnerHint(appOwned bool) string {
-	if appOwned {
-		return "Ships with the app: the next version change backs up your copy and replaces it"
-	}
-	return "Extracted once, then left alone - a version change never touches it"
-}
+// filesOwnerHint is the tooltip of the app-owned mark. A row with no mark
+// needs no tooltip: a user-owned file is the normal case, and the server
+// extracts it one time and then leaves it alone.
+const filesOwnerHint = "Ships with the app: the next version change backs up your copy and replaces it"
 
 // --- Search results page (search_page.html) ---
 

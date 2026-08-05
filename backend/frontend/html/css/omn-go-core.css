@@ -1174,26 +1174,47 @@ mark.omn-search-hit.omn-search-hit-current {
     list-style: none;
 }
 
-/* A row is a flex line: the name takes the slack, the metadata sits right.
-   Wrapping is allowed because a long name on a phone should push its metadata
-   onto a second line rather than squeeze it to nothing. */
+/* The row is a flex line: the name takes the slack, the facts sit right.
+   It does NOT wrap.
+
+   It used to. The name held "flex: 1 1 12em", and flex breaks a line on the
+   hypothetical size of an item, not on the size that the item can shrink to.
+   12em plus the facts was more than a phone gives, so the line broke and the
+   facts went to a second row - while the name, which grows, filled the first
+   row and left a wide empty space beside a short name. highlight.min.js and
+   katex.min.js showed it first, because the widest size text (271 KB) crosses
+   the limit before a shorter one does.
+
+   With nowrap the facts stay beside the name. The name still shrinks, and a
+   name that is longer than the space that is left wraps INSIDE its own
+   column. No name is cut and no name is shortened. */
 .files-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: baseline;
-    gap: 8px;
+    gap: 10px;
     padding: 4px 0;
     border-bottom: 1px solid var(--border-soft);
     font-size: 13px;
 }
 .files-name {
-    flex: 1 1 12em;
+    flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
     text-decoration: none;
 }
 .files-name:hover {
     text-decoration: underline;
+}
+/* One group for each fact on the right. It never breaks apart, thus the size,
+   the state, the owner and the edit link keep their order and their column
+   look down the list. */
+.files-tags {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
 }
 /* Directories are the navigation on this page, so they are the one thing that
    looks heavier than a file. */
@@ -1208,14 +1229,13 @@ mark.omn-search-hit.omn-search-hit-current {
     font-variant-numeric: tabular-nums;
 }
 
-/* Embedded rows carry two facts a disk row does not: whether the file has been
-   extracted yet, and whether a version change may overwrite it. Colour is a
-   hint only - the words say the same thing - because these matter most to
-   someone deciding whether an edit will survive an update. */
+/* An embedded row says whether the file is extracted yet. A row of either
+   section says "app-owned" when the next version change replaces the file and
+   your edits go to a backup. A user-owned file carries no word: it is the
+   normal case. Colour is a hint only - the word says the same thing. */
 .files-state-present { color: var(--success); }
 .files-state-absent  { color: var(--text-faint); }
 .files-owner-app     { color: var(--danger); }
-.files-owner-yours   { color: var(--text-muted); }
 
 /* Only where editing a file in place makes sense - never for images, fonts or
    anything else the editor would corrupt. */

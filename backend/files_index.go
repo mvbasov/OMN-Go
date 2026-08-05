@@ -278,11 +278,13 @@ func (a *App) embeddedRow(f indexedFile) filesFileRow {
 		return row
 	}
 
+	// No edit link in this section. The section answers "what does this
+	// build ship", and an edit always operates on the copy on the device.
+	// The same file has a row with an edit link in the other section as
+	// soon as it is on disk. Two links to one editor, in two rows that sit
+	// one above the other, said that there were two things to edit.
 	row.URL = "/" + f.path
 	row.OnDisk = fileExists(filepath.Join(a.StorageDir, "html", filepath.FromSlash(f.path)))
-	if a.filesEditable(f.path) {
-		row.EditURL = row.URL + "?edit=true"
-	}
 	return row
 }
 
@@ -296,6 +298,12 @@ func (a *App) diskRow(f indexedFile) filesFileRow {
 		URL:     "/" + f.path,
 		OnDisk:  true,
 		IsLocal: true,
+		// The same question as in the embedded section, and it is more
+		// important here: this row is a file that a user can edit now,
+		// and an app-owned file loses those edits at the next version
+		// change. isVersionDependent reads the path of the html/ tree,
+		// which is what a disk row carries.
+		AppOwned: isVersionDependent(f.path),
 	}
 	if a.filesEditable(f.path) {
 		row.EditURL = row.URL + "?edit=true"

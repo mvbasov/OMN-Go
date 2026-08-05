@@ -260,9 +260,119 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	}
 }
 
+// The "Embedded in the application" section offers no edit link. That
+// section answers "what does this build ship". An edit always operates on
+// the copy on the device, and the other section has the row of that copy.
+// Two links to one editor, in two rows that sit one above the other, said
+// that there were two things to edit.
+func TestFilesPage_EmbeddedSectionOffersNoEditLink(t *testing.T) {
+	a := newTestApp(t)
+	// A shipped script, extracted, thus it has a row in the two sections.
+	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+
+	embedded, device := filesPageSections(t, getFilesPage(t, a, "dir=js%2F").Body.String())
+
+	if strings.Contains(embedded, `class="files-edit"`) {
+		t.Error("the embedded section still offers an edit link")
+	}
+	if strings.Contains(embedded, "?edit=true") {
+		t.Error("the embedded section still carries an edit URL")
+	}
+	// The way to the editor stays: the row of the same file on the device.
+	if !strings.Contains(device, `href="/js/omn-go-core.js?edit=true"`) {
+		t.Error("the device section lost the edit link of an extracted file")
+	}
+}
+
+// A device row marks an app-owned file. This is the section where a user
+// edits, and an app-owned file loses those edits at the next version change.
+//
+// A user-owned file carries NO word. It is the normal case, and a word on
+// each other row made the list wide and said nothing.
+func TestFilesPage_DeviceRowsMarkAnAppOwnedFile(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted") // versionDependentAssets
+	writeDiskFile(t, a, "js/mine.js", "// mine")             // not shipped at all
+
+	body := getFilesPage(t, a, "dir=js%2F").Body.String()
+	_, device := filesPageSections(t, body)
+
+	if !strings.Contains(device, "app-owned") {
+		t.Error("the device section never says app-owned")
+	}
+	// The mark belongs to the app-owned row only. mine.js is the row that
+	// must carry nothing, thus the mark count is the app-owned row count.
+	if n := strings.Count(device, "app-owned"); n != 1 {
+		t.Errorf("the device section has %d app-owned marks, want 1 (omn-go-core.js)", n)
+	}
+	if !isVersionDependent("js/omn-go-core.js") {
+		t.Error("the test file is not app-owned any more, thus the test proves nothing")
+	}
+	if isVersionDependent("js/mine.js") {
+		t.Error("a file that the application does not ship was reported as app-owned")
+	}
+}
+
+// No row says "yours". The word was on each user-owned row of the two
+// sections. It made each row wider, and a page of rows that all say the same
+// thing says nothing.
+func TestFilesPage_NeverSaysYours(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/mine.js", "// mine")
+	writeDiskFile(t, a, "json/bookmarker-tags.json", "{}") // user-owned, shipped
+
+	for _, q := range []string{"", "dir=js%2F", "dir=json%2F"} {
+		if body := getFilesPage(t, a, q).Body.String(); strings.Contains(body, "yours") {
+			t.Errorf("the page for %q still says \"yours\"", q)
+		}
+	}
+}
+
+// The facts of a row sit in one group. The CSS does not break that group
+// apart, and it does not send the group to a second line. The row thus keeps
+// the shape of a column down the list. A row that wrapped put the facts under
+// the name and left a wide empty space beside a short name (highlight.min.js,
+// katex.min.js at 360 px).
+//
+// The name is NOT shortened. It takes the space that is left, and a name that
+// is longer than that space wraps inside its own column.
+func TestFilesPage_RowKeepsItsFactsInOneGroup(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+
+	body := getFilesPage(t, a, "dir=js%2F").Body.String()
+	if !strings.Contains(body, `<span class="files-tags">`) {
+		t.Error("a row has no files-tags group")
+	}
+	// The device row shows the date and keeps the full time in the title.
+	if strings.Count(body, `class="files-meta" title="`) == 0 {
+		t.Error("a device row does not carry the full time in a title")
+	}
+}
+
 // ----------------------------------------------------------------------
 // Provenance
 // ----------------------------------------------------------------------
+
+// filesPageSections splits a rendered page into the "Embedded in the
+// application" half and the "On this device" half. Both halves carry an owner
+// word, and only one of them has an edit link. A test that searches the whole
+// body cannot say which section it found.
+func filesPageSections(t *testing.T, body string) (embedded, device string) {
+	t.Helper()
+	// The cut starts at the first heading, thus the page SHELL is in no
+	// half. The shell carries an Edit button of its own (index.html), and
+	// its onclick holds the text "?edit=true".
+	_, rest, ok := strings.Cut(body, "Embedded in the application")
+	if !ok {
+		t.Fatal("the page has no \"Embedded in the application\" section")
+	}
+	embedded, device, ok = strings.Cut(rest, "On this device")
+	if !ok {
+		t.Fatal("the page has no \"On this device\" section")
+	}
+	return embedded, device
+}
 
 func TestFilesPage_EmbeddedStateAndOwnership(t *testing.T) {
 	a := newTestApp(t)
@@ -270,7 +380,7 @@ func TestFilesPage_EmbeddedStateAndOwnership(t *testing.T) {
 	// two states can be told apart in the same listing.
 	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
 
-	body := getFilesPage(t, a, "dir=js%2F").Body.String()
+	body, _ := filesPageSections(t, getFilesPage(t, a, "dir=js%2F").Body.String())
 	if !strings.Contains(body, "on disk") {
 		t.Error("an extracted embedded file is not reported as being on disk")
 	}

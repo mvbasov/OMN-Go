@@ -753,26 +753,39 @@ questions:
 
 - **Embedded in the application** — the files that this build of OMN-Go
   ships. Each row shows whether OMN-Go wrote that file to disk (*on disk* /
-  *not yet*), and who owns it. **yours** means that OMN-Go extracted the
-  file one time and then never changes it. You can edit such a file
-  safely. **app-owned** means that the next version of OMN-Go replaces the
-  file. OMN-Go backs up your copy first, but it stops using your changes.
-  The stylesheets and scripts of the frontend are app-owned.
-- **On this device** — the files that the device stores, with their sizes
-  and the time when OMN-Go last wrote each file.
+  *not yet*). This section has no **edit** link, because an edit always
+  operates on the copy on the device.
+- **On this device** — the files that the device stores. Each row shows
+  the size, the day when OMN-Go last wrote the file, and an **edit** link
+  where an edit makes sense. Point at the date to see the time also.
+
+A row of either section shows **app-owned** when the next version of
+OMN-Go replaces that file. OMN-Go backs up your copy first, but it stops
+using your changes. The stylesheets and scripts of the frontend are
+app-owned. A row with no such word is your file: OMN-Go extracted it one
+time and then never changes it, and you can edit it safely.
+
+The size, the state and the **edit** link stay together on the right of a
+row. OMN-Go shortens no name. A name that is longer than the space that is
+left takes two lines, and the rest of the row stays where it is.
 
 The count and the size of a directory cover all files below it, and not
 only the rows you see. The numbers thus answer the question "how big is
 this whole folder". A very large directory shows its first 200 files. It
 also shows how many files it holds back, with a link to show all of them.
 
-A file that you can edit as text has an **edit** link. The link uses the
-`?edit=true` form from
+A file on the device that you can edit as text has an **edit** link. The
+link uses the `?edit=true` form from
 [Edit links for non-page files](#edit-links-for-non-page-files), with the
 URL already filled in. Images, fonts, sounds and video have no edit link,
 because the editor would only damage them. Pages with the `.html`
 extension also have no edit link. Open such a page and use the normal Edit
 button.
+
+A shipped file that says *not yet* is in no device row, thus it has no
+edit link. Open the file with its own link first. OMN-Go writes it to the
+device at that moment, and the row with the edit link comes after a
+reload of the index.
 
 Two things never appear in the file index. The page templates are part of
 OMN-Go and not part of your data. The `db_backup/` folder appears on the

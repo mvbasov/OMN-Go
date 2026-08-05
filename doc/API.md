@@ -1501,8 +1501,8 @@ can exist in one section, in the other, or in both, and the difference matters:
 
 | Section | Source | What a row means |
 | --- | --- | --- |
-| Embedded in the application | `staticFS` (`frontend/html`, `frontend/md`) | What this build ships. A row says whether the file has been extracted to disk yet, and whether it is app-owned |
-| On this device | `StorageDir/html` | What is actually on the device, with its size and modification time |
+| Embedded in the application | `staticFS` (`frontend/html`, `frontend/md`) | What this build ships. A row says whether the file has been extracted to disk yet, and marks an app-owned file. No edit link |
+| On this device | `StorageDir/html` | What is actually on the device, with its size, its modification date, the same app-owned mark, and an edit link where an edit makes sense |
 
 **Parameters**
 
@@ -1539,16 +1539,35 @@ the cause and the cure. No filename appears anywhere in the refusal.
 
 **Row extras**
 
-* An **edit** link appears only where an edit in place makes sense. The page
-  decides this from the resolved content type and shows the link for text
-  content (`.js`, `.json`, `.css`, `.md`, …). There is no edit link on an
-  image, a font, audio or video. There is also no edit link on an `.html`
-  file. To edit a page, open it and press the Edit button of that page.
-* An embedded row carries `on disk` or `not yet`, and `app-owned` or `yours`.
-  `app-owned` means that the file is in `versionDependentAssets`. At the next
-  change of `APP_VERSION`, `refreshEmbeddedAssets` creates a backup of your
-  copy and replaces it. The server extracts a `yours` file once and then
-  leaves it alone.
+* An **edit** link appears in the device section only, and only where an edit
+  in place makes sense. The page decides this from the resolved content type
+  and shows the link for text content (`.js`, `.json`, `.css`, `.md`, …).
+  There is no edit link on an image, a font, audio or video. There is also no
+  edit link on an `.html` file. To edit a page, open it and press the Edit
+  button of that page.
+* The embedded section carries **no** edit link at all. An edit always
+  operates on the copy on the device, and that copy has its own row. An
+  embedded file that says `not yet` is on no device row: open its own link
+  first, which extracts it, and the device row comes with the next load of
+  the index.
+* An embedded row carries `on disk` or `not yet`. A row of either section
+  carries `app-owned` when the file is in `versionDependentAssets`. At the
+  next change of `APP_VERSION`, `refreshEmbeddedAssets` creates a backup of
+  your copy and replaces it. A user-owned file carries **no** word: the
+  server extracts it once and then leaves it alone, which is the normal case.
+  The device section carries the mark too, because that section is where a
+  file is edited.
+* The facts on the right sit in one `files-tags` group. The group does not
+  break apart, and it does not go to a second line. The row thus keeps the
+  shape of a column down the list. The device row shows the date only, and
+  the full time is in a `title`.
+* **No name is shortened.** The name takes the space that is left. A name
+  that is longer than that space wraps inside its own column. The row itself
+  is `flex-wrap: nowrap` now. It used to wrap: the name held `flex: 1 1 12em`,
+  and flex breaks a line on the hypothetical size of an item and not on the
+  size it can shrink to. `12em` plus the facts was more than a phone gives.
+  The facts thus went to a second row. The name grows, thus it filled the
+  first row and left a wide empty space beside a short name.
 
 Directory totals are **recursive**. The file count and size in a directory row
 cover the whole subtree. The number therefore answers "how big is this" and not
