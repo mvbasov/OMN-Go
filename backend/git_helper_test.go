@@ -11,6 +11,7 @@ import (
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -132,7 +133,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/md/UserManual.md\n" +
 		"/md/local/\n" +
 		"/db/\n" +
-		"/html/db_backup/local-*/\n"
+		"local-*\n"
 
 	got, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
 	if err != nil {
@@ -198,6 +199,168 @@ func TestEnsureGitignoreNoRewriteWhenComplete(t *testing.T) {
 	if string(before) != string(after) {
 		t.Errorf("second ensureGitignore rewrote a complete file:\nbefore %q\nafter  %q", before, after)
 	}
+}
+
+// The general "local-*" rule replaced "/html/db_backup/local-*/". An
+// install that still has the old line must lose it, and it must get the
+// new one. The old line is not harmful, but two rules for one job drift
+// apart, and the file must stay equal to gitignorePatterns.
+func TestEnsureGitignoreDropsTheObsoleteLocalDatabaseRule(t *testing.T) {
+	a := &App{StorageDir: t.TempDir()}
+	existing := "# OMN-Go sync ignore\nconfig.json\n*.html\n/db/\n/html/db_backup/local-*/\n"
+	if err := os.WriteFile(filepath.Join(a.StorageDir, ".gitignore"), []byte(existing), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	a.ensureGitignore()
+
+	counts := gitignoreLines(t, a)
+	if counts["/html/db_backup/local-*/"] != 0 {
+		t.Errorf("the obsolete database rule is still in the file %d time(s)", counts["/html/db_backup/local-*/"])
+	}
+	if counts[gitignoreLocalOnlyPattern] != 1 {
+		t.Errorf("%q appears %d time(s), want exactly 1", gitignoreLocalOnlyPattern, counts[gitignoreLocalOnlyPattern])
+	}
+	// The two buggy negations must still go away.
+	if counts["!/html/images/"] != 0 || counts["!/html/images/icons/"] != 0 {
+		t.Error("a directory-only negation came back")
+	}
+}
+
+// The .gitignore pattern and isLocalOnlyPath are two forms of one rule:
+// the pattern decides for a new file, and the function decides for the
+// index. They must agree, and the pattern must match a name at each
+// depth. This test reads the canonical list, thus it also pins the
+// position of "local-*" at the end: go-git reads the patterns from the
+// end and stops at the first match.
+func TestGitignoreMatchesEachLocalOnlyPath(t *testing.T) {
+	patterns := make([]gitignore.Pattern, 0, len(gitignorePatterns))
+	for _, p := range gitignorePatterns {
+		patterns = append(patterns, gitignore.ParsePattern(p, nil))
+	}
+	matcher := gitignore.NewMatcher(patterns)
+
+	cases := []struct {
+		path []string
+		want bool
+		why  string
+	}{
+		{[]string{"html", "user_json", "local-data.json"}, true, "the name starts with local-"},
+		{[]string{"user_json", "local-data.json"}, true, "the same name at another depth"},
+		{[]string{"local-scratch.md"}, true, "the name at the root"},
+		{[]string{"md", "local-drafts", "Monday.md"}, true, "a directory that starts with local-"},
+		{[]string{"html", "db_backup", "local-counters", "2026_pixel.jsonl"}, true, "the database rule, as before"},
+		{[]string{"html", "images", "local-map.svg"}, true, "local- wins over the svg re-inclusion"},
+		{[]string{"md", "Welcome.md"}, false, "a normal note"},
+		{[]string{"html", "user_json", "data.json"}, false, "a normal data file"},
+		{[]string{"md", "mylocal-data.md"}, false, "local- is not at the start of the name"},
+		{[]string{"html", "images", "map.svg"}, false, "the svg re-inclusion still operates"},
+	}
+
+	for _, c := range cases {
+		full := strings.Join(c.path, "/")
+		if got := matcher.Match(c.path, false); got != c.want {
+			t.Errorf("matcher.Match(%q) = %v, want %v (%s)", full, got, c.want, c.why)
+		}
+		if got := isLocalOnlyPath(full); got != c.want {
+			t.Errorf("isLocalOnlyPath(%q) = %v, want %v (%s)", full, got, c.want, c.why)
+		}
+	}
+}
+
+// A local-only file can be in the index from a time before the rule. It
+// must leave the index at the next commit, and it must stay on the disk.
+// The preview must name it before that commit.
+func TestCommitLocalChangesUntracksALocalOnlyFile(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+	a.ensureGitignore()
+
+	const localRel = "html/user_json/local-data.json"
+	const keepRel = "md/Notes.md"
+	writeAndAdd(t, a, wt, localRel, `{"device":"pixel7"}`)
+	writeAndAdd(t, a, wt, keepRel, "# Notes\n")
+	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
+	testCommit(t, wt, "before the rule")
+
+	// The preview must announce the removal, although no content changed.
+	pending := a.localOnlyTrackedPaths(repo)
+	if len(pending) != 1 || pending[0] != localRel {
+		t.Errorf("localOnlyTrackedPaths = %v, want [%s]", pending, localRel)
+	}
+
+	committed, err := a.commitLocalChanges(repo, wt, "stop to track the local-only files")
+	if err != nil {
+		t.Fatalf("commitLocalChanges: %v", err)
+	}
+	if !committed {
+		t.Fatal("no commit was made, want the removal of the local-only file")
+	}
+
+	tree := headTree(t, repo)
+	if _, err := tree.File(localRel); err == nil {
+		t.Errorf("%s is still in the commit", localRel)
+	}
+	if _, err := tree.File(keepRel); err != nil {
+		t.Errorf("%s left the commit, but it is a normal note: %v", keepRel, err)
+	}
+
+	// The file itself must stay. "git rm --cached", not "git rm".
+	if _, err := os.Stat(filepath.Join(a.StorageDir, localRel)); err != nil {
+		t.Errorf("the local-only file left the disk: %v", err)
+	}
+
+	// A second run finds nothing more to do.
+	if left := a.localOnlyTrackedPaths(repo); len(left) != 0 {
+		t.Errorf("the index still holds %v", left)
+	}
+}
+
+// A local-only file that git never tracked must not make a commit, and a
+// force pull must keep it. cleanUntrackedFiles deletes an untracked file
+// only when no .gitignore pattern matches it.
+func TestForcePullKeepsALocalOnlyFile(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+	a.ensureGitignore()
+	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
+	writeAndAdd(t, a, wt, "md/Notes.md", "# Notes\n")
+	testCommit(t, wt, "first")
+
+	const localRel = "html/user_json/local-data.json"
+	full := filepath.Join(a.StorageDir, filepath.FromSlash(localRel))
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(`{"device":"pixel7"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	matcher, err := a.loadGitignoreMatcher(wt)
+	if err != nil {
+		t.Fatalf("loadGitignoreMatcher: %v", err)
+	}
+	a.cleanUntrackedFiles(wt, matcher)
+
+	if _, err := os.Stat(full); err != nil {
+		t.Errorf("force pull deleted the local-only file: %v", err)
+	}
+
+	committed, err := a.commitLocalChanges(repo, wt, "nothing to say")
+	if err != nil {
+		t.Fatalf("commitLocalChanges: %v", err)
+	}
+	if committed {
+		t.Error("a commit was made, but the only new file is local-only")
+	}
+}
+
+// mustRead reads a file or fails the test.
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return data
 }
 
 // buildFlatTree stores each name->content as a blob and assembles a single

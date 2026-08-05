@@ -1177,6 +1177,32 @@ curl -X POST http://127.0.0.1:8080/api/sync \
      -d 'action=push' -d 'message=notes from phone'
 ```
 
+**The local-only name rule.** A path stays on one device when a name in
+it starts with `local-`. This is the name of the file, or the name of a
+directory above it. The `.gitignore` pattern is the single line
+`local-*`, and it is the last line of the file. go-git reads the patterns from the end and stops at the
+first match, thus a local-only name wins over a `!` negation, for example
+`html/images/local-map.svg`.
+
+The rule started as `/html/db_backup/local-*/`, which kept the backups of
+a `local-` database out of git. `ensureGitignore` deletes that older line
+from an existing install and writes the general one.
+
+A `.gitignore` pattern does not remove a file from the git index. A file
+that git tracked before it got the name would thus keep its old behavior.
+A commit takes no new content, and a force pull writes the copy of the
+repository over the local file. `commitLocalChanges` thus reads
+the index before it reads the status, and it removes each local-only path
+from the index. The result is one commit that says "stop to track this".
+The file stays on the device. A pull on another device deletes the copy
+there, which is the meaning of the name.
+
+Only the local-only rule removes a path from the index. The other
+patterns do not. A file such as `md/UserManual.md`, or a compiled
+`*.html` page, can be in the index of an old repository. A removal of
+each of those at one time would delete many files on the other
+devices.
+
 #### `GET /api/sync/preview`
 
 Dry run of an upload. It reports what there is to commit, **and** whether
@@ -1194,6 +1220,12 @@ The endpoint takes the files from `git status`. It removes anything that
 device. Database backups need no special handling. They are ordinary files
 under `html/db_backup/`, and the same scan finds them.
 
+The endpoint then reads the git index and adds each local-only path that
+git still tracks, with the note ` (local-only: git stops to track it)`
+after the path. `git status` reports no such file when its content did
+not change, but the next commit removes it. See **The local-only name
+rule** below.
+
 **Response** `200`
 
 ```json
@@ -1202,7 +1234,7 @@ under `html/db_backup/`, and the same scan finds them.
 
 | Field | Meaning |
 | --- | --- |
-| `files` | Storage-relative paths that would be committed. Always an array, never `null` |
+| `files` | Storage-relative paths that would be committed. Always an array, never `null`. A local-only path that git still tracks carries the note ` (local-only: git stops to track it)` after the path |
 | `unpushed` | Local HEAD is, or may be, ahead of the active remote — see below |
 | `remote` | The active remote the answer is about |
 | `verified` | The remote itself was contacted, not just the local remote-tracking ref. Only the local-view-says-level path goes to the network, so this is absent whenever the local refs alone settled the answer |

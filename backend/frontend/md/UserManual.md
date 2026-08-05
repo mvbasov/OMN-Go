@@ -673,6 +673,36 @@ A forced pull behaves like Force Pull above. A forced push overwrites the
 history on the remote. The checkbox always asks for confirmation. It
 disables itself after one use. Use it only in an emergency.
 
+### Files that stay on this device
+
+Give a file or a directory a name that starts with `local-`. OMN-Go then
+keeps it out of git. The file stays on this device, and it does not go to
+the other devices.
+
+| Name | Result |
+| --- | --- |
+| `html/user_json/local-data.json` | The data file stays here |
+| `md/local-drafts/Monday.md` | Each note in the directory stays here |
+| a database with the name `local-notes` | Each backup of it stays here |
+
+The rule looks at the name of the file and at the name of each directory
+above it. The name must **start** with `local-`, and the capitals count.
+A file with the name `mylocal-data.json` is thus a normal file that goes
+to the other devices.
+
+A file with such a name is also safe from **Force Pull**. That command
+deletes a local file that git does not track, but it keeps a file that
+`.gitignore` matches.
+
+If you give the `local-` name to a file that the other devices already
+have, the next upload removes that file from git. The file stays on this
+device. The next download deletes the copy on each other device. The
+upload dialog shows the name of such a file before you write the commit
+message.
+
+The older rule `/md/local/` stays. Each note in that one directory also
+stays on this device.
+
 ## Database backups
 
 A note script can store data in a real SQL database. See the

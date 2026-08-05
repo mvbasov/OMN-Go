@@ -134,6 +134,12 @@ func (fi *stableFileInfo) ModTime() time.Time {
 // here: with go-git's matcher a directory-only negation re-includes every
 // file under the directory, silently undoing "/html/images/*". ensureGitignore
 // actively strips those buggy lines from any file that still has them.
+//
+// gitignoreLocalOnlyPattern is the last entry, and the position is part
+// of the rule. go-git's matcher reads the patterns from the end and
+// stops at the first match, thus the last pattern wins. A file with a
+// local-only name thus stays out of git below a "!" negation, for
+// example html/images/local-map.svg.
 var gitignorePatterns = []string{
 	"config.json",
 	"assets_version",
@@ -167,7 +173,71 @@ var gitignorePatterns = []string{
 	"/md/UserManual.md",
 	"/md/local/",
 	"/db/",
-	"/html/db_backup/local-*/",
+	gitignoreLocalOnlyPattern,
+}
+
+// ---------------------------------------------------------------
+// The local-only name rule
+// ---------------------------------------------------------------
+//
+// A name that starts with "local-" makes a file, or a whole directory,
+// stay on this device. The database backups had this rule first: a
+// database with a name such as local-page_counters kept its backups out
+// of git through the pattern "/html/db_backup/local-*/". The rule is now
+// general and applies to each path.
+//
+// Examples of a path that git ignores:
+//
+//	html/user_json/local-data.json     a name that starts with local-
+//	md/local-drafts/Monday.md          a directory that starts with local-
+//	html/db_backup/local-counters/...  the database rule, as before
+//
+// The match is on a complete path segment and it is case-sensitive, the
+// same as each other pattern in a .gitignore file. "mylocal-data.json"
+// is thus a normal file that git tracks.
+//
+// The rule gives two results:
+//
+//   - The file does not go to the other devices. A commit does not
+//     contain it, and a push does not send it.
+//   - A force pull keeps the file. cleanUntrackedFiles deletes an
+//     untracked file, but not one that .gitignore matches.
+const localOnlyPrefix = "local-"
+
+// gitignoreLocalOnlyPattern is the .gitignore form of the same rule. The
+// pattern has no "/", thus go-git compares it with each segment of a
+// path, at each depth.
+const gitignoreLocalOnlyPattern = localOnlyPrefix + "*"
+
+// isLocalOnlyPath tells if a StorageDir-relative path is local-only: the
+// name of the file, or the name of a directory above it, starts with
+// "local-".
+//
+// The function is the rule for the index (see untrackLocalOnlyPaths).
+// The .gitignore pattern is the rule for a new file. The two must agree,
+// and a test compares them.
+func isLocalOnlyPath(name string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(name), "/") {
+		if strings.HasPrefix(segment, localOnlyPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// obsoleteGitignoreLines are the lines that ensureGitignore deletes from
+// an existing file. The "append what is missing" loop cannot do this,
+// because the lines are present.
+var obsoleteGitignoreLines = map[string]bool{
+	// A directory-only negation re-includes each file below the
+	// directory with the go-git matcher. It thus undoes
+	// "/html/images/*". The long note in ensureGitignore gives the
+	// details.
+	"!/html/images/":       true,
+	"!/html/images/icons/": true,
+	// The general "local-*" rule replaced this line. The result for a
+	// database backup is the same, and each other file now gets it too.
+	"/html/db_backup/local-*/": true,
 }
 
 func (a *App) ensureGitignore() {
@@ -201,25 +271,27 @@ func (a *App) ensureGitignore() {
 		return
 	}
 
-	// Strip the two buggy directory re-inclusion lines from any
-	// .gitignore that already has them (fresh installs that got the
-	// buggy gitignoreBase, or existing ones patched by a previous
-	// version of the backfill loop below). These can't be handled by
-	// the "append what's missing" loop below - they're already PRESENT,
-	// just actively harmful - so they need to be filtered out and the
-	// file rewritten instead of appended to.
+	// Delete each obsolete line from a .gitignore that still has it.
+	// Three kinds of install have such a line. One got the buggy
+	// gitignoreBase. One got a file that a previous version of the
+	// backfill loop wrote. One carries the old database-only rule for
+	// the local-* names. The "append what is missing" loop below cannot do
+	// this, because the lines are present. They are filtered out and the
+	// file is written again. See obsoleteGitignoreLines for the reason of
+	// each line.
 	rewritten := false
-	if bytes.Contains(content, []byte("!/html/images/\n")) || bytes.Contains(content, []byte("!/html/images/icons/\n")) {
+	{
 		var kept []string
 		for _, line := range strings.Split(string(content), "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "!/html/images/" || trimmed == "!/html/images/icons/" {
+			if obsoleteGitignoreLines[strings.TrimSpace(line)] {
+				rewritten = true
 				continue
 			}
 			kept = append(kept, line)
 		}
-		content = []byte(strings.Join(kept, "\n"))
-		rewritten = true
+		if rewritten {
+			content = []byte(strings.Join(kept, "\n"))
+		}
 	}
 
 	// The file already exists (every install predating a given entry):
@@ -563,6 +635,75 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 // Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
+// untrackLocalOnlyPaths removes each local-only path from the index and
+// returns the number of the paths that it removed. The files stay on the
+// disk: only the index entry goes away, the same as "git rm --cached".
+// The next commit thus records a deletion, and a pull deletes the copy on
+// the other device. This is the correct result, because the name says
+// "this device only".
+//
+// The function reads the index directly, as manualStageFile does.
+// go-git's Worktree.Remove deletes the file from the disk too, thus it is
+// not usable here.
+//
+// Only the local-only rule causes a removal. The other patterns in the
+// .gitignore list must not. A file such as md/UserManual.md, or a
+// compiled *.html page, can be in the index of an old repository. A
+// removal of each of those at one time would delete many files on the
+// other devices.
+func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		log.Printf("[sync] cannot read the index to find local-only files: %v", err)
+		return 0
+	}
+
+	kept := make([]*index.Entry, 0, len(idx.Entries))
+	removed := 0
+	for _, entry := range idx.Entries {
+		if isLocalOnlyPath(entry.Name) {
+			log.Printf("[sync] %s is local-only: git stops to track it, the file stays on this device", entry.Name)
+			removed++
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	if removed == 0 {
+		return 0
+	}
+
+	idx.Entries = kept
+	if err := repo.Storer.SetIndex(idx); err != nil {
+		log.Printf("[sync] cannot write the index after the removal of %d local-only file(s): %v", removed, err)
+		return 0
+	}
+	return removed
+}
+
+// localOnlyPreviewNote goes after a path in the upload preview. The file
+// is in the list, but the commit deletes it from the repository. It does
+// not delete it from this device.
+const localOnlyPreviewNote = " (local-only: git stops to track it)"
+
+// localOnlyTrackedPaths reads the index and returns each local-only path
+// that git still tracks, in sorted order. It changes nothing. The upload
+// preview uses it to show what untrackLocalOnlyPaths does at the commit.
+func (a *App) localOnlyTrackedPaths(repo *git.Repository) []string {
+	idx, err := repo.Storer.Index()
+	if err != nil {
+		log.Printf("[sync] cannot read the index to find local-only files: %v", err)
+		return nil
+	}
+	var out []string
+	for _, entry := range idx.Entries {
+		if isLocalOnlyPath(entry.Name) {
+			out = append(out, entry.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, message string) (bool, error) {
 	// Load gitignore matcher
 	matcher, err := a.loadGitignoreMatcher(wTree)
@@ -571,18 +712,28 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 		matcher = gitignore.NewMatcher(nil) // no ignore
 	}
 
+	// A local-only file can be in the index from a time before the rule,
+	// or from before the user gave the file that name. A .gitignore
+	// pattern does not remove a file from the index, thus the file keeps
+	// its old behavior: a commit does not take the new content, and a
+	// force pull writes the old content of the repository over the local
+	// file. The removal below is the one-time answer, and it must run
+	// before the status test: an unchanged tracked file makes no entry in
+	// the status.
+	unstaged := a.untrackLocalOnlyPaths(repo)
+
 	log.Printf("[sync] Checking worktree status")
 	status, err := wTree.Status()
 	if err != nil {
 		return false, fmt.Errorf("status check error: %v", err)
 	}
 	_, mergePending := a.loadMergeParent()
-	if status.IsClean() && !mergePending {
+	if status.IsClean() && !mergePending && unstaged == 0 {
 		log.Printf("[sync] Nothing to commit")
 		return false, nil
 	}
 
-	hasRealChanges := false
+	hasRealChanges := unstaged > 0
 	for name, fileStat := range status {
 
 		// Skip ignored files
@@ -1845,6 +1996,15 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
 			files = append(files, name)
 		}
+	}
+
+	// A local-only path that git still tracks leaves the repository at
+	// the next commit (see untrackLocalOnlyPaths). The status finds no
+	// such file if the content did not change, thus the index gets its
+	// own read here. The preview must show each change that the commit
+	// makes, and this one deletes a file on the other devices.
+	for _, name := range a.localOnlyTrackedPaths(repo) {
+		files = append(files, name+localOnlyPreviewNote)
 	}
 
 	// No database dry-run here anymore: backups are ordinary files under

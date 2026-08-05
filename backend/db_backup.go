@@ -51,8 +51,9 @@ import (
 // Layout: <StorageDir>/html/db_backup/<db>/<UTCtimestamp>_<hostname>.jsonl
 // Living under html/ means backups are served (download links work in
 // any real browser) and staged for git like every other tracked file;
-// databases named local-* are kept out of git by a single .gitignore
-// glob (see ensureGitignore in git_helper.go).
+// databases named local-* are kept out of git by the general local-only
+// name rule. That rule started here and now applies to each path, not
+// only to a database backup (see localOnlyPrefix in git_helper.go).
 //
 // File format (version 2), one JSON object per line:
 //

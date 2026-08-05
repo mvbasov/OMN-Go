@@ -308,11 +308,14 @@ next section describes.
 Give a database a name that starts with **`local-`**, for example
 `local-scratchpad`. OMN-Go writes the backups of this database to disk in
 the normal way, so you still have a copy of the data. OMN-Go excludes
-these backups from git, the same way it excludes `/md/local/` pages. Use a
-`local-` database for the data of one device, such as drafts and
-device-specific caches. This data does not travel to other devices. When
-OMN-Go prunes a `local-` backup, that backup is gone for good, because git
-history holds nothing behind it.
+these backups from git. Use a `local-` database for the data of one
+device, such as drafts and device-specific caches. This data does not
+travel to other devices. When OMN-Go prunes a `local-` backup, that backup
+is gone for good, because git history holds nothing behind it.
+
+The `local-` name works the same way for each file and each directory,
+not only for a database. The [User Manual](UserManual) describes the
+general rule under *Git synchronization*.
 
 ### Naming your devices
 
