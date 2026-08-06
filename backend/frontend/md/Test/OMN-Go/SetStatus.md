@@ -1,26 +1,31 @@
-Title: Test/OMN-Go/SetStatus
+Title: Set status
 Date: 2026-06-24 14:37:29
 Category: Test
-Tags: Test, OMN-Go, OMN-Go user
-Modified: 2026-07-09 22:01:54
+Tags: JavaScript, CSS, Test, OMN-Go, OMN-Go user
 
 **see the status at the bottom of the page**
 
 <style>
-  .small-circle {
-    width: 1rem;
-    height: 1rem;
-    background-color: #3498db;
-    border-radius: 50%;
-  }
+.setstatus-dot {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background-color: var(--info);
+  border-radius: 50%;
+}
 </style>
 
 <script type="module">
-  let s = document.querySelector('#status');
-  let d = document.createElement('span');
-  d.textContent = '@';
-  d.classList.add('small-circle');
-  s.insertBefore(d, s.firstChild);
+{
+  const s = document.querySelector('#status');
+  // Idempotent: the script re-runs on every view of the cached page, so
+  // without this check a second view would stack up a second dot.
+  if (s && !s.querySelector('.setstatus-dot')) {
+    const d = document.createElement('span');
+    d.classList.add('setstatus-dot');
+    s.insertBefore(d, s.firstChild);
+  }
+}
 </script>
 
 - - -

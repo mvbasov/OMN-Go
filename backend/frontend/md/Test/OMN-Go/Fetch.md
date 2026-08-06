@@ -1,26 +1,32 @@
-Title: Test/OMNGo/Fetch
+Title: Fetch
 Date: 2026-06-23 00:29:26
 Category: Test
-Modified: 2026-07-09 21:59:56
-Tags: Test, OMN-Go, OMN-Go user
+Tags: JavaScript, JSON, Test, OMN-Go, OMN-Go user
 
 ### `fetch()` test
 See console
 <div id="fetchStatus">Waiting data ...</div>
+
 <script type="module">
-// Using async/await
-async function loadJSON() {
-    try {
-        const response = await fetch('/json/test.json'); // Relative path to your JSON file
-        if (!response.ok) throw new Error('Network response was not ok');
-        const data = await response.json();
-        console.log(data);
-        document.querySelector('#fetchStatus').innerHTML=`test: <strong>${data.test}</strong>`;
-    } catch (error) {
-        console.error('Fetch error:', error);
+{
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+    // Using async/await
+    async function loadJSON() {
+        try {
+            const response = await fetch('/json/test.json'); // Relative path to your JSON file
+            if (!response.ok) throw new Error('Network response was not ok');
+            const data = await response.json();
+            console.log(data);
+            document.querySelector('#fetchStatus').innerHTML = `test: <strong>${esc(data.test)}</strong>`;
+        } catch (error) {
+            document.querySelector('#fetchStatus').innerHTML = 'Could not load /json/test.json — see console.';
+            console.error('Fetch error:', error);
+        }
     }
+    loadJSON();
 }
-loadJSON();;
 </script>
 
 - - -

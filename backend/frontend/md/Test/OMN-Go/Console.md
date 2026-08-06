@@ -1,8 +1,7 @@
 Title: Console
 Date: 2026-06-23 00:21:00
-Modified: 2026-07-05 08:12:53
 Category: Test
-Tags: Test, OMN-Go, OMN-Go user
+Tags: JavaScript, Test, OMN-Go, OMN-Go user
 
 ### See console messages
 <script type="module">
@@ -24,7 +23,7 @@ console.warn('Not real but test warning');
 console.info('Info message');
 console.debug('Debug message');
 console.log('--- Object as tree:');
-console.dir(users); //Hard to implement pn mobile
+console.dir(users); // Hard to implement on mobile
 // For trace test
 function app() {
   function doSomething() {
@@ -39,8 +38,8 @@ function app() {
   doSomething();
 }
 app();
-console.log('--- Tie from console.time():');
-consoole.timeEnd('Label');
+console.log('--- Time from console.time():');
+consoole.timeEnd('Label'); // intentional typo - demonstrates an uncaught ReferenceError in the console panel
 </script>
 
 
