@@ -1170,6 +1170,37 @@ document.addEventListener("DOMContentLoaded", () => {
         }, DELAY_MS);
     }, true);
 
+    // The results page's own form is a navigation too, and the wait behind it
+    // is the largest one this guard covers: submitting the query reads every
+    // note the index holds and renders the answer server-side. The click
+    // handler above cannot see it, because a submit is not an <a>.
+    //
+    // NO debounce here, unlike the search dialog. A submit IS the "go" that
+    // the dialog has to wait for a typist to mean. The DELAY_MS below is not
+    // a delay before searching - the request is already on its way while it
+    // runs - it is the same anti-flash arming the click handler uses, so a
+    // fast answer arrives without an overlay having appeared at all.
+    //
+    // Matched by class rather than by "any GET form". A note may contain a
+    // form of its own (raw HTML is allowed, see ScriptRules), and the word
+    // "Searching" would be a lie over someone else's. This is the one form
+    // the app ships that navigates; search_page.html and the .search-page-*
+    // rules in omn-go-core.css already name it the same way.
+    //
+    // Bubble phase, not capture, so a handler that cancels the submit has
+    // already run and set defaultPrevented.
+    document.addEventListener('submit', function(ev) {
+        if (ev.defaultPrevented) return;
+        const form = ev.target;
+        if (!form || !form.classList || !form.classList.contains('search-page-form')) return;
+
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+            window.OMNProgress.show('Searching');
+            window.OMNProgress.stage('Reading your notes…');
+        }, DELAY_MS);
+    });
+
     // Same-document hash navigation (Config sub-screens) must never leave a
     // pending timer armed behind it.
     window.addEventListener('hashchange', () => clearTimeout(timer));

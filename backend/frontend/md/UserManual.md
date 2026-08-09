@@ -545,6 +545,33 @@ search you use:
   setting. A *Search* link on one of your own notes thus works in both
   cases.
 
+### When the search starts
+
+The panel does not search at each key that you press. It waits two seconds
+after the last character, then it searches. A search of all notes reads
+every note that the index holds, and a search for each key of a word would
+do that work five or six times and show you only the last answer.
+
+A bar under the input field shows the wait. It fills from the left, and the
+search starts when it is full. Each character that you type puts it back to
+the start. To search immediately, press **Enter**: the search starts, and
+the bar does not wait.
+
+The bar tells you two different things:
+
+- **The bar fills** — the wait after your last character. You know how much
+  time is left, and you can see the wait start again when you type.
+- **A short bar moves from side to side** — the search itself. How long it
+  continues depends on the quantity of notes, so the bar makes no promise
+  about the time. The panel also shows *Searching…* below.
+
+The bar goes away when the results come. It also comes when you press **All
+notes**, because that search starts immediately and can be the slowest one.
+
+The [search page](OMNGoSearch) has no wait: the button is your signal that
+the query is complete. That page shows the progress indicator of the
+application while the server makes the results.
+
 ### What it matches
 
 Your query does not have to be exact. OMN-Go tries each term of the query

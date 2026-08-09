@@ -913,14 +913,29 @@ if (window.location.protocol !== 'file:') {
     // omn-go-core.js, and it matters more here because the text being rendered
     // is the user's own notes.
     (function () {
-        var DEBOUNCE_MS = 150;   // long enough to skip intermediate keystrokes
+        // DEBOUNCE_MS waits for the typist to STOP, not merely to pause. A
+        // global query reads every note that the index holds, so a search per
+        // keystroke is the most expensive thing this dialog can do, and on a
+        // phone the gap between two words is longer than any "skip the
+        // intermediate keystrokes" value.
+        //
+        // Two seconds is long enough to be read as nothing happening, so the
+        // wait is SHOWN rather than merely served: the progress bar fills over
+        // exactly this interval and the search starts when it is full (see
+        // showProgress). The number and the animation are the same constant,
+        // so they cannot disagree.
+        var DEBOUNCE_MS = 2000;
         var MIN_QUERY = 2;       // 1 rune matches nearly everything
         var MAX_SNIPPETS = 10;   // the API's own cap
 
         var overlay = null, input = null, list = null, statusEl = null, scopeEl = null;
+        var progressEl = null, progressFillEl = null;
         var seeAllEl = null;   // lives in the scope row - see renderScope
         var rows = [];
         var active = -1;
+        // timer is the debounce handle AND the answer to "is a search
+        // pending": non-null means one is counting down. cancelPending is the
+        // only place it is cleared, so the two can never disagree.
         var timer = null;
         var inflight = null;
         var lastTerms = [];
@@ -969,6 +984,14 @@ if (window.location.protocol !== 'file:') {
                       '<i class="material-icons icon-sm">close</i>' +
                     '</button>' +
                   '</div>' +
+                  // The wait, on the line under the field that causes it. It
+                  // reuses the shared .omn-progress-track / -fill look from
+                  // omn-go-core.css, so a wait is the same object here as in
+                  // the sync overlay; only the placement is local.
+                  '<div class="omn-search-progress omn-progress-track" ' +
+                       'role="progressbar" aria-label="Search progress" hidden>' +
+                    '<div class="omn-progress-fill"></div>' +
+                  '</div>' +
                   '<div class="omn-search-scope"></div>' +
                   '<ul class="omn-search-results"></ul>' +
                   '<div class="omn-search-status"></div>' +
@@ -979,6 +1002,8 @@ if (window.location.protocol !== 'file:') {
             list = overlay.querySelector('.omn-search-results');
             statusEl = overlay.querySelector('.omn-search-status');
             scopeEl = overlay.querySelector('.omn-search-scope');
+            progressEl = overlay.querySelector('.omn-search-progress');
+            progressFillEl = progressEl.querySelector('.omn-progress-fill');
 
             overlay.querySelector('.omn-search-close').addEventListener('click', close);
             // A click on the backdrop closes; a click inside the card must not.
@@ -1071,15 +1096,34 @@ if (window.location.protocol !== 'file:') {
             var q = input.value.trim();
             if (!q) return;
             close();
+            // The results page searches every note and renders the answer
+            // server-side, so this wait is in the NAVIGATION, after this
+            // document is gone. The slow-navigation guard in omn-go-core.js
+            // does not cover it: that one watches <a> clicks and this is an
+            // assignment to location.
+            //
+            // Armed, not shown - the same 300 ms the guard uses, and for the
+            // same reason: a fast answer must not flash an overlay on the way
+            // past. The timer dies with the document if the page arrives
+            // first, so there is nothing to take down.
+            if (window.OMNProgress) {
+                setTimeout(function () {
+                    window.OMNProgress.show('Searching');
+                    window.OMNProgress.stage('Reading all notes…');
+                    window.OMNProgress.detail(q);
+                }, 300);
+            }
             window.location.href = '/OMNGoSearch.html?q=' + encodeURIComponent(q);
         }
 
+        // Switching to "All notes" is the slowest thing the dialog does and
+        // the one that most needs to say so: run() raises the bar before the
+        // request leaves.
         function setScope(next) {
             if (scope === next && scopeShown === next) return;
             scope = next;
             scopeShown = next;
             renderScope();
-            clearTimeout(timer);
             run();
         }
 
@@ -1142,7 +1186,8 @@ if (window.location.protocol !== 'file:') {
         }
 
         function close() {
-            clearTimeout(timer);
+            cancelPending();
+            showProgress(null);
             if (inflight) {
                 inflight.abort();
                 inflight = null;
@@ -1154,12 +1199,83 @@ if (window.location.protocol !== 'file:') {
             return !!overlay && !overlay.hidden;
         }
 
+        // showProgress drives the one bar in the dialog. There are two waits
+        // and they are not the same kind, so they do not look the same:
+        //
+        //   'countdown' - the debounce. Its length is KNOWN, so the bar fills
+        //                 from nothing to full over exactly DEBOUNCE_MS and
+        //                 the search starts when it arrives. The user can see
+        //                 how long is left, and can see it restart when they
+        //                 type again.
+        //   'running'   - the request. Its length is NOT known: it depends on
+        //                 how many notes the index holds. An indeterminate
+        //                 sweep says "working" and promises no time.
+        //   null        - nothing is happening. The bar is not left on screen
+        //                 empty, which would read as a wait of zero progress.
+        function showProgress(mode) {
+            if (!progressEl) return;
+            if (!mode) {
+                progressEl.hidden = true;
+                progressEl.classList.remove('indeterminate');
+                progressFillEl.style.transition = '';
+                progressFillEl.style.width = '';
+                return;
+            }
+            progressEl.hidden = false;
+            if (mode === 'running') {
+                // The inline width and transition of a countdown must go, or
+                // they would beat the .indeterminate rule's own width and
+                // fight its animation.
+                progressFillEl.style.transition = '';
+                progressFillEl.style.width = '';
+                progressEl.classList.add('indeterminate');
+                return;
+            }
+            progressEl.classList.remove('indeterminate');
+            progressFillEl.style.transition = 'none';
+            progressFillEl.style.width = '0%';
+            // Force the 0% to be applied before the transition is armed.
+            // Without this read the browser coalesces the two writes and the
+            // bar jumps straight to full.
+            void progressFillEl.offsetWidth;
+            progressFillEl.style.transition = 'width ' + DEBOUNCE_MS + 'ms linear';
+            progressFillEl.style.width = '100%';
+        }
+
+        // cancelPending is the ONLY place timer is cleared, so "timer is not
+        // null" always means "a search is counting down".
+        function cancelPending() {
+            clearTimeout(timer);
+            timer = null;
+        }
+
         function schedule() {
             // Updated here rather than in run(), so the control appears as soon
             // as the query is long enough instead of one debounce later.
             updateSeeAll();
-            clearTimeout(timer);
-            timer = setTimeout(run, DEBOUNCE_MS);
+            cancelPending();
+
+            // Too short to search: say so NOW rather than two seconds from
+            // now. There is nothing to count down to, and a bar that filled
+            // and then produced the words "type at least 2 characters" would
+            // have been counting down to nothing.
+            if (input.value.trim().length < MIN_QUERY) {
+                showProgress(null);
+                run();
+                return;
+            }
+
+            showProgress('countdown');
+            // Say what the bar is counting down to. Whatever the line held is
+            // now wrong: either the "type at least 2 characters" hint that the
+            // query has just outgrown, or the summary of the PREVIOUS query -
+            // whose "↵ to highlight" no longer holds either, because Enter now
+            // starts this search instead (see onInputKey).
+            setStatus('Search starts when the bar is full');
+            timer = setTimeout(function () {
+                timer = null;
+                run();
+            }, DEBOUNCE_MS);
         }
 
         function setStatus(text) {
@@ -1173,12 +1289,23 @@ if (window.location.protocol !== 'file:') {
         }
 
         function run() {
+            // A run always supersedes a pending one, whoever asked for it -
+            // the debounce firing, Enter, the scope chips, or open().
+            cancelPending();
+
             var q = input.value.trim();
             if (q.length < MIN_QUERY) {
+                showProgress(null);
                 clearRows();
                 setStatus(q ? 'Type at least ' + MIN_QUERY + ' characters' : '');
                 return;
             }
+
+            // From here a request is going out, and how long it takes is the
+            // server's business - an index of every note answers slower than
+            // one page. This is the wait that "All notes" makes visible.
+            showProgress('running');
+            setStatus('Searching…');
 
             // Cancel the previous request rather than racing it: on a fast
             // typist the older answer can otherwise arrive last and overwrite
@@ -1200,6 +1327,9 @@ if (window.location.protocol !== 'file:') {
                 .then(function (data) {
                     if (ctrl && inflight !== ctrl) return; // superseded
                     inflight = null;
+                    // After the superseded check, never before it: a newer
+                    // request is still running and its bar has to stay up.
+                    showProgress(null);
                     if (data && data.status && data.status !== 'ok' && data.error) {
                         // The server refused this scope (global search off, or
                         // its index not ready). Say why and drop back to the
@@ -1217,9 +1347,12 @@ if (window.location.protocol !== 'file:') {
                     render(q, data);
                 })
                 .catch(function (err) {
+                    // An abort is this dialog's own doing (a newer query, or
+                    // close) and the newer owner is showing its own bar.
                     if (err && err.name === 'AbortError') return;
                     if (ctrl && inflight !== ctrl) return;
                     inflight = null;
+                    showProgress(null);
                     clearRows();
                     setStatus('Search failed');
                     console.error('search: ' + err);
@@ -1507,7 +1640,16 @@ if (window.location.protocol !== 'file:') {
                 break;
             case 'Enter':
                 e.preventDefault();
-                clearTimeout(timer);
+                // A search that is still counting down is the one the user
+                // just asked for, and Enter means "now". Without this branch
+                // Enter would open a row belonging to the PREVIOUS query -
+                // rows the new text has already made wrong. At 150 ms that
+                // was hard to hit; at two seconds it is the normal way to
+                // use the dialog.
+                if (timer) {
+                    run();
+                    break;
+                }
                 if (rows.length) {
                     var row = rows[active < 0 ? 0 : active];
                     if (row && row._omnChoose) row._omnChoose();

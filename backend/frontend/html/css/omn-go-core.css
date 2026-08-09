@@ -721,6 +721,20 @@ a.taglink {
     color: var(--text-faint);
     flex: 0 0 auto;
 }
+/* The search dialog's own wait. It carries .omn-progress-track and
+   .omn-progress-fill (section 6) as well, so a wait looks the same here as
+   in the sync overlay - the indeterminate sweep and its reduced-motion
+   fallback come with them. Only the placement is local: a hairline directly
+   under the field that causes it, square and full width, so it reads as the
+   edge of the input filling up. */
+.omn-search-progress {
+    flex: 0 0 auto;
+    height: 3px;
+    border-radius: 0;
+}
+.omn-search-progress[hidden] {
+    display: none;               /* the card is a flex column - be explicit */
+}
 .omn-search-input {
     flex: 1 1 auto;
     min-width: 0;
