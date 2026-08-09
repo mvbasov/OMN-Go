@@ -44,6 +44,19 @@ const (
 	// same directory: md/incoming/incoming.md.
 	incomingIndexBase = "incoming"
 
+	// incomingListMarker is where a new line goes: directly after it.
+	//
+	// The starter note carries the receive box above this marker, and the
+	// box must stay at the top where it can be reached - a control that
+	// sank one line further down the page with every note that arrived
+	// would be at the bottom of a long list by the time it was needed.
+	// Everything below the marker is the list, newest first.
+	//
+	// A note with no marker (a user who rewrote the page) takes its lines
+	// at the top of the body instead, which is what 26.08.34 did for
+	// every note.
+	incomingListMarker = "<!-- omn-go-incoming-list -->"
+
 	headerKeyFileName = "FileName"
 	headerKeyImported = "Imported"
 
@@ -380,29 +393,29 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	} else {
-		// First arrival on this device. The index is created here rather than
-		// shipped with the application: a bundled note is extracted flat into
-		// md/, so md/incoming/incoming.md cannot come from the embedded tree
-		// (see initStorage). It is user-owned from this moment - nothing
-		// rewrites it on a version change.
-		//
-		// A header block and nothing else. A line of introduction under it
-		// would be pushed further down the page by every note that arrived,
-		// because each new line goes in ABOVE the body - so the sentence
-		// explaining the list would end up beneath the list.
-		content = "Title: Incoming notes\nDate: " + now.Format("2006-01-02 15:04:05") +
-			"\nCategory: Notes\n"
+		content = incomingIndexStarter(now)
 	}
 
 	line := "* " + now.Format("2006-01-02 15:04") + " · [" + res.Base + "](" + res.Rel + ")"
 
-	header, _, body := splitHeaderRegion(content)
+	header, sep, body := splitHeaderRegion(content)
 	if header == "" {
 		return os.WriteFile(indexPath, []byte(line+"\n\n"+content), 0644)
 	}
 
-	// A BLANK line between the header block and the line, always - the
-	// separator that was there is not reused.
+	// Below the marker, when the note has one: the receive box sits above it
+	// and has to stay reachable.
+	if at := strings.Index(body, incomingListMarker); at >= 0 {
+		at += len(incomingListMarker)
+		if at < len(body) && body[at] == '\n' {
+			at++
+		}
+		return os.WriteFile(indexPath,
+			[]byte(header+sep+body[:at]+line+"\n"+body[at:]), 0644)
+	}
+
+	// No marker: the line becomes the FIRST body line, and then a blank line
+	// between it and the header block is not decoration.
 	//
 	// "* 2026-08-09 12:34 · [x](y)" holds a colon and does not begin with a
 	// space, '#' or '<', so isHeaderFirstLine reads it as another
@@ -414,6 +427,42 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 		return os.WriteFile(indexPath, []byte(header+"\n\n"+line+"\n"), 0644)
 	}
 	return os.WriteFile(indexPath, []byte(header+"\n\n"+line+"\n"+body), 0644)
+}
+
+// incomingIndexStarter is the incoming index as first written.
+//
+// It is a TEMPLATE and not a string in this file, because it is markup and a
+// note script - the receive box the desktop application imports through - and
+// that belongs in frontend/templates/ with the other page fragments.
+//
+// It cannot ship in frontend/md/ with the other starter notes: initStorage
+// extracts those FLAT into md/, so a file there would land at md/incoming.md
+// and never at md/incoming/incoming.md.
+//
+// Written once, when the note is absent. From that moment it is the user's:
+// nothing rewrites it on a version change, and a user who deletes the receive
+// box keeps a working list.
+func incomingIndexStarter(now time.Time) string {
+	return normalizeNewlines(fill(incomingIndexTmpl, map[string]string{
+		"DATE": now.Format("2006-01-02 15:04:05"),
+	}))
+}
+
+// ensureIncomingIndex writes the incoming index when it is absent.
+//
+// Called at startup as well as by an import, because on the desktop the
+// receive box IS the way a first note arrives - the page has to exist before
+// there is anything to list on it.
+func (a *App) ensureIncomingIndex(now time.Time) error {
+	dir := filepath.Join(a.StorageDir, "md", incomingDirName)
+	indexPath := filepath.Join(dir, incomingIndexBase+".md")
+	if fileExists(indexPath) {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(indexPath, []byte(incomingIndexStarter(now)), 0644)
 }
 
 // ----------------------------------------------------------------------

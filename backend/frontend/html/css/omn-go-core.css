@@ -524,6 +524,112 @@ a.taglink {
     border-radius: 4px;
     font-size: 13px;
 }
+/* The "File:" line, and the controls that send this note (see the metadata
+   panel builder in omn-go-core.js). The colour and the rule under it were
+   inline "#0056b3" and "#ccc" until 26.08.37 - unthemed, so the line was
+   nearly invisible on the dark theme. */
+.metadata-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    font-weight: bold;
+}
+.metadata-file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.metadata-send-status {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-weight: normal;
+    font-size: 12px;
+}
+.metadata-send {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: var(--text);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.metadata-send:hover {
+    background: var(--bg-hover);
+}
+.metadata-row {
+    margin-bottom: 4px;
+}
+
+/* -- The receive box on the incoming index (templates/incoming_index.md).
+   The note is user-owned markdown, so these rules are here rather than in
+   the note: a user who edits the note keeps the styling, and a user who
+   deletes the box takes nothing else with it. -- */
+.omn-incoming {
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 14px;
+    background: var(--bg-inset);
+}
+.omn-incoming.is-over {
+    border-style: solid;
+    border-color: var(--accent);
+    background: var(--bg-hover);
+}
+.omn-incoming-head {
+    font-weight: bold;
+    color: var(--text-heading);
+    margin-bottom: 4px;
+}
+.omn-incoming-hint {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+.omn-incoming-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.omn-incoming-btn {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.omn-incoming-btn:hover {
+    background: var(--accent-hover);
+}
+.omn-incoming-btn[disabled] {
+    opacity: 0.6;
+    cursor: default;
+}
+.omn-incoming-status {
+    margin-top: 8px;
+    min-height: 1.2em;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+.omn-incoming-status.is-error {
+    color: var(--danger);
+}
 
 /* ==========================================================================
    6. Components (overlays, modals, panels, buttons)

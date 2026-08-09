@@ -1228,39 +1228,168 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener('hashchange', () => clearTimeout(timer));
 });
 
+// --- Sending this note to someone ---
+//
+// The controls live on the metadata panel's "File:" line and not in the
+// header actions, which is full. See claude/note-exchange-plan.md.
+//
+// Both fetch the SAME URL, /api/export/note, which answers the note's source
+// with a "FileName:" line added to its header block - the only place the
+// note's path survives a transport that delivers a flat file name. The
+// stored note does not change; an export is a read.
+
+// omnGoExportURL is the one address both controls use, and the one
+// MainActivity fetches for the Android share sheet.
+function omnGoExportURL(note) {
+    return '/api/export/note?name=' + encodeURIComponent(note);
+}
+
+// omnGoSendNote hands the note to whatever can carry it.
+//
+// On Android that is the share sheet, which reaches Telegram, e-mail,
+// LocalSend and everything else installed; MainActivity answers the
+// omngo:// scheme, as it already does for omngo://edit and
+// omngo://shortcut. Elsewhere there is no share sheet, so the browser
+// downloads the file and the user attaches it to whatever they want -
+// Content-Disposition on the endpoint is what makes it a download.
+function omnGoSendNote(note) {
+    if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
+        window.location.href = 'omngo://share?name=' + encodeURIComponent(note);
+        return;
+    }
+    window.location.href = omnGoExportURL(note);
+}
+
+// omnGoCopyNote puts the same Markdown on the clipboard, for pasting into a
+// chat or a mail body.
+//
+// navigator.clipboard needs a secure context. http://localhost counts as
+// one, so it works on the device itself and inside the Android WebView; a
+// LAN guest on http://192.168.x.x does not get it, and falls back to the
+// old execCommand path.
+async function omnGoCopyNote(note, say) {
+    try {
+        const res = await fetch(omnGoExportURL(note), { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (!ok) throw new Error('the browser refused the copy');
+        }
+        say('Copied');
+    } catch (e) {
+        say('Copy failed: ' + e.message);
+    }
+}
+
 // --- Dynamic Metadata Panel Extractor ---
+//
+// Built from ELEMENTS, not from a string of HTML.
+//
+// Every value here comes from the note's own meta tags, which come from its
+// header block - so the old "metaHtml += `<strong>${name}</strong> ${content}`"
+// let a note write markup into its own metadata panel. textContent cannot.
+// The inline "color:#0056b3" and "border-bottom:#ccc" went the same way: they
+// are theme tokens now, so the panel is legible on the dark theme, which is
+// the fault the database backup dialog had before 26.08.29.
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');
-    if (panel) {
-        let metaHtml = `<div style="margin-bottom: 8px; color: #0056b3; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px;">File: ${typeof PageName !== 'undefined' ? PageName : ''}</div>`;
-        // Also update the header name display
-        var nameDisplay = document.getElementById('pageNameDisplay');
-        if (nameDisplay && typeof PageName !== 'undefined') {
-            nameDisplay.textContent = '/' + PageName;
-        }
-        // Populate header metadata line (Author, Date, Modified) from meta tags
-        var hMeta = document.getElementById('headerMetadata');
-        if (hMeta) {
-            var parts = [];
-            document.querySelectorAll('meta[name]').forEach(function(m) {
-                var n = m.getAttribute('name').toLowerCase();
-                if (n === 'author' || n === 'date' || n === 'modified') {
-                    parts.push(m.getAttribute('name') + ': ' + m.getAttribute('content'));
-                }
-            });
-            if (parts.length) {
-                hMeta.innerHTML = ' — ' + parts.join(' · ');
-            }
-        }
-        document.querySelectorAll('meta').forEach(m => {
-            const name = m.getAttribute('name');
-            const content = m.getAttribute('content');
-            if (name && content && !['viewport', 'charset'].includes(name.toLowerCase())) {
-                metaHtml += `<div style="margin-bottom: 4px;"><strong>${name.charAt(0).toUpperCase() + name.slice(1)}:</strong> ${content}</div>`;
+    if (!panel) return;
+
+    const noteName = (typeof PageName !== 'undefined') ? PageName : '';
+
+    // Also update the header name display
+    var nameDisplay = document.getElementById('pageNameDisplay');
+    if (nameDisplay && noteName) {
+        nameDisplay.textContent = '/' + noteName;
+    }
+    // Populate header metadata line (Author, Date, Modified) from meta tags
+    var hMeta = document.getElementById('headerMetadata');
+    if (hMeta) {
+        var parts = [];
+        document.querySelectorAll('meta[name]').forEach(function(m) {
+            var n = m.getAttribute('name').toLowerCase();
+            if (n === 'author' || n === 'date' || n === 'modified') {
+                parts.push(m.getAttribute('name') + ': ' + m.getAttribute('content'));
             }
         });
-        panel.innerHTML = metaHtml;
+        if (parts.length) {
+            hMeta.textContent = ' — ' + parts.join(' · ');
+        }
     }
+
+    panel.textContent = '';
+
+    const fileRow = document.createElement('div');
+    fileRow.className = 'metadata-file-row';
+    const fileLabel = document.createElement('span');
+    fileLabel.className = 'metadata-file-name';
+    fileLabel.textContent = 'File: ' + noteName;
+    fileRow.appendChild(fileLabel);
+
+    // The controls, at the right of the name.
+    //
+    // Only on a real note: IS_MARKDOWN is off for the Config dashboard, the
+    // search page and the other views that borrow this page shell, and those
+    // have no Markdown source to send. Only with a server: an exported page
+    // opened from disk has no endpoint to ask.
+    const sendable = noteName &&
+        (typeof IS_MARKDOWN !== 'undefined' && IS_MARKDOWN) &&
+        window.location.protocol !== 'file:';
+
+    if (sendable) {
+        const status = document.createElement('span');
+        status.className = 'metadata-send-status';
+        const say = function (msg) {
+            status.textContent = msg || '';
+            if (msg) setTimeout(function () { status.textContent = ''; }, 4000);
+        };
+
+        const button = function (icon, label, onClick) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'metadata-send';
+            b.title = label;
+            b.setAttribute('aria-label', label);
+            const i = document.createElement('i');
+            i.className = 'material-icons icon-sm';
+            i.textContent = icon;
+            b.appendChild(i);
+            b.addEventListener('click', onClick);
+            return b;
+        };
+
+        fileRow.appendChild(status);
+        fileRow.appendChild(button('share', 'Send this note',
+            function () { omnGoSendNote(noteName); }));
+        fileRow.appendChild(button('content_copy', 'Copy this note as text',
+            function () { omnGoCopyNote(noteName, say); }));
+    }
+
+    panel.appendChild(fileRow);
+
+    document.querySelectorAll('meta').forEach(m => {
+        const name = m.getAttribute('name');
+        const content = m.getAttribute('content');
+        if (!name || !content || ['viewport', 'charset'].includes(name.toLowerCase())) return;
+        const row = document.createElement('div');
+        row.className = 'metadata-row';
+        const key = document.createElement('strong');
+        key.textContent = name.charAt(0).toUpperCase() + name.slice(1) + ':';
+        row.appendChild(key);
+        row.appendChild(document.createTextNode(' ' + content));
+        panel.appendChild(row);
+    });
 });
 
 window.addEventListener('pageshow', function(event) {

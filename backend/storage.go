@@ -145,6 +145,14 @@ Tags: Bookmarks
 	// not race the copy that makes it work.
 	a.syncNoteFilesToHTML()
 
+	// The incoming index (note_exchange.go), created when it is absent, the
+	// same way the four starter notes above are. It has to exist before the
+	// first note arrives: on the desktop the receive box ON that page is how
+	// a note arrives at all.
+	if err := a.ensureIncomingIndex(time.Now()); err != nil {
+		log.Printf("initStorage: incoming index: %v", err)
+	}
+
 	// Precompile all notes to data/html/ at startup in the background
 	go a.precompileAllPages()
 }

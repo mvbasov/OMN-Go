@@ -104,6 +104,12 @@ func loadTemplate(filename string) string {
 	return string(data)
 }
 
+// incomingIndexTmpl is the incoming index as first written: a header block,
+// the receive box the desktop application imports through, and the marker
+// that says where a new line goes. See incomingIndexStarter in
+// note_exchange.go for why it lives here and not in frontend/md/.
+var incomingIndexTmpl = loadTemplate("incoming_index.md")
+
 var (
 	// index.html loads css/omn-go-custom.css as the last stylesheet and
 	// js/omn-go-custom.js as the last script. The position is the feature:

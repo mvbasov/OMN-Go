@@ -572,3 +572,113 @@ func TestHandleImportNoteRefusals(t *testing.T) {
 		t.Errorf("an oversized note gave %d, want 413", rec.Code)
 	}
 }
+
+// ----------------------------------------------------------------------
+// The starter index and its marker
+// ----------------------------------------------------------------------
+
+func TestEnsureIncomingIndex(t *testing.T) {
+	a := newTestApp(t)
+	if err := a.ensureIncomingIndex(testNow); err != nil {
+		t.Fatal(err)
+	}
+	idx := incomingFile(t, a, "incoming.md")
+
+	if !strings.HasPrefix(idx, "Title: Incoming notes\n") {
+		t.Errorf("no header block:\n%s", idx)
+	}
+	if !strings.Contains(idx, "Date: 2026-08-09 12:34:56") {
+		t.Error("the %%DATE%% placeholder was not filled")
+	}
+	if strings.Contains(idx, "%%") {
+		t.Errorf("an unfilled placeholder is left:\n%s", idx)
+	}
+	// The receive box must be ABOVE the marker. Everything below the marker
+	// is the list, and a control that sank one line with every arrival would
+	// be at the bottom of a long page by the time it was wanted.
+	box := strings.Index(idx, `id="omnIncoming"`)
+	marker := strings.Index(idx, incomingListMarker)
+	if box < 0 || marker < 0 || box > marker {
+		t.Errorf("box at %d, marker at %d:\n%s", box, marker, idx)
+	}
+	// And the box is BODY, not metadata: it opens with "<", so
+	// isHeaderFirstLine ends the header block on it.
+	fm := splitFrontMatter(idx)
+	if !fm.HasHeader || strings.Contains(fm.Header, "omn-incoming") {
+		t.Errorf("the receive box was read as part of the header block:\n%s", fm.Header)
+	}
+
+	// The note belongs to the user from here. A second call must not touch it.
+	mine := "Title: Mine\n\nmy own page\n"
+	os.WriteFile(filepath.Join(a.StorageDir, "md", "incoming", "incoming.md"), []byte(mine), 0644)
+	if err := a.ensureIncomingIndex(testNow.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if got := incomingFile(t, a, "incoming.md"); got != mine {
+		t.Errorf("the user's page was overwritten:\n%s", got)
+	}
+}
+
+// With the starter in place, a line goes BELOW the marker so the receive box
+// stays at the top, and the note script survives every insertion.
+func TestIncomingIndexMarker(t *testing.T) {
+	a := newTestApp(t)
+	if err := a.ensureIncomingIndex(testNow); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := a.importNote([]byte(sampleNote), "", testNow.Add(time.Duration(i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idx := incomingFile(t, a, "incoming.md")
+
+	marker := strings.Index(idx, incomingListMarker)
+	if marker < 0 {
+		t.Fatalf("the marker is gone:\n%s", idx)
+	}
+	if box := strings.Index(idx, `id="omnIncoming"`); box > marker {
+		t.Error("the receive box sank below the marker")
+	}
+	for _, name := range []string{"WeeklyPlan", "WeeklyPlan-2", "WeeklyPlan-3"} {
+		at := strings.Index(idx, "["+name+"](")
+		if at < 0 {
+			t.Errorf("no line for %s", name)
+			continue
+		}
+		if at < marker {
+			t.Errorf("the line for %s went above the marker", name)
+		}
+	}
+	if strings.Index(idx, "WeeklyPlan-3") > strings.Index(idx, "WeeklyPlan-2") {
+		t.Errorf("not newest first:\n%s", idx)
+	}
+	if n := strings.Count(idx, "</script>"); n != 1 {
+		t.Errorf("%d closing script tags, want 1 - an insertion damaged the note script", n)
+	}
+	// The header block still ends immediately at the box, with no blank line
+	// accumulating in front of it.
+	if !strings.Contains(idx, "Category: Notes\n\n<div class=\"omn-incoming\"") {
+		t.Errorf("the gap above the receive box changed:\n%s", idx)
+	}
+}
+
+// A user who rewrote the page and dropped the marker still gets a list, at
+// the top of the body - which is what every note did before the marker.
+func TestIncomingIndexWithoutMarker(t *testing.T) {
+	a := newTestApp(t)
+	dir := filepath.Join(a.StorageDir, "md", "incoming")
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, "incoming.md"), []byte("Title: Mine\n\nold text\n"), 0644)
+
+	if _, err := a.importNote([]byte(sampleNote), "", testNow); err != nil {
+		t.Fatal(err)
+	}
+	idx := incomingFile(t, a, "incoming.md")
+	if !strings.HasPrefix(idx, "Title: Mine\n\n* 2026-08-09 12:34 · [WeeklyPlan](") {
+		t.Errorf("the line did not go to the top of the body:\n%s", idx)
+	}
+	if !strings.Contains(idx, "old text") {
+		t.Errorf("the user's text was lost:\n%s", idx)
+	}
+}
