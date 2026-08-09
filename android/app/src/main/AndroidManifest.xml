@@ -135,6 +135,51 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/json" />
             </intent-filter>
+            <!--
+              A NOTE arriving from another device (note exchange, phase 5).
+              MainActivity.isSharedNoteIntent sorts these from the image and
+              JSON shares above, by the declared type or, when that says
+              nothing useful, by the file's own name.
+
+              "application/octet-stream" is here on purpose. Telegram and
+              several mail clients label a .md attachment that way, and
+              without this filter those attachments cannot be shared into
+              OMN-Go at all, with nothing on screen to say why. The cost is
+              that OMN-Go is offered for every unknown file type; a share
+              that is not a note is refused with a toast, which is what the
+              image path already does for a wrong picture format.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/markdown" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/x-markdown" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!--
+              Opening a .md from a file manager, rather than sharing it.
+              Only the two markdown types: a VIEW filter on
+              application/octet-stream would make OMN-Go an offered opener
+              for every unknown file on the device, which is a different and
+              much larger claim than appearing in a share sheet.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:mimeType="text/markdown" />
+                <data android:scheme="content" android:mimeType="text/x-markdown" />
+                <data android:scheme="file" android:mimeType="text/markdown" />
+                <data android:scheme="file" android:mimeType="text/x-markdown" />
+            </intent-filter>
         </activity>
 
         <!--

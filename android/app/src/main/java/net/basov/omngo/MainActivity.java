@@ -411,12 +411,25 @@ public class MainActivity extends Activity {
                     // Note panel open immediately, same as the share_text/
                     // share_subject flags below do for shared text.
                     startUrl += "?quicknote=1";
+                } else if (MainActivity.this.isSharedNoteIntent(intent)) {
+                    // A note arrived as a FILE. Imported natively, like the
+                    // image/JSON branch below - startUrl stays Welcome.html,
+                    // and openImportedNote takes the WebView to the note when
+                    // the import answers.
+                    MainActivity.this.importSharedNote(MainActivity.this.sharedNoteUri(intent));
                 } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                         && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
                     String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
                     String sharedSubject = intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT);
-                    startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") +
-                                "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
+                    if (MainActivity.this.looksLikeSharedNote(sharedText)) {
+                        // A note sent AS TEXT. It does not go through the URL:
+                        // a whole note is the wrong size for a query string,
+                        // and the note box is not where it belongs.
+                        MainActivity.this.importSharedText(sharedText);
+                    } else {
+                        startUrl += "?share_text=" + (sharedText != null ? android.net.Uri.encode(sharedText) : "") +
+                                    "&share_subject=" + (sharedSubject != null ? android.net.Uri.encode(sharedSubject) : "");
+                    }
                 } else if (isSharedFileIntent(intent)) {
                     // Handled entirely natively (see handleSharedFile) -
                     // startUrl is deliberately left alone; this cold start
@@ -520,6 +533,18 @@ public class MainActivity extends Activity {
                     "javascript:(function(){ var p=document.getElementById('quickPanel'); if(p) p.classList.remove('hidden'); })();",
                     null);
             }
+        } else if (isSharedNoteIntent(intent)) {
+            // A note as a FILE, warm. Native like the image/JSON branch
+            // below; openImportedNote decides whether the WebView may move.
+            importSharedNote(sharedNoteUri(intent));
+        } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
+                && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null
+                && looksLikeSharedNote(intent.getStringExtra(android.content.Intent.EXTRA_TEXT))) {
+            // A note as TEXT, warm. Straight to the importer, never through
+            // window.handleShare - that fills the note box for review, which
+            // is right for a thought and wrong for a note that already has a
+            // name and a home.
+            importSharedText(intent.getStringExtra(android.content.Intent.EXTRA_TEXT));
         } else if (android.content.Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())
                 && intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM) == null) {
             String sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT);
@@ -747,6 +772,260 @@ public class MainActivity extends Activity {
         new java.util.HashSet<>(java.util.Arrays.asList(".json", ".jsonl"));
     private static final java.util.Set<String> SHARED_IMAGE_EXT =
         new java.util.HashSet<>(java.util.Arrays.asList(".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"));
+
+    // ----------------------------------------------------------------------
+    // Receiving a note (note exchange, phase 5)
+    // ----------------------------------------------------------------------
+    //
+    // A note arrives from Telegram, a mail client, LocalSend or a file
+    // manager - as a FILE through the share sheet, as a FILE through
+    // ACTION_VIEW, or as TEXT in the message body.
+    //
+    // Every one of them ends at the same place: POST /api/import/note. The
+    // rules for where a note lands, what its name becomes and how a
+    // collision is numbered live in Go (backend/note_exchange.go), and this
+    // side does not repeat any of them - the trap handleSharedFile below
+    // already documents, where the native image path had to be kept in step
+    // with handleUpload by hand.
+
+    /** Names a shared note by extension. ".txt" is not one: v1 sends notes. */
+    private static final java.util.Set<String> SHARED_NOTE_EXT =
+        new java.util.HashSet<>(java.util.Arrays.asList(".md", ".markdown"));
+
+    private static boolean isMarkdownType(String type) {
+        return "text/markdown".equals(type) || "text/x-markdown".equals(type);
+    }
+
+    private static boolean hasNoteExtension(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        int dot = lower.lastIndexOf('.');
+        return dot >= 0 && SHARED_NOTE_EXT.contains(lower.substring(dot));
+    }
+
+    /**
+     * A shared or opened FILE that is a note.
+     *
+     * Checked before isSharedFileIntent, which owns images and JSON. The
+     * declared type is not trusted on its own: Telegram and several mail
+     * clients label a .md attachment "application/octet-stream", which is
+     * why that type is in the manifest at all - so the file's own name
+     * decides when the type says nothing useful.
+     */
+    private boolean isSharedNoteIntent(android.content.Intent intent) {
+        return sharedNoteUri(intent) != null;
+    }
+
+    /** The URI of a shared or opened note, or null. */
+    private android.net.Uri sharedNoteUri(android.content.Intent intent) {
+        String action = intent.getAction();
+        android.net.Uri uri = null;
+        if (android.content.Intent.ACTION_SEND.equals(action)) {
+            uri = intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM);
+        } else if (android.content.Intent.ACTION_VIEW.equals(action)) {
+            uri = intent.getData();
+        }
+        if (uri == null) return null;
+        if (isMarkdownType(intent.getType())) return uri;
+        return hasNoteExtension(queryDisplayName(uri)) ? uri : null;
+    }
+
+    /**
+     * Whether shared TEXT is a note rather than a thought or a link.
+     *
+     * A ROUTING hint and nothing more: it decides which of two paths the
+     * text takes, and the server validates whatever arrives. The rule is the
+     * one splitFrontMatter uses in Go - a header block of "Key: value" lines
+     * that does not begin with a space, "#" or "<" - and the question asked
+     * of it is whether that block carries a FileName: line.
+     *
+     * Without this a note sent as text would land in the note box as a
+     * quick note, header block and all.
+     */
+    private boolean looksLikeSharedNote(String text) {
+        if (text == null || text.isEmpty()) return false;
+        String[] lines = text.split("\n");
+        for (int i = 0; i < lines.length && i < 32; i++) {
+            String line = lines[i];
+            if (line.endsWith("\r")) {
+                line = line.substring(0, line.length() - 1);
+            }
+            if (line.trim().isEmpty()) return false;          // the block ended
+            if (line.startsWith(" ") || line.startsWith("#") || line.startsWith("<")) return false;
+            int colon = line.indexOf(':');
+            if (colon <= 0) return false;                      // not a header line
+            if ("filename".equals(line.substring(0, colon).trim()
+                    .toLowerCase(java.util.Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Reads a shared file and imports it. */
+    private void importSharedNote(final android.net.Uri uri) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String displayName = queryDisplayName(uri);
+                    long limit = (long) readMaxUploadSizeMB() * 1024 * 1024;
+                    byte[] body = readUriCapped(uri, limit);
+                    if (body == null) {
+                        showToast("Not imported: the note is larger than the upload limit.");
+                        return;
+                    }
+                    postImportedNote(body, displayName);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    showToast("Could not import the note: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
+
+    /** Imports shared TEXT that looksLikeSharedNote accepted. */
+    private void importSharedText(final String text) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    postImportedNote(text.getBytes("UTF-8"), null);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    showToast("Could not import the note: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * POSTs the note to the server and acts on the answer.
+     *
+     * The endpoint is admin only and this request comes from 127.0.0.1,
+     * which bypasses that - the device is not a remote caller to its own
+     * server. The retry mirrors postQuickNoteWithRetry: a share can arrive
+     * during a cold start, while the Go side is still coming up.
+     */
+    private void postImportedNote(byte[] body, String displayName) throws java.io.IOException {
+        String answer;
+        try {
+            answer = postImport(body, displayName);
+        } catch (java.io.IOException first) {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            answer = postImport(body, displayName);
+        }
+
+        String url = null;
+        String base = null;
+        try {
+            org.json.JSONObject json = new org.json.JSONObject(answer);
+            url = json.optString("url", null);
+            base = json.optString("base", null);
+        } catch (org.json.JSONException e) {
+            // A 200 that is not JSON should not happen, and is not worth
+            // losing the import over: the note is written either way.
+            e.printStackTrace();
+        }
+
+        showToast(base != null ? ("Note imported: " + base) : "Note imported.");
+        if (url != null && !url.isEmpty()) {
+            openImportedNote(url);
+        }
+    }
+
+    private String postImport(byte[] body, String displayName) throws java.io.IOException {
+        String target = serverBase() + "/api/import/note";
+        if (displayName != null && !displayName.isEmpty()) {
+            target += "?name=" + java.net.URLEncoder.encode(displayName, "UTF-8");
+        }
+        java.net.HttpURLConnection conn =
+            (java.net.HttpURLConnection) new java.net.URL(target).openConnection();
+        try {
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "text/markdown; charset=utf-8");
+            conn.setFixedLengthStreamingMode(body.length);
+            java.io.OutputStream os = conn.getOutputStream();
+            os.write(body);
+            os.close();
+
+            int code = conn.getResponseCode();
+            java.io.InputStream in = (code >= 400) ? conn.getErrorStream() : conn.getInputStream();
+            String text = in == null ? "" : readAllUtf8(in);
+            if (code != 200) {
+                throw new java.io.IOException(importErrorMessage(text, code));
+            }
+            return text;
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    /** The server's own words when it refuses, rather than a status code. */
+    private String importErrorMessage(String body, int code) {
+        try {
+            String message = new org.json.JSONObject(body).optString("message", "");
+            if (!message.isEmpty()) return message;
+        } catch (org.json.JSONException ignored) {
+            // fall through to the code
+        }
+        return "the server answered HTTP " + code;
+    }
+
+    /**
+     * Opens the note that just arrived - EXCEPT when the editor is open.
+     *
+     * A share arrives while the user is in the middle of something. The
+     * editor page holds text that is not saved, and a note that came from
+     * Telegram is not worth throwing it away. The toast has already named
+     * the note, and the incoming index lists it when the user is ready.
+     *
+     * The editor is recognised by its URL: ?edit=true is served by the
+     * standalone editor page (see serveEditor in backend/handlers.go), and
+     * the query stays in the address.
+     */
+    private void openImportedNote(final String url) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (webView == null) return;
+                String current = webView.getUrl();
+                if (current != null && current.contains("edit=true")) return;
+                webView.loadUrl(serverBase() + url);
+            }
+        });
+    }
+
+    /**
+     * Reads a content:// URI into memory, or null when it is over the limit.
+     *
+     * Refuses rather than truncates: half a note is not an import. This is
+     * the same choice readImportBody makes on the Go side, and the reason
+     * neither of them is search.go's readCapped.
+     */
+    private byte[] readUriCapped(android.net.Uri uri, long maxBytes) throws java.io.IOException {
+        java.io.InputStream in = getContentResolver().openInputStream(uri);
+        if (in == null) throw new java.io.IOException("cannot open the shared file");
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            long total = 0;
+            int read;
+            while ((read = in.read(chunk)) != -1) {
+                total += read;
+                if (maxBytes > 0 && total > maxBytes) return null;
+                out.write(chunk, 0, read);
+            }
+            return out.toByteArray();
+        } finally {
+            in.close();
+        }
+    }
 
     private boolean isSharedFileIntent(android.content.Intent intent) {
         if (!android.content.Intent.ACTION_SEND.equals(intent.getAction())) return false;
