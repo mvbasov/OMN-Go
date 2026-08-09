@@ -70,12 +70,24 @@
 }
 .dbb-btn-primary.dbb-btn-danger:hover { background:var(--danger); opacity:0.9; }
 
+/* The overlay is moved to <body> at startup and MUST stay there - see the
+   note in the script below. Inside #preview, "position:fixed" is not fixed
+   to the viewport at all. */
 .dbb-modal-overlay {
     display:none; position:fixed; inset:0;
     background:var(--overlay-bg); z-index:1000;
+    /* A dialog taller than the screen scrolls inside the overlay instead of
+       hanging off the bottom of it. */
+    overflow:auto; padding:1em; box-sizing:border-box;
 }
+/* A class, not an inline style, because the open state is now two
+   declarations: the flex box below is what centres the dialog. */
+.dbb-modal-overlay.dbb-open { display:flex; }
 .dbb-modal {
-    max-width:480px; margin:10vh auto;
+    /* "margin:auto" in a flex container centres on both axes AND keeps the
+       top of a tall dialog reachable. "align-items:center" would centre it
+       too, and then cut the top off with no way to scroll up to it. */
+    width:100%; max-width:480px; margin:auto;
     background:var(--bg-surface); color:var(--text);
     border:1px solid var(--border-card); border-radius:8px;
     padding:1em 1.2em; box-shadow:0 4px 24px var(--shadow-strong);
@@ -83,10 +95,16 @@
 .dbb-modal-title { margin-top:0; color:var(--text-strong); }
 .dbb-modal-body { max-height:50vh; overflow:auto; }
 .dbb-modal-actions { text-align:right; margin-top:1em; }
-/* The restore dialog lays its details out in a plain <table>, which would
-   otherwise inherit the markdown table skin (#preview td: 2px blue border,
-   striped row backgrounds) from omn-go-core.css. These selectors carry the
-   same #preview id plus a class, so they win on specificity. */
+/* The restore dialog lays its details out in a plain <table>. In <body> the
+   markdown table skin (#preview td: 2px blue border, striped rows, in
+   omn-go-core.css) does not reach it. The #preview copies stay for a dialog
+   that is inside #preview after all - an older cached page, or a change that
+   puts it back - where only the id can out-specify "#preview td". */
+.dbb-modal-body table,
+.dbb-modal-body th,
+.dbb-modal-body td,
+.dbb-modal-body tr:nth-child(odd),
+.dbb-modal-body tr:nth-child(even),
 #preview .dbb-modal-body table,
 #preview .dbb-modal-body th,
 #preview .dbb-modal-body td,
@@ -116,6 +134,26 @@
     };
     var lastData = null;
 
+    // The dialog has to hang off <body>, not off this page.
+    //
+    // #preview sets "contain:layout" (omn-go-core.css) so that KaTeX output
+    // cannot inflate the height of the whole document. Containment also makes
+    // #preview the containing block for any position:fixed descendant, and
+    // this page's markup IS inside #preview. "inset:0" therefore resolved to
+    // #preview's own box, at scroll offset 0 - so the dialog opened at the top
+    // of the LIST, not on the screen. With enough databases to scroll, a
+    // Backup or Restore button near the bottom opened a dialog a screen or
+    // more above the visible area, where it could not be read or dismissed.
+    //
+    // <body> is outside the containment, where position:fixed means the
+    // viewport again. The move happens once, before anything can open it.
+    (function() {
+        var el = document.getElementById('dbbModal');
+        if (el && document.body && el.parentNode !== document.body) {
+            document.body.appendChild(el);
+        }
+    })();
+
     function esc(s) {
         return String(s).replace(/[&<>"]/g, function(c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -131,10 +169,14 @@
         ok.textContent = okLabel;
         ok.classList.toggle('dbb-btn-danger', !!destructive);
         ok.onclick = function() { dbbCloseModal(); onOk(); };
-        document.getElementById('dbbModal').style.display = 'block';
+        var overlay = document.getElementById('dbbModal');
+        overlay.classList.add('dbb-open');
+        // A dialog opened from the bottom of a long list inherits the
+        // overlay's scroll position from the previous one. Start at the top.
+        overlay.scrollTop = 0;
     }
     window.dbbCloseModal = function() {
-        document.getElementById('dbbModal').style.display = 'none';
+        document.getElementById('dbbModal').classList.remove('dbb-open');
     };
 
     async function api(url, opts) {
