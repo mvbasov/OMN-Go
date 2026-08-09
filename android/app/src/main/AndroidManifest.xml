@@ -167,6 +167,30 @@
         </activity-alias>
 
         <!--
+          Hands ONE exported note to the application the user picks from the
+          share sheet (see ExportProvider.java and MainActivity.handleShareOut).
+
+          Written by hand rather than taken from AndroidX: FileProvider lives
+          there, and this application has no dependencies at all - the whole
+          block in app/build.gradle is a fileTree over an empty libs/.
+
+          exported="false" with grantUriPermissions="true" is the pair
+          FileProvider itself is declared with. Nothing reaches the provider
+          on its own; a receiving application gets in only through the
+          temporary read grant MainActivity puts on the intent, and only for
+          the one URI named there.
+
+          The authority follows ${applicationId}, so the standard build and
+          the F-Droid build - installable side by side, with different
+          application ids - never claim the same one.
+        -->
+        <provider
+            android:name=".ExportProvider"
+            android:authorities="${applicationId}.export"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!--
           Owns the Go HTTP server (see ServerService.java). stopWithTask=
           "false" keeps the server answering even after the user swipes
           the app out of recents - the notification's Stop button is the
