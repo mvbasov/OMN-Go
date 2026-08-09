@@ -129,3 +129,108 @@ func splitFrontMatter(content string) frontMatter {
 	// Every line was a header line (header-only note, no body).
 	return frontMatter{HasHeader: true, Header: content, BodyOffset: len(content)}
 }
+
+// ----------------------------------------------------------------------
+// Reading and writing ONE header key
+// ----------------------------------------------------------------------
+//
+// Note exchange (note_exchange.go) has to put "FileName:" on a note it sends
+// and "Imported:" on a note it receives, and take "FileName:" off again at
+// the other end. Both must SET a key - replace the line when it is already
+// there - and never append a second line with the same key.
+//
+// That is not fussiness. A note can make more than one hop: A sends to B, B
+// sends to C. If the second import appended, the note would carry two
+// "Imported:" lines, and a header block with one key twice has no defined
+// meaning - splitFrontMatter would hand the first one to whatever reads it,
+// and which of the two is first is an accident of the order the hops ran in.
+//
+// Both functions splice the header back into the ORIGINAL string rather than
+// re-joining a parse of it. The separator between the header and the body is
+// one newline when the header ended at a non-header line ("<style>" on the
+// next line) and two when it ended at a blank one, and rebuilding with a
+// fixed "\n\n" would silently insert a blank line into the first kind. The
+// three pieces below always satisfy header + separator + body == content.
+
+// splitHeaderRegion cuts content into its header text, the separator run that
+// follows it, and the body. Concatenating the three reproduces content byte
+// for byte. header and sep are empty when there is no header block.
+func splitHeaderRegion(content string) (header, sep, body string) {
+	fm := splitFrontMatter(content)
+	if !fm.HasHeader {
+		return "", "", content
+	}
+	return content[:len(fm.Header)], content[len(fm.Header):fm.BodyOffset], content[fm.BodyOffset:]
+}
+
+// headerKeyOf returns the key of a "Key: value" header line, or "" when the
+// line carries no colon. The key is returned as written.
+func headerKeyOf(line string) string {
+	i := strings.IndexByte(line, ':')
+	if i < 0 {
+		return ""
+	}
+	return strings.TrimSpace(line[:i])
+}
+
+// setHeaderKey returns content with "key: value" in its header block.
+//
+// An existing line with that key is REPLACED where it stands, so the order of
+// a note's metadata does not change under it. A new key is appended as the
+// last header line. A note with no header block gets one.
+//
+// The key is matched without regard to case (a sender may write "filename:"),
+// and written back in the caller's spelling.
+func setHeaderKey(content, key, value string) string {
+	line := key + ": " + value
+	header, sep, body := splitHeaderRegion(content)
+
+	if header == "" {
+		// No header block at all. One is created, with the blank line that
+		// separates it from what is now the body.
+		if body == "" {
+			return line + "\n"
+		}
+		return line + "\n\n" + body
+	}
+
+	lines := strings.Split(header, "\n")
+	for i, l := range lines {
+		if strings.EqualFold(headerKeyOf(l), key) {
+			lines[i] = line
+			return strings.Join(lines, "\n") + sep + body
+		}
+	}
+	return header + "\n" + line + sep + body
+}
+
+// takeHeaderKey returns the value of key and content with that header line
+// removed. value is "" when the key is absent, and content comes back
+// unchanged in that case.
+//
+// Removing the ONLY header line removes the block: what is left is a body
+// with the separator still in front of it, so the separator goes too. A note
+// that arrives carrying nothing but "FileName:" must not become a note that
+// starts with a blank line.
+func takeHeaderKey(content, key string) (value, rest string) {
+	header, sep, body := splitHeaderRegion(content)
+	if header == "" {
+		return "", content
+	}
+
+	lines := strings.Split(header, "\n")
+	for i, l := range lines {
+		if !strings.EqualFold(headerKeyOf(l), key) {
+			continue
+		}
+		if c := strings.IndexByte(l, ':'); c >= 0 {
+			value = strings.TrimSpace(l[c+1:])
+		}
+		kept := append(append([]string{}, lines[:i]...), lines[i+1:]...)
+		if len(kept) == 0 {
+			return value, body
+		}
+		return value, strings.Join(kept, "\n") + sep + body
+	}
+	return "", content
+}
