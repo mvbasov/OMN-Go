@@ -239,16 +239,38 @@ func TestSearchPage_SnippetLinksCarryTheirOwnLine(t *testing.T) {
 // A note's own text reaches an href through ?hlt=, so it passes the same two
 // encoders the query does: percent-encoding for the query string, then
 // HTML-escaping for the attribute.
+//
+// The payload holds no "<script", on purpose. classifyContexts labels each
+// line that contains it "script", and such a line gets no ?hlt= at all (the
+// test below), so a payload built around one would test nothing here.
 func TestSearchPage_SnippetLineInLinkIsEscaped(t *testing.T) {
 	a := enabledSearchApp(t)
-	writeSearchNote(t, a, "Note.md", "Title: Note\n\nthe \"><script> payload sits here\n")
+	writeSearchNote(t, a, "Note.md", "Title: Note\n\nthe \"><img src=x onerror=alert(1)> payload sits here\n")
 
 	link := excerpt(getSearchPage(t, a, "payload").Body.String(), "search-snippet")
-	if !strings.Contains(link, `hlt=the+%22%3E%3Cscript%3E+payload+sits+here`) {
+	if !strings.Contains(link, `hlt=the+%22%3E%3Cimg`) {
 		t.Errorf("the line was not percent-encoded into the link:\n%s", link)
 	}
-	if strings.Contains(link, `<script`) {
+	// The visible snippet shows this as "&lt;img", so the tag can only be here
+	// if the line closed the attribute it travelled in.
+	if strings.Contains(link, `<img`) {
 		t.Errorf("the line broke out of the href:\n%s", link)
+	}
+}
+
+// A hit inside a <script> block gets no ?hlt=. The text is in the index but
+// the page never renders it, so there is no word to go to and a search of the
+// page for that text could only find a coincidence somewhere else.
+func TestSearchPage_ScriptLineGetsNoTarget(t *testing.T) {
+	a := enabledSearchApp(t)
+	writeSearchNote(t, a, "Script.md", "Title: Script\n\n<script>\nvar payload = 1;\n</script>\n")
+
+	link := excerpt(getSearchPage(t, a, "payload").Body.String(), "search-snippet")
+	if !strings.Contains(link, `href="/Script.html?hl=payload"`) {
+		t.Errorf("the link is not the plain one:\n%s", link)
+	}
+	if strings.Contains(link, "hlt=") {
+		t.Errorf("a line that the page never renders asked to be scrolled to:\n%s", link)
 	}
 }
 
