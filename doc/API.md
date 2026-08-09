@@ -619,8 +619,19 @@ opened from disk with no server running, and on a page that the search panel
 never loads.
 
 When the URL also carries a fragment, for example
-`/Bookmarks.html?hl=cats#2026-06-15-200000`, the client still marks the terms.
-It leaves the **scroll to the anchor**, which is the more precise target.
+`/Bookmarks.html?hl=cats#2026-06-15-200000`, the two parts say different
+things. The fragment says which section. The terms say which word. The client
+scrolls to the **first marked word at or after the anchor**, because the word
+is the exact target. The anchor alone can be a screen or more above the line
+that matched.
+
+Two conditions change this rule:
+
+- The anchor names an element, but no marked word is at or after it. The
+  client keeps the scroll to the anchor. Each hit above the anchor is in a
+  section that the user did not select.
+- The anchor names no element. The client scrolls to the first marked word in
+  the page.
 
 **Errors**
 

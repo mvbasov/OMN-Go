@@ -156,6 +156,11 @@ window.OMNProgress = (function() {
 
 var OMN_HL_MIN = 2;   // 1 character marks half the page
 
+// OMN_HL_SCROLLED records that arrival with ?hl= has scrolled the page to the
+// word that matched. The fragment scroll near the end of this file reads it
+// and does nothing, so that the coarser target does not cancel the exact one.
+var OMN_HL_SCROLLED = false;
+
 // omnClearHighlights puts the DOM back exactly as it was: each
 // <mark> is replaced by its own text and the parent normalised, so
 // repeated searches cannot leave the page progressively more nested.
@@ -362,6 +367,47 @@ function omnMarkNear(snippet) {
 window.omnMarkNear = omnMarkNear;
 
 
+// omnAnchorElement returns the element that the URL fragment names, or null
+// when there is no fragment or no such element.
+//
+// The fragment comes back from location.hash percent-encoded when the id holds
+// a character outside ASCII - a Cyrillic heading gives "#%D0%9A%D0%BE%D1%82" -
+// and getElementById wants the decoded id. The raw form is tried as well,
+// because an id may itself contain a percent sign.
+function omnAnchorElement() {
+    var hash = window.location.hash;
+    if (!hash || hash.length < 2) return null;
+    var raw = hash.slice(1), id = raw;
+    try {
+        id = decodeURIComponent(raw);
+    } catch (e) { /* not valid escaping: use the fragment as written */ }
+    return document.getElementById(id) || document.getElementById(raw);
+}
+
+window.omnAnchorElement = omnAnchorElement;
+
+// omnMarkFrom returns the first highlighted word at or after an anchor.
+//
+// DOCUMENT_POSITION_FOLLOWING is true for a mark that comes after the anchor
+// AND for a mark inside it, which is what a bookmark entry needs: the entry is
+// one <li id="..."> and the hit is in it. A heading anchor gets the other case,
+// because the section text is the heading's next sibling, not its child.
+//
+// It returns null when no mark is at or after the anchor. The caller must not
+// read that as "go to the first mark in the page": the hits above belong to a
+// section that the reader did not choose.
+function omnMarkFrom(anchor) {
+    var marks = document.querySelectorAll('#preview mark.omn-search-hit');
+    for (var i = 0; i < marks.length; i++) {
+        if (anchor.compareDocumentPosition(marks[i]) &
+            Node.DOCUMENT_POSITION_FOLLOWING) {
+            return marks[i];
+        }
+    }
+    return null;
+}
+
+
 // --- ?hl= : highlight on arrival ---
 //
 // A search result links to /Note.html?hl=fetch&hl=json. On load, mark those
@@ -384,14 +430,33 @@ window.addEventListener('load', function () {
     if (!terms || !terms.length) return;
 
     var first = window.omnHighlightTerms(terms);
-    // A fragment is the more precise target, so it wins the scroll. A result
-    // that matched inside a bookmark entry or a timestamped section arrives as
-    // "?hl=cats#2026-06-15-200000": the browser is already taking the reader to
-    // that entry, and scrolling to the first marked word somewhere above it
-    // would undo the thing the anchor was for. The marks go on either way.
-    if (first && first.scrollIntoView && !window.location.hash) {
-        first.scrollIntoView({ block: 'center' });
-        first.classList.add('omn-search-hit-current');
+
+    // Which mark the page goes to.
+    //
+    // A hit inside a section arrives as "?hl=cats#2026-06-15-200000". The two
+    // parts of that URL say different things: the fragment says WHICH SECTION,
+    // the terms say WHICH WORD. The word is the exact target, so the scroll
+    // goes to the first mark at or after the anchor.
+    //
+    // The anchor alone is not sufficient. A section runs from its heading to
+    // the next one, and the line that matched can be a screen or more below
+    // that heading - the reader then gets a page with a highlight that is not
+    // on it. The first mark in the page is not sufficient either: it can be in
+    // an earlier section, which is not the one the reader chose.
+    //
+    // A fragment that names no element (a section id that the renderer did not
+    // produce) falls back to the first mark. A match somewhere is better than
+    // the top of the page.
+    var anchor = omnAnchorElement();
+    var target = anchor ? omnMarkFrom(anchor) : first;
+
+    // target is null when the anchor is good but no mark is at or after it:
+    // the note matched on its title or a tag, or every hit is above the chosen
+    // section. The anchor scroll stands in that case.
+    if (target && target.scrollIntoView) {
+        target.scrollIntoView({ block: 'center' });
+        target.classList.add('omn-search-hit-current');
+        OMN_HL_SCROLLED = true;
     }
 
     try {
@@ -916,9 +981,12 @@ window.addEventListener('load', () => {
             // Note: ?edit=true is now handled entirely server-side (it serves
             // the standalone editor page), so a rendered view page never
             // carries that query and there is no in-page edit toggle to fire.
-            let hash = window.location.hash;
-            if (hash) {
-                let el = document.getElementById(hash.substring(1));
+            // This listener is registered after the ?hl= one above, so it runs
+            // after it. When that handler scrolled to the word that matched,
+            // the fragment must not pull the page back to the top of the
+            // section and put the highlight off screen again.
+            if (!OMN_HL_SCROLLED) {
+                let el = omnAnchorElement();
                 if (el) el.scrollIntoView();
             }
         });
