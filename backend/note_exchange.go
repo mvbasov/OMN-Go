@@ -541,7 +541,7 @@ func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer file.Close()
-		if content, err = readCapped(file, limit); err != nil {
+		if content, err = readImportBody(file, limit); err != nil {
 			exchangeErr(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
@@ -550,7 +550,7 @@ func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		var err error
-		if content, err = readCapped(r.Body, limit); err != nil {
+		if content, err = readImportBody(r.Body, limit); err != nil {
 			exchangeErr(w, http.StatusRequestEntityTooLarge, err)
 			return
 		}
@@ -580,9 +580,15 @@ func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 	exchangeJSON(w, http.StatusOK, out)
 }
 
-// readCapped reads at most limit bytes and reports an error when there were
-// more, rather than silently importing a truncated note.
-func readCapped(r io.Reader, limit int64) ([]byte, error) {
+// readImportBody reads at most limit bytes and reports an error when there
+// were more.
+//
+// NOT search.go's readCapped, which this was called until it collided with
+// it, and which must not be reached for here: that one takes a PATH and
+// TRUNCATES on purpose, because "found nothing in the part I looked at" is a
+// useful answer about a 2 MB note. Half a note is not a useful import. The
+// two have opposite behaviour at the cap and should stay apart.
+func readImportBody(r io.Reader, limit int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return nil, err
