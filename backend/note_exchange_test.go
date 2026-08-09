@@ -16,6 +16,12 @@ package backend
 // of the order the hops ran in.
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -432,5 +438,137 @@ func TestExportImportTwoHops(t *testing.T) {
 	if !strings.Contains(got, "Date: 2026-01-01 00:00:00") ||
 		!strings.Contains(got, "Original body.") {
 		t.Errorf("the note did not survive two hops:\n%s", got)
+	}
+}
+
+// ----------------------------------------------------------------------
+// The endpoints
+// ----------------------------------------------------------------------
+
+// exchangeReq drives one handler directly. The handlers are registered behind
+// authMiddleware in server.go and TestBaseline_RouteSet pins that; what these
+// tests are about is the request and answer shapes on the other side of it.
+func exchangeReq(t *testing.T, h http.HandlerFunc, method, target string,
+	body io.Reader, contentType string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, target, body)
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	return rec
+}
+
+func decodeExchange(t *testing.T, rec *httptest.ResponseRecorder) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("answer is not a JSON object: %v\n%s", err, rec.Body.String())
+	}
+	return out
+}
+
+func TestHandleExportNote(t *testing.T) {
+	a := newTestApp(t)
+	dir := filepath.Join(a.StorageDir, "md", "project", "Sub")
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, "Orig.md"),
+		[]byte("Title: Orig\nDate: 2026-01-01 00:00:00\n\nBody.\n"), 0644)
+
+	rec := exchangeReq(t, a.handleExportNote, http.MethodGet,
+		"/api/export/note?name=project/Sub/Orig", nil, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/markdown") {
+		t.Errorf("Content-Type %q", ct)
+	}
+	// flattenExportName leaves only A-Za-z0-9._- , so the name needs no
+	// quoting and cannot close the header early. This asserts that property
+	// where it is relied on.
+	if cd := rec.Header().Get("Content-Disposition"); cd != `attachment; filename="project-Sub-Orig.md"` {
+		t.Errorf("Content-Disposition %q", cd)
+	}
+	if !strings.Contains(rec.Body.String(), "FileName: project/Sub/Orig") {
+		t.Errorf("the export carries no FileName:\n%s", rec.Body.String())
+	}
+
+	if rec := exchangeReq(t, a.handleExportNote, http.MethodGet, "/api/export/note", nil, ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("no name gave %d, want 400", rec.Code)
+	}
+	if rec := exchangeReq(t, a.handleExportNote, http.MethodGet, "/api/export/note?name=Nope", nil, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("a missing note gave %d, want 404", rec.Code)
+	}
+	if rec := exchangeReq(t, a.handleExportNote, http.MethodPost, "/api/export/note?name=x", nil, ""); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST gave %d, want 405", rec.Code)
+	}
+}
+
+// The Android caller: raw bytes, with the attachment's name as ?name= .
+func TestHandleImportNoteRawBody(t *testing.T) {
+	a := newTestApp(t)
+	rec := exchangeReq(t, a.handleImportNote, http.MethodPost,
+		"/api/import/note?name=project-Sub-WeeklyPlan.md",
+		strings.NewReader(sampleNote), "text/markdown")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	got := decodeExchange(t, rec)
+	if got["status"] != "success" ||
+		got["name"] != "incoming/project/Sub/WeeklyPlan" ||
+		got["base"] != "WeeklyPlan" ||
+		got["url"] != "/incoming/project/Sub/WeeklyPlan.html" {
+		t.Errorf("answer = %v", got)
+	}
+	if _, ok := got["warning"]; ok {
+		t.Errorf("unexpected warning: %v", got)
+	}
+	if !strings.Contains(incomingFile(t, a, "project/Sub/WeeklyPlan.md"), "The body.") {
+		t.Error("the note is not on disk")
+	}
+}
+
+// The desktop caller: a browser file input.
+func TestHandleImportNoteMultipart(t *testing.T) {
+	a := newTestApp(t)
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", "Shared.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Write([]byte("Title: From a browser\n\nbody\n"))
+	mw.Close()
+
+	rec := exchangeReq(t, a.handleImportNote, http.MethodPost,
+		"/api/import/note", &buf, mw.FormDataContentType())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	// No FileName: in the note, so the upload's own name is the fallback.
+	if got := decodeExchange(t, rec); got["base"] != "Shared" {
+		t.Errorf("answer = %v, want base Shared", got)
+	}
+}
+
+func TestHandleImportNoteRefusals(t *testing.T) {
+	a := newTestApp(t)
+
+	if rec := exchangeReq(t, a.handleImportNote, http.MethodGet, "/api/import/note", nil, ""); rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET gave %d, want 405", rec.Code)
+	}
+	if rec := exchangeReq(t, a.handleImportNote, http.MethodPost, "/api/import/note",
+		strings.NewReader("   \n"), "text/markdown"); rec.Code != http.StatusBadRequest {
+		t.Errorf("an empty note gave %d, want 400", rec.Code)
+	}
+	// Larger than the upload limit: refused whole rather than imported
+	// truncated.
+	a.WithConfig(func(c *Config) { c.MaxUploadSizeMB = 1 })
+	big := strings.Repeat("x", 2*1024*1024)
+	rec := exchangeReq(t, a.handleImportNote, http.MethodPost, "/api/import/note",
+		strings.NewReader(big), "text/markdown")
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("an oversized note gave %d, want 413", rec.Code)
 	}
 }

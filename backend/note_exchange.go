@@ -22,7 +22,11 @@ package backend
 // See claude/note-exchange-plan.md for the decisions behind this.
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -438,4 +442,154 @@ func headerValue(content, key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// ----------------------------------------------------------------------
+// The HTTP surface
+// ----------------------------------------------------------------------
+//
+// Two endpoints, both ADMIN-ONLY. Import writes files, which is reason
+// enough. Export is locked too, by decision: it is a new way out of the note
+// tree, and a LAN guest has no business with one. A local connection bypasses
+// authMiddleware entirely, so the device itself is unaffected - which is the
+// case that matters, because Android is where this feature is used.
+//
+// The Android side calls both over the loopback address, exactly as
+// MainActivity already posts a quick note.
+
+// exchangeJSON answers with one JSON object. Errors from these two endpoints
+// are shown to a person - a toast on Android, a line on the incoming page -
+// so the message is the thing that matters, not the shape.
+func exchangeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("[exchange] encode response: %v", err)
+	}
+}
+
+func exchangeErr(w http.ResponseWriter, status int, err error) {
+	exchangeJSON(w, status, map[string]string{"status": "error", "message": err.Error()})
+}
+
+// handleExportNote: GET /api/export/note?name=<note>
+//
+// The note's Markdown with FileName: set, as a download. The frontend uses
+// the same URL two ways: the Send control is a link to it, and "send as text"
+// fetches it and copies the body to the clipboard. MainActivity fetches it,
+// writes the bytes to its cache, and hands the file to the share sheet.
+func (a *App) handleExportNote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		exchangeErr(w, http.StatusMethodNotAllowed, fmt.Errorf("GET only"))
+		return
+	}
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		exchangeErr(w, http.StatusBadRequest, fmt.Errorf("no note named"))
+		return
+	}
+
+	data, filename, err := a.exportNoteSource(name)
+	if err != nil {
+		if os.IsNotExist(err) {
+			exchangeErr(w, http.StatusNotFound, fmt.Errorf("no note %q", name))
+			return
+		}
+		exchangeErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// flattenExportName leaves only A-Za-z0-9._- , so the file name needs no
+	// quoting rules applied to it here and cannot close the header early.
+	// That is a property of the name, and this line depends on it.
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Write(data)
+}
+
+// handleImportNote: POST /api/import/note?name=<display name>
+//
+// Two callers, two body shapes, one rule set behind them:
+//
+//   - Android POSTs the bytes it read from the shared content:// URI, with
+//     the attachment's own name as ?name= . Raw body, because the native side
+//     has bytes and a name and no reason to build a multipart request.
+//   - the desktop upload control POSTs a form file, because that is what a
+//     browser sends from a file input.
+//
+// ?name= is only a fallback for a note that carries no FileName: line, and it
+// is not trusted any more than FileName: is - it goes through the same
+// sanitizer.
+func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		exchangeErr(w, http.StatusMethodNotAllowed, fmt.Errorf("POST only"))
+		return
+	}
+
+	limit := a.maxUploadBytes()
+	displayName := r.URL.Query().Get("name")
+	var content []byte
+
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		if err := r.ParseMultipartForm(limit); err != nil {
+			exchangeErr(w, http.StatusBadRequest, fmt.Errorf("cannot read the upload: %w", err))
+			return
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			exchangeErr(w, http.StatusBadRequest, fmt.Errorf("no file in the upload"))
+			return
+		}
+		defer file.Close()
+		if content, err = readCapped(file, limit); err != nil {
+			exchangeErr(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
+		if displayName == "" && header != nil {
+			displayName = header.Filename
+		}
+	} else {
+		var err error
+		if content, err = readCapped(r.Body, limit); err != nil {
+			exchangeErr(w, http.StatusRequestEntityTooLarge, err)
+			return
+		}
+	}
+
+	res, err := a.importNote(content, displayName, time.Now())
+	if res.Name == "" {
+		// Nothing was written. This is the only real failure.
+		exchangeErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	out := map[string]string{
+		"status": "success",
+		"name":   res.Name,
+		"base":   res.Base,
+		"url":    "/" + res.Name + ".html",
+	}
+	if err != nil {
+		// The note is on disk and readable; only its line on the incoming
+		// index is missing. Reporting a failure here would tell the user to
+		// send it again, and a second copy is not the repair.
+		out["warning"] = err.Error()
+		log.Printf("[exchange] %v", err)
+	}
+	log.Printf("[exchange] imported %s", res.Name)
+	exchangeJSON(w, http.StatusOK, out)
+}
+
+// readCapped reads at most limit bytes and reports an error when there were
+// more, rather than silently importing a truncated note.
+func readCapped(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("the note is larger than the upload limit of %d MB",
+			limit/(1024*1024))
+	}
+	return data, nil
 }

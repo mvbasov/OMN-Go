@@ -33,6 +33,10 @@ package backend
 //     directory index is a page, but it is admin-only, and the catch-all that
 //     serves every other page is unauthenticated - so it takes a route of its
 //     own, next to /db_backups, which is there for the same reason.
+//   - 26.08.35 adds /api/export/note and /api/import/note to
+//     TestBaseline_RouteSet (done). Note exchange, phase 2 of
+//     claude/note-exchange-plan.md. Two exact patterns under /api/, both
+//     behind authMiddleware with requireAdmin.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -313,6 +317,11 @@ func TestBaseline_RouteSet(t *testing.T) {
 		"/api/db/backups",
 		"/api/db/restore",
 		"/api/edit-external",
+		// 26.08.35: note exchange. Two exact patterns under /api/, so they
+		// shadow nothing. Both admin only - import writes files, and export
+		// is a new way out of the note tree.
+		"/api/export/note",
+		"/api/import/note",
 		"/api/logs",
 		"/api/newpage",
 		"/api/note",

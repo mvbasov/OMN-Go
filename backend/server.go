@@ -221,6 +221,14 @@ func StartServer(storageDir string, defaultPort int) *App {
 		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
 		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
 		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
+		// Note exchange (note_exchange.go). Both admin only. Import writes
+		// files, which is reason enough; export is locked as well by
+		// decision, because it is a new way out of the note tree and a LAN
+		// guest has no business with one. A local connection bypasses
+		// authMiddleware, so the device itself is unaffected - and on
+		// Android, where this feature is used, the caller IS the device.
+		a.Router.HandleFunc("/api/export/note", a.authMiddleware(a.handleExportNote, true))
+		a.Router.HandleFunc("/api/import/note", a.authMiddleware(a.handleImportNote, true))
 		// Admin only: the answer carries LAN addresses, absolute paths and
 		// a commit subject (see status.go).
 		a.Router.HandleFunc("/api/status", a.authMiddleware(a.handleStatus, true))

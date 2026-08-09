@@ -131,7 +131,7 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | `GET /api/note` | **none — deliberately open** |
 | `GET /api/search` | **none — deliberately open** |
 | `GET /api/logs` | **none** |
-| `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/db_backups` | admin (local bypass applies) |
+| `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/api/export/note`, `/api/import/note`, `/db_backups` | admin (local bypass applies) |
 | `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | `GET /OMNGoStatus.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
@@ -159,6 +159,8 @@ This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
 | POST | `/api/db/restore` | yes (405 otherwise) | admin | JSON |
 | any | `/api/sync` | no | admin | JSON |
 | GET | `/api/sync/preview` | yes (405 otherwise) | admin | JSON |
+| GET | `/api/export/note` | yes (405 otherwise) | admin | Markdown download |
+| POST | `/api/import/note` | yes (405 otherwise) | admin | JSON |
 | GET | `/api/edit-external` | no | admin | HTML or 303 |
 | GET | `/api/logs` | no | none | SSE |
 | GET | `/api/status` | yes (405 otherwise) | admin | JSON / Markdown |
@@ -418,7 +420,138 @@ it.
 
 ---
 
-### 4.3 Search
+### 4.3 Note exchange
+
+One note leaves as a file, and one arrives as a file. The transport is not
+OMN-Go's business: the Android share sheet reaches Telegram, e-mail,
+LocalSend, Bluetooth and every other application on the device, and the
+desktop application uses a download and an upload. All of them carry the
+same bytes.
+
+Both endpoints are **admin only**. Import writes files. Export is locked as
+well, because it is a way out of the note tree. A local connection bypasses
+authorization, so the device itself is unaffected.
+
+#### `GET /api/export/note`
+
+The Markdown source of one note, ready to send.
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `name` | string | yes | — | The note. `Welcome`, `Welcome.md` and `Welcome.html` all name the same one |
+
+The answer is the note's own source with one line **set** in the header
+block:
+
+```
+Title: Weekly plan
+Date: 2026-08-01 09:00:00
+FileName: project/Sub/WeeklyPlan
+```
+
+`FileName:` is the note name: the path under `md/`, with no extension. The
+path can travel no other way. Each transport delivers a flat file name, so
+the folder that the note is in is lost if it is not inside the file.
+
+The line is **set**, not added: a note that was imported one time already
+carries a `FileName:` line, and two lines with one key have no meaning.
+
+**The stored note does not change.** An export is a read.
+
+The file name in `Content-Disposition` is the path with each `/` replaced by
+`-`:
+
+```
+Content-Type: text/markdown; charset=utf-8
+Content-Disposition: attachment; filename="project-Sub-WeeklyPlan.md"
+```
+
+Two notes with the same name in two folders are then two different
+attachments in one mail thread. The name holds only `A-Za-z0-9._-`, so a
+recipient can save it on Windows as well as on Android. It is a label for a
+person and OMN-Go never reads it back.
+
+**Errors**
+
+| Status | Body | When |
+| --- | --- | --- |
+| `400` | `{"status":"error","message":"no note named"}` | `name` is absent |
+| `400` | `{"status":"error","message":"… is not a note"}` | `name` is a static asset |
+| `404` | `{"status":"error","message":"no note …"}` | No such note |
+| `405` | `{"status":"error","message":"GET only"}` | Another method |
+
+#### `POST /api/import/note`
+
+One note arrives. The endpoint accepts two body shapes, because it has two
+callers:
+
+- **the raw Markdown**, with any content type that is not
+  `multipart/form-data`. The Android application reads the shared file and
+  posts the bytes.
+- **a form file** in the field `file`, with `multipart/form-data`. This is
+  what a browser sends from a file input.
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `name` | string (query) | no | — | The name of the file that arrived. Used only when the note carries no `FileName:` line |
+
+The note is larger than the configured upload limit: **413**, and nothing is
+written. A truncated note is not an import.
+
+**Where the note lands.** Always under `md/incoming/`, with `FileName:`
+resolved relative to that directory:
+
+```
+FileName: project/Sub/WeeklyPlan  ->  md/incoming/project/Sub/WeeklyPlan.md
+```
+
+A note that arrives can never write over a note that you made. `FileName:`
+is text from another device, so OMN-Go refuses an absolute path, a drive
+letter and each `..` segment, keeps `A-Za-z0-9 ._-` in each part of the
+path, and then makes sure that the result is still in `md/incoming/`.
+
+With no `FileName:` line, OMN-Go uses the name of the file that arrived,
+then `Title:`, then the date and the time.
+
+**A name that is in use** gets an index: `WeeklyPlan`, `WeeklyPlan-2`,
+`WeeklyPlan-3`.
+
+**The header block.** `FileName:` is removed, because the note is now in a
+different place and the line would not be true. `Imported:` is set to the
+time of the import. `Date:` and `Modified:` do not change: they are facts
+about the note of the person who sent it.
+
+**The incoming index.** `md/incoming/incoming.md` gets one line at the top,
+newest first. OMN-Go makes this note at the first import. It is yours from
+that moment.
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "name": "incoming/project/Sub/WeeklyPlan-2",
+  "base": "WeeklyPlan-2",
+  "url": "/incoming/project/Sub/WeeklyPlan-2.html"
+}
+```
+
+A `warning` field can come with a `200`: the note is on disk, but the line
+on the incoming index was not written. The note is not lost, so the answer
+is not an error — a second copy is not the repair.
+
+**Errors**
+
+| Status | Body | When |
+| --- | --- | --- |
+| `400` | `{"status":"error","message":"the note is empty"}` | Nothing but space arrived |
+| `400` | `{"status":"error","message":"no file in the upload"}` | `multipart/form-data` with no `file` field |
+| `405` | `{"status":"error","message":"POST only"}` | Another method |
+| `413` | `{"status":"error","message":"the note is larger than …"}` | Larger than `max_upload_size_mb` |
+
+---
+
+### 4.4 Search
 
 #### `GET /api/search`
 
@@ -680,7 +813,7 @@ is never a way to probe the filesystem.
 
 ---
 
-### 4.4 Uploads
+### 4.5 Uploads
 
 Both upload endpoints share `saveUploadedFile`:
 
@@ -734,7 +867,7 @@ The server saves the file in `html/user_json/` and serves it from
 
 ---
 
-### 4.5 Configuration
+### 4.6 Configuration
 
 #### `GET /api/config`
 
@@ -873,7 +1006,7 @@ The client must expect the connection to drop.
 
 ---
 
-### 4.6 External editor
+### 4.7 External editor
 
 #### `GET /api/edit-external`
 
@@ -902,7 +1035,7 @@ failure to start the editor. It still returns the wait page with `200`.
 
 ---
 
-### 4.7 Server log stream
+### 4.8 Server log stream
 
 #### `GET /api/logs`
 
@@ -944,7 +1077,7 @@ es.onmessage = e => console.log(e.data);
 
 ---
 
-### 4.8 SQLite
+### 4.9 SQLite
 
 #### `POST /api/sql`
 
@@ -993,7 +1126,7 @@ This endpoint replaces the removed WebSQL API. The wrapper in the browser is
   error.
 * If a database has backups but **no** `.sqlite` file, an open of that
   database starts the one automatic restore in OMN-Go (see
-  [§4.8](#48-database-backups)).
+  [§4.10](#410-database-backups)).
 
 **Success response** — `200`, `application/json`:
 
@@ -1033,7 +1166,7 @@ that returns no rows has no `columns` field and no `rows` field.
 
 ---
 
-### 4.9 Database backups
+### 4.10 Database backups
 
 A backup is a **JSON Lines** (`.jsonl`) copy of one user database. The
 server stores it at `html/db_backup/<db>/<timestamp>_<hostname>.jsonl`. This
@@ -1171,7 +1304,7 @@ backup. The state dot on the page therefore reads `insync` at once.
 
 ---
 
-### 4.10 Git synchronization
+### 4.11 Git synchronization
 
 #### `POST /api/sync`
 
@@ -1319,7 +1452,7 @@ commits. The asymmetry is deliberate for this reason.
 
 ---
 
-### 4.11 Status
+### 4.12 Status
 
 #### `GET /api/status`
 
