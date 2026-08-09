@@ -332,9 +332,14 @@ write them in a natural form:
   OMN-Go keeps the anchors. Each heading gets an ID from its text, in
   lowercase and with hyphens.
 - OMN-Go does not change links with a real file extension (`.png`, `.css`,
-  `.js`, ...) or external links (`http://`, `https://`, `mailto:`,
-  `tel:` ...). On the Android application, an external link opens in the
-  system browser.
+  `.js`, ...). It also does not change a link that starts with a scheme:
+  `http://`, `https://`, `mailto:`, `tel:`, `sms:`, `geo:`, `market:`,
+  `whatsapp:` and every other one. On the Android application such a link
+  goes to the application that owns the scheme — the browser, the mail
+  client, the Messaging application, Maps. A scheme that no installed
+  application accepts does nothing.
+- Do not put a `:` in a page name. `[Draft](Notes:Draft)` looks like a link
+  with the scheme `notes:`, and OMN-Go sends it to the system.
 
 ## Edit links for non-page files
 

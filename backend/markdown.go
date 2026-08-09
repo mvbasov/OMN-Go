@@ -24,6 +24,15 @@ var hrefRe = regexp.MustCompile(`href="([^"]*)"`)
 // concrete file.
 var extRe = regexp.MustCompile(`\.[a-zA-Z0-9]+$`)
 
+// uriSchemeRe matches a URI scheme at the start of a link, as RFC 3986
+// defines one: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":". A link that
+// has one is not a page reference and must reach the browser exactly as the
+// note author wrote it - see rewriteInternalLink.
+//
+// This is the same expression the click interceptor uses in
+// omn-go-core.js (setupPreviewLinkInterceptor). Keep the two identical.
+var uriSchemeRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*:`)
+
 var mdParser = goldmark.New(
 	goldmark.WithExtensions(extension.GFM),
 	goldmark.WithParserOptions(
@@ -165,35 +174,50 @@ func restorePlaceholders(s string, store map[string]string) string {
 // The only thing this function actually changes is normalizing an internal
 // page reference's extension: ".md" becomes ".html", and a bare page name
 // with no extension gets ".html" appended. Anything that already has a
-// concrete extension (.html, .js, .css, .png, ...), any external URL
-// (http(s)://, //, mailto:, tel:, javascript:, data:, intent:), and any link
-// that is purely an anchor or query string is passed through unchanged.
+// concrete extension (.html, .js, .css, .png, ...), any link that carries a
+// URI scheme, and any link that is purely an anchor or query string is passed
+// through unchanged.
 //
-// "intent:" is the Android intent-URI scheme (both the bare "intent:#Intent;
-// ...;end" form and the "intent://..." form, since both share the "intent:"
-// prefix). MainActivity.shouldOverrideUrlLoading dispatches these to the OS /
-// Termux on Android; here they must survive rewriting byte-identical.
-// Without this case a link like "[x](intent:#Intent;action=...;end)" would be
-// split at its "#", have ".html" appended to the "intent:" path segment, and
-// render as the broken "intent:.html#Intent;...". Note the raw-HTML button
-// form of an intent URI (onclick="window.location='intent:...'") is untouched
+// A LINK WITH A SCHEME IS NOT A PAGE. This test was an allowlist - http,
+// https, mailto, tel, javascript, data, intent - and every scheme absent from
+// it was read as a bare page name and given ".html":
+//
+//	sms:+15551234               ->  sms:+15551234.html
+//	sms:+1555?body=Hi           ->  sms:+1555.html?body=Hi
+//	whatsapp://send?phone=1555  ->  whatsapp://send.html?phone=1555
+//	geo:59,30                   ->  geo:59,30.html
+//
+// Each of those reaches Android as a URI that names nothing, and the
+// Messaging or Maps app it was written for never opens. A list can only ever
+// be short of some scheme; "geo:59.9,30.3" even survived by accident, because
+// its last "." looked like a file extension.
+//
+// The test is the scheme itself now (uriSchemeRe), which is what the click
+// interceptor in omn-go-core.js already used. The two have to agree: this
+// function decides what the page SAYS and the interceptor decides what a tap
+// DOES, and a link works only when both leave it alone.
+// MainActivity.shouldOverrideUrlLoading hands every scheme it does not serve
+// itself to the OS, so the app that owns it (Messaging, Dialer, Maps, Termux)
+// opens - provided what arrives is what the note author wrote.
+//
+// The cost is a page name that holds a ":" before any "/". "Notes:Draft" is
+// not distinguishable from a scheme and is now left alone instead of becoming
+// "Notes:Draft.html". The interceptor reads such a name the same way, so it
+// does not work on the client side either.
+//
+// The raw-HTML button form (onclick="window.location='sms:...'") is untouched
 // regardless, since the href-rewrite regex only rewrites href="..." values.
 func (a *App) rewriteInternalLink(href string) string {
 	if href == "" {
 		return href
 	}
 
-	lower := strings.ToLower(href)
 	switch {
-	case strings.HasPrefix(lower, "http://"),
-		strings.HasPrefix(lower, "https://"),
-		strings.HasPrefix(href, "//"),
-		strings.HasPrefix(lower, "mailto:"),
-		strings.HasPrefix(lower, "tel:"),
-		strings.HasPrefix(lower, "javascript:"),
-		strings.HasPrefix(lower, "data:"),
-		strings.HasPrefix(lower, "intent:"),
-		strings.HasPrefix(href, "#"):
+	// "//host/path" is protocol-relative: no scheme of its own, external all
+	// the same. "#anchor" is this page.
+	case strings.HasPrefix(href, "//"),
+		strings.HasPrefix(href, "#"),
+		uriSchemeRe.MatchString(href):
 		return href
 	}
 

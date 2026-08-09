@@ -29,6 +29,28 @@ func TestRewriteInternalLink(t *testing.T) {
 		{"tel:+123", "tel:+123"},
 		{"javascript:void(0)", "javascript:void(0)"},
 		{"data:text/plain,x", "data:text/plain,x"},
+		// ANY scheme, not a list of known ones. Each of these was read as a
+		// bare page name and given ".html": "sms:+15551234.html" names no
+		// recipient, so the Messaging app never opened. "geo:" with a
+		// decimal fraction was the one that worked, and only because its
+		// last "." looked like a file extension.
+		{"sms:+15551234", "sms:+15551234"},
+		{"sms:+15551234?body=Hello%20there", "sms:+15551234?body=Hello%20there"},
+		{"sms:+1555,+1666?body=Hi", "sms:+1555,+1666?body=Hi"},
+		{"SMS:+1555", "SMS:+1555"},
+		{"geo:59,30", "geo:59,30"},
+		{"geo:59.9,30.3", "geo:59.9,30.3"},
+		{"whatsapp://send?phone=15551234", "whatsapp://send?phone=15551234"},
+		{"market://details?id=net.basov.omngo", "market://details?id=net.basov.omngo"},
+		{"omngo://open?note=Welcome", "omngo://open?note=Welcome"},
+		{"bitcoin:1abc", "bitcoin:1abc"},
+		// The cost of the rule above: a page name with a ":" in it is a
+		// scheme to any URL parser, and the click interceptor in
+		// omn-go-core.js reads it the same way. Pinned so that the trade-off
+		// is a decision and not a surprise.
+		{"Notes:Draft", "Notes:Draft"},
+		// A space before the ":" is not a scheme, so this stays a page.
+		{"My Note: Part 2", "My Note: Part 2.html"},
 		// Android intent URIs pass through byte-identical - the bare
 		// "intent:#Intent;...;end" form must NOT be split at its "#" and
 		// have ".html" appended to the "intent:" segment (would produce the
@@ -159,6 +181,35 @@ func TestRenderMarkdownToHTMLIntentLinkUntouched(t *testing.T) {
 	}
 	if strings.Contains(out, "intent:.html") {
 		t.Errorf("intent link mangled to intent:.html in:\n%s", out)
+	}
+}
+
+// The same for each other scheme. An "sms:" link arrived as
+// "sms:+15551234.html", which the Messaging app cannot use: the number
+// carried a file extension. MainActivity.shouldOverrideUrlLoading passes
+// every scheme it does not serve itself to the OS, so the one thing that has
+// to be right here is the href.
+//
+// The exact bytes are TestRewriteInternalLink's job. This test checks the
+// wiring, with assertions that no URL escaping goldmark applies to a link
+// destination can disturb: no ".html" in the output, and the scheme still
+// first in the href.
+func TestRenderMarkdownToHTMLSchemeLinksUntouched(t *testing.T) {
+	a := &App{}
+	for _, c := range []struct{ href, scheme string }{
+		{"sms:+15551234", "sms:"},
+		{"sms:+15551234?body=Hi", "sms:"},
+		{"geo:59,30", "geo:"},
+		{"whatsapp://send?phone=15551234", "whatsapp:"},
+		{"market://details?id=net.basov.omngo", "market:"},
+	} {
+		out := a.renderMarkdownToHTML([]byte("[go](" + c.href + ")"))
+		if strings.Contains(out, ".html") {
+			t.Errorf("%q picked up a .html extension:\n%s", c.href, out)
+		}
+		if !strings.Contains(out, `href="`+c.scheme) {
+			t.Errorf("%q lost its scheme:\n%s", c.href, out)
+		}
 	}
 }
 
