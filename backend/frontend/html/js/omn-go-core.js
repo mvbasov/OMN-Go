@@ -359,7 +359,12 @@ function omnMarkNear(snippet) {
 
     var rawAt = flat.map[at];
     for (var i = 0; i < page.marks.length; i++) {
-        if (page.marks[i].at >= rawAt) return page.marks[i].el;
+        // The END of the mark, not its start. A snippet is a WINDOW on its
+        // line, so it can begin part way through a word - and when that word
+        // is the marked one, a test on the start alone steps over the mark
+        // the snippet is about and answers with the next one.
+        var m = page.marks[i];
+        if (m.at + m.el.textContent.length > rawAt) return m.el;
     }
     return page.marks[page.marks.length - 1].el;
 }
@@ -421,9 +426,11 @@ function omnMarkFrom(anchor) {
 // Deliberately NOT the #:~:text= scroll-to-text fragment, which browsers
 // implement inconsistently and the Android WebView largely does not.
 window.addEventListener('load', function () {
-    var terms;
+    var terms, wanted;
     try {
-        terms = new URLSearchParams(window.location.search).getAll('hl');
+        var q = new URLSearchParams(window.location.search);
+        terms = q.getAll('hl');
+        wanted = q.get('hlt');   // the text of the line the reader chose
     } catch (e) {
         return; // no URLSearchParams, or an unparsable URL: nothing to do
     }
@@ -431,24 +438,40 @@ window.addEventListener('load', function () {
 
     var first = window.omnHighlightTerms(terms);
 
-    // Which mark the page goes to.
+    // Which mark the page goes to. Three things can say, from exact to coarse.
     //
-    // A hit inside a section arrives as "?hl=cats#2026-06-15-200000". The two
-    // parts of that URL say different things: the fragment says WHICH SECTION,
-    // the terms say WHICH WORD. The word is the exact target, so the scroll
-    // goes to the first mark at or after the anchor.
+    // 1. ?hlt= is the text of the ONE line the reader clicked. A result lists
+    //    each matching line separately, so "the first match in the note" is
+    //    the wrong answer for every row but the first. omnMarkNear finds the
+    //    mark that belongs to this line - by text, because the line number in
+    //    the result indexes the markdown SOURCE and this page is compiled
+    //    HTML (see the note above omnMarkNear).
     //
-    // The anchor alone is not sufficient. A section runs from its heading to
-    // the next one, and the line that matched can be a screen or more below
-    // that heading - the reader then gets a page with a highlight that is not
-    // on it. The first mark in the page is not sufficient either: it can be in
-    // an earlier section, which is not the one the reader chose.
+    // 2. The fragment says WHICH SECTION. It is the answer for a link that
+    //    names a section instead of a line, and the fallback when the text
+    //    cannot be found. The anchor alone is not enough for a line: a section
+    //    runs to the next heading, and the line that matched can be a screen
+    //    or more below it - the reader then gets a page with a highlight that
+    //    is not on it.
     //
-    // A fragment that names no element (a section id that the renderer did not
-    // produce) falls back to the first mark. A match somewhere is better than
-    // the top of the page.
+    // 3. The first mark in the page. Used when there is no fragment, or when
+    //    the fragment names no element (a section id that the renderer did not
+    //    produce). A match somewhere is better than the top of the page.
     var anchor = omnAnchorElement();
-    var target = anchor ? omnMarkFrom(anchor) : first;
+    var target = null;
+
+    if (wanted && window.omnMarkNear) {
+        target = window.omnMarkNear(wanted);
+        // The same text can occur more than once - two identical list items in
+        // two entries, say. A copy found ABOVE the section that the link names
+        // is the wrong one, so the section decides instead.
+        if (target && anchor &&
+            !(anchor.compareDocumentPosition(target) &
+              Node.DOCUMENT_POSITION_FOLLOWING)) {
+            target = null;
+        }
+    }
+    if (!target) target = anchor ? omnMarkFrom(anchor) : first;
 
     // target is null when the anchor is good but no mark is at or after it:
     // the note matched on its title or a tag, or every hit is above the chosen
@@ -462,6 +485,7 @@ window.addEventListener('load', function () {
     try {
         var url = new URL(window.location.href);
         url.searchParams.delete('hl');
+        url.searchParams.delete('hlt');
         window.history.replaceState({}, document.title,
             url.pathname + url.search + url.hash);
     } catch (e) { /* leaving the parameters on is harmless */ }

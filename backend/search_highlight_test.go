@@ -215,6 +215,43 @@ func TestSearchPage_LinksCarryHighlight(t *testing.T) {
 	}
 }
 
+// Every matching LINE is its own link, and each one carries THAT line's text
+// as ?hlt=. Without it each snippet under a result went to the same place, and
+// a reader who chose the second line arrived at the first match in the note.
+func TestSearchPage_SnippetLinksCarryTheirOwnLine(t *testing.T) {
+	a := enabledSearchApp(t)
+	writeSearchNote(t, a, "Many.md", "Title: Many\n\nfirst needle line\nfiller\nsecond needle line\n")
+
+	body := getSearchPage(t, a, "needle").Body.String()
+	for _, want := range []string{
+		`href="/Many.html?hl=needle&amp;hlt=first+needle+line"`,
+		`href="/Many.html?hl=needle&amp;hlt=second+needle+line"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q:\n%s", want, excerpt(body, "search-snippet"))
+		}
+	}
+	if strings.Contains(body, `<div class="search-snippet"`) {
+		t.Error("a snippet is still plain text; every line has to be a link")
+	}
+}
+
+// A note's own text reaches an href through ?hlt=, so it passes the same two
+// encoders the query does: percent-encoding for the query string, then
+// HTML-escaping for the attribute.
+func TestSearchPage_SnippetLineInLinkIsEscaped(t *testing.T) {
+	a := enabledSearchApp(t)
+	writeSearchNote(t, a, "Note.md", "Title: Note\n\nthe \"><script> payload sits here\n")
+
+	link := excerpt(getSearchPage(t, a, "payload").Body.String(), "search-snippet")
+	if !strings.Contains(link, `hlt=the+%22%3E%3Cscript%3E+payload+sits+here`) {
+		t.Errorf("the line was not percent-encoded into the link:\n%s", link)
+	}
+	if strings.Contains(link, `<script`) {
+		t.Errorf("the line broke out of the href:\n%s", link)
+	}
+}
+
 // The term travelling onto the link is attacker-controlled in the LAN-sharing
 // case: it comes straight off the URL. It passes through two encoders on the
 // way - percent-encoding for the query string, then HTML-escaping for the

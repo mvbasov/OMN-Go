@@ -974,6 +974,22 @@ a.taglink {
     font-size: 13px;
     line-height: 1.45;
 }
+/* A snippet is an <a> that opens the note at this line (snippetURL in
+   search.go). It must read as the line it shows, not as a blue underlined
+   link: the <mark> on the matched word is the only colour that belongs here.
+   The hover band is the row's affordance, and it is the same one the search
+   dialog gives its rows. */
+a.search-snippet {
+    color: inherit;
+    text-decoration: none;
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: 0 -4px;
+}
+a.search-snippet:hover,
+a.search-snippet:focus-visible {
+    background: var(--bg-hover);
+}
 .search-snippet-line {
     flex: 0 0 auto;
     min-width: 3em;

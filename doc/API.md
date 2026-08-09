@@ -588,8 +588,10 @@ cache, and `?refresh` has no effect here.
 | --- | --- | --- | --- | --- |
 | `q` | string | no | — | The query. Absent or empty renders just the form |
 
-Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>`. See
-`?hl=` below.
+Every result on this page links to `/<Name>.html?hl=<term>&hl=<term>`. Each
+matching **line** under a result is a link of its own, and it adds `?hlt=` with
+that line's text, so the note opens at the line that the user selected. See
+`?hl=` and `?hlt=` below.
 
 The search page is global only. With `search_enabled` off, it answers **200**
 with an explanation of what global search costs and a link to
@@ -618,20 +620,50 @@ in `omn-go-core.js`, `highlightMinRunes` in `search.go` — the two ends agree).
 opened from disk with no server running, and on a page that the search panel
 never loads.
 
-When the URL also carries a fragment, for example
-`/Bookmarks.html?hl=cats#2026-06-15-200000`, the two parts say different
-things. The fragment says which section. The terms say which word. The client
-scrolls to the **first marked word at or after the anchor**, because the word
-is the exact target. The anchor alone can be a screen or more above the line
-that matched.
+#### `?hlt=<line>` — which occurrence to go to
 
-Two conditions change this rule:
+`hl` says which words to mark. `hlt` says which occurrence of them to go to. Its
+value is the text of one matching line, as the search result shows it.
 
+A result lists each matching line. Without `hlt`, every line of one result
+opens the same URL, and the note opens at its first match — the correct answer
+for the first line only.
+
+The client does not use the line NUMBER for this. The number is a position in
+the Markdown source, and the page is compiled HTML: a `<script>` block is
+absent from it, a link URL is absent from it, and one paragraph can be several
+source lines. The client matches the line's TEXT instead (`omnMarkNear` in
+`omn-go-core.js`). The text can be a part of the line, because a snippet is a
+window of at most 160 runes around the first hit in the line.
+
+A line inside a `<script>` block gets no `hlt`. Its text is in the index but
+never on the page.
+
+The client removes `hlt` from the address bar with `hl`.
+
+#### The order of precedence
+
+A URL can carry all three of a fragment, `hl` terms and `hlt`. They are not in
+competition — each one is more precise than the last, and the client uses the
+most precise one that it can apply:
+
+1. `hlt` — the marked word on that line.
+2. The fragment — the first marked word at or after the anchor. This is the
+   answer for a link that names a section instead of a line, for example
+   `/Bookmarks.html?hl=cats#2026-06-15-200000`. The anchor alone is not the
+   answer for a line, because a section continues to the next heading and the
+   line that matched can be a screen or more below the anchor.
+3. The first marked word in the page.
+
+Three conditions move down this list:
+
+- The text of `hlt` is not in the page, or it is above the anchor. The same
+  line can occur two times, and the copy above the anchor is not the one that
+  the user selected. Rule 2 applies.
 - The anchor names an element, but no marked word is at or after it. The
-  client keeps the scroll to the anchor. Each hit above the anchor is in a
-  section that the user did not select.
-- The anchor names no element. The client scrolls to the first marked word in
-  the page.
+  client keeps the scroll to the anchor. Each hit above it is in a section
+  that the user did not select.
+- The anchor names no element. Rule 3 applies.
 
 **Errors**
 

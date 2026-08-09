@@ -203,6 +203,44 @@ func highlightURL(base string, terms []string) string {
 	return b.String()
 }
 
+// snippetURL builds the link for ONE matching line, as the results page needs
+// one per snippet: the document, the query terms as ?hl=, this line's text as
+// ?hlt=, and this line's section as the fragment.
+//
+// ?hlt= is what makes the link point at THIS line. The line NUMBER cannot do
+// it. The number indexes the markdown SOURCE and the page shows compiled HTML,
+// where a <script> block is absent, a link's URL is gone and one paragraph can
+// be several source lines - so "the Nth line is the Nth mark" is wrong by an
+// amount that varies per note. The client matches the TEXT instead
+// (omnMarkNear in omn-go-core.js), so the text is what the link carries. The
+// snippet is already capped at snippetMaxRunes, so the URL stays short.
+//
+// The fragment is THIS line's section, not the document's. base ends in the
+// BEST hit's anchor (see buildMatches), and that is a different line. A
+// section with no predictable id contributes no fragment, and the client then
+// falls back to the first mark it can use.
+func snippetURL(base string, terms []string, m searchMatch) string {
+	if i := strings.IndexByte(base, '#'); i >= 0 {
+		base = base[:i]
+	}
+	frag := ""
+	if m.Section != nil && m.Section.ID != "" {
+		frag = "#" + m.Section.ID
+	}
+	out := highlightURL(base, terms)
+	// A hit inside a <script> block is indexed but never rendered, so there is
+	// no word on the page to go to. Such a line keeps its terms and its
+	// section and asks for nothing more.
+	if m.Text == "" || m.Context == "script" || len(terms) == 0 {
+		return out + frag
+	}
+	sep := "?"
+	if strings.Contains(out, "?") {
+		sep = "&"
+	}
+	return out + sep + "hlt=" + url.QueryEscape(m.Text) + frag
+}
+
 func normalizeQueryField(k string) string {
 	switch k {
 	case "tags":

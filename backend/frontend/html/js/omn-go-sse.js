@@ -1279,8 +1279,13 @@ if (window.location.protocol !== 'file:') {
                 head.addEventListener('click', function () { openResult(r); });
                 list.appendChild(head);
 
+                // Each row is one LINE, so each row opens the document AT that
+                // line. Passing only r sent every row of a result to the same
+                // place - the first match in the note - whichever line the
+                // reader chose. The heading row above keeps that behaviour,
+                // because it names the document and no line in it.
                 (r.matches || []).forEach(function (m) {
-                    list.appendChild(buildSnippetRow(m, function () { openResult(r); }));
+                    list.appendChild(buildSnippetRow(m, function () { openResult(r, m); }));
                 });
                 if (r.truncated) {
                     var note = document.createElement('li');
@@ -1300,19 +1305,23 @@ if (window.location.protocol !== 'file:') {
         // A result in global scope is a different document, so following it is
         // a navigation - unlike page scope, where the answer is already on
         // screen and the useful move is to highlight it in place.
-        function openResult(r) {
+        // m is the line the reader chose, and is absent when the document
+        // itself was chosen.
+        function openResult(r, m) {
             close();
-            if (r && r.url) window.location.href = withHighlight(r.url);
+            if (r && r.url) window.location.href = withHighlight(r.url, m);
         }
 
         // withHighlight hangs the query terms off a URL as ?hl=, so the page
-        // being opened marks them and scrolls to the first on arrival. Same
-        // parameter the results page puts on its links (highlightURL in
+        // being opened marks them on arrival. With a line it also hangs that
+        // line's text off as ?hlt=, which is what the page goes TO: a result
+        // lists each matching line, and every one of them opening the first
+        // match in the note is only right for the first. Same two parameters
+        // the results page puts on its links (highlightURL and snippetURL in
         // search.go), so a result behaves identically whichever list it came
         // from. The receiving page strips them from the address bar once
         // applied - see omn-go-core.js.
-        function withHighlight(url) {
-            if (!lastTerms.length) return url;
+        function withHighlight(url, m) {
             // The fragment stays last. A sectioned result arrives here as
             // "/Bookmarks.html#2026-06-15-200000", and appending blindly gives
             // "#2026-06-15-200000?hl=cats" - one fragment that names no
@@ -1326,10 +1335,22 @@ if (window.location.protocol !== 'file:') {
                 frag = url.slice(hash);
                 url = url.slice(0, hash);
             }
+            // url already ends in the BEST hit's section; this line may be in
+            // another one, and the fragment is what the page falls back to
+            // when it cannot find the text.
+            if (m && m.section && m.section.id) frag = '#' + m.section.id;
+
             var sep = url.indexOf('?') === -1 ? '?' : '&';
             for (var i = 0; i < lastTerms.length; i++) {
                 url += sep + 'hl=' + encodeURIComponent(lastTerms[i]);
                 sep = '&';
+            }
+            // A hit inside a <script> block gets no ?hlt=: the text is indexed
+            // but never rendered, so there is no word on the page to go to and
+            // a search for it would only find a coincidence. Without terms
+            // there is nothing marked, so there is nothing to go to either.
+            if (lastTerms.length && m && m.text && m.context !== 'script') {
+                url += sep + 'hlt=' + encodeURIComponent(m.text);
             }
             return url + frag;
         }

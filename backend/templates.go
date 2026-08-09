@@ -861,7 +861,16 @@ func renderSearchPage(v searchPageView) string {
 				} else if m.Section == nil {
 					lastSection = ""
 				}
-				groups.WriteString("  <div class=\"search-snippet\">")
+				// Each line is its own link, and each one opens the note AT
+				// that line. A snippet was plain text before, so the only way
+				// into a note was the title above - which lands on the first
+				// match, and a reader who chose the fifth line got the first.
+				// snippetURL puts this line's text on the href as ?hlt=; the
+				// text passes through percent-encoding there and HTML-escaping
+				// here, because a note's content is attacker-controlled in the
+				// LAN-sharing case.
+				fmt.Fprintf(&groups, "  <a class=\"search-snippet\" href=\"%s\">",
+					escapeHTML(snippetURL(r.URL, v.Highlight, m)))
 				fmt.Fprintf(&groups, "<span class=\"search-snippet-line\">%d</span>", m.Line)
 				if m.Context != "" {
 					where := "inside a code block"
@@ -873,7 +882,7 @@ func renderSearchPage(v searchPageView) string {
 				}
 				fmt.Fprintf(&groups, "<span class=\"search-snippet-text\">%s</span>",
 					renderSnippetHTML(m.Text, m.Spans))
-				groups.WriteString("</div>\n")
+				groups.WriteString("</a>\n")
 			}
 			if r.Truncated {
 				groups.WriteString("  <div class=\"search-result-note\">only the first 500 KiB of this file was searched</div>\n")
