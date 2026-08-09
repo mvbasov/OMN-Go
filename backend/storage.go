@@ -138,6 +138,13 @@ Tags: Bookmarks
 <!-- Don't edit body below this line -->
 ];
 </script>`)
+	// A plain file kept beside a note (md/log.txt) is copied into html/,
+	// which is where its URL resolves - see note_files.go. Synchronous, and
+	// before the precompile below: the walk reads nothing until it finds a
+	// file to copy, and a link tapped in the first second after start must
+	// not race the copy that makes it work.
+	a.syncNoteFilesToHTML()
+
 	// Precompile all notes to data/html/ at startup in the background
 	go a.precompileAllPages()
 }

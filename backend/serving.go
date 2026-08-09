@@ -55,6 +55,16 @@ var builtinMIME = map[string]string{
 	// parse error on the second line instead of showing the file.
 	".jsonl": "text/plain; charset=utf-8",
 	".md":    "text/markdown; charset=utf-8",
+	// Go's own table has no ".txt" (mime/type.go, builtinTypesLower), and a
+	// phone has no /etc/mime.types for the stdlib to read at init. The
+	// consequence of the missing row was not only a guessed type:
+	// editableFileType asks this same table whether a file is text, so on
+	// Android a .txt got no edit link and the editor refused to open it,
+	// while the identical file behaved correctly on a desktop Linux with
+	// mime-support installed. A file kept beside a note (note_files.go) is
+	// a .txt, so this row is what makes such a file editable at all on the
+	// device where it matters.
+	".txt":   "text/plain; charset=utf-8",
 	".svg":   "image/svg+xml",
 	".png":   "image/png",
 	".jpg":   "image/jpeg",

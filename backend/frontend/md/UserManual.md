@@ -28,6 +28,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [Markdown in a nutshell](#markdown-in-a-nutshell)
 - [Links: absolute, relative, external](#links-absolute-relative-external)
 - [Edit links for non-page files](#edit-links-for-non-page-files)
+- [Text files beside your notes](#text-files-beside-your-notes)
 - [Math and code highlighting](#math-and-code-highlighting)
 - [Material icons in notes](#material-icons-in-notes)
 - [Buttons and shortcuts inside a page](#buttons-and-shortcuts-inside-a-page)
@@ -371,6 +372,29 @@ The link answers with a short page and a link to the file. The
 If you do not know the name of a file, open
 [the file index](OMNGoFiles). It lists every file that OMN-Go serves and
 gives the same link ready-made.
+
+## Text files beside your notes
+
+You can keep a plain text file with the notes that use it. Put `log.txt` in the `md/` directory, beside `Log.md`, then link to it from the note:
+
+```
+[The raw log](log.txt)
+```
+
+OMN-Go serves your notes from `md/`, and each other file from `html/`. A link is a URL, and a URL finds its file in `html/`. Thus OMN-Go keeps the text file in the two directories and keeps the two copies the same. Each direction has its own moment:
+
+- At each start, OMN-Go copies `md/log.txt` to `html/log.txt` when `html/` has no copy, or when the copy in `md/` is more recent. A git synchronization, a file manager and a desktop editor all make a change in this direction.
+- After you save the file in the editor, OMN-Go copies it back to `md/`. The editor writes to the location that the URL points to, which is `html/`.
+
+Each copy keeps the modification time of its source. Thus the pair becomes stable: a start that comes after a save finds nothing to do.
+
+The copy in `md/` is the one that git synchronization carries with your notes. Subdirectories stay: `md/project/data.txt` becomes `html/project/data.txt`.
+
+Three limits to know:
+
+- Only a `.txt` file is copied. Put a file of a different type in `html/`, where OMN-Go serves it directly.
+- OMN-Go deletes nothing. If you delete `md/log.txt`, the copy in `html/` stays and the link continues to operate. Delete the two files.
+- An external editor gives OMN-Go no signal when it writes. Such a change stays in `html/`. To copy it to `md/`, save the file one time in the internal editor.
 
 ## Math and code highlighting
 

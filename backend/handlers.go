@@ -848,6 +848,12 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save", http.StatusInternalServerError)
 			return
 		}
+		// The editor writes where the URL points, which is html/. A file
+		// that also belongs beside a note goes back to md/ as well, or the
+		// copy the user keeps with the notes - and that git sync carries -
+		// goes stale while the served copy moves on. A no-op for every
+		// other file under html/ (see note_files.go).
+		a.syncNoteFileToMD(htmlPath)
 		w.Write([]byte("Saved"))
 		return
 	}
