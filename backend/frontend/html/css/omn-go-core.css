@@ -717,9 +717,28 @@ a.taglink {
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-soft);
 }
-.omn-search-icon {
-    color: var(--text-faint);
+/* The control that runs the search. Same glyph and same place as the submit
+   button of the results page (.search-page-submit), and styled from the same
+   tokens, so the two read as one control in two places - only the shape
+   differs, because this one sits in a row of round icon buttons rather than
+   beside a full-width field. The dialog used to lead with a magnifier that
+   did nothing; it is gone, so the one on screen is the one to press. */
+.omn-search-go {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.omn-search-go:hover {
+    background: var(--accent-hover);
 }
 /* The search dialog's own wait. It carries .omn-progress-track and
    .omn-progress-fill (section 6) as well, so a wait looks the same here as

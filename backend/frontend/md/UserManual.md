@@ -545,32 +545,31 @@ search you use:
   setting. A *Search* link on one of your own notes thus works in both
   cases.
 
-### When the search starts
+### How to start the search
 
-The panel does not search at each key that you press. It waits two seconds
-after the last character, then it searches. A search of all notes reads
-every note that the index holds, and a search for each key of a word would
-do that work five or six times and show you only the last answer.
+Typing does not search. Type your query, then press the **magnifier button**
+at the right of the input field, or press **Enter**. This is the same button
+that the [search page](OMNGoSearch) has, in the same position.
 
-A bar under the input field shows the wait. It fills from the left, and the
-search starts when it is full. Each character that you type puts it back to
-the start. To search immediately, press **Enter**: the search starts, and
-the bar does not wait.
+A search of all notes reads every note that the index holds. A search at each
+key that you press does that work five or six times for one word and shows
+you only the last answer.
 
-The bar tells you two different things:
+While the search operates, a bar below the input field moves from side to
+side. It makes no promise about the time, because the time depends on the
+quantity of your notes. The panel also shows *Searching…*. The bar goes away
+when the results come. You get the same bar when you press **All notes**,
+which searches immediately.
 
-- **The bar fills** — the wait after your last character. You know how much
-  time is left, and you can see the wait start again when you type.
-- **A short bar moves from side to side** — the search itself. How long it
-  continues depends on the quantity of notes, so the bar makes no promise
-  about the time. The panel also shows *Searching…* below.
+**Enter** does one of two things, and the field tells you which:
 
-The bar goes away when the results come. It also comes when you press **All
-notes**, because that search starts immediately and can be the slowest one.
+- The field shows the query of the results below it. Enter opens the result
+  that you selected.
+- You changed the field. Enter searches for the new text. The panel shows
+  *Press ↵ or the magnifier to search* while the two do not agree.
 
-The [search page](OMNGoSearch) has no wait: the button is your signal that
-the query is complete. That page shows the progress indicator of the
-application while the server makes the results.
+The search page shows the progress indicator of the application while the
+server makes the results.
 
 ### What it matches
 
@@ -615,6 +614,11 @@ It marks every occurrence in the page and moves to the first one. When you
 press a result in **All notes**, OMN-Go opens the note of the match. The
 note is already scrolled to the match, and the terms you typed are marked.
 You do not have to find them again by eye.
+
+The marks include the matches in a fenced code block, together with the
+syntax colours of that block. Before, a match in a ```` ``` ```` block was
+in the result list but had no mark in the page, and only prose and an
+inline `code` span showed one.
 
 The full [search page](OMNGoSearch) behaves the same way. The *See all
 results* link opens that page. The search page is easier to read for a

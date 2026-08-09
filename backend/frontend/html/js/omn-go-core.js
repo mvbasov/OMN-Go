@@ -425,7 +425,24 @@ function omnMarkFrom(anchor) {
 //
 // Deliberately NOT the #:~:text= scroll-to-text fragment, which browsers
 // implement inconsistently and the Android WebView largely does not.
-window.addEventListener('load', function () {
+//
+// WHEN THIS RUNS MATTERS. It is called at the END of the load listener
+// further down this file, after highlight.js and KaTeX have rewritten
+// #preview - not from a load listener of its own, which is what it used to
+// be and which put it FIRST.
+//
+// hljs.highlightElement replaces the innerHTML of every "#preview pre code"
+// with its own tokenised markup, built from the block's text. A <mark> put
+// inside a fenced block before that ran was therefore deleted a moment
+// later: a hit in a ```code``` block was listed in the search panel, and
+// then could not be found in the page. Prose and an inline `code` span were
+// never touched by hljs, so they highlighted correctly - which made it look
+// as though code blocks were simply not searched.
+//
+// Running last also means the scroll is computed against the final layout,
+// instead of one that math and syntax highlighting were still about to
+// change.
+function omnApplyArrivalHighlight() {
     var terms, wanted;
     try {
         var q = new URLSearchParams(window.location.search);
@@ -489,7 +506,7 @@ window.addEventListener('load', function () {
         window.history.replaceState({}, document.title,
             url.pathname + url.search + url.hash);
     } catch (e) { /* leaving the parameters on is harmless */ }
-});
+}
 
 // --- Global Listeners & State ---
 // This file is loaded synchronously in <head>, BEFORE the body (and any
@@ -998,6 +1015,11 @@ window.addEventListener('load', () => {
             if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                 omnGoRenderMath(document.getElementById('preview') || document.body);
             }
+            // AFTER hljs and KaTeX, never before: highlightElement rebuilds
+            // the innerHTML of each "pre code", which used to delete every
+            // <mark> a search had just put inside a fenced block. See the
+            // note above omnApplyArrivalHighlight.
+            omnApplyArrivalHighlight();
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
                 const tb = document.getElementById('toggleBtn');
                 if (tb) tb.style.display = 'none';

@@ -913,30 +913,29 @@ if (window.location.protocol !== 'file:') {
     // omn-go-core.js, and it matters more here because the text being rendered
     // is the user's own notes.
     (function () {
-        // DEBOUNCE_MS waits for the typist to STOP, not merely to pause. A
-        // global query reads every note that the index holds, so a search per
-        // keystroke is the most expensive thing this dialog can do, and on a
-        // phone the gap between two words is longer than any "skip the
-        // intermediate keystrokes" value.
+        // THE SEARCH IS ASKED FOR, NOT GUESSED AT.
         //
-        // Two seconds is long enough to be read as nothing happening, so the
-        // wait is SHOWN rather than merely served: the progress bar fills over
-        // exactly this interval and the search starts when it is full (see
-        // showProgress). The number and the animation are the same constant,
-        // so they cannot disagree.
-        var DEBOUNCE_MS = 2000;
+        // Typing does not search. The magnifier button does, and so does
+        // Enter. A query of all notes reads every note the index holds, and a
+        // search per keystroke did that work five or six times for one word
+        // and kept only the last answer. A timer instead of a button only
+        // moves the guess: too short and it fires mid-word, too long and the
+        // panel looks broken.
+        //
+        // The button is the same control the results page carries, so "type,
+        // then press the magnifier" is one habit for both.
         var MIN_QUERY = 2;       // 1 rune matches nearly everything
         var MAX_SNIPPETS = 10;   // the API's own cap
 
         var overlay = null, input = null, list = null, statusEl = null, scopeEl = null;
-        var progressEl = null, progressFillEl = null;
+        var progressEl = null, goEl = null;
         var seeAllEl = null;   // lives in the scope row - see renderScope
         var rows = [];
         var active = -1;
-        // timer is the debounce handle AND the answer to "is a search
-        // pending": non-null means one is counting down. cancelPending is the
-        // only place it is cleared, so the two can never disagree.
-        var timer = null;
+        // The query the rows on screen belong to. Enter opens a row while the
+        // field still says that; once the field says something else, Enter is
+        // a request to search for the new thing instead - see onInputKey.
+        var lastQuery = null;
         var inflight = null;
         var lastTerms = [];
         // "" until the user picks: the FIRST query deliberately sends no scope
@@ -962,7 +961,6 @@ if (window.location.protocol !== 'file:') {
             overlay.innerHTML =
                 '<div class="omn-search-card" role="dialog" aria-label="Search">' +
                   '<div class="omn-search-head">' +
-                    '<i class="material-icons omn-search-icon">search</i>' +
                     // Deliberately BARE: no spellcheck, no autocorrect, no
                     // autocapitalize, no autocomplete, no inputmode. Every one
                     // of those is a hint the Android keyboard reads when it
@@ -980,6 +978,16 @@ if (window.location.protocol !== 'file:') {
                     // anything other than a plain text field.
                     '<input type="text" class="omn-search-input" ' +
                           'placeholder="Search this page">' +
+                    // The one control that searches. It stands where the
+                    // submit button of the results page stands - after the
+                    // field, same glyph - so the two behave alike. The
+                    // decorative magnifier that used to lead this row is
+                    // gone: two of them, one inert, said the wrong thing
+                    // about which one to press.
+                    '<button type="button" class="omn-search-go" ' +
+                            'title="Search (↵)" aria-label="Search">' +
+                      '<i class="material-icons icon-sm">search</i>' +
+                    '</button>' +
                     '<button type="button" class="omn-search-close" aria-label="Close">' +
                       '<i class="material-icons icon-sm">close</i>' +
                     '</button>' +
@@ -1003,14 +1011,21 @@ if (window.location.protocol !== 'file:') {
             statusEl = overlay.querySelector('.omn-search-status');
             scopeEl = overlay.querySelector('.omn-search-scope');
             progressEl = overlay.querySelector('.omn-search-progress');
-            progressFillEl = progressEl.querySelector('.omn-progress-fill');
+            goEl = overlay.querySelector('.omn-search-go');
 
+            goEl.addEventListener('click', function () {
+                // Back to the field afterwards: on a phone the tap on this
+                // button closes the keyboard, and the next thing a reader
+                // does is usually edit the query.
+                run();
+                focusInput();
+            });
             overlay.querySelector('.omn-search-close').addEventListener('click', close);
             // A click on the backdrop closes; a click inside the card must not.
             overlay.addEventListener('click', function (e) {
                 if (e.target === overlay) close();
             });
-            input.addEventListener('input', schedule);
+            input.addEventListener('input', onInput);
             input.addEventListener('keydown', onInputKey);
 
             renderScope();
@@ -1186,8 +1201,7 @@ if (window.location.protocol !== 'file:') {
         }
 
         function close() {
-            cancelPending();
-            showProgress(null);
+            showProgress(false);
             if (inflight) {
                 inflight.abort();
                 inflight = null;
@@ -1199,83 +1213,35 @@ if (window.location.protocol !== 'file:') {
             return !!overlay && !overlay.hidden;
         }
 
-        // showProgress drives the one bar in the dialog. There are two waits
-        // and they are not the same kind, so they do not look the same:
+        // showProgress raises and lowers the bar under the input.
         //
-        //   'countdown' - the debounce. Its length is KNOWN, so the bar fills
-        //                 from nothing to full over exactly DEBOUNCE_MS and
-        //                 the search starts when it arrives. The user can see
-        //                 how long is left, and can see it restart when they
-        //                 type again.
-        //   'running'   - the request. Its length is NOT known: it depends on
-        //                 how many notes the index holds. An indeterminate
-        //                 sweep says "working" and promises no time.
-        //   null        - nothing is happening. The bar is not left on screen
-        //                 empty, which would read as a wait of zero progress.
-        function showProgress(mode) {
+        // One wait, and its length is NOT known: it depends on how many notes
+        // the index holds, which is why "All notes" needed this most. So the
+        // bar is the indeterminate sweep - it says "working" and promises no
+        // time. It is never left on screen empty, which would read as a wait
+        // that is making no progress.
+        function showProgress(on) {
             if (!progressEl) return;
-            if (!mode) {
-                progressEl.hidden = true;
-                progressEl.classList.remove('indeterminate');
-                progressFillEl.style.transition = '';
-                progressFillEl.style.width = '';
-                return;
-            }
-            progressEl.hidden = false;
-            if (mode === 'running') {
-                // The inline width and transition of a countdown must go, or
-                // they would beat the .indeterminate rule's own width and
-                // fight its animation.
-                progressFillEl.style.transition = '';
-                progressFillEl.style.width = '';
-                progressEl.classList.add('indeterminate');
-                return;
-            }
-            progressEl.classList.remove('indeterminate');
-            progressFillEl.style.transition = 'none';
-            progressFillEl.style.width = '0%';
-            // Force the 0% to be applied before the transition is armed.
-            // Without this read the browser coalesces the two writes and the
-            // bar jumps straight to full.
-            void progressFillEl.offsetWidth;
-            progressFillEl.style.transition = 'width ' + DEBOUNCE_MS + 'ms linear';
-            progressFillEl.style.width = '100%';
+            progressEl.hidden = !on;
+            progressEl.classList.toggle('indeterminate', !!on);
         }
 
-        // cancelPending is the ONLY place timer is cleared, so "timer is not
-        // null" always means "a search is counting down".
-        function cancelPending() {
-            clearTimeout(timer);
-            timer = null;
-        }
-
-        function schedule() {
-            // Updated here rather than in run(), so the control appears as soon
-            // as the query is long enough instead of one debounce later.
+        // Typing changes no results. It only keeps the two things that
+        // describe the field honest: whether "See all results" applies, and
+        // whether the rows below still answer what the field says.
+        function onInput() {
             updateSeeAll();
-            cancelPending();
-
-            // Too short to search: say so NOW rather than two seconds from
-            // now. There is nothing to count down to, and a bar that filled
-            // and then produced the words "type at least 2 characters" would
-            // have been counting down to nothing.
-            if (input.value.trim().length < MIN_QUERY) {
-                showProgress(null);
-                run();
+            var q = input.value.trim();
+            if (q.length < MIN_QUERY) {
+                setStatus(q ? 'Type at least ' + MIN_QUERY + ' characters' : '');
                 return;
             }
-
-            showProgress('countdown');
-            // Say what the bar is counting down to. Whatever the line held is
-            // now wrong: either the "type at least 2 characters" hint that the
-            // query has just outgrown, or the summary of the PREVIOUS query -
-            // whose "↵ to highlight" no longer holds either, because Enter now
-            // starts this search instead (see onInputKey).
-            setStatus('Search starts when the bar is full');
-            timer = setTimeout(function () {
-                timer = null;
-                run();
-            }, DEBOUNCE_MS);
+            if (q !== lastQuery) {
+                // Without this the panel answers a new query with the old
+                // one's results and says nothing about it. It also states
+                // what to press, which is the whole of the interaction.
+                setStatus('Press ↵ or the magnifier to search');
+            }
         }
 
         function setStatus(text) {
@@ -1289,22 +1255,26 @@ if (window.location.protocol !== 'file:') {
         }
 
         function run() {
-            // A run always supersedes a pending one, whoever asked for it -
-            // the debounce firing, Enter, the scope chips, or open().
-            cancelPending();
-
             var q = input.value.trim();
             if (q.length < MIN_QUERY) {
-                showProgress(null);
+                showProgress(false);
                 clearRows();
+                lastQuery = null;
                 setStatus(q ? 'Type at least ' + MIN_QUERY + ' characters' : '');
                 return;
             }
 
+            // The rows about to arrive answer THIS text. onInputKey compares
+            // against it to decide what Enter means, so it is set here, where
+            // the request is made, and not where the answer lands - a reply
+            // that never comes must not leave Enter opening rows that belong
+            // to a query the field no longer shows.
+            lastQuery = q;
+
             // From here a request is going out, and how long it takes is the
             // server's business - an index of every note answers slower than
             // one page. This is the wait that "All notes" makes visible.
-            showProgress('running');
+            showProgress(true);
             setStatus('Searching…');
 
             // Cancel the previous request rather than racing it: on a fast
@@ -1329,7 +1299,7 @@ if (window.location.protocol !== 'file:') {
                     inflight = null;
                     // After the superseded check, never before it: a newer
                     // request is still running and its bar has to stay up.
-                    showProgress(null);
+                    showProgress(false);
                     if (data && data.status && data.status !== 'ok' && data.error) {
                         // The server refused this scope (global search off, or
                         // its index not ready). Say why and drop back to the
@@ -1352,7 +1322,7 @@ if (window.location.protocol !== 'file:') {
                     if (err && err.name === 'AbortError') return;
                     if (ctrl && inflight !== ctrl) return;
                     inflight = null;
-                    showProgress(null);
+                    showProgress(false);
                     clearRows();
                     setStatus('Search failed');
                     console.error('search: ' + err);
@@ -1640,13 +1610,12 @@ if (window.location.protocol !== 'file:') {
                 break;
             case 'Enter':
                 e.preventDefault();
-                // A search that is still counting down is the one the user
-                // just asked for, and Enter means "now". Without this branch
-                // Enter would open a row belonging to the PREVIOUS query -
-                // rows the new text has already made wrong. At 150 ms that
-                // was hard to hit; at two seconds it is the normal way to
-                // use the dialog.
-                if (timer) {
+                // Enter is the keyboard's magnifier. It searches whenever the
+                // field says something the rows on screen do not answer -
+                // which, now that typing searches nothing, is every moment
+                // between typing and asking. Only when the two agree does
+                // Enter mean what it used to: open the row I am on.
+                if (input.value.trim() !== lastQuery) {
                     run();
                     break;
                 }
