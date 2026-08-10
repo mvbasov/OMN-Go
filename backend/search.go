@@ -354,7 +354,7 @@ func newMarkdownDocument(baseName, content string, truncated bool) *searchDocume
 	return doc
 }
 
-// newAssetDocument is the same for a file with no front matter: a script, a
+// newAssetDocument is the same for a file with no header block: a script, a
 // JSON blob. rel is storage-relative below html/ ("js/mine.js").
 func newAssetDocument(rel, content string, truncated bool) *searchDocument {
 	doc := &searchDocument{
@@ -368,12 +368,12 @@ func newAssetDocument(rel, content string, truncated bool) *searchDocument {
 	return doc
 }
 
-// parseMarkdown fills a document from note source: the front-matter header
+// parseMarkdown fills a document from note source: the header block
 // becomes weighted fields, and only the BODY becomes content lines - so a
 // "Category: Notes" header never shows up as a content hit. Line numbers stay
 // true to the file, header included, because that is what the reader sees.
 func (d *searchDocument) parseMarkdown(content string) {
-	fm := splitFrontMatter(content)
+	hb := parseHeaderBlock(content)
 	title, tags := extractTitleTags(content)
 	if title == "" {
 		title = d.Name
@@ -387,8 +387,8 @@ func (d *searchDocument) parseMarkdown(content string) {
 	for _, t := range tags {
 		d.fields = append(d.fields, docField{name: "tag", text: fold(t), weight: weightTags})
 	}
-	if fm.HasHeader {
-		for _, h := range strings.Split(fm.Header, "\n") {
+	if hb.HasHeader {
+		for _, h := range strings.Split(hb.Header, "\n") {
 			k, v, found := strings.Cut(h, ":")
 			if !found {
 				continue
@@ -405,17 +405,17 @@ func (d *searchDocument) parseMarkdown(content string) {
 	}
 
 	// Body line numbers continue from the header rather than restarting.
-	firstBodyLine := 1 + strings.Count(content[:fm.BodyOffset], "\n")
+	firstBodyLine := 1 + strings.Count(content[:hb.BodyOffset], "\n")
 
 	if d.Kind == SearchKindBookmarks {
-		d.addBookmarks(fm.Body, firstBodyLine)
+		d.addBookmarks(hb.Body, firstBodyLine)
 		return
 	}
-	raw, contexts := d.addLines(fm.Body, firstBodyLine)
+	raw, contexts := d.addLines(hb.Body, firstBodyLine)
 	d.sections = sectionsFromHeadings(raw, contexts, firstBodyLine)
 }
 
-// parsePlain fills a document from a file with no front matter (a script, a
+// parsePlain fills a document from a file with no header block (a script, a
 // JSON blob): every line is content, and the path is the only field.
 func (d *searchDocument) parsePlain(content string) {
 	d.Title = path.Base(d.Name)

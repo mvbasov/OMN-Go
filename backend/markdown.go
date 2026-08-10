@@ -288,20 +288,20 @@ func (a *App) compilePage(name string, mdContent []byte) []byte {
 // dedicated editor page (renderEditorPage), so this function only ever
 // produces read/view shells.
 func (a *App) compilePageWithBody(name string, mdContent []byte, customBody string) []byte {
-	// One front-matter split for the whole backend (see frontmatter.go).
+	// One header-block split for the whole backend (see header_block.go).
 	// Previously this function had its own line-by-line header scan that
 	// classified any colon-bearing line as header - swallowing e.g. a
-	// "# Head: x" Markdown heading. splitFrontMatter uses the same
+	// "# Head: x" Markdown heading. parseHeaderBlock uses the same
 	// first-line rule as ensureHeaderModified and handleNewPage.
-	fm := splitFrontMatter(string(mdContent))
+	hb := parseHeaderBlock(string(mdContent))
 	var headers []string
-	if fm.HasHeader {
-		headers = strings.Split(fm.Header, "\n")
+	if hb.HasHeader {
+		headers = strings.Split(hb.Header, "\n")
 	}
 
 	renderedBody := customBody
 	if renderedBody == "" {
-		renderedBody = a.renderMarkdownToHTML([]byte(fm.Body))
+		renderedBody = a.renderMarkdownToHTML([]byte(hb.Body))
 	}
 
 	// Title and Tags come from the shared extractTitleTags (also used by the
@@ -378,11 +378,11 @@ func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	now := time.Now().Format("2006-01-02 15:04:05")
 
-	// Same header decision as everywhere else (see frontmatter.go).
-	fm := splitFrontMatter(content)
+	// Same header decision as everywhere else (see header_block.go).
+	hb := parseHeaderBlock(content)
 
-	if fm.HasHeader {
-		headerLines := strings.Split(fm.Header, "\n")
+	if hb.HasHeader {
+		headerLines := strings.Split(hb.Header, "\n")
 		modIdx := -1
 		for i, l := range headerLines {
 			if strings.HasPrefix(strings.ToLower(l), "modified:") {
@@ -397,7 +397,7 @@ func (a *App) ensureHeaderModified(content string, defaultTitle string) string {
 		}
 		// Body is "" for a header-only note; the trailing "\n\n" preserves
 		// the previous behavior (a header always ends with a blank line).
-		return strings.Join(headerLines, "\n") + "\n\n" + fm.Body
+		return strings.Join(headerLines, "\n") + "\n\n" + hb.Body
 	}
 
 	authorLine := ""

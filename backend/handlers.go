@@ -790,15 +790,15 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			}
 			linkStr := fmt.Sprintf("* [%s](%s)", title, linkHref)
 
-			// Same header decision as everywhere else (see frontmatter.go).
+			// Same header decision as everywhere else (see header_block.go).
 			// The new link is inserted just below the header block when one
 			// is present, or prepended to a headerless note.
-			fm := splitFrontMatter(content)
-			if fm.HasHeader {
-				if fm.Body != "" {
-					content = fm.Header + "\n\n" + linkStr + "\n" + fm.Body
+			hb := parseHeaderBlock(content)
+			if hb.HasHeader {
+				if hb.Body != "" {
+					content = hb.Header + "\n\n" + linkStr + "\n" + hb.Body
 				} else {
-					content = fm.Header + "\n\n" + linkStr + "\n"
+					content = hb.Header + "\n\n" + linkStr + "\n"
 				}
 			} else {
 				content = linkStr + "\n\n" + content

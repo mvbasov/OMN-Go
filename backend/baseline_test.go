@@ -7,7 +7,7 @@ package backend
 // that have since shipped ("Phase 1 will replace them with one
 // parseFrontMatter"), and two of its four tests asserted post-refactor
 // behaviour while still being named for the pre-refactor one. What those two
-// guarded is now covered directly by frontmatter_test.go and markdown_test.go.
+// guarded is now covered directly by header_block_test.go and markdown_test.go.
 // The two that are still load-bearing (compiled-page shape across every write
 // path, and the /api/logs SSE lifecycle) moved here, re-commented as statements
 // about today rather than promises about tomorrow.

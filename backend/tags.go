@@ -51,18 +51,18 @@ func tagSlug(tag string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// extractTitleTags reads a note's Title and Tags out of its front-matter
-// header, using the exact same rules as compilePageWithBody (which now calls
+// extractTitleTags reads a note's Title and Tags out of its header block,
+// using the exact same rules as compilePageWithBody (which now calls
 // this too, so the two can't drift): the last "Title:" wins; "Tags:" is a
 // comma-separated list, trimmed, empties dropped. title is "" when absent (the
 // caller decides the fallback); tags preserves order and, like the pill path,
 // is NOT de-duplicated here - the tags-page generator de-dupes per page itself.
 func extractTitleTags(content string) (title string, tags []string) {
-	fm := splitFrontMatter(content)
-	if !fm.HasHeader {
+	hb := parseHeaderBlock(content)
+	if !hb.HasHeader {
 		return "", nil
 	}
-	for _, h := range strings.Split(fm.Header, "\n") {
+	for _, h := range strings.Split(hb.Header, "\n") {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) != 2 {
 			continue

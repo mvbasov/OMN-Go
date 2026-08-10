@@ -1,7 +1,7 @@
 package backend
 
 // Tests for note exchange (note_exchange.go) and the two header-key helpers
-// it needs (frontmatter.go).
+// it needs (header_block.go).
 //
 // Two properties carry the weight here.
 //
@@ -11,7 +11,7 @@ package backend
 // the resolved path, not the string - because filepath.Join RESOLVES a "..".
 //
 // A KEY IS SET, NOT APPENDED. A note can hop twice, and a header block that
-// carries "Imported:" two times has no defined meaning: splitFrontMatter
+// carries "Imported:" two times has no defined meaning: parseHeaderBlock
 // hands the first one to whatever reads it, and which is first is an accident
 // of the order the hops ran in.
 
@@ -330,15 +330,15 @@ func TestIncomingIndex(t *testing.T) {
 	if !strings.HasPrefix(idx, "Title: Incoming notes\n") {
 		t.Errorf("the index has no header block:\n%s", idx)
 	}
-	fm := splitFrontMatter(idx)
-	if !fm.HasHeader {
+	hb := parseHeaderBlock(idx)
+	if !hb.HasHeader {
 		t.Fatal("the index does not parse as a note with a header")
 	}
-	if strings.Contains(fm.Header, "[WeeklyPlan]") {
-		t.Errorf("a list line was swallowed into the header block:\n%s", fm.Header)
+	if strings.Contains(hb.Header, "[WeeklyPlan]") {
+		t.Errorf("a list line was swallowed into the header block:\n%s", hb.Header)
 	}
-	if n := strings.Count(fm.Body, "* 2026-08-09 12:34 · ["); n != 3 {
-		t.Errorf("%d list lines in the body, want 3:\n%s", n, fm.Body)
+	if n := strings.Count(hb.Body, "* 2026-08-09 12:34 · ["); n != 3 {
+		t.Errorf("%d list lines in the body, want 3:\n%s", n, hb.Body)
 	}
 
 	// The link text carries the collision index; the target is the path
@@ -604,9 +604,9 @@ func TestEnsureIncomingIndex(t *testing.T) {
 	}
 	// And the box is BODY, not metadata: it opens with "<", so
 	// isHeaderFirstLine ends the header block on it.
-	fm := splitFrontMatter(idx)
-	if !fm.HasHeader || strings.Contains(fm.Header, "omn-incoming") {
-		t.Errorf("the receive box was read as part of the header block:\n%s", fm.Header)
+	hb := parseHeaderBlock(idx)
+	if !hb.HasHeader || strings.Contains(hb.Header, "omn-incoming") {
+		t.Errorf("the receive box was read as part of the header block:\n%s", hb.Header)
 	}
 
 	// The note belongs to the user from here. A second call must not touch it.

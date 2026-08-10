@@ -422,7 +422,7 @@ func TestEnsureHeaderModifiedSynthesizesHeader(t *testing.T) {
 
 // TestCompilePageNoSpuriousMetaFromCSSBody is a regression test for the
 // GeminiSvgComponentEditor bug: a note whose header/body separator line
-// carried stray spaces ("    ") caused the front-matter parser to run the
+// carried stray spaces ("    ") caused the header-block parser to run the
 // header on through the "<style>" block, turning every "--var: #hex;" CSS
 // line into a bogus <meta> tag (which the metadata panel then dumped, and
 // whose leaked SVG markup blew up innerHTML). The header must stop at the

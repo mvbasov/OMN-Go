@@ -584,7 +584,7 @@
     }
 
     // isHeaderFirstLine is a direct port of the Go isHeaderFirstLine
-    // (backend/frontmatter.go): the FIRST line of a note is a metadata key
+    // (backend/header_block.go): the FIRST line of a note is a metadata key
     // line only when it contains ':' and does not start with a space, '#',
     // or '<'. Keep the two in sync.
     function isHeaderFirstLine(line) {
@@ -596,7 +596,7 @@
 
     // Returns the character offset of the first line after the note's
     // Pelican-style metadata header. This mirrors the backend's
-    // splitFrontMatter (backend/frontmatter.go) so the editor caret and the
+    // parseHeaderBlock (backend/header_block.go) so the editor caret and the
     // server agree on where the header ends: a header exists only when the
     // first line is a metadata key line (isHeaderFirstLine); the body then
     // begins right after the header's terminating blank line. With no
