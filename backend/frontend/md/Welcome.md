@@ -45,4 +45,5 @@ Close [✕] the editor to click links.
 * [Quick Notes](QuickNotes)
 * [Search](OMNGoSearch)
 * [Files](OMNGoFiles)
+* [Incoming notes](incoming/incoming)
 <!-- * [Test OMN-Go](/Test/OMN-Go/OMN-Go) -->

@@ -97,6 +97,31 @@ names of external artifacts, not synonyms for a backup.
 | conflict | clash, collision, merge problem |
 | LAN sharing (UI label: *Share on LAN*) | network sharing, remote access, sharing on the network |
 
+## Note exchange
+
+One note leaving this device for another person, or arriving from one. This is
+not git sync: git sync moves every note between the devices of one user.
+
+| Use | Do not use instead |
+| --- | --- |
+| note exchange (the feature as a whole) | note sharing, note transfer, the share feature |
+| send a note (UI label: *Send this note*) | export, share out, publish, transfer |
+| receive a note (UI label: *Import*, on the receive box) | import a note, ingest, take in |
+| the incoming directory (`md/incoming/`) | the inbox, the drop folder, the staging directory |
+| the Incoming notes page (`incoming/incoming.html`) | the incoming index, the arrivals page |
+| the receive box (the panel on the Incoming notes page) | the import dialog, the drop zone, the upload form |
+| the share sheet (the Android chooser) | the share menu, the app picker, the intent chooser |
+| the collision index (the `-2` in `WeeklyPlan-2`) | the suffix, the counter, the disambiguator |
+| the `FileName:` line | the FileName header, the origin line, the path header |
+| the `Imported:` line | the arrival stamp, the import date |
+
+"send" and "receive" name this feature and nothing else. In the git sections,
+"send" stays banned as a synonym for **push**.
+
+`export` and `import` stay correct in `API.md` for the two endpoint names
+(`/api/export/note`, `/api/import/note`) and in the Go identifiers. They are
+not the words for the user-facing action.
+
 ## Access control
 
 | Use | Do not use instead |
@@ -127,6 +152,7 @@ names of external artifacts, not synonyms for a backup.
 - the Database Backups page (`/db_backups`)
 - the Quick Notes page, the Bookmarks page
 - the How to use Bookmarks page (`BookmarksHowTo`)
+- the Incoming notes page (`incoming/incoming.html`)
 
 ## Banned words in all files
 

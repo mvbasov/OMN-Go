@@ -41,6 +41,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 
 - [Configuration reference](#configuration-reference)
 - [Git synchronization](#git-synchronization)
+- [Send and receive one note](#send-and-receive-one-note)
 - [Database backups](#database-backups)
 - [The file index](#the-file-index)
 - [The Status page](#the-status-page)
@@ -762,6 +763,62 @@ message.
 
 The older rule `/md/local/` stays. Each note in that one directory also
 stays on this device.
+
+## Send and receive one note
+
+Git synchronization moves all of your notes between your own devices. This function is different. It moves **one note** to one other person, or to a device that has no access to your git remote.
+
+The note travels as one Markdown file. Telegram, E-Mail, LocalSend and each other application that carries files can carry it. OMN-Go does not select that application and does not know which one you use.
+
+You must be an admin to send a note and to receive a note.
+
+### Send a note
+
+1. Open the note.
+2. Press <i class="material-icons">info</i> in the header to show the metadata block.
+3. Press <i class="material-icons">share</i> **Send this note** at the right of the `File:` line.
+
+On Android the share sheet opens. Select the application that carries the note.
+
+On the desktop the browser saves the file in your download directory. Attach the file to your message yourself.
+
+Press <i class="material-icons">content_copy</i> **Copy this note as text** to put the Markdown on the clipboard instead. Use this when you want to paste the note into a message.
+
+The two controls show only on a note. A view with no Markdown source behind it, the [Config](Config) page for example, has no controls.
+
+**The name of the file.** OMN-Go makes one flat name from the full name of the note. The note `project/Sub/WeeklyPlan` becomes `project-Sub-WeeklyPlan.md`. Two notes that have the same short name are thus two different attachments in one message.
+
+**The `FileName:` line.** OMN-Go writes the full name of the note into the header of the file that it sends. The receiver reads this line and puts the note into the same directory structure. The line is only in the file that travels. Your own note does not change.
+
+### Receive a note
+
+**On Android.** Share the note into OMN-Go from the application that holds it, or open the `.md` file from a file manager. OMN-Go saves the note and shows it. If the editor is open, OMN-Go saves the note but stays in the editor, thus you do not lose your text.
+
+Some applications, Telegram for example, give a `.md` attachment the type `application/octet-stream`. OMN-Go is thus in the share sheet for each unknown file type. If the file is not a note, OMN-Go refuses it and shows a message.
+
+**On the desktop.** Open the [Incoming notes](incoming/incoming) note. Select one or more `.md` files in the **Receive a note** box, or drop the files on the box. Then press **Import**.
+
+### Where a received note goes
+
+Each received note goes below `md/incoming/`. That directory is the root for the name in the `FileName:` line. A note with the name `project/Sub/WeeklyPlan` on the device of the sender becomes `incoming/project/Sub/WeeklyPlan` on your device.
+
+**A received note never writes over one of your notes.** If the name is already in use, OMN-Go adds an index to it: `WeeklyPlan-2`, then `WeeklyPlan-3`.
+
+OMN-Go removes the `FileName:` line and adds an `Imported:` line that holds the date and the time of the import. The `Date:` and `Modified:` lines are facts about the note of the sender, thus they stay as they are.
+
+OMN-Go puts a link to the new note at the top of the list on the [Incoming notes](incoming/incoming) note. The newest note is the first one in the list. The text of the link is the name as saved, thus a second copy of a note reads as a second copy.
+
+A received note is a normal note. Read it, edit it, or move the text into your own structure.
+
+### Limits
+
+Only the Markdown text travels. An image or an other file that the note uses stays behind. A link to that file does not work on the device of the receiver.
+
+The **Max Upload Size** setting on the [Config](Config) page is also the limit for a received note.
+
+OMN-Go never deletes a received note. Delete the notes in `md/incoming/` yourself when you do not need them.
+
+`md/incoming/` is a normal part of the storage directory. Git synchronization thus sends each received note to your own other devices too.
 
 ## Database backups
 

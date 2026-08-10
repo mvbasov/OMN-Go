@@ -682,3 +682,54 @@ func TestIncomingIndexWithoutMarker(t *testing.T) {
 		t.Errorf("the user's text was lost:\n%s", idx)
 	}
 }
+
+// ----------------------------------------------------------------------
+// The documentation links (26.08.40)
+// ----------------------------------------------------------------------
+
+// Two bundled notes link to the Incoming notes page, and that link is the
+// ONLY way a desktop user finds the receive box - nothing in the header
+// leads there. The target is spelled by hand in Markdown, so a rename of
+// incomingDirName or incomingIndexBase would leave two dead links behind
+// with nothing to say so. This test is that "something".
+//
+// The manual is also checked for its own table-of-contents entry, because
+// the anchor is derived from the heading text and the two are written
+// separately.
+func TestBundledNotesLinkToTheIncomingIndex(t *testing.T) {
+	want := "(" + incomingDirName + "/" + incomingIndexBase + ")"
+
+	for _, name := range []string{"UserManual.md", "Welcome.md"} {
+		data, err := staticFS.ReadFile("frontend/md/" + name)
+		if err != nil {
+			t.Fatalf("cannot read the embedded %s: %v", name, err)
+		}
+		if !strings.Contains(string(data), "[Incoming notes]"+want) {
+			t.Errorf("%s has no [Incoming notes]%s link", name, want)
+		}
+	}
+
+	manual, err := staticFS.ReadFile("frontend/md/UserManual.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const heading = "## Send and receive one note"
+	const tocEntry = "- [Send and receive one note](#send-and-receive-one-note)"
+	if !strings.Contains(string(manual), heading) {
+		t.Errorf("UserManual.md has no %q heading", heading)
+	}
+	if !strings.Contains(string(manual), tocEntry) {
+		t.Errorf("UserManual.md has no table-of-contents entry %q", tocEntry)
+	}
+}
+
+// The link the manual writes must be the link the renderer produces, and
+// that is a question about rewriteInternalLink, not about the Markdown.
+func TestIncomingIndexLinkRewrites(t *testing.T) {
+	a := newTestApp(t)
+	in := incomingDirName + "/" + incomingIndexBase
+	want := in + ".html"
+	if got := a.rewriteInternalLink(in); got != want {
+		t.Errorf("rewriteInternalLink(%q) = %q, want %q", in, got, want)
+	}
+}
