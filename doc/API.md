@@ -582,7 +582,10 @@ The date is in a `<span>` because Markdown gives no way to set one part of a
 line smaller than the rest.
 
 OMN-Go makes this note at the first start. It is yours from that moment: no
-version change rewrites it.
+version change rewrites it. The note holds nothing but its header block, the
+marker and the list - the **Receive a note** box is part of the application
+and is spliced in with the modals at serve time, so it is not in the note, not
+in the on-disk cache and not on an exported page.
 
 **Response**
 

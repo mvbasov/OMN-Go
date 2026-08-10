@@ -597,19 +597,14 @@ func TestEnsureIncomingIndex(t *testing.T) {
 	if strings.Contains(idx, "%%") {
 		t.Errorf("an unfilled placeholder is left:\n%s", idx)
 	}
-	// The receive box must be ABOVE the marker. Everything below the marker
-	// is the list, and a control that sank one line with every arrival would
-	// be at the bottom of a long page by the time it was wanted.
-	box := strings.Index(idx, `id="omnIncoming"`)
-	marker := strings.Index(idx, incomingListMarker)
-	if box < 0 || marker < 0 || box > marker {
-		t.Errorf("box at %d, marker at %d:\n%s", box, marker, idx)
-	}
-	// And the box is BODY, not metadata: it opens with "<", so
+	// The marker is BODY, not metadata: it opens with "<", so
 	// isHeaderFirstLine ends the header block on it.
+	if strings.Index(idx, incomingListMarker) < 0 {
+		t.Errorf("the starter carries no list marker:\n%s", idx)
+	}
 	hb := parseHeaderBlock(idx)
-	if !hb.HasHeader || strings.Contains(hb.Header, "omn-incoming") {
-		t.Errorf("the receive box was read as part of the header block:\n%s", hb.Header)
+	if !hb.HasHeader || strings.Contains(hb.Header, incomingListMarker) {
+		t.Errorf("the marker was read as part of the header block:\n%s", hb.Header)
 	}
 
 	// The note belongs to the user from here. A second call must not touch it.
@@ -641,9 +636,6 @@ func TestIncomingIndexMarker(t *testing.T) {
 	if marker < 0 {
 		t.Fatalf("the marker is gone:\n%s", idx)
 	}
-	if box := strings.Index(idx, `id="omnIncoming"`); box > marker {
-		t.Error("the receive box sank below the marker")
-	}
 	for _, target := range []string{"WeeklyPlan", "WeeklyPlan-2", "WeeklyPlan-3"} {
 		at := strings.Index(idx, `](project/Sub/`+target+`)`)
 		if at < 0 {
@@ -657,13 +649,15 @@ func TestIncomingIndexMarker(t *testing.T) {
 	if strings.Index(idx, "WeeklyPlan-3)") > strings.Index(idx, "WeeklyPlan-2)") {
 		t.Errorf("not newest first:\n%s", idx)
 	}
-	if n := strings.Count(idx, "</script>"); n != 1 {
-		t.Errorf("%d closing script tags, want 1 - an insertion damaged the note script", n)
+	// The note holds NOTHING but its header block, the marker and the list.
+	// The receive box is application chrome and lives in modals.html.
+	if strings.Contains(idx, "<script") || strings.Contains(idx, "omnIncoming") {
+		t.Errorf("the note carries chrome of its own:\n%s", idx)
 	}
-	// The header block still ends immediately at the application's block,
-	// with no blank line accumulating in front of it.
-	if !strings.Contains(idx, `Category: Notes`+"\n\n"+`<details class="omn-incoming`) {
-		t.Errorf("the gap above the receive box changed:\n%s", idx)
+	// The header block still ends immediately at the marker, with no blank
+	// line accumulating in front of it.
+	if !strings.Contains(idx, "Category: Notes\n\n"+incomingListMarker) {
+		t.Errorf("the gap above the marker changed:\n%s", idx)
 	}
 }
 
@@ -922,21 +916,24 @@ func TestIncomingIndexLineIsSafeMarkdown(t *testing.T) {
 }
 
 // The template and the constants that read it must agree, or a line lands in
-// the wrong half of the page.
+// the wrong half of the page. The starter is deliberately almost empty: the
+// receive box is application chrome (modals.html) and not the user's note.
 func TestIncomingTemplateCarriesItsMarkers(t *testing.T) {
 	starter := incomingIndexStarter(testNow)
 	if !strings.Contains(starter, incomingListMarker) {
 		t.Errorf("the incoming index template does not carry %q", incomingListMarker)
 	}
-	if strings.Index(starter, `id="omnIncoming"`) > strings.Index(starter, incomingListMarker) {
-		t.Error("the receive box is below the list marker, so every arrival would push it down")
+	for _, unwanted := range []string{"<script", "omnIncoming", "<details"} {
+		if strings.Contains(starter, unwanted) {
+			t.Errorf("the starter note carries %q, which belongs to the application", unwanted)
+		}
 	}
-	// The box hides itself on Android rather than offering a control that
-	// cannot be reached there. See the note script in the template.
-	if !strings.Contains(starter, "IS_ANDROID") {
-		t.Error("the receive box no longer takes itself off the page on Android")
+	// One header block, one marker, and nothing else.
+	hb := parseHeaderBlock(starter)
+	if !hb.HasHeader {
+		t.Fatal("the starter has no header block")
 	}
-	if !strings.Contains(starter, "<details") {
-		t.Error("the receive box is no longer a folded <details>")
+	if strings.TrimSpace(hb.Body) != incomingListMarker {
+		t.Errorf("the starter body is not just the marker:\n%q", hb.Body)
 	}
 }

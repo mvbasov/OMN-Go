@@ -1001,8 +1001,8 @@ const modalsMarker = `<div id="omn-go-modals-slot"></div>`
 func (a *App) injectRuntimeVars(page []byte) []byte {
 	cfg := a.GetConfig()
 	script := fmt.Sprintf(
-		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; var OMN_SEARCH_GLOBAL = %t; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
-		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable())
+		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; var OMN_SEARCH_GLOBAL = %t; var OMN_INCOMING_PAGE = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
+		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable(), incomingIndexName)
 	page = bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
 	// Splice the server-only modals into the slot (a no-op on templates that
 	// don't carry it, e.g. the standalone editor page).

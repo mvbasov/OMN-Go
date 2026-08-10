@@ -53,3 +53,25 @@
         <button onclick="window.performSync('abort')" class="btn-cancel">Abort Operation</button>
     </div>
 </div>
+<!--
+  The receive box of the Incoming notes page (note exchange).
+
+  It is HERE, with the other server-only chrome, and not in the note. The
+  incoming index is the user's note and holds nothing but the list of what
+  arrived; this control belongs to the application, so it is spliced in at
+  serve time like every modal above and never reaches the on-disk cache or
+  an exported page.
+
+  It starts hidden and stays hidden everywhere except the incoming index,
+  where omn-go-sse.js moves it to the top of the preview and wires it up.
+  Android never shows it at all - the share sheet does that work there.
+-->
+<details class="omn-incoming hidden" id="omnIncoming">
+    <summary class="omn-incoming-head">Receive a note</summary>
+    <p class="omn-incoming-hint">Choose one or more <code>.md</code> files, or drop them here. Each note goes under <code>incoming/</code> and gets a line in the list below. A note never writes over a note that you made.</p>
+    <div class="omn-incoming-row">
+        <input type="file" id="omnIncomingFiles" accept=".md,.markdown,text/markdown,text/plain" multiple>
+        <button type="button" class="omn-incoming-btn" id="omnIncomingImport"><i class="material-icons icon-sm">upload_file</i>Import</button>
+    </div>
+    <div class="omn-incoming-status" id="omnIncomingStatus"></div>
+</details>

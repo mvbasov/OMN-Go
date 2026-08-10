@@ -1676,6 +1676,134 @@ if (window.location.protocol !== 'file:') {
         });
     })();
 
+    // ----------------------------------------------------------------
+    // The receive box on the Incoming notes page (note exchange)
+    // ----------------------------------------------------------------
+    //
+    // The markup is in modals.html and the behaviour is here, for the same
+    // reason every other panel is split that way: the incoming index is the
+    // user's note and holds nothing but the list of what arrived. A control
+    // that OMN-Go owns has no business being stored inside it, where a user
+    // could delete half of it and be left with a box that does nothing.
+    //
+    // WHICH PAGE. OMN_INCOMING_PAGE is the note name, injected per request
+    // (see injectRuntimeVars) so the name lives in Go beside the code that
+    // writes the page and not as a second copy in this file.
+    //
+    // NOT ON ANDROID. The share sheet receives a note there; this box would
+    // be a control that duplicates it and cannot be reached from the
+    // application that holds the file.
+    //
+    // The whole block sits inside the "not file:" gate above, so an exported
+    // page never runs it - and never carries the markup either, because the
+    // modals slot is filled at serve time.
+    (function () {
+        function onIncomingPage() {
+            return typeof OMN_INCOMING_PAGE !== 'undefined' &&
+                typeof PageName !== 'undefined' &&
+                PageName === OMN_INCOMING_PAGE;
+        }
+
+        function setUp() {
+            const box = document.getElementById('omnIncoming');
+            if (!box) return;
+            if (!onIncomingPage() || (typeof IS_ANDROID !== 'undefined' && IS_ANDROID)) {
+                box.remove();
+                return;
+            }
+            const preview = document.getElementById('preview');
+            const input = document.getElementById('omnIncomingFiles');
+            const button = document.getElementById('omnIncomingImport');
+            const statusEl = document.getElementById('omnIncomingStatus');
+            if (!preview || !input || !button || !statusEl) return;
+
+            // Above the list, which is what the page is for. The box is
+            // closed until it is wanted, so it costs one line.
+            preview.insertBefore(box, preview.firstChild);
+            box.classList.remove('hidden');
+
+            const say = function (msg, bad) {
+                statusEl.textContent = msg || '';
+                statusEl.classList.toggle('is-error', !!bad);
+            };
+
+            // One note per request. The rules live in the backend
+            // (note_exchange.go), which is the same code the Android share
+            // path reaches - so a note lands in the same place whichever
+            // way it came.
+            const importOne = async function (file) {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await fetch('/api/import/note', { method: 'POST', body: form });
+                let data = {};
+                try { data = await res.json(); } catch (e) { /* not JSON */ }
+                if (res.status === 401) {
+                    throw new Error('log in as admin to import a note');
+                }
+                if (!res.ok || data.status !== 'success') {
+                    throw new Error(data.message || ('HTTP ' + res.status));
+                }
+                return data;
+            };
+
+            const run = async function (files) {
+                box.open = true;
+                if (!files || !files.length) {
+                    say('Choose a file first.', true);
+                    return;
+                }
+                button.disabled = true;
+                let done = 0;
+                const failed = [];
+                for (let i = 0; i < files.length; i++) {
+                    say('Importing ' + (i + 1) + ' of ' + files.length + '…');
+                    try {
+                        await importOne(files[i]);
+                        done++;
+                    } catch (e) {
+                        failed.push(files[i].name + ': ' + e.message);
+                    }
+                }
+                button.disabled = false;
+
+                if (!failed.length) {
+                    // The list is written by the server, so the page has to
+                    // come again to show what just arrived.
+                    say('Imported ' + done + '. Refreshing…');
+                    window.location.reload();
+                    return;
+                }
+                say(done + ' imported, ' + failed.length + ' failed — ' + failed.join('; '), true);
+            };
+
+            button.addEventListener('click', function () { run(input.files); });
+
+            // Dropping a file on the box is the other way a desktop does
+            // this. The target is the whole element, so a file can be
+            // dropped on the closed summary as well as on the open box.
+            ['dragenter', 'dragover'].forEach(function (name) {
+                box.addEventListener(name, function (e) {
+                    e.preventDefault();
+                    box.classList.add('is-over');
+                });
+            });
+            ['dragleave', 'dragend'].forEach(function (name) {
+                box.addEventListener(name, function () { box.classList.remove('is-over'); });
+            });
+            box.addEventListener('drop', function (e) {
+                e.preventDefault();
+                box.classList.remove('is-over');
+                run(e.dataTransfer && e.dataTransfer.files);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setUp);
+        } else {
+            setUp();
+        }
+    })();
+
 } else {
     console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
     window.printDebug = function(funcName) { console.debug('\'' + funcName + '\' Not usable on standalone page'); }

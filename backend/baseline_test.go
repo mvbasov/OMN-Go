@@ -37,6 +37,10 @@ package backend
 //     TestBaseline_RouteSet (done). Note exchange, phase 2 of
 //     claude/note-exchange-plan.md. Two exact patterns under /api/, both
 //     behind authMiddleware with requireAdmin.
+//   - 26.08.47 adds OMN_INCOMING_PAGE to TestBaseline_InjectedRuntimeVarSet
+//     (done). The receive box moved out of the incoming index note and into
+//     modals.html, so omn-go-sse.js has to be told which page it belongs on
+//     - and the name stays in Go, beside the code that writes that page.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -1009,7 +1013,10 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 	// S4 added OMN_SEARCH_GLOBAL: whether the dialog may offer the "All notes"
 	// scope depends on a setting that is toggleable at any time, so it has to
 	// reach already-cached pages the same way the theme does.
-	want := []string{"APP_VERSION", "OMN_SEARCH_GLOBAL", "OMN_THEME", "USE_INTERNAL_ED"}
+	// 26.08.47 added OMN_INCOMING_PAGE: the receive box lives in the modals
+	// block now, and omn-go-sse.js has to know which page it belongs on
+	// without keeping a second copy of the note's name.
+	want := []string{"APP_VERSION", "OMN_INCOMING_PAGE", "OMN_SEARCH_GLOBAL", "OMN_THEME", "USE_INTERNAL_ED"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("injected runtime globals changed: got %v, want %v\n"+
 			"Adding one is fine - update this list in the same commit, and "+

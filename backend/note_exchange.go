@@ -46,17 +46,22 @@ const (
 	// same directory: md/incoming/incoming.md.
 	incomingIndexBase = "incoming"
 
+	// incomingIndexName is that note's NAME - the path under md/ with no
+	// extension, which is what a URL and the frontend's PageName work in.
+	// injectRuntimeVars hands it to the browser as OMN_INCOMING_PAGE, so
+	// omn-go-sse.js can tell which page its receive box belongs on without
+	// a second copy of the name living in JavaScript.
+	incomingIndexName = incomingDirName + "/" + incomingIndexBase
+
 	// incomingListMarker is where a new line goes: directly after it.
 	//
-	// The starter note carries the receive box above this marker, and the
-	// box must stay at the top where it can be reached - a control that
-	// sank one line further down the page with every note that arrived
-	// would be at the bottom of a long list by the time it was needed.
-	// Everything below the marker is the list, newest first.
+	// Everything below it is the list, newest first, and everything above
+	// it is whatever the user has written there. The marker is what lets a
+	// user put their own text at the top of the page and keep it there, and
+	// it is why the note starts with nothing else.
 	//
-	// A note with no marker (a user who rewrote the page) takes its lines
-	// at the top of the body instead, which is what 26.08.34 did for
-	// every note.
+	// A note with no marker (a user who deleted it) takes its lines at the
+	// top of the body instead, which is what 26.08.34 did for every note.
 	incomingListMarker = "<!-- omn-go-incoming-list -->"
 
 	headerKeyFileName = "FileName"

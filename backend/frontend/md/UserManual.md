@@ -828,6 +828,8 @@ Some applications, Telegram for example, give a `.md` attachment the type `appli
 
 The box is closed when the page opens, because the usual reason to open this page is to see what arrived. It does not show on Android at all: there the share sheet does this work.
 
+The box is a part of OMN-Go and not a part of the note. The note itself holds only the list, thus you can write your own text at the top of it and OMN-Go keeps that text where you put it.
+
 ### Where a received note goes
 
 Each received note goes below `md/incoming/`. That directory is the root for the name in the `FileName:` line. A note with the name `project/Sub/WeeklyPlan` on the device of the sender becomes `incoming/project/Sub/WeeklyPlan` on your device.
