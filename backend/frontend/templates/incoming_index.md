@@ -2,19 +2,25 @@ Title: Incoming notes
 Date: %%DATE%%
 Category: Notes
 
-<div class="omn-incoming" id="omnIncoming">
-<div class="omn-incoming-head">Receive a note</div>
-<p class="omn-incoming-hint">Choose one or more <code>.md</code> files, or drop them on this box. Each note goes under <code>incoming/</code> and gets a line in the list below. A note never writes over a note that you made.</p>
+<details class="omn-incoming server-only" id="omnIncoming">
+<summary class="omn-incoming-head">Receive a note</summary>
+<p class="omn-incoming-hint">Choose one or more <code>.md</code> files, or drop them here. Each note goes under <code>incoming/</code> and gets a line in the list below. A note never writes over a note that you made.</p>
 <div class="omn-incoming-row">
 <input type="file" id="omnIncomingFiles" accept=".md,.markdown,text/markdown,text/plain" multiple>
 <button type="button" class="omn-incoming-btn" id="omnIncomingImport"><i class="material-icons icon-sm">upload_file</i>Import</button>
 </div>
 <div class="omn-incoming-status" id="omnIncomingStatus"></div>
-</div>
+</details>
 
 <script>
 // The receive box for the desktop application. Android uses the share sheet
-// and never comes through here.
+// and never comes through here, so on Android the box is taken off the page
+// (below) rather than shown as a control that has no reason to exist there.
+//
+// It is a <details>, closed on load: the reason to open this note is the
+// list of what arrived, and the box is only needed on the day a note comes
+// in by hand. The drag-and-drop target is the whole element, so a file can
+// be dropped on the closed summary as well as on the open box.
 //
 // Block-scoped, as every note script must be (see ScriptRules): this file is
 // a note like any other, and a "var" at its top level would become a global
@@ -25,7 +31,9 @@ Category: Notes
     const button = document.getElementById('omnIncomingImport');
     const statusEl = document.getElementById('omnIncomingStatus');
 
-    if (box && input && button && statusEl) {
+    if (box && typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
+        box.remove();
+    } else if (box && input && button && statusEl) {
         const say = function (msg, bad) {
             statusEl.textContent = msg || '';
             statusEl.classList.toggle('is-error', !!bad);
@@ -51,9 +59,11 @@ Category: Notes
 
         const run = async function (files) {
             if (!files || !files.length) {
+                box.open = true;
                 say('Choose a file first.', true);
                 return;
             }
+            box.open = true;
             button.disabled = true;
             let done = 0;
             const failed = [];

@@ -586,10 +586,28 @@ a.taglink {
     border-color: var(--accent);
     background: var(--bg-hover);
 }
+/* The box is a <details>, closed on load: the reason to open the Incoming
+   notes page is the list, not the control. The summary is the whole
+   affordance, so it takes the pointer and the open/closed spacing. */
 .omn-incoming-head {
     font-weight: bold;
     color: var(--text-heading);
-    margin-bottom: 4px;
+    margin-bottom: 0;
+}
+details.omn-incoming > summary.omn-incoming-head {
+    cursor: pointer;
+    user-select: none;
+}
+details.omn-incoming[open] > summary.omn-incoming-head {
+    margin-bottom: 6px;
+}
+/* The date on each list line. Smaller and quieter than the note's own title,
+   which is what a reader is looking for; the date only says how recent it
+   is. Written by addIncomingIndexLine (backend/note_exchange.go). */
+.omn-incoming-when {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 .omn-incoming-hint {
     margin: 0 0 8px;

@@ -334,19 +334,22 @@ func TestIncomingIndex(t *testing.T) {
 	if !hb.HasHeader {
 		t.Fatal("the index does not parse as a note with a header")
 	}
-	if strings.Contains(hb.Header, "[WeeklyPlan]") {
+	if strings.Contains(hb.Header, "omn-incoming-when") {
 		t.Errorf("a list line was swallowed into the header block:\n%s", hb.Header)
 	}
-	if n := strings.Count(hb.Body, "* 2026-08-09 12:34 · ["); n != 3 {
+	if n := strings.Count(hb.Body, `* <span class="omn-incoming-when">`); n != 3 {
 		t.Errorf("%d list lines in the body, want 3:\n%s", n, hb.Body)
 	}
 
-	// The link text carries the collision index; the target is the path
-	// under incoming/, which is where the index itself lives.
+	// The link TEXT is the note's Title with the collision index carried
+	// into it; the TARGET is the path under incoming/, which is where the
+	// index itself lives. The date leads the line in its own element, so it
+	// can be set smaller than the title a reader is looking for.
+	const when = `* <span class="omn-incoming-when">2026-08-09 12:34</span> · `
 	for _, want := range []string{
-		"* 2026-08-09 12:34 · [WeeklyPlan](project/Sub/WeeklyPlan)\n",
-		"* 2026-08-09 12:34 · [WeeklyPlan-2](project/Sub/WeeklyPlan-2)\n",
-		"* 2026-08-09 12:34 · [WeeklyPlan-3](project/Sub/WeeklyPlan-3)\n",
+		when + `[Weekly plan](project/Sub/WeeklyPlan)` + "\n",
+		when + `[Weekly plan (2)](project/Sub/WeeklyPlan-2)` + "\n",
+		when + `[Weekly plan (3)](project/Sub/WeeklyPlan-3)` + "\n",
 	} {
 		if !strings.Contains(idx, want) {
 			t.Errorf("missing line %q in:\n%s", want, idx)
@@ -641,25 +644,25 @@ func TestIncomingIndexMarker(t *testing.T) {
 	if box := strings.Index(idx, `id="omnIncoming"`); box > marker {
 		t.Error("the receive box sank below the marker")
 	}
-	for _, name := range []string{"WeeklyPlan", "WeeklyPlan-2", "WeeklyPlan-3"} {
-		at := strings.Index(idx, "["+name+"](")
+	for _, target := range []string{"WeeklyPlan", "WeeklyPlan-2", "WeeklyPlan-3"} {
+		at := strings.Index(idx, `](project/Sub/`+target+`)`)
 		if at < 0 {
-			t.Errorf("no line for %s", name)
+			t.Errorf("no line for %s", target)
 			continue
 		}
 		if at < marker {
-			t.Errorf("the line for %s went above the marker", name)
+			t.Errorf("the line for %s went above the marker", target)
 		}
 	}
-	if strings.Index(idx, "WeeklyPlan-3") > strings.Index(idx, "WeeklyPlan-2") {
+	if strings.Index(idx, "WeeklyPlan-3)") > strings.Index(idx, "WeeklyPlan-2)") {
 		t.Errorf("not newest first:\n%s", idx)
 	}
 	if n := strings.Count(idx, "</script>"); n != 1 {
 		t.Errorf("%d closing script tags, want 1 - an insertion damaged the note script", n)
 	}
-	// The header block still ends immediately at the box, with no blank line
-	// accumulating in front of it.
-	if !strings.Contains(idx, "Category: Notes\n\n<div class=\"omn-incoming\"") {
+	// The header block still ends immediately at the application's block,
+	// with no blank line accumulating in front of it.
+	if !strings.Contains(idx, `Category: Notes`+"\n\n"+`<details class="omn-incoming`) {
 		t.Errorf("the gap above the receive box changed:\n%s", idx)
 	}
 }
@@ -676,7 +679,7 @@ func TestIncomingIndexWithoutMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	idx := incomingFile(t, a, "incoming.md")
-	if !strings.HasPrefix(idx, "Title: Mine\n\n* 2026-08-09 12:34 · [WeeklyPlan](") {
+	if !strings.HasPrefix(idx, `Title: Mine`+"\n\n"+`* <span class="omn-incoming-when">2026-08-09 12:34</span> · [Weekly plan](project/Sub/WeeklyPlan)`) {
 		t.Errorf("the line did not go to the top of the body:\n%s", idx)
 	}
 	if !strings.Contains(idx, "old text") {
@@ -826,5 +829,114 @@ func TestHandleExportNoteDescriptionHeader(t *testing.T) {
 		"/api/export/note?name=Plain", nil, "")
 	if got := rec.Header().Get(headerDescription); got != "" {
 		t.Errorf("a note with no description answered %s: %q", headerDescription, got)
+	}
+}
+
+// ----------------------------------------------------------------------
+// The incoming index: link text and the receive box (26.08.44)
+// ----------------------------------------------------------------------
+
+// The link text is the note's own Title. The FILE name is what OMN-Go had to
+// call it - a sanitized path - and it is the fallback, not the first choice.
+func TestIncomingLabel(t *testing.T) {
+	for _, tt := range []struct{ name, title, base, index, want string }{
+		{"the title wins", "Weekly plan", "WeeklyPlan", "", "Weekly plan"},
+		{"no title falls back to the file name", "", "WeeklyPlan", "", "WeeklyPlan"},
+		{"a blank title falls back too", "   ", "WeeklyPlan", "", "WeeklyPlan"},
+		{"the collision index is carried", "Weekly plan", "WeeklyPlan-2", "2", "Weekly plan (2)"},
+		{"the fallback already carries its own", "", "WeeklyPlan-2", "2", "WeeklyPlan-2"},
+		{"whitespace is collapsed to one line", "  Weekly \t plan  ", "X", "", "Weekly plan"},
+		{"control characters are dropped", "Week\x00ly\x07 plan", "X", "", "Weekly plan"},
+		{"non-ASCII is kept", "Мой план", "X", "", "Мой план"},
+		{"link syntax is taken out", "A [b] c", "X", "", "A b c"},
+		// Only the dangerous characters go. The "/" of a closing tag is
+		// harmless on its own and is left where it fell.
+		{"raw HTML markers are taken out", "A <b>c", "X", "", "A b c"},
+		{"a closing tag leaves its slash", "A <b>c</b>", "X", "", "A b c /b"},
+		{"an ampersand is taken out", "Cats & Dogs", "X", "", "Cats Dogs"},
+		{"emphasis and code marks go", "a *b* `c` ~d~", "X", "", "a b c d"},
+		{"a backslash goes", `a \ b`, "X", "", "a b"},
+		{"an underscore stays - it does not emphasize inside a word", "my_note", "X", "", "my_note"},
+		{"a title of nothing but markup falls back", "[]<>&", "X", "", "X"},
+	} {
+		if got := incomingLabel(tt.title, tt.base, tt.index); got != tt.want {
+			t.Errorf("%s: incomingLabel(%q, %q, %q) = %q, want %q",
+				tt.name, tt.title, tt.base, tt.index, got, tt.want)
+		}
+	}
+
+	long := strings.Repeat("ф", 200)
+	got := incomingLabel(long, "X", "")
+	if n := len([]rune(got)); n != incomingLabelMaxRunes+1 {
+		t.Errorf("a long title came back as %d runes, want %d and an ellipsis",
+			n, incomingLabelMaxRunes)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("a title that was cut does not say so: %q", got)
+	}
+}
+
+// A Title arrives from another device. Everything in it that would end the
+// link early, start markup of its own, or reach the page as raw HTML is
+// taken out before the line is written - because a Markdown link label is
+// not escaped by anything downstream.
+func TestIncomingIndexLineIsSafeMarkdown(t *testing.T) {
+	a := newTestApp(t)
+	if err := a.ensureIncomingIndex(testNow); err != nil {
+		t.Fatal(err)
+	}
+	err := a.addIncomingIndexLine(importResult{
+		Rel:   "My Notes/Plan A",
+		Base:  "Plan A",
+		Label: incomingLabel("Cats & Dogs <script>x</script> ] * ~ `code`", "Plan A", ""),
+	}, testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Only the appended line: the page itself legitimately carries a
+	// <script>, the receive box's own.
+	line := ""
+	for _, l := range strings.Split(incomingFile(t, a, "incoming.md"), "\n") {
+		if strings.HasPrefix(l, "* <span") {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatal("no list line was written")
+	}
+	label := line[strings.Index(line, "· [")+len("· ") : strings.LastIndex(line, "](")+1]
+	for _, bad := range []string{"<", ">", "&", "]", "*", "~", "`", "\\", "|"} {
+		if strings.Contains(strings.TrimSuffix(strings.TrimPrefix(label, "["), "]"), bad) {
+			t.Errorf("%q survived into the link label %q", bad, label)
+		}
+	}
+	if !strings.Contains(line, "Cats Dogs script x") {
+		t.Errorf("the readable part of the title was lost:\n%s", line)
+	}
+
+	// A note name may hold a space, and a bare Markdown destination may not.
+	if !strings.Contains(line, "](My%20Notes/Plan%20A)") {
+		t.Errorf("the space in the path was not encoded:\n%s", line)
+	}
+}
+
+// The template and the constants that read it must agree, or a line lands in
+// the wrong half of the page.
+func TestIncomingTemplateCarriesItsMarkers(t *testing.T) {
+	starter := incomingIndexStarter(testNow)
+	if !strings.Contains(starter, incomingListMarker) {
+		t.Errorf("the incoming index template does not carry %q", incomingListMarker)
+	}
+	if strings.Index(starter, `id="omnIncoming"`) > strings.Index(starter, incomingListMarker) {
+		t.Error("the receive box is below the list marker, so every arrival would push it down")
+	}
+	// The box hides itself on Android rather than offering a control that
+	// cannot be reached there. See the note script in the template.
+	if !strings.Contains(starter, "IS_ANDROID") {
+		t.Error("the receive box no longer takes itself off the page on Android")
+	}
+	if !strings.Contains(starter, "<details") {
+		t.Error("the receive box is no longer a folded <details>")
 	}
 }

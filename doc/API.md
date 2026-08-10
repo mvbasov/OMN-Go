@@ -560,9 +560,29 @@ different place and the line would not be true. `Imported:` is set to the
 time of the import. `Date:` and `Modified:` do not change: they are facts
 about the note of the person who sent it.
 
-**The incoming index.** `md/incoming/incoming.md` gets one line at the top,
-newest first. OMN-Go makes this note at the first import. It is yours from
-that moment.
+**The incoming index.** `md/incoming/incoming.md` gets one line directly
+below `<!-- omn-go-incoming-list -->`, newest first:
+
+```
+* <span class="omn-incoming-when">2026-08-09 12:34</span> · [Weekly plan (2)](project/Sub/WeeklyPlan-2)
+```
+
+The link text is the note's own `Title:`. The file name is the fallback for a
+note that carries no usable one. A collision index is carried into the text,
+because two copies of one note otherwise read as the same line twice.
+
+A title arrives from another device, and a Markdown link label is not escaped
+by anything after this point, so `` [ ] < > & \ ` * ~ | `` are taken out of it
+first. Each becomes a space and the spaces collapse. `_` stays, because it
+does not emphasize inside a word and taking it out would damage more titles
+than it saved. The destination is percent-encoded, because a note name may
+hold a space and a bare Markdown destination may not.
+
+The date is in a `<span>` because Markdown gives no way to set one part of a
+line smaller than the rest.
+
+OMN-Go makes this note at the first start. It is yours from that moment: no
+version change rewrites it.
 
 **Response**
 

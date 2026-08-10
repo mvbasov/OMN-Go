@@ -822,7 +822,9 @@ The desktop does not use the description. A browser download has no message with
 
 Some applications, Telegram for example, give a `.md` attachment the type `application/octet-stream`. OMN-Go is thus in the share sheet for each unknown file type. If the file is not a note, OMN-Go refuses it and shows a message.
 
-**On the desktop.** Open the [Incoming notes](incoming/incoming) note. Select one or more `.md` files in the **Receive a note** box, or drop the files on the box. Then press **Import**.
+**On the desktop.** Open the [Incoming notes](incoming/incoming) note and press **Receive a note** to open the box. Select one or more `.md` files, or drop the files on the box. Then press **Import**.
+
+The box is closed when the page opens, because the usual reason to open this page is to see what arrived. It does not show on Android at all: there the share sheet does this work.
 
 ### Where a received note goes
 
@@ -832,7 +834,9 @@ Each received note goes below `md/incoming/`. That directory is the root for the
 
 OMN-Go removes the `FileName:` line and adds an `Imported:` line that holds the date and the time of the import. The `Date:` and `Modified:` lines are facts about the note of the sender, thus they stay as they are.
 
-OMN-Go puts a link to the new note at the top of the list on the [Incoming notes](incoming/incoming) note. The newest note is the first one in the list. The text of the link is the name as saved, thus a second copy of a note reads as a second copy.
+OMN-Go puts a link to the new note at the top of the list on the [Incoming notes](incoming/incoming) note. The newest note is the first one in the list.
+
+The text of the link is the title of the note. If the note has no title, OMN-Go uses the file name. When a note arrives a second time, the link text carries the same index as the file, thus `Weekly plan (2)` is the second copy of `Weekly plan`.
 
 A received note is a normal note. Read it, edit it, or move the text into your own structure.
 

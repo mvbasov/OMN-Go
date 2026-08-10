@@ -218,8 +218,11 @@ type importResult struct {
 	// directory too.
 	Rel string
 	// Base is the file name as saved, carrying the collision index when one
-	// was needed: "WeeklyPlan-2". It is the text of the index link.
+	// was needed: "WeeklyPlan-2".
 	Base string
+	// Label is the text of the index link: the note's own Title, or Base
+	// when the note has no usable one. See incomingLabel.
+	Label string
 }
 
 // importNote writes an arriving note under md/incoming/ and adds a line to
@@ -260,8 +263,22 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 		return importResult{}, err
 	}
 
+	wanted := base
 	base = freeNoteBase(fullDir, base)
 	rel = path.Join(dir, base)
+
+	// The link text on the incoming index. A reader looks for the note's own
+	// Title, which is what they were told it was called; the file name is
+	// what OMN-Go had to call it, and that is the fallback rather than the
+	// first choice. The collision index is carried across, because two
+	// copies of one note otherwise read as the same line twice.
+	title, _ := headerValue(src, "Title")
+	index := ""
+	if base != wanted {
+		// freeNoteBase appends "-2", "-3", ... to the name it was given.
+		index = strings.TrimPrefix(base, wanted+"-")
+	}
+	label := incomingLabel(title, base, index)
 
 	// The moment it arrived, in the note itself. Date: and Modified: are the
 	// sender's facts about their own note and stay as they are.
@@ -272,9 +289,10 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 	}
 
 	res := importResult{
-		Name: path.Join(incomingDirName, rel),
-		Rel:  rel,
-		Base: base,
+		Name:  path.Join(incomingDirName, rel),
+		Rel:   rel,
+		Base:  base,
+		Label: label,
 	}
 	if err := a.addIncomingIndexLine(res, now); err != nil {
 		// The note is on disk and readable; only its line is missing. Say so
@@ -426,6 +444,100 @@ func freeNoteBase(dir, base string) string {
 // The incoming index
 // ----------------------------------------------------------------------
 
+// hrefEscapePath percent-encodes a note path for use in an href.
+//
+// url.PathEscape is not the right tool: it escapes "/" as well, and the
+// separators here have to stay separators. What actually needs encoding is
+// short - sanitizeImportSegment already allows only "A-Za-z0-9 ._-" and the
+// "/" between segments, and of those only the space is a problem in an
+// attribute - but this does not read that allowlist. It encodes everything
+// outside the unreserved set, so it stays correct if the sanitizer is ever
+// widened.
+func hrefEscapePath(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		switch {
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9',
+			c == '-', c == '_', c == '.', c == '~', c == '/':
+			b.WriteByte(c)
+		default:
+			b.WriteString(fmt.Sprintf("%%%02X", c))
+		}
+	}
+	return b.String()
+}
+
+// incomingLabelMaxRunes caps the link text on the incoming index. A Title:
+// line is one line, but nothing says it is a short one, and a title that runs
+// past the width of the page turns the list into prose.
+const incomingLabelMaxRunes = 80
+
+// incomingLabelUnsafe is what a Title: may not carry into a Markdown link
+// label, in the flavour this application renders (goldmark, GFM extensions,
+// raw HTML allowed):
+//
+//	[ ]    end the label early, and the rest of the title becomes body text
+//	< > &  raw HTML and entities are passed through, not escaped
+//	\      escapes whatever follows it
+//	` * ~  a code span, emphasis and strikethrough - "*" because it
+//	       emphasizes inside a word, which "_" does not, so "_" is left
+//	|      a table cell, if the line ever ends up in one
+//
+// Each becomes a space, and the spaces then collapse. Removed and not
+// escaped: a backslash before each of these would keep the character but
+// leave the note's source full of "\[" for a gain nobody reading the list
+// can see.
+const incomingLabelUnsafe = "[]<>&\\`*~|"
+
+// incomingLabel is the text of one line's link on the incoming index.
+//
+// The note's own Title, because that is the name the sender knows it by and
+// the name a reader is looking for. The FILE name is what OMN-Go had to call
+// it - derived from a path, stripped of everything a filesystem dislikes -
+// and it is the fallback for a note that carries no usable Title, not the
+// first choice.
+//
+// index is the collision suffix the file name received ("2" for
+// WeeklyPlan-2), or "". It is carried into the label because two copies of
+// one note otherwise read as the same line twice, with no way to tell which
+// link is which. It is not added to the fallback: the file name already
+// carries it.
+//
+// The title is text from another device. It is cut down to one line of plain
+// text here, and that is the whole of its treatment - the line is Markdown,
+// so nothing downstream will escape it later.
+func incomingLabel(title, base, index string) string {
+	clean := make([]rune, 0, len(title))
+	space := true // leading whitespace is dropped by starting "inside" a run
+	for _, r := range title {
+		if r == '\t' || r == '\n' || r == '\r' || r == ' ' ||
+			(r < 0x80 && strings.ContainsRune(incomingLabelUnsafe, r)) {
+			if !space {
+				clean = append(clean, ' ')
+				space = true
+			}
+			continue
+		}
+		if r < 0x20 || r == 0x7f {
+			continue // a control character has no business on the page
+		}
+		clean = append(clean, r)
+		space = false
+	}
+	label := strings.TrimSpace(string(clean))
+	if len([]rune(label)) > incomingLabelMaxRunes {
+		label = strings.TrimSpace(string([]rune(label)[:incomingLabelMaxRunes])) + "\u2026"
+	}
+	if label == "" {
+		return base
+	}
+	if index != "" {
+		label += " (" + index + ")"
+	}
+	return label
+}
+
 // addIncomingIndexLine puts one line at the top of md/incoming/incoming.md.
 //
 // At the TOP, directly below the header block: the reason to open this note
@@ -458,7 +570,21 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 		content = incomingIndexStarter(now)
 	}
 
-	line := "* " + now.Format("2006-01-02 15:04") + " · [" + res.Base + "](" + res.Rel + ")"
+	label := res.Label
+	if label == "" {
+		label = res.Base
+	}
+	// A Markdown link, so the line reads as a line of a note and not as
+	// markup. incomingLabel has already taken out of the label everything
+	// that would end the link early or start markup of its own.
+	//
+	// The destination is percent-encoded because a note name may hold a
+	// space, and a bare Markdown destination cannot: "[x](My Notes/Plan)"
+	// is not a link at all. The date keeps its <span> - there is no way to
+	// give one part of a line its own size in Markdown, and it is not a
+	// link, which is the part that had to stop being HTML.
+	line := "* <span class=\"omn-incoming-when\">" + now.Format("2006-01-02 15:04") +
+		"</span> · [" + label + "](" + hrefEscapePath(res.Rel) + ")"
 
 	header, sep, body := splitHeaderRegion(content)
 	if header == "" {
