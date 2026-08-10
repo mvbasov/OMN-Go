@@ -294,9 +294,7 @@ public class MainActivity extends Activity {
                         name = android.net.Uri.decode(name);
                         currentEditingName = name;
                         
-                        // Disable strict mode exposed file exceptions
-                        android.os.StrictMode.VmPolicy.Builder builder = new android.os.StrictMode.VmPolicy.Builder();
-                        android.os.StrictMode.setVmPolicy(builder.build());
+                        MainActivity.allowFileUriHandoff();
 
                         // Determine correct subdirectory and extension.
                         // MainActivity.this (not a bare storageDir() call)
@@ -1377,11 +1375,44 @@ public class MainActivity extends Activity {
     // so a try/catch around startActivity is the reliable form. Honors the
     // standard S.browser_fallback_url extra (loaded in the WebView) when no
     // installed app can handle the intent.
+    /**
+     * Lets a "file://" URI leave this process.
+     *
+     * An application that targets API 24 or later gets a VmPolicy with
+     * penaltyDeathOnFileUriExposure, so startActivity() on an intent whose
+     * data is a file:// URI throws FileUriExposedException before the other
+     * application is ever asked. Clearing the policy is the documented way
+     * out for an application that hands a real path to another one on
+     * purpose, which is what both callers of this do.
+     *
+     * WHAT IT COSTS. StrictMode is a development aid, not a permission
+     * boundary: nothing here widens what OMN-Go may read or write. It only
+     * stops the platform from killing this process for passing a path. The
+     * receiving application still needs its own storage permission to open
+     * the file, and a file it may not read stays a file it may not read.
+     *
+     * The policy is process-wide and there is no per-call form of it, so
+     * this is called at the point of use rather than at startup: on a run
+     * that never opens an external editor and never follows a file: intent
+     * link, the default policy stays in force.
+     */
+    static void allowFileUriHandoff() {
+        android.os.StrictMode.setVmPolicy(new android.os.StrictMode.VmPolicy.Builder().build());
+    }
+
     private void launchGenericIntent(final android.content.Intent intentApp) {
         String fallbackUrl = intentApp.getStringExtra("browser_fallback_url");
         // Don't leave the fallback URL sitting in the launched intent's extras
         // where the target activity might misread it.
         intentApp.removeExtra("browser_fallback_url");
+        // A note may point at a real path - a photo in DCIM, a PDF in
+        // Documents - and that is a file:// URI by the time parseUri is
+        // finished with it. See allowFileUriHandoff for why this is needed
+        // and what it does not change.
+        android.net.Uri data = intentApp.getData();
+        if (data != null && "file".equals(data.getScheme())) {
+            allowFileUriHandoff();
+        }
         try {
             startActivity(intentApp);
         } catch (android.content.ActivityNotFoundException e) {

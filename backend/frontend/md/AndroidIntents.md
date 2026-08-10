@@ -80,6 +80,128 @@ so that it does not break the URI:
 [Open a page](intent://example.com#Intent;scheme=https;S.browser_fallback_url=https%3A%2F%2Fexample.com;end)
 ```
 
+## Opening a file on the device
+
+A note can open a photo, a PDF or any other file that is already on the device.
+The address needs three parts:
+
+- `intent:///` and then the absolute path. **Three slashes.** Two of them
+  belong to the URI, and the third is the start of the path. With two slashes,
+  `storage` becomes the host name of the address and Android looks for a file
+  that is not there.
+- `scheme=file`, which makes the address a `file:` address.
+- `type=`, the type of the file. Without it Android does not know which
+  applications can open the file, and the link finds none of them.
+
+A photo:
+
+```
+[Open the photo](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;end)
+```
+
+A PDF:
+
+```
+[Open the PDF](intent:///storage/emulated/0/DCIM/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;end)
+```
+
+Both links open the application that you use for that type of file. If you set
+no default application, Android shows the list of the applications that can do
+it.
+
+### Such a link stays on one device
+
+The address is a path on this device. The file at the end of it is **outside**
+OMN-Go, and OMN-Go carries only what is inside its own storage directory.
+
+Git synchronization thus moves the note and not the file. On your second
+device the same link opens nothing, because the path is possibly not there. It
+is worse when the path IS there and holds a different file. The link then opens
+the wrong file and says nothing about it. A note that you send to a different
+person has the same fault.
+
+Two results come from this:
+
+- Keep a link like this in a note that stays on this device. A note in
+  `md/local/`, or a note with a name that starts with `local-`, does not go to
+  git. See [Files that stay on this device](UserManual#files-that-stay-on-this-device).
+- Put the file **into** your notes when the file must travel with them. A
+  `.txt` file beside a note goes to each device. See
+  [Text files beside your notes](UserManual#text-files-beside-your-notes). Not
+  each directory of the storage travels. `html/images/` does not, for example.
+
+The desktop application and a LAN browser do nothing with an intent link at
+all. This is by design: only the Android application has a share sheet and
+other applications to open.
+
+### One named application
+
+Add `package=` to send the file to one application and to no other. This
+example uses [Aves Libre](https://f-droid.org/packages/deckers.thibault.aves.libre/),
+an open-source gallery:
+
+```
+[Open in Aves Libre](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;package=deckers.thibault.aves.libre;end)
+```
+
+A link with `package=` shows *No app can handle this link* when that
+application is not installed, or when it is installed but does not accept a
+`file:` address of that type. A link without `package=` is thus the better
+choice for a note that you send to a different person.
+
+### To find the name of an application
+
+Write the link **without** `package=` and follow it one time. Android shows
+the list of every application that can open that file. This list is the
+answer: an application in it can do the work, and an application that is not
+in it cannot.
+
+Then add `package=` for the one that you want. To read the name of an
+installed application, open *Settings*, then *Apps*, then that application.
+Some devices show the name at the bottom of the page of the application. A
+file manager also shows the name in the properties of the APK file.
+
+### A file manager as the opener
+
+Some applications accept only a `content:` address, which a note cannot
+write. A file manager is the way through in that case: send the file to the
+file manager, and open it from there.
+
+These three are open-source and are in F-Droid:
+
+```
+com.ghostsq.commander       Ghost Commander
+me.zhanghai.android.files   Material Files
+com.amaze.filemanager       Amaze File Manager
+```
+
+```
+[Open with Ghost Commander](intent:///storage/emulated/0/DCIM/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;package=com.ghostsq.commander;end)
+```
+
+Try the link without `package=` first. A file manager is only necessary when
+no viewer of yours takes the file directly.
+
+### Types for other files
+
+```
+image/png    image/jpeg    image/webp
+application/pdf
+text/plain
+audio/mpeg   video/mp4
+*/*          the list of every application that opens a file
+```
+
+### What can stop this
+
+- **The path must be exact.** `/storage/emulated/0/` is the internal storage of
+  the device. A memory card has a different path. Use a file manager to read
+  the path of the file.
+- **The other application needs its own permission to read storage.** A gallery
+  and a file manager have it. An application that does not have it opens an
+  empty screen or an error.
+- **A space in a path** must be written as `%20`.
+
 ## Scanning a barcode into Quick Notes
 
 A link can start a scanner and wait for the result. OMN-Go then puts the result
@@ -199,6 +321,11 @@ Termux must be installed. You must grant the Termux permission. You must confirm
 each command. The two switches, the permission and the confirmation make four
 independent consents before a note can run anything.
 
+A link that opens a file gives one path to one other application. It gives no
+new permission to OMN-Go and none to the other application: an application that
+may not read a file still may not read it. What the link does is let Android
+pass the path instead of stopping OMN-Go for passing it.
+
 A note is not always your own note. A note can arrive by git synchronization.
 Another device can edit a note over LAN sharing. OMN-Go never saves a captured
 result silently. A captured result always goes into a dialog that you review
@@ -208,6 +335,9 @@ first. Leave Termux off unless you write all of your notes yourself.
 
 - **A link does nothing.** Make sure that *Enable intent: links* is on. In the
   desktop application and in a LAN browser these links do nothing by design.
+- **A file does not open.** Make sure that the path is exact and that the link
+  has three slashes after `intent:` and a `type=`. If the application opens and
+  shows nothing, that application has no permission to read your storage.
 - **A Termux command does nothing.** Make sure that *Enable Termux commands* is
   on and that Termux is installed. Make sure that you granted the RUN_COMMAND
   permission. Make sure that you set `allow-external-apps=true` in Termux, and
