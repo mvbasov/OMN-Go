@@ -4,11 +4,13 @@
 • Fix. Clean cache on new version install
 • Fix. Local build 2 phase now offline again
 • Fix scroll to search result
-• Fix sms: URI 
+• Fix sms: URI
+• Fix 32 bit build
 • Add easy start
 • Add user controlled global .js and .css
 • Organize tags of embeded pages
 • Add status page/API
 • Enable suggestions for internal editor
 • Exchange notes between users
-• Allow file: scheme to open external files by third party programs 
+• Allow file: scheme to open external files by third party programs
+• Build for Android 6
