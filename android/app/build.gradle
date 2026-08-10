@@ -9,10 +9,20 @@ android {
 
     defaultConfig {
         applicationId "net.basov.omngo"
-        minSdk 24
+        // Android 6.0. The Java in this application already sits on that
+        // floor - the lowest framework call it makes is
+        // isIgnoringBatteryOptimizations, which is API 23 exactly, and
+        // every call above 23 is behind a Build.VERSION.SDK_INT guard.
+        //
+        // The WebView is the real limit, not the framework. Android 6 ships
+        // Chromium 44, which cannot run this frontend at all, but the System
+        // WebView is updatable to Chromium 106 there (M106 was the last
+        // Chromium release for Android 6.0). The frontend needs 85 or newer,
+        // and omn-go-compat in index.html says so on screen when it is not.
+        minSdk 23
         targetSdk 34
-        versionCode 2608048
-        versionName "26.08.48"
+        versionCode 2608049
+        versionName "26.08.49"
     }
 
 

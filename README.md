@@ -146,6 +146,32 @@ At start, OMN-Go opens your default browser at `http://localhost:8080`. If you s
 **On Android:**
 Install the APK on your device. Start the "OMN-Go" application from your launcher. The backend starts in the background, and the WebView shows your notes.
 
+## Old Android devices
+
+OMN-Go installs on **Android 6.0 (API 23)** and newer.
+
+The limit is not the Android version. It is the WebView, which is the browser
+engine that draws the interface. **OMN-Go needs a System WebView of Chromium
+85 or newer.** Android 6 ships Chromium 44, which is too old, but the "Android
+System WebView" component is updatable on that release up to Chromium 106.
+Chromium 106 was the last release for Android 6.0, thus the window is 85 to
+106 and OMN-Go fits in it.
+
+Update "Android System WebView" and Chrome from your application store before
+you install OMN-Go on such a device. When the WebView is too old, OMN-Go shows
+a red line at the top of the page that names the version it found and the
+version it needs. Without that line an old WebView gives a blank page and no
+explanation.
+
+Two more things on a device of that age:
+
+- **Install the APK for the ABI of the device.** A device of that time is
+  frequently 32-bit ARM, thus `armeabi-v7a`. The universal APK also operates.
+- **Git synchronization over HTTPS can fail.** The certificate store of
+  Android 6 does not hold ISRG Root X1, thus a server with a Let's Encrypt
+  certificate does not verify. GitHub uses a different authority and operates.
+  An SSH key avoids the question.
+
 ## Versioning
 Versioning in this project is informal. Numbers do not indicate stability or roadmap progress.
 

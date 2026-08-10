@@ -25,4 +25,6 @@ This Telegram channel shares news and usage tips for OMN-Go: https://t.me/OMNNew
 
 OMN-Go does not include ads, analytics, or trackers of any kind. It does not need an internet connection for day-to-day work with your notes. Git synchronization and LAN sharing are both optional.
 
+OMN-Go installs on Android 6.0 and newer. The limit is the WebView and not the version of Android: OMN-Go needs a System WebView of Chromium 85 or newer. Android 6 ships Chromium 44, which is too old, but the "Android System WebView" component updates to Chromium 106 on that release. Update that component and Chrome first. When the WebView is too old, OMN-Go shows a line at the top of the page that names the version it found and the version it needs.
+
 AI coding assistants did much of the development work on OMN-Go. They wrote code, refactored it, and drafted supporting documentation such as this listing. A human reviewed and directed this work.

@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p android/app/libs && \
-    gomobile bind -target=android -androidapi 24 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+    gomobile bind -target=android -androidapi 23 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
 
 # Explicitly the "standard" flavor only - never "fdroid". The fdroid
 # variant is built exclusively by F-Droid's own build server, from its

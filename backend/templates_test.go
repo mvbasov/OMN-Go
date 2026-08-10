@@ -463,3 +463,49 @@ func TestNormalizeTheme(t *testing.T) {
 		}
 	}
 }
+
+// The compatibility notice is the one script in this application that a
+// WebView too old for the rest of it must still be able to run. Two things
+// make that true, and both are easy to undo by accident:
+//
+//   - it is ES5. Every other script uses async/await and arrow functions,
+//     and a parser that cannot read those drops the WHOLE file - so a
+//     notice written in the same style as its neighbours would be the one
+//     thing that does not run when it is needed.
+//   - it comes FIRST. A SyntaxError later in the head must not stop it.
+//
+// See the block comment on it in index.html for the version number it uses
+// and where that number comes from.
+func TestIndexTemplateCompatNoticeIsES5AndFirst(t *testing.T) {
+	at := strings.Index(indexPageTmpl, "omn-go-compat")
+	if at < 0 {
+		t.Fatal("index.html carries no compatibility notice")
+	}
+	if src := strings.Index(indexPageTmpl, "<script src="); src >= 0 && at > src {
+		t.Error("the notice is after a <script src=>, so a parse error in that file could beat it")
+	}
+	if css := strings.Index(indexPageTmpl, "<link rel=\"stylesheet\""); css >= 0 && at > css {
+		t.Error("the notice is after the stylesheet link, which delays it for no reason")
+	}
+
+	end := strings.Index(indexPageTmpl[at:], "</script>")
+	if end < 0 {
+		t.Fatal("the notice's script block is not closed")
+	}
+	block := indexPageTmpl[at : at+end]
+
+	for _, es6 := range []string{"=>", "const ", "let ", "`", "async ", "await ", "class ", "..."} {
+		if strings.Contains(block, es6) {
+			t.Errorf("the compatibility notice uses %q, which an old WebView cannot parse - "+
+				"it must stay ES5, or it is the one script that fails when it is needed", es6)
+		}
+	}
+
+	// The number it reports has to be a number, and one this application can
+	// justify: 85 is String.replaceAll, the highest requirement the frontend
+	// really has.
+	if !strings.Contains(block, "var MIN = 85;") {
+		t.Error("the notice no longer names 85 as the minimum; if that changed on purpose, " +
+			"change it here too and say why in the block comment")
+	}
+}
