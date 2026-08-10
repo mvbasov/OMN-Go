@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,7 +17,22 @@ type App struct {
 	Config      Config
 	ConfigMutex sync.RWMutex // guards all reads/writes of Config
 	StorageDir  string
-	ActiveConns int64      // mutate only via atomic.Add/LoadInt64
+	// ActiveConns is atomic.Int64 and NOT a bare int64 behind
+	// atomic.AddInt64, which is what it was until 26.08.51. On a 32-bit
+	// build every single request panicked with "unaligned 64-bit atomic
+	// operation" - a 64-bit atomic needs an 8-byte-aligned address, a
+	// 32-bit struct only aligns to 4, and the Go rule that saves you
+	// ("the first word of an allocated struct is 64-bit aligned") did
+	// not apply to a field sitting after Config and a RWMutex.
+	//
+	// connectionMiddleware wraps every route, so the very first request
+	// died: nothing ever worked on armeabi-v7a or x86, which is the APK
+	// F-Droid publishes. arm64 has natural 8-byte alignment and hid it.
+	//
+	// atomic.Int64 carries its own alignment guarantee, so the field can
+	// sit anywhere in this struct and stay correct. Do not turn it back
+	// into an int64 to save a line - see TestNoBare64BitAtomics.
+	ActiveConns atomic.Int64
 	GitMutex    sync.Mutex // serializes all on-disk git repo operations
 	Router      *http.ServeMux
 

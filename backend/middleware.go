@@ -3,7 +3,6 @@ package backend
 import (
 	"net"
 	"net/http"
-	"sync/atomic"
 )
 
 func (a *App) isLocalConnection(r *http.Request) bool {
@@ -18,8 +17,8 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// a.ActiveConns is read/written from every request's goroutine
 		// concurrently; a bare ++/-- here was a data race. Use atomics.
-		atomic.AddInt64(&a.ActiveConns, 1)
-		defer atomic.AddInt64(&a.ActiveConns, -1)
+		a.ActiveConns.Add(1)
+		defer a.ActiveConns.Add(-1)
 
 		// Each response goes through this function, thus this is the one
 		// place that controls the cache of the client.
@@ -46,7 +45,7 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 
 // ActiveConnCount returns the current number of in-flight requests.
 func (a *App) ActiveConnCount() int64 {
-	return atomic.LoadInt64(&a.ActiveConns)
+	return a.ActiveConns.Load()
 }
 
 // hasRole answers "may this request do a thing that needs this role", and is
