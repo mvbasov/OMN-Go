@@ -1994,6 +1994,7 @@ public class MainActivity extends Activity {
                             (java.net.HttpURLConnection) url.openConnection();
                     String body;
                     String filename;
+                    String description;
                     try {
                         conn.setRequestMethod("GET");
                         int code = conn.getResponseCode();
@@ -2001,6 +2002,7 @@ public class MainActivity extends Activity {
                             throw new java.io.IOException("the server answered HTTP " + code);
                         }
                         filename = exportFilename(conn.getHeaderField("Content-Disposition"));
+                        description = exportDescription(conn.getHeaderField("X-OMN-Description"));
                         body = readAllUtf8(conn.getInputStream());
                     } finally {
                         conn.disconnect();
@@ -2010,12 +2012,14 @@ public class MainActivity extends Activity {
                         android.content.Intent send =
                                 new android.content.Intent(android.content.Intent.ACTION_SEND);
                         send.setType("text/plain");
+                        // No description extra here: a text send carries the
+                        // whole note, and the description block is inside it.
                         send.putExtra(android.content.Intent.EXTRA_TEXT, body);
                         send.putExtra(android.content.Intent.EXTRA_SUBJECT, note);
                         startShareChooser(send, "Send note as text");
                         return;
                     }
-                    startShareChooser(shareFileIntent(filename, body), "Send note");
+                    startShareChooser(shareFileIntent(filename, body, description), "Send note");
                 } catch (Exception e) {
                     e.printStackTrace();
                     showToast("Could not send the note: " + e.getMessage());
@@ -2032,7 +2036,7 @@ public class MainActivity extends Activity {
      * ClipData carries the same URI because several applications take the
      * grant from there rather than from EXTRA_STREAM.
      */
-    private android.content.Intent shareFileIntent(String filename, String body)
+    private android.content.Intent shareFileIntent(String filename, String body, String description)
             throws java.io.IOException {
         java.io.File dir = ExportProvider.exportDir(this);
 
@@ -2066,9 +2070,46 @@ public class MainActivity extends Activity {
         send.setType("text/markdown");
         send.putExtra(android.content.Intent.EXTRA_STREAM, uri);
         send.putExtra(android.content.Intent.EXTRA_SUBJECT, filename);
+        // The note's description block, as the MESSAGE that goes with the
+        // file: Telegram makes it the caption, a mail client makes it the
+        // body. An application that has no place for text beside a file
+        // ignores the extra, which is why this is safe to send to every
+        // target in the sheet rather than to a chosen few.
+        //
+        // Only when the note HAS one. An empty EXTRA_TEXT is not the same as
+        // no EXTRA_TEXT: some clients open an empty message body and wait,
+        // where without the extra they would attach and send.
+        if (description != null && !description.isEmpty()) {
+            send.putExtra(android.content.Intent.EXTRA_TEXT, description);
+        }
         send.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
         send.setClipData(android.content.ClipData.newUri(getContentResolver(), filename, uri));
         return send;
+    }
+
+    /**
+     * Decodes the X-OMN-Description header (see headerDescription in
+     * backend/note_exchange.go).
+     *
+     * Base64 of UTF-8, because the description is a paragraph: it can hold a
+     * newline, which would end the header field, and it can hold Cyrillic or
+     * an accented letter, which an HTTP header field cannot carry as it
+     * stands.
+     *
+     * A damaged or absent header is not an error. The note goes without a
+     * message rather than not at all.
+     */
+    private String exportDescription(String header) {
+        if (header == null || header.isEmpty()) {
+            return "";
+        }
+        try {
+            byte[] raw = android.util.Base64.decode(header, android.util.Base64.DEFAULT);
+            return new String(raw, "UTF-8");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 
     /** Shows the chooser. Called from a worker thread, so it hops back. */

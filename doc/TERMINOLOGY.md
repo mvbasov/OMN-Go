@@ -114,6 +114,8 @@ not git sync: git sync moves every note between the devices of one user.
 | the collision index (the `-2` in `WeeklyPlan-2`) | the suffix, the counter, the disambiguator |
 | the `FileName:` line | the FileName header, the origin line, the path header |
 | the `Imported:` line | the arrival stamp, the import date |
+| the description block (the `<!--- DESCRIPTION:` comment) | the description header, the summary, the caption block, the abstract |
+| the message (the text that goes beside the file) | the caption, the body, the covering note |
 
 "send" and "receive" name this feature and nothing else. In the git sections,
 "send" stays banned as a synonym for **push**.

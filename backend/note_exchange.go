@@ -22,6 +22,7 @@ package backend
 // See claude/note-exchange-plan.md for the decisions behind this.
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -59,6 +61,25 @@ const (
 
 	headerKeyFileName = "FileName"
 	headerKeyImported = "Imported"
+
+	// headerDescription carries a note's description to the Android side,
+	// which puts it in the message that goes with the file.
+	//
+	// BASE64, because an HTTP header field is bytes and not text. A
+	// description in Cyrillic, or with an accented letter in it, is not
+	// ISO-8859-1 and a raw value would arrive damaged. A newline in it would
+	// be worse: it would end the header and make the rest of the description
+	// look like a field of its own. Base64 has neither problem, and Android
+	// decodes it in one call.
+	headerDescription = "X-OMN-Description"
+
+	// descriptionMaxRunes caps what travels in that header.
+	//
+	// 1000 is under Telegram's caption limit of 1024 characters. Telegram
+	// does not shorten a caption that is too long - it refuses the whole
+	// caption - so a description of 1100 characters would arrive as no
+	// description at all.
+	descriptionMaxRunes = 1000
 
 	// exportNameMaxRunes caps the attachment name. A recipient's filesystem
 	// is not ours to assume, and 100 is short of every limit in use.
@@ -140,6 +161,47 @@ func flattenExportName(noteName string) string {
 		name = "note"
 	}
 	return name
+}
+
+// descriptionRe finds a note's description block:
+//
+//	<!--- DESCRIPTION:
+//	There is some
+//	description
+//	--->
+//
+// An HTML comment, so it is invisible on the rendered page and needs no
+// change to the header block, which holds one line per key and cannot carry
+// a paragraph.
+//
+// FORGIVING ON THE FENCE, DELIBERATELY. "<!---" and "--->" are what the note
+// author writes, but "<!--" and "-->" are the standard spelling of the same
+// comment and a note that uses them means the same thing. Any number of
+// dashes is accepted at each end, DESCRIPTION is matched whatever its case,
+// and the colon is optional.
+//
+// ONE LIMIT, from HTML and not from here: a comment ends at the first "-->",
+// so a description cannot contain one. A line of dashes used as a rule ends
+// the description early. There is no way around that while the block is a
+// comment, and a comment is what keeps it off the page.
+var descriptionRe = regexp.MustCompile(`(?is)<!--+\s*DESCRIPTION\b\s*:?\s*(.*?)\s*--+>`)
+
+// noteDescription returns the text of the first description block in a note,
+// or "" when the note has none.
+//
+// The FIRST one, and searched over the whole note rather than only the lines
+// under the header block. A second block is a mistake either way, and a note
+// that keeps its description a paragraph lower down still means it.
+func noteDescription(src string) string {
+	m := descriptionRe.FindStringSubmatch(normalizeNewlines(src))
+	if m == nil {
+		return ""
+	}
+	text := strings.TrimSpace(m[1])
+	if r := []rune(text); len(r) > descriptionMaxRunes {
+		text = strings.TrimSpace(string(r[:descriptionMaxRunes]))
+	}
+	return text
 }
 
 // ----------------------------------------------------------------------
@@ -551,6 +613,17 @@ func (a *App) handleExportNote(w http.ResponseWriter, r *http.Request) {
 	// flattenExportName leaves only A-Za-z0-9._- , so the file name needs no
 	// quoting rules applied to it here and cannot close the header early.
 	// That is a property of the name, and this line depends on it.
+	// The description, for the MESSAGE that carries the file - a Telegram
+	// caption, a mail body. It stays in the note as well: it is part of the
+	// note, and the receiver can send the note on with it.
+	//
+	// A header and not a second endpoint, because the Android side needs the
+	// bytes and the text together in one answer, and it already has this
+	// response open.
+	if desc := noteDescription(string(data)); desc != "" {
+		w.Header().Set(headerDescription, base64.StdEncoding.EncodeToString([]byte(desc)))
+	}
+
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.Write(data)

@@ -790,6 +790,32 @@ The two controls show only on a note. A view with no Markdown source behind it, 
 
 **The `FileName:` line.** OMN-Go writes the full name of the note into the header of the file that it sends. The receiver reads this line and puts the note into the same directory structure. The line is only in the file that travels. Your own note does not change.
 
+### A message with the file
+
+Telegram shows a caption above an attachment, and a mail client has a body above it. Give the note a description, and OMN-Go puts it there for you.
+
+The description is an HTML comment, thus it does not show on the page. Write it below the header block:
+
+```
+Title: Weekly plan
+Tags: Test, Document
+
+<!--- DESCRIPTION:
+There is some
+description
+--->
+```
+
+Send the note on Android, and that text is in the message beside the file. An application with no place for text beside a file ignores it, thus a description is safe to write on each note you send.
+
+Keep a description short. OMN-Go sends the first 1000 characters, because Telegram refuses a caption that is longer than 1024 and shows no caption at all.
+
+A description stays in the note when the note travels. The person who receives it can send the note on with the same text.
+
+Two small rules. `<!--` and `-->` name the same block as `<!---` and `--->`, and the word `DESCRIPTION` can be in small letters. A description cannot contain `-->`, because that is where an HTML comment ends.
+
+The desktop does not use the description. A browser download has no message with it.
+
 ### Receive a note
 
 **On Android.** Share the note into OMN-Go from the application that holds it, or open the `.md` file from a file manager. OMN-Go saves the note and shows it. If the editor is open, OMN-Go saves the note but stays in the editor, thus you do not lose your text.

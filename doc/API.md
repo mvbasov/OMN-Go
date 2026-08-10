@@ -471,6 +471,45 @@ attachments in one mail thread. The name holds only `A-Za-z0-9._-`, so a
 recipient can save it on Windows as well as on Android. It is a label for a
 person and OMN-Go never reads it back.
 
+**The description**
+
+A note can offer a short text to send **with** the file — a Telegram caption,
+a mail body. It is an HTML comment, thus it is invisible on the rendered
+page:
+
+```
+Tags: Test, Document
+
+<!--- DESCRIPTION:
+There is some
+description
+--->
+```
+
+When the note has one, the answer carries this header:
+
+```
+X-OMN-Description: VGhlcmUgaXMgc29tZQpkZXNjcmlwdGlvbg==
+```
+
+The value is **base64 of UTF-8**. A description is a paragraph: it can hold a
+line break, which would end the header field, and it can hold a letter that a
+header field cannot carry as it stands. The text is cut to 1000 characters,
+which is below Telegram's caption limit of 1024 — Telegram refuses a longer
+caption instead of making it shorter.
+
+A note with no description gets **no header**. An empty header is not the
+same thing: the Android application opens an empty message body for one, and
+attaches and sends for none.
+
+The description **stays in the note that travels**. It is part of the note,
+and the receiver must be able to send the note on with it.
+
+`<!--` and `-->` name the same block as `<!---` and `--->`, `DESCRIPTION` is
+matched whatever its case, and the colon is optional. One limit comes from
+HTML and not from OMN-Go: a comment ends at the first `-->`, thus a
+description cannot contain one.
+
 **Errors**
 
 | Status | Body | When |

@@ -17,6 +17,7 @@ package backend
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -731,5 +732,99 @@ func TestIncomingIndexLinkRewrites(t *testing.T) {
 	want := in + ".html"
 	if got := a.rewriteInternalLink(in); got != want {
 		t.Errorf("rewriteInternalLink(%q) = %q, want %q", in, got, want)
+	}
+}
+
+// ----------------------------------------------------------------------
+// The description block (26.08.41)
+// ----------------------------------------------------------------------
+
+// The text a note offers as the MESSAGE beside the file. The fence is
+// deliberately forgiving, so the table is mostly about what still counts as
+// a description and what does not.
+func TestNoteDescription(t *testing.T) {
+	tests := []struct {
+		name, in, want string
+	}{
+		{"the documented form",
+			"Title: T\nTags: Test, Document\n\n<!--- DESCRIPTION:\nThere is some\ndescription\n--->\n\nBody.\n",
+			"There is some\ndescription"},
+		{"the standard comment spelling", "<!-- DESCRIPTION:\nOne line\n-->", "One line"},
+		{"no colon, lower case", "<!--- description\nText here\n--->", "Text here"},
+		{"all on one line", "<!--- DESCRIPTION: Short one --->", "Short one"},
+		{"CRLF source", "<!--- DESCRIPTION:\r\nTwo\r\nlines\r\n--->", "Two\nlines"},
+		{"non-ASCII", "<!--- DESCRIPTION:\nПривет, это заметка\n--->", "Привет, это заметка"},
+		{"the first block wins",
+			"<!--- DESCRIPTION:\nfirst\n--->\n<!--- DESCRIPTION:\nsecond\n--->", "first"},
+		{"lower down in the note still counts",
+			"Title: T\n\nBody first.\n\n<!--- DESCRIPTION:\nlate\n--->", "late"},
+		{"no description", "Title: T\n\nJust a note.\n", ""},
+		{"empty description", "<!--- DESCRIPTION:\n\n--->", ""},
+		// The incoming index carries one of these on every install, and it
+		// must not read as a description of anything.
+		{"an ordinary comment is not one", "Title: T\n\n" + incomingListMarker + "\n\n* a line\n", ""},
+		{"the word inside prose is not one", "Title: T\n\nDESCRIPTION: not in a comment\n", ""},
+	}
+	for _, tt := range tests {
+		if got := noteDescription(tt.in); got != tt.want {
+			t.Errorf("%s: noteDescription = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// Telegram refuses a caption over 1024 characters outright, so the cap is
+// what keeps a long description from arriving as no description.
+func TestNoteDescriptionCap(t *testing.T) {
+	// Runes, not bytes: a Cyrillic description of 1500 letters is 3000 bytes
+	// and must still come back as 1000 letters.
+	long := strings.Repeat("ф", descriptionMaxRunes+500)
+	got := noteDescription("<!--- DESCRIPTION:\n" + long + "\n--->")
+	if n := len([]rune(got)); n != descriptionMaxRunes {
+		t.Errorf("a long description came back as %d runes, want %d", n, descriptionMaxRunes)
+	}
+}
+
+// The export answers with the description in a header, and the value is safe
+// to put in one: base64, so no newline of the description can end the field
+// and no non-ASCII letter can be mangled by it.
+func TestHandleExportNoteDescriptionHeader(t *testing.T) {
+	a := newTestApp(t)
+	os.WriteFile(filepath.Join(a.StorageDir, "md", "WithDesc.md"),
+		[]byte("Title: T\nTags: Test, Document\n\n<!--- DESCRIPTION:\nПривет\nмир\n--->\n\nBody.\n"), 0644)
+	os.WriteFile(filepath.Join(a.StorageDir, "md", "Plain.md"),
+		[]byte("Title: T\n\nBody.\n"), 0644)
+
+	rec := exchangeReq(t, a.handleExportNote, http.MethodGet,
+		"/api/export/note?name=WithDesc", nil, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	value := rec.Header().Get(headerDescription)
+	if value == "" {
+		t.Fatalf("no %s header", headerDescription)
+	}
+	if strings.ContainsAny(value, "\r\n") {
+		t.Errorf("the header value holds a line break: %q", value)
+	}
+	raw, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		t.Fatalf("the header value is not base64: %v", err)
+	}
+	if string(raw) != "Привет\nмир" {
+		t.Errorf("decoded %q, want %q", raw, "Привет\nмир")
+	}
+
+	// The description STAYS in the note that travels: it is part of the
+	// note, and the receiver has to be able to send it on with one.
+	if !strings.Contains(rec.Body.String(), "DESCRIPTION:") {
+		t.Errorf("the export dropped the description block:\n%s", rec.Body.String())
+	}
+
+	// No description, no header. An empty one is not the same as none: on
+	// the Android side an empty EXTRA_TEXT opens a message body and waits.
+	rec = exchangeReq(t, a.handleExportNote, http.MethodGet,
+		"/api/export/note?name=Plain", nil, "")
+	if got := rec.Header().Get(headerDescription); got != "" {
+		t.Errorf("a note with no description answered %s: %q", headerDescription, got)
 	}
 }
