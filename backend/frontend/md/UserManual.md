@@ -389,7 +389,9 @@ OMN-Go serves your notes from `md/`, and each other file from `html/`. A link is
 
 Each copy keeps the modification time of its source. Thus the pair becomes stable: a start that comes after a save finds nothing to do.
 
-The copy in `md/` is the one that git synchronization carries with your notes. Subdirectories stay: `md/project/data.txt` becomes `html/project/data.txt`.
+The copy in `md/` is the one that git synchronization carries with your notes. `.gitignore` keeps each `.txt` file below `html/` out of git, because it is only a copy: two copies of one text in git is one too many, and the second one is what a merge conflict looks for. After a download, OMN-Go makes the copy in `html/` again, thus the link operates immediately.
+
+Subdirectories stay: `md/project/data.txt` becomes `html/project/data.txt`.
 
 Three limits to know:
 

@@ -163,6 +163,12 @@ var gitignorePatterns = []string{
 	"/html/js/katex.min.js",
 	"/html/js/highlight.min.js",
 	"/html/js/Bookmarker.js",
+	// A .txt beside a note is written in md/ and COPIED into html/, which is
+	// where its URL resolves (note_files.go, 26.08.31). Only the md/ copy is
+	// the file; the html/ one is made from it at every start. Two copies of
+	// one text in git is one too many, and the pair of them is what a merge
+	// conflict looks for.
+	"/html/**/*.txt",
 	"/md/AndroidIntents.md",
 	"/md/BookmarksHowTo.md",
 	"/md/Database.md",
@@ -635,18 +641,46 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 // Staging & committing (manual staging with gitignore filter)
 // ---------------------------------------------------------------
 
-// untrackLocalOnlyPaths removes each local-only path from the index and
-// returns the number of the paths that it removed. The files stay on the
-// disk: only the index entry goes away, the same as "git rm --cached".
+// isDerivedTextPath reports whether a path is a copy that html/ holds of a
+// text file whose original is in md/ (note_files.go).
+//
+// The md/ copy is the file. The html/ copy is made from it at every start,
+// because that is where its URL resolves. Only one of the two belongs in
+// git, and a device that pulls the md/ one rebuilds its own html/ one.
+func isDerivedTextPath(name string) bool {
+	name = filepath.ToSlash(name)
+	return strings.HasPrefix(name, "html/") && isSyncedNoteFile(name)
+}
+
+// untrackReason says why a tracked path must leave the index, or "" when it
+// must stay. It is the one rule, read by the removal below and by the upload
+// preview, so the preview cannot promise something the commit does not do.
+func untrackReason(name string) string {
+	switch {
+	case isLocalOnlyPath(name):
+		return localOnlyPreviewNote
+	case isDerivedTextPath(name):
+		return derivedTextPreviewNote
+	}
+	return ""
+}
+
+// untrackLocalOnlyPaths removes each path that untrackReason names from the
+// index and returns the number of the paths that it removed. The files stay
+// on the disk: only the index entry goes away, the same as "git rm --cached".
 // The next commit thus records a deletion, and a pull deletes the copy on
-// the other device. This is the correct result, because the name says
-// "this device only".
+// the other device.
+//
+// That is the correct result for both rules. A local-only name says "this
+// device only". A .txt under html/ is a copy of the file in md/, and the
+// other device makes its own copy from the md/ file it already has (see
+// syncNoteFilesToHTML, which SyncRepo also runs after a pull).
 //
 // The function reads the index directly, as manualStageFile does.
 // go-git's Worktree.Remove deletes the file from the disk too, thus it is
 // not usable here.
 //
-// Only the local-only rule causes a removal. The other patterns in the
+// ONLY these two rules cause a removal. The other patterns in the
 // .gitignore list must not. A file such as md/UserManual.md, or a
 // compiled *.html page, can be in the index of an old repository. A
 // removal of each of those at one time would delete many files on the
@@ -654,15 +688,15 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 	idx, err := repo.Storer.Index()
 	if err != nil {
-		log.Printf("[sync] cannot read the index to find local-only files: %v", err)
+		log.Printf("[sync] cannot read the index to find the files to untrack: %v", err)
 		return 0
 	}
 
 	kept := make([]*index.Entry, 0, len(idx.Entries))
 	removed := 0
 	for _, entry := range idx.Entries {
-		if isLocalOnlyPath(entry.Name) {
-			log.Printf("[sync] %s is local-only: git stops to track it, the file stays on this device", entry.Name)
+		if why := untrackReason(entry.Name); why != "" {
+			log.Printf("[sync] %s%s", entry.Name, why)
 			removed++
 			continue
 		}
@@ -674,7 +708,7 @@ func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 
 	idx.Entries = kept
 	if err := repo.Storer.SetIndex(idx); err != nil {
-		log.Printf("[sync] cannot write the index after the removal of %d local-only file(s): %v", removed, err)
+		log.Printf("[sync] cannot write the index after the removal of %d file(s): %v", removed, err)
 		return 0
 	}
 	return removed
@@ -685,19 +719,24 @@ func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 // not delete it from this device.
 const localOnlyPreviewNote = " (local-only: git stops to track it)"
 
-// localOnlyTrackedPaths reads the index and returns each local-only path
-// that git still tracks, in sorted order. It changes nothing. The upload
-// preview uses it to show what untrackLocalOnlyPaths does at the commit.
-func (a *App) localOnlyTrackedPaths(repo *git.Repository) []string {
+// derivedTextPreviewNote is the same for a .txt under html/. The file stays
+// on this device and is made again at every start from the copy in md/.
+const derivedTextPreviewNote = " (a copy of the file in md/: git stops to track it)"
+
+// untrackTrackedPaths reads the index and returns each path that git still
+// tracks and untrackLocalOnlyPaths is about to remove, with the note that
+// says why, in sorted order. It changes nothing. The upload preview uses it
+// to show what the commit does.
+func (a *App) untrackTrackedPaths(repo *git.Repository) []string {
 	idx, err := repo.Storer.Index()
 	if err != nil {
-		log.Printf("[sync] cannot read the index to find local-only files: %v", err)
+		log.Printf("[sync] cannot read the index to find the files to untrack: %v", err)
 		return nil
 	}
 	var out []string
 	for _, entry := range idx.Entries {
-		if isLocalOnlyPath(entry.Name) {
-			out = append(out, entry.Name)
+		if why := untrackReason(entry.Name); why != "" {
+			out = append(out, entry.Name+why)
 		}
 	}
 	sort.Strings(out)
@@ -1847,19 +1886,32 @@ func (a *App) SyncRepo(action string, message string) error {
 		return err
 	}
 
+	// After a pull, remake the html/ copy of every text file beside a note.
+	// Git carries the md/ original and not the copy (see isDerivedTextPath),
+	// so a pull that brings a new md/log.txt - or that deletes the html/
+	// copy an older commit still tracked - leaves the URL of that file with
+	// nothing behind it until the next start. The walk reads nothing until
+	// it finds a file to copy, so this is cheap enough to run every time.
+	pullDone := func(err error) error {
+		if err == nil {
+			a.syncNoteFilesToHTML()
+		}
+		return err
+	}
+
 	switch action {
 	case "push", "upload":
 		return a.syncPush(repo, wTree, auth, remoteName, message, false)
 	case "push_force", "upload_force":
 		return a.syncPush(repo, wTree, auth, remoteName, message, true)
 	case "pull", "pull_ff", "download":
-		return a.syncPull(repo, wTree, auth, remoteName)
+		return pullDone(a.syncPull(repo, wTree, auth, remoteName))
 	case "pull_mark":
-		return a.syncPullMerge(repo, wTree, auth, remoteName)
+		return pullDone(a.syncPullMerge(repo, wTree, auth, remoteName))
 	case "pull_abort", "abort":
-		return a.syncPullAbort(wTree)
+		return pullDone(a.syncPullAbort(wTree))
 	case "pull_force", "download_force":
-		return a.syncPullForce(repo, wTree, auth, remoteName)
+		return pullDone(a.syncPullForce(repo, wTree, auth, remoteName))
 	}
 	return fmt.Errorf("unknown sync action: %s", action)
 }
@@ -1998,14 +2050,13 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// A local-only path that git still tracks leaves the repository at
-	// the next commit (see untrackLocalOnlyPaths). The status finds no
-	// such file if the content did not change, thus the index gets its
-	// own read here. The preview must show each change that the commit
+	// A path that git still tracks but must not - a local-only name, or a
+	// .txt under html/ that is a copy of the file in md/ - leaves the
+	// repository at the next commit (see untrackLocalOnlyPaths). The status
+	// finds no such file if the content did not change, thus the index gets
+	// its own read here. The preview must show each change that the commit
 	// makes, and this one deletes a file on the other devices.
-	for _, name := range a.localOnlyTrackedPaths(repo) {
-		files = append(files, name+localOnlyPreviewNote)
-	}
+	files = append(files, a.untrackTrackedPaths(repo)...)
 
 	// No database dry-run here anymore: backups are ordinary files under
 	// html/db_backup/ written when the user presses "Backup now" (see

@@ -123,6 +123,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/js/katex.min.js\n" +
 		"/html/js/highlight.min.js\n" +
 		"/html/js/Bookmarker.js\n" +
+		"/html/**/*.txt\n" +
 		"/md/AndroidIntents.md\n" +
 		"/md/BookmarksHowTo.md\n" +
 		"/md/Database.md\n" +
@@ -283,9 +284,9 @@ func TestCommitLocalChangesUntracksALocalOnlyFile(t *testing.T) {
 	testCommit(t, wt, "before the rule")
 
 	// The preview must announce the removal, although no content changed.
-	pending := a.localOnlyTrackedPaths(repo)
-	if len(pending) != 1 || pending[0] != localRel {
-		t.Errorf("localOnlyTrackedPaths = %v, want [%s]", pending, localRel)
+	pending := a.untrackTrackedPaths(repo)
+	if len(pending) != 1 || pending[0] != localRel+localOnlyPreviewNote {
+		t.Errorf("untrackTrackedPaths = %v, want [%s]", pending, localRel+localOnlyPreviewNote)
 	}
 
 	committed, err := a.commitLocalChanges(repo, wt, "stop to track the local-only files")
@@ -310,7 +311,7 @@ func TestCommitLocalChangesUntracksALocalOnlyFile(t *testing.T) {
 	}
 
 	// A second run finds nothing more to do.
-	if left := a.localOnlyTrackedPaths(repo); len(left) != 0 {
+	if left := a.untrackTrackedPaths(repo); len(left) != 0 {
 		t.Errorf("the index still holds %v", left)
 	}
 }
@@ -753,5 +754,110 @@ func TestAheadOfRemoteWithNoCommits(t *testing.T) {
 
 	if got := a.aheadOfRemote(repo, "slot0", nil); got.Unpushed {
 		t.Error("an unborn branch was reported as having something to push")
+	}
+}
+
+// A .txt beside a note lives in md/ and is COPIED into html/, which is where
+// its URL resolves (note_files.go). Only the md/ original belongs in git.
+func TestGitignoreExcludesDerivedTextCopies(t *testing.T) {
+	patterns := make([]gitignore.Pattern, 0, len(gitignorePatterns))
+	for _, p := range gitignorePatterns {
+		patterns = append(patterns, gitignore.ParsePattern(p, nil))
+	}
+	matcher := gitignore.NewMatcher(patterns)
+
+	cases := []struct {
+		path []string
+		want bool
+		why  string
+	}{
+		{[]string{"html", "log.txt"}, true, "the copy of a root note's text file"},
+		{[]string{"html", "project", "log.txt"}, true, "one directory down"},
+		{[]string{"html", "a", "b", "c", "log.txt"}, true, "deeper still"},
+		{[]string{"md", "log.txt"}, false, "THE ORIGINAL - git must carry this one"},
+		{[]string{"md", "project", "log.txt"}, false, "the original, one directory down"},
+		{[]string{"html", "notes.txt.md"}, false, "a note whose name ends in .txt.md"},
+		{[]string{"md", "Welcome.md"}, false, "a normal note"},
+	}
+
+	for _, c := range cases {
+		full := strings.Join(c.path, "/")
+		if got := matcher.Match(c.path, false); got != c.want {
+			t.Errorf("matcher.Match(%q) = %v, want %v (%s)", full, got, c.want, c.why)
+		}
+		// The matcher and the untrack rule have to agree, or a file is
+		// ignored for new commits and kept in the index for ever.
+		if got := isDerivedTextPath(full); got != c.want {
+			t.Errorf("isDerivedTextPath(%q) = %v, want %v (%s)", full, got, c.want, c.why)
+		}
+	}
+}
+
+// The html/ copy can be in the index from a time before the rule. It must
+// leave the index at the next commit, and it must stay on the disk - the
+// other device rebuilds its own copy from the md/ original it already has.
+func TestCommitLocalChangesUntracksADerivedTextCopy(t *testing.T) {
+	a, repo, wt := newTestRepo(t)
+	a.ensureGitignore()
+
+	const copyRel = "html/project/log.txt"
+	const srcRel = "md/project/log.txt"
+	writeAndAdd(t, a, wt, srcRel, "one\ntwo\n")
+	writeAndAdd(t, a, wt, copyRel, "one\ntwo\n")
+	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
+	testCommit(t, wt, "before the rule")
+
+	pending := a.untrackTrackedPaths(repo)
+	if len(pending) != 1 || pending[0] != copyRel+derivedTextPreviewNote {
+		t.Errorf("untrackTrackedPaths = %v, want [%s]", pending, copyRel+derivedTextPreviewNote)
+	}
+
+	committed, err := a.commitLocalChanges(repo, wt, "stop to track the copies under html/")
+	if err != nil {
+		t.Fatalf("commitLocalChanges: %v", err)
+	}
+	if !committed {
+		t.Fatal("no commit was made, want the removal of the copy")
+	}
+
+	tree := headTree(t, repo)
+	if _, err := tree.File(copyRel); err == nil {
+		t.Errorf("%s is still in the commit", copyRel)
+	}
+	if _, err := tree.File(srcRel); err != nil {
+		t.Errorf("%s left the commit, but it is the original: %v", srcRel, err)
+	}
+
+	// "git rm --cached", not "git rm": the served copy stays on this device.
+	if _, err := os.Stat(filepath.Join(a.StorageDir, copyRel)); err != nil {
+		t.Errorf("the html/ copy left the disk: %v", err)
+	}
+
+	if left := a.untrackTrackedPaths(repo); len(left) != 0 {
+		t.Errorf("the index still holds %v", left)
+	}
+}
+
+// A pull brings the md/ original and no html/ copy. Rebuilding the copy is
+// what keeps the file's URL working before the next start.
+func TestSyncNoteFilesToHTMLRebuildsAfterAPull(t *testing.T) {
+	a := &App{StorageDir: t.TempDir()}
+	src := filepath.Join(a.StorageDir, "md", "project", "log.txt")
+	if err := os.MkdirAll(filepath.Dir(src), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src, []byte("one\ntwo\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	a.syncNoteFilesToHTML()
+
+	copyPath := filepath.Join(a.StorageDir, "html", "project", "log.txt")
+	got, err := os.ReadFile(copyPath)
+	if err != nil {
+		t.Fatalf("the html/ copy was not made: %v", err)
+	}
+	if string(got) != "one\ntwo\n" {
+		t.Errorf("the copy holds %q", got)
 	}
 }
