@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launcher icon for Android below 8.0.
+
+  <adaptive-icon> is API 26, and mipmap-anydpi-v26/ is the only place this
+  application had one. A resource with a -v26 qualifier and no other variant
+  does not resolve at all on an older device: the launcher asks for
+  @mipmap/ic_launcher, finds nothing it can use, and draws its own default
+  icon. That is what Android 6 showed.
+
+  This is the same two drawables the adaptive icon is made of, stacked. Both
+  are 108dp vectors with solid fills and no gradient, so a platform from API
+  21 draws them correctly.
+
+  ONE DIFFERENCE FROM ANDROID 8 AND NEWER. An adaptive icon is a 108dp canvas
+  of which the launcher shows the middle 72dp - the rest is margin the mask
+  cuts away. Nothing cuts it here, so the artwork sits at two thirds of the
+  size it has on a newer device. It is the correct icon, drawn a little
+  smaller.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_background" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>
