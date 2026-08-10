@@ -46,15 +46,27 @@ func defaultHostname() string {
 // see the same data. Registered on /api/config in place of handleConfig.
 func (a *App) handleConfigExt(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		host := sanitizeHostname(r.FormValue("hostname"))
-		if host == "" {
-			// Clearing the field resets to the OS-derived default.
-			host = defaultHostname()
+		// A request that does not carry "hostname" leaves the device label
+		// alone. It used to be rewritten to defaultHostname() instead, so a
+		// note that saved one unrelated setting renamed the device - and the
+		// label is embedded in the name of every database backup this device
+		// writes (see db_backup.go), so the rename did not stay cosmetic.
+		// Same rule as handleConfig; see configFieldSent.
+		sent := configFieldSent(r)
+		host := ""
+		if sent("hostname") {
+			host = sanitizeHostname(r.FormValue("hostname"))
+			if host == "" {
+				// Clearing the field resets to the OS-derived default.
+				host = defaultHostname()
+			}
 		}
 		var depth int
 		fmt.Sscanf(r.FormValue("backup_prune_depth"), "%d", &depth)
 		a.WithConfig(func(c *Config) {
-			c.Hostname = host
+			if host != "" {
+				c.Hostname = host
+			}
 			if depth > 0 {
 				c.BackupPruneDepth = depth
 			}

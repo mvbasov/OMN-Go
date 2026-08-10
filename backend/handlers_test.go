@@ -531,8 +531,10 @@ func TestHandleConfigSavesShareLAN(t *testing.T) {
 		t.Errorf("config.json missing persisted share_lan:\n%s", data)
 	}
 
-	// Unchecked checkbox = field absent from the form -> back to false.
-	rec = postConfig(t, a, url.Values{})
+	// Unchecked checkbox: the form DECLARES the field in config_fields and
+	// sends no value for it -> back to false. A request that does not
+	// declare it leaves it alone instead (TestBaseline_ConfigPostSemantics).
+	rec = postConfig(t, a, url.Values{"config_fields": {configFormFields}})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -601,9 +603,9 @@ func TestHandleConfigSavesAndroidIntentToggles(t *testing.T) {
 		}
 	}
 
-	// Unchecked checkboxes = fields absent from the form -> both clear back
-	// to false (same absent-means-false shape as share_lan).
-	rec = postConfig(t, a, url.Values{})
+	// Unchecked checkboxes: declared in config_fields, no value sent -> both
+	// clear back to false (same shape as share_lan above).
+	rec = postConfig(t, a, url.Values{"config_fields": {configFormFields}})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}

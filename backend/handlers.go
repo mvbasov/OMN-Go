@@ -71,6 +71,63 @@ func (a *App) getExternalEditPageBody(fileName string, viewURL string) string {
 	return renderExternalEditPage(view)
 }
 
+// configFormMaxMemory mirrors net/http's own defaultMaxMemory, which is what
+// r.FormValue would use. Named here only because the parse is spelled out
+// rather than left to the first FormValue call.
+const configFormMaxMemory = 32 << 20
+
+// configFieldSent reports whether a POST to /api/config carries a value for
+// one config field.
+//
+// WHY THIS EXISTS. handleConfig used to rebuild the whole Config from the
+// form, so a request that named one setting CLEARED every setting it did not
+// name. The Config page always sends the whole form, so nothing showed it -
+// until a note posted "theme" on its own and emptied the author name, both
+// passwords, the external-editor command and the device label with it.
+//
+// The rule now is: a field the request does not carry is left as it is.
+//
+// THE CHECKBOX PROBLEM. A browser sends nothing at all for an unticked
+// checkbox, so "unticked" and "not my business" arrive identically. With the
+// rule above and nothing else, no checkbox on the Config page could ever be
+// cleared. So the form declares what it governs, in one hidden field:
+//
+//	<input type="hidden" name="config_fields" value="share_lan,search_enabled,…">
+//
+// A name in that list counts as sent even when the form carries no value for
+// it, which is exactly what an unticked box means. A caller that sends no
+// config_fields governs only what it actually names - the safe default, and
+// the behaviour a note or a script wants.
+//
+// A field that IS sent is applied even when its value is empty: clearing the
+// author name or a password from the Config page has to keep working.
+func configFieldSent(r *http.Request) func(field string) bool {
+	if r.Form == nil {
+		// Fills r.Form for both shapes this endpoint sees: the Config page
+		// posts a FormData, which is multipart, and everything else posts
+		// urlencoded. The error is ignored on purpose - for an ordinary
+		// form ParseMultipartForm fills r.Form and then reports
+		// ErrNotMultipart, which is not a failure here.
+		_ = r.ParseMultipartForm(configFormMaxMemory)
+	}
+
+	governed := map[string]bool{}
+	for _, group := range r.Form["config_fields"] {
+		for _, field := range strings.Split(group, ",") {
+			if field = strings.TrimSpace(field); field != "" {
+				governed[field] = true
+			}
+		}
+	}
+
+	return func(field string) bool {
+		if _, ok := r.Form[field]; ok {
+			return true
+		}
+		return governed[field]
+	}
+}
+
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		cfg := a.GetConfig()
@@ -88,6 +145,11 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		prevSearchKinds := strings.Join(normalizeSearchKinds(a.GetConfig().SearchKinds), ",")
 		prevSearchBundled := a.GetConfig().SearchBundled
 
+		// A field this request does not carry is left as it is. See
+		// configFieldSent for the rule and for why the Config page has to
+		// declare its checkboxes.
+		sent := configFieldSent(r)
+
 		var snapshot Config
 		a.WithConfig(func(c *Config) {
 			portStr := r.FormValue("server_port")
@@ -96,11 +158,21 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			if port > 0 {
 				c.ServerPort = port
 			}
-			c.AdminPassword = r.FormValue("admin_password")
-			c.GuestPassword = r.FormValue("guest_password")
-			c.Author = r.FormValue("author")
-			c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
-			c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+			if sent("admin_password") {
+				c.AdminPassword = r.FormValue("admin_password")
+			}
+			if sent("guest_password") {
+				c.GuestPassword = r.FormValue("guest_password")
+			}
+			if sent("author") {
+				c.Author = r.FormValue("author")
+			}
+			if sent("use_internal_editor") {
+				c.UseInternalEd = r.FormValue("use_internal_editor") == "true"
+			}
+			if sent("desktop_ext_cmd") {
+				c.DesktopExtCmd = r.FormValue("desktop_ext_cmd")
+			}
 			// Same "parse, only apply if positive" shape as server_port
 			// above: a blank/invalid/zero submission leaves the previous
 			// (or default) limit in place rather than silently zeroing out
@@ -113,39 +185,58 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 					c.MaxUploadSizeMB = mb
 				}
 			}
-			// Whitelisted via normalizeTheme: anything but light/dark
-			// (including a missing field) becomes auto.
-			c.Theme = normalizeTheme(r.FormValue("theme"))
-			// Unchecked checkboxes are simply absent from the form, so
-			// this correctly reads as false when the box is cleared.
+			// Whitelisted via normalizeTheme: a value that is not
+			// light or dark becomes auto.
+			if sent("theme") {
+				c.Theme = normalizeTheme(r.FormValue("theme"))
+			}
+			// A checkbox the browser did not send reads as false, which is
+			// what an unticked box means - but only when the form declared
+			// that it governs this field (see configFieldSent).
 			// Takes effect on next start (see server.go bind logic).
-			c.ShareLAN = r.FormValue("share_lan") == "true"
-			// Android intent-URI toggles - same absent-means-false checkbox
-			// shape as ShareLAN above. Consumed natively by MainActivity out
-			// of config.json (not via the Go server), so no restart needed;
-			// the desktop/LAN server itself never acts on either.
-			c.EnableIntentURI = r.FormValue("enable_intent_uri") == "true"
-			c.EnableTermuxIntent = r.FormValue("enable_termux_intent") == "true"
+			if sent("share_lan") {
+				c.ShareLAN = r.FormValue("share_lan") == "true"
+			}
+			// Android intent-URI toggles - same checkbox shape as ShareLAN
+			// above. Consumed natively by MainActivity out of config.json
+			// (not via the Go server), so no restart needed; the
+			// desktop/LAN server itself never acts on either.
+			if sent("enable_intent_uri") {
+				c.EnableIntentURI = r.FormValue("enable_intent_uri") == "true"
+			}
+			if sent("enable_termux_intent") {
+				c.EnableTermuxIntent = r.FormValue("enable_termux_intent") == "true"
+			}
 			// Whitelisted through normalizeFullscreen, same shape as the
-			// theme select above: anything unrecognised (or a missing
-			// field) becomes FullscreenOn, the historic behaviour.
-			c.AndroidFullscreen = normalizeFullscreen(r.FormValue("android_fullscreen"))
-			// Search settings. The checkboxes follow the same
-			// absent-means-false rule as everything else on this form.
-			c.SearchEnabled = r.FormValue("search_enabled") == "true"
-			c.SearchBundled = r.FormValue("search_bundled") == "true"
-			c.SearchScope = normalizeSearchScope(r.FormValue("search_scope"))
+			// theme select above: anything unrecognised becomes
+			// FullscreenOn, the historic behaviour.
+			if sent("android_fullscreen") {
+				c.AndroidFullscreen = normalizeFullscreen(r.FormValue("android_fullscreen"))
+			}
+			// Search settings. The checkboxes follow the same rule as the
+			// ones above.
+			if sent("search_enabled") {
+				c.SearchEnabled = r.FormValue("search_enabled") == "true"
+			}
+			if sent("search_bundled") {
+				c.SearchBundled = r.FormValue("search_bundled") == "true"
+			}
+			if sent("search_scope") {
+				c.SearchScope = normalizeSearchScope(r.FormValue("search_scope"))
+			}
 			// search_kinds is a set of checkboxes sharing one name, so it
 			// arrives as a repeated field. Note the explicitly non-nil
 			// slice: nil means "no preference recorded, use the default"
 			// (see normalizeSearchKinds), which is NOT what unticking every
 			// box means - that means index nothing, and the two must not be
-			// confused by a save.
-			kinds := []string{}
-			if r.Form != nil {
+			// confused by a save. Unticking every box sends no value at
+			// all, which is why "search_kinds" is in the form's
+			// config_fields list.
+			if sent("search_kinds") {
+				kinds := []string{}
 				kinds = append(kinds, r.Form["search_kinds"]...)
+				c.SearchKinds = normalizeSearchKinds(kinds)
 			}
-			c.SearchKinds = normalizeSearchKinds(kinds)
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int

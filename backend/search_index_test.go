@@ -505,7 +505,10 @@ func TestSearchToggleReleasesAndRebuilds(t *testing.T) {
 
 	// Switching off releases the memory immediately - no restart, because
 	// turning this off is what someone does when a device is already short.
-	postForm(t, a.handleConfig, "/api/config", url.Values{"search_kinds": {"md"}})
+	postForm(t, a.handleConfig, "/api/config", url.Values{
+		"search_enabled": {"false"},
+		"search_kinds":   {"md"},
+	})
 	if a.searchIndexBuilt() {
 		t.Error("the index survived being switched off")
 	}

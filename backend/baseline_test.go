@@ -618,11 +618,29 @@ func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
 // ---------------------------------------------------------------------
 // 6. Config POST semantics
 //
-// handleConfig rebuilds the config from form values, so an ABSENT field is not
-// "leave it alone" - a missing checkbox reads as false and a missing text input
-// as "". Every new field added to that one form inherits this, which makes it
-// worth writing down before the form grows.
+// CHANGED IN 26.08.43. handleConfig used to rebuild the config from the form,
+// so an ABSENT field was not "leave it alone": a missing checkbox read as
+// false and a missing text input as "". That was invisible while the Config
+// page was the only caller, because it sends the whole form - and then a note
+// posted "theme" on its own and emptied the author name, both passwords, the
+// external-editor command and the device label.
+//
+// The rule now: a field the request does not carry is left as it is. A field
+// it DOES carry is applied, empty value included, so the Config page can
+// still clear a text box.
+//
+// A checkbox has no value to send when it is unticked, so the form declares
+// the fields it governs in one hidden "config_fields" input, and a name in
+// that list counts as sent. Every new checkbox on that form has to be added
+// to the list; a new text input or select does not, because a browser always
+// sends those.
 // ---------------------------------------------------------------------
+
+// configFormFields is what the Config page's hidden config_fields input
+// carries. Kept here as one string so a test posts the same declaration the
+// real form does.
+const configFormFields = "use_internal_editor,share_lan,enable_intent_uri," +
+	"enable_termux_intent,search_enabled,search_bundled,search_kinds"
 
 // assertConfigOnDisk decodes config.json and hands it to check. Separate from
 // the in-memory assertions because "saved" in this app means both, and a
@@ -652,7 +670,7 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 		c.GitServers = make([]GitServerConfig, maxGitServers)
 	})
 
-	// A form carrying only "theme" clears everything else it could have sent.
+	// A form carrying only "theme" changes only the theme.
 	rec := postForm(t, a.handleConfig, "/api/config", url.Values{"theme": {"light"}})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d, body %s", rec.Code, rec.Body.String())
@@ -661,15 +679,15 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 	if cfg.Theme != ThemeLight {
 		t.Errorf("theme = %q, want light", cfg.Theme)
 	}
-	if cfg.Author != "" {
-		t.Errorf("absent text field did not clear: author = %q", cfg.Author)
+	if cfg.Author != "Ann" {
+		t.Errorf("an absent text field was cleared: author = %q", cfg.Author)
 	}
-	if cfg.UseInternalEd {
-		t.Error("absent checkbox did not clear: use_internal_editor still true")
+	if !cfg.UseInternalEd {
+		t.Error("an absent checkbox was cleared: use_internal_editor")
 	}
-	// ... but the numeric fields deliberately IGNORE an absent/invalid value
-	// rather than zeroing, because 0 would be a broken port and a cap that
-	// rejects every upload.
+	// The numeric fields also ignore an absent or invalid value, for their
+	// own older reason: 0 would be a broken port and a cap that rejects
+	// every upload.
 	if cfg.ServerPort != 9999 {
 		t.Errorf("server_port = %d, want 9999 kept", cfg.ServerPort)
 	}
@@ -679,9 +697,7 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 
 	// Every save lands in config.json too - the file the Android layer reads
 	// natively (MainActivity, ServerService), so memory and disk must agree at
-	// every step, not eventually. Checked HERE, right after the save that set
-	// theme=light: a later POST that omits the field will clear it again, which
-	// is the behaviour asserted above.
+	// every step, not eventually.
 	assertConfigOnDisk(t, a, func(onDisk Config) {
 		if onDisk.Theme != ThemeLight {
 			t.Errorf("config.json theme = %q, want light", onDisk.Theme)
@@ -689,8 +705,8 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 		if onDisk.ServerPort != 9999 {
 			t.Errorf("config.json server_port = %d, want 9999", onDisk.ServerPort)
 		}
-		if onDisk.Author != "" {
-			t.Errorf("config.json author = %q, want cleared", onDisk.Author)
+		if onDisk.Author != "Ann" {
+			t.Errorf("config.json author = %q, want kept", onDisk.Author)
 		}
 	})
 
@@ -703,10 +719,17 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 	if cfg.ServerPort != 9999 || cfg.MaxUploadSizeMB != 7 {
 		t.Errorf("invalid numerics overwrote good values: port=%d mb=%d", cfg.ServerPort, cfg.MaxUploadSizeMB)
 	}
-	// ... and that POST, carrying no theme, cleared it back to the default -
-	// the same rule as the text fields, applied to a whitelisted enum.
-	if got := a.GetConfig().Theme; got != ThemeAuto {
-		t.Errorf("theme after a POST that omitted it = %q, want auto", got)
+	// ... and that POST, carrying no theme, left the theme alone.
+	if got := a.GetConfig().Theme; got != ThemeLight {
+		t.Errorf("theme after a POST that omitted it = %q, want light kept", got)
+	}
+
+	// A field that IS sent applies even when its value is empty: the Config
+	// page clears a text box by sending it empty, and that has to keep
+	// working now that absence means something else.
+	postForm(t, a.handleConfig, "/api/config", url.Values{"author": {""}})
+	if got := a.GetConfig().Author; got != "" {
+		t.Errorf("a sent-but-empty field did not clear: author = %q", got)
 	}
 
 	// Only a ShareLAN flip asks for a restart; every other change applies live.
@@ -718,6 +741,178 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 	rec = postForm(t, a.handleConfig, "/api/config", url.Values{"share_lan": {"true"}})
 	if body := strings.TrimSpace(rec.Body.String()); body != "Saved" {
 		t.Errorf("unchanged share_lan answered %q, want Saved", body)
+	}
+}
+
+// The bug this rule was written for: a note that saves ONE setting used to
+// empty the author name, both passwords, the external-editor command and the
+// device label, and to untick every checkbox on the Config page.
+//
+// Through handleConfigExt, not handleConfig, because the device label is the
+// wrapper's field and it had the same fault in a worse form: an absent
+// "hostname" was rewritten to the OS-derived default, which then renamed
+// every database backup the device wrote next.
+func TestConfigPost_PartialRequestKeepsTheRest(t *testing.T) {
+	a := newTestApp(t)
+	a.WithConfig(func(c *Config) {
+		c.Author = "Ann"
+		c.AdminPassword = "adminpw"
+		c.GuestPassword = "guestpw"
+		c.DesktopExtCmd = "vim %s"
+		c.UseInternalEd = true
+		c.ShareLAN = true
+		c.EnableIntentURI = true
+		c.EnableTermuxIntent = true
+		c.SearchEnabled = true
+		c.SearchBundled = true
+		c.SearchScope = SearchScopeAll
+		c.SearchKinds = []string{SearchKindMD, SearchKindJS}
+		c.AndroidFullscreen = FullscreenImmersive
+		c.Hostname = "pixel7"
+		c.BackupPruneDepth = 5
+		c.GitServers = make([]GitServerConfig, maxGitServers)
+	})
+
+	// Exactly what the Theme Customizer note sends.
+	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+		"theme":               {"custom"},
+		"custom_theme_bg":     {"#101010"},
+		"custom_theme_accent": {"#4488ff"},
+	})
+
+	cfg := a.GetConfig()
+	for _, f := range []struct{ name, got, want string }{
+		{"author", cfg.Author, "Ann"},
+		{"admin_password", cfg.AdminPassword, "adminpw"},
+		{"guest_password", cfg.GuestPassword, "guestpw"},
+		{"desktop_ext_cmd", cfg.DesktopExtCmd, "vim %s"},
+		{"android_fullscreen", cfg.AndroidFullscreen, FullscreenImmersive},
+		{"search_scope", cfg.SearchScope, SearchScopeAll},
+		{"hostname", cfg.Hostname, "pixel7"},
+	} {
+		if f.got != f.want {
+			t.Errorf("%s = %q, want %q kept", f.name, f.got, f.want)
+		}
+	}
+	for _, f := range []struct {
+		name string
+		got  bool
+	}{
+		{"use_internal_editor", cfg.UseInternalEd},
+		{"share_lan", cfg.ShareLAN},
+		{"enable_intent_uri", cfg.EnableIntentURI},
+		{"enable_termux_intent", cfg.EnableTermuxIntent},
+		{"search_enabled", cfg.SearchEnabled},
+		{"search_bundled", cfg.SearchBundled},
+	} {
+		if !f.got {
+			t.Errorf("%s was cleared by a request that never named it", f.name)
+		}
+	}
+	if got := strings.Join(cfg.SearchKinds, ","); got != "md,js" {
+		t.Errorf("search_kinds = %q, want md,js kept", got)
+	}
+	if cfg.BackupPruneDepth != 5 {
+		t.Errorf("backup_prune_depth = %d, want 5 kept", cfg.BackupPruneDepth)
+	}
+	// "custom" is not a theme this build knows, so it lands on auto. A
+	// coercion, and no longer a loss.
+	if cfg.Theme != ThemeAuto {
+		t.Errorf("theme = %q, want auto", cfg.Theme)
+	}
+}
+
+// The Config page declares every checkbox it governs, so unticking one still
+// clears it. Without that declaration the browser sends nothing and the
+// server cannot tell "unticked" from "not mine to touch".
+func TestConfigPost_DeclaredCheckboxesStillClear(t *testing.T) {
+	a := newTestApp(t)
+	a.WithConfig(func(c *Config) {
+		c.UseInternalEd = true
+		c.ShareLAN = true
+		c.EnableIntentURI = true
+		c.EnableTermuxIntent = true
+		c.SearchEnabled = true
+		c.SearchBundled = true
+		c.SearchKinds = []string{SearchKindMD}
+		c.GitServers = make([]GitServerConfig, maxGitServers)
+	})
+
+	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+		"config_fields": {configFormFields},
+		"theme":         {"light"},
+	})
+
+	cfg := a.GetConfig()
+	if cfg.UseInternalEd || cfg.ShareLAN || cfg.EnableIntentURI ||
+		cfg.EnableTermuxIntent || cfg.SearchEnabled || cfg.SearchBundled {
+		t.Errorf("a declared but unticked checkbox did not clear: %+v", cfg)
+	}
+	if len(cfg.SearchKinds) != 0 {
+		t.Errorf("search_kinds = %v, want empty when every box is unticked", cfg.SearchKinds)
+	}
+	if cfg.SearchKinds == nil {
+		t.Error("an empty kind list must stay non-nil, or the next load restores the default")
+	}
+
+	// A caller with no form behind it can do the same thing one field at a
+	// time, by value, without declaring anything.
+	a.WithConfig(func(c *Config) { c.SearchEnabled = true; c.ShareLAN = true })
+	postForm(t, a.handleConfigExt, "/api/config", url.Values{"search_enabled": {"false"}})
+	cfg = a.GetConfig()
+	if cfg.SearchEnabled {
+		t.Error("search_enabled=false did not clear it")
+	}
+	if !cfg.ShareLAN {
+		t.Error("an unrelated checkbox was cleared by a one-field POST")
+	}
+}
+
+// A checkbox the Config page forgets to declare can never be unticked again:
+// the browser sends nothing for it and the server leaves it as it was. That
+// failure is silent - the box appears to save and then comes back ticked - so
+// the form's declaration is checked against the form's own checkboxes here.
+func TestConfigPost_EveryCheckboxIsDeclared(t *testing.T) {
+	declared := map[string]bool{}
+	value := ""
+	if m := regexp.MustCompile(`name="config_fields" value="([^"]*)"`).
+		FindStringSubmatch(configPageTmpl); m != nil {
+		value = m[1]
+		for _, f := range strings.Split(m[1], ",") {
+			declared[strings.TrimSpace(f)] = true
+		}
+	}
+	if len(declared) == 0 {
+		t.Fatal("config_page.html carries no config_fields declaration")
+	}
+
+	// The tests in this file post this same string, so they exercise what the
+	// page really sends rather than a copy that has drifted from it.
+	if value != configFormFields {
+		t.Errorf("configFormFields is out of step with the page:\n page %q\n test %q", value, configFormFields)
+	}
+
+	for _, m := range regexp.MustCompile(`<input type="checkbox"[^>]*name="([^"]+)"`).
+		FindAllStringSubmatch(configPageTmpl, -1) {
+		if !declared[m[1]] {
+			t.Errorf("checkbox %q is on the Config page but not in config_fields, "+
+				"so unticking it cannot be saved", m[1])
+		}
+	}
+}
+
+// Clearing the hostname field on the Config page still falls back to the
+// OS-derived default. That is a SENT empty value, which is a different thing
+// from the absent field of the test above.
+func TestConfigPost_HostnameClearedFallsBack(t *testing.T) {
+	a := newTestApp(t)
+	a.WithConfig(func(c *Config) {
+		c.Hostname = "pixel7"
+		c.GitServers = make([]GitServerConfig, maxGitServers)
+	})
+	postForm(t, a.handleConfigExt, "/api/config", url.Values{"hostname": {""}})
+	if got := a.GetConfig().Hostname; got == "" || got == "pixel7" {
+		t.Errorf("hostname = %q, want the OS-derived default", got)
 	}
 }
 

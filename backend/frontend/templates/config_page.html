@@ -83,6 +83,21 @@
          FormData(form) in saveConfig() keeps collecting the whole config
          regardless of which screen is open. -->
     <form id="configForm" class="config-form">
+        <!--
+          The fields this form GOVERNS but does not always send.
+
+          /api/config leaves a setting alone when the request carries no
+          value for it, so that a note or a script can save one setting
+          without clearing the rest (see handleConfig). An unticked
+          checkbox sends nothing at all, so without this line "unticked"
+          and "not my business" would look the same to the server and no
+          box on this page could ever be cleared.
+
+          Every checkbox name on this form belongs here, and a new
+          checkbox must be added to it. A text field or a select does not:
+          the browser always sends those, empty or not.
+        -->
+        <input type="hidden" name="config_fields" value="use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds" />
         <div class="config-screen" data-screen="general">
             <div class="config-subhead">
                 <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>

@@ -973,25 +973,53 @@ not through this API.
 Update the configuration and save it to `config.json`.
 Content type: `application/x-www-form-urlencoded` (or query string).
 
-**Parameters** — every field is optional. An absent field leaves the stored
-value unchanged. The exceptions are the checkbox and select fields below,
-where an absent field has a meaning.
+**A field the request does not carry is left as it is.** Send one field to
+change one setting; the rest of the configuration is not touched. A field
+that IS carried is applied even when its value is empty, which is how the
+Config page clears a text box.
+
+> **Changed in 26.08.43.** Before that version this endpoint rebuilt the
+> whole configuration from the request, so a request that named one field
+> emptied every field it did not name. A note that saved the theme also
+> emptied the author name, both passwords, the external-editor command and
+> the device label.
+
+**Checkboxes, and `config_fields`.** A browser sends nothing at all for an
+unticked checkbox, so "unticked" and "not my business" arrive identically.
+A form therefore declares the fields it governs in one hidden field:
+
+```
+config_fields=use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds
+```
+
+A name in that list counts as carried even when the request holds no value
+for it, which is what an unticked box means. A caller that sends no
+`config_fields` governs only the fields it actually names. A caller with no
+form behind it does not need the list at all: `share_lan=false` turns one
+setting off and touches nothing else.
+
+**Parameters** — every field is optional.
 
 | Name | Type | Applied when | Notes |
 | --- | --- | --- | --- |
+| `config_fields` | string | — | Comma-separated field names this request governs |
 | `server_port` | int | parses `> 0` | Otherwise ignored |
-| `admin_password` | string | always | Written verbatim, including empty |
-| `guest_password` | string | always | |
-| `author` | string | always | |
-| `use_internal_editor` | `"true"` | always | Any other value (incl. absent) → `false` |
-| `desktop_ext_cmd` | string | always | |
+| `admin_password` | string | carried | Written verbatim, including empty |
+| `guest_password` | string | carried | |
+| `author` | string | carried | |
+| `use_internal_editor` | `"true"` | carried | Any other value → `false` |
+| `desktop_ext_cmd` | string | carried | |
 | `max_upload_size_mb` | int | non-empty and `> 0` | |
-| `theme` | string | always | Through `normalizeTheme`; unknown → `auto` |
-| `share_lan` | `"true"` | always | Absent → `false`. **Flipping this changes the response body** |
-| `enable_intent_uri` | `"true"` | always | Absent → `false` |
-| `enable_termux_intent` | `"true"` | always | Absent → `false` |
-| `android_fullscreen` | string | always | Through `normalizeFullscreen`; unknown → `fullscreen` |
-| `hostname` | string | always | Sanitized; empty resets to the OS-derived default |
+| `theme` | string | carried | Through `normalizeTheme`; unknown → `auto` |
+| `share_lan` | `"true"` | carried | **Flipping this changes the response body** |
+| `enable_intent_uri` | `"true"` | carried | |
+| `enable_termux_intent` | `"true"` | carried | |
+| `android_fullscreen` | string | carried | Through `normalizeFullscreen`; unknown → `fullscreen` |
+| `search_enabled` | `"true"` | carried | |
+| `search_bundled` | `"true"` | carried | |
+| `search_scope` | string | carried | Through `normalizeSearchScope` |
+| `search_kinds` | string | carried | Repeated field; every value carried is the whole new set |
+| `hostname` | string | carried | Sanitized; carried-but-empty resets to the OS-derived default |
 | `backup_prune_depth` | int | parses `> 0` | |
 | `active_git_index` | int | in range `[0, len(git_servers))` | |
 | `git_name_<i>` | string | *(see below)* | `i` in `0..4` |
