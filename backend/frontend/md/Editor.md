@@ -26,19 +26,22 @@ Left to right:
 - <i class="material-icons">code</i> **Expand Emmet abbreviation** — expand
   the abbreviation on the current line into HTML. This button does the same as
   the **Tab** key. See below.
-- <i class="material-icons">format_line_spacing</i> **Select line** — press
-  this button to cycle through three selections. A fourth press starts the
-  cycle again:
+- <i class="material-icons">format_line_spacing</i> **Cycle selection** — press this button again and again to select more of the note. The cycle has seven selections. An eighth press starts the cycle again:
   1. The current line.
-  2. From the current line to the end of the file.
-  3. From the current line to the header block.
+  2. From the cursor to the end of the line.
+  3. From the start of the line to the cursor.
+  4. From the current line to the end of the file.
+  5. From the current line to the header block.
+  6. The body of the note, without the header block.
+  7. The whole note, with the header block.
 
-  For the third selection, the start of the selection is the position that
-  comes first in the file. The third selection therefore also works when the
-  cursor is inside the header block.
+  The editor keeps the position of the cursor from the start of the cycle. All seven selections use that position, and not the ends of the selection before them.
 
-  If you move the cursor or make a different selection, the editor resets the
-  cycle. The next press selects the current line again.
+  For the fifth selection, the start of the selection is the position that comes first in the file. The fifth selection therefore also works when the cursor is inside the header block. The fifth selection always contains the full current line.
+
+  A note without a header block has no boundary between the header block and the body. For such a note, the sixth selection is the same as the seventh.
+
+  If you move the cursor or make a different selection, the editor resets the cycle. The next press selects the current line again.
 - <i class="material-icons">wrap_text</i> **Word wrap** — wrap long lines to
   the width of the window. With word wrap off, a long line continues past the
   edge of the window and you scroll sideways.

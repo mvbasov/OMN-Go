@@ -43,11 +43,12 @@
     var wrapOn = true;     // word wrap (default on, like a plain textarea)
     var lnOn = false;      // line numbers requested by the user
 
-    // "Select current line" button cycle state - see selectCurrentLine.
-    var lineCycleStage = 0;          // 0 = idle; 1/2/3 = which stage was last applied
-    var lineCycleAnchor = -1;        // char offset: start of the line the cycle is anchored to
-    var lineCycleAppliedStart = -1;  // selection this tool itself last set, to
-    var lineCycleAppliedEnd = -1;    // detect "still cycling" vs. a fresh click
+    // "Cycle selection" button state - see cycleSelection.
+    var SEL_CYCLE_STAGES = 7;       // the number of stages in the cycle
+    var selCycleStage = 0;          // 0 = idle; 1 to 7 = the stage applied last
+    var selCycleCaret = -1;         // char offset: the cursor the cycle holds
+    var selCycleAppliedStart = -1;  // the selection this tool applied last, to
+    var selCycleAppliedEnd = -1;    // find a continued cycle after a new press
 
     // ------------------------------------------------------------------
     // Toolbar tool registry. Each entry becomes a button, left to right.
@@ -59,7 +60,7 @@
     // ------------------------------------------------------------------
     var TOOLS = [
         { icon: 'code', title: 'Expand Emmet abbreviation (Tab)', action: function () { expandEmmetAtCursor(); } },
-        { icon: 'format_line_spacing', title: 'Select line (click again: to end of file, then to after header, then repeats)', action: function () { selectCurrentLine(); } },
+        { icon: 'format_line_spacing', title: 'Cycle selection (line, line end, line start, to file end, to header, body, whole note)', action: function () { cycleSelection(); } },
         { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
         { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } },
         { id: 'toolFind', icon: 'search', title: 'Find / replace (Ctrl+F, Ctrl+H)', action: function () { openFind(false); } }
@@ -418,63 +419,95 @@
         return { start: start, end: end };
     }
 
-    // Cycles through three selection scopes each time the toolbar button
-    // is clicked:
+    // Each press of the toolbar button applies the next stage of one cycle.
+    // The cycle has seven stages:
     //   1. the current line
-    //   2. from the current line to the end of the file
-    //   3. from the current line to the first line after the Pelican-style
-    //      header (see firstLineAfterHeader) - whichever of the two is
-    //      earlier in the file becomes the selection start, so this also
-    //      works sensibly when the caret is inside the header itself.
-    // A fourth click starts the cycle over at stage 1.
+    //   2. from the cursor to the end of the line
+    //   3. from the start of the line to the cursor
+    //   4. from the current line to the end of the file
+    //   5. from the current line to the first line after the Pelican-style
+    //      header block (see firstLineAfterHeader)
+    //   6. the note body: all text after the header block
+    //   7. the whole note, with the header block
+    // The eighth press starts the cycle again at stage 1.
     //
-    // "Continuing the cycle" is detected by comparing the textarea's
-    // current selection to the one this function itself set last time: if
-    // they still match, the user clicked the button again without
-    // touching the selection in between, so advance to the next stage.
-    // Anything else (a different line, a manual selection, a fresh click
-    // after moving the caret) resets the cycle to stage 1, anchored on
-    // whatever line the caret is on/selection starts at now.
-    function selectCurrentLine() {
+    // Stages 2 and 3 use the cursor. Stages 1, 4 and 5 use the line that
+    // holds the cursor. Stages 6 and 7 use the whole file. The tool records
+    // the cursor position when the cycle starts, and it keeps that position
+    // for all seven stages. Each stage thus applies to the same line, and not
+    // to the line at one end of the selection that the stage before it made.
+    //
+    // To find a continued cycle, this function compares the selection of the
+    // textarea with the selection that it applied last. If the two agree, the
+    // user pressed the button again and did not change the selection between
+    // the two presses. The function then goes to the next stage. All other
+    // conditions (a different line, a manual selection, a press after a move
+    // of the cursor) start a new cycle at stage 1, at the cursor of that
+    // moment.
+    function cycleSelection() {
         if (!ta) return;
         var selStart = ta.selectionStart, selEnd = ta.selectionEnd;
-        var continuing = lineCycleStage > 0 &&
-            selStart === lineCycleAppliedStart && selEnd === lineCycleAppliedEnd;
+        var continuing = selCycleStage > 0 &&
+            selStart === selCycleAppliedStart && selEnd === selCycleAppliedEnd;
 
         if (!continuing) {
-            lineCycleAnchor = lineBounds(ta.value, selStart).start;
-            lineCycleStage = 0;
+            selCycleCaret = selStart;
+            selCycleStage = 0;
         }
-        lineCycleStage = (lineCycleStage % 3) + 1;
+        selCycleStage = (selCycleStage % SEL_CYCLE_STAGES) + 1;
 
-        var b = lineBounds(ta.value, lineCycleAnchor);
+        // The text can get shorter between two presses of the button. Hold
+        // the cursor inside the text to keep every stage in range.
+        var caret = Math.min(selCycleCaret, ta.value.length);
+        var b = lineBounds(ta.value, caret);
+        var headerEnd;
         var start, end;
-        if (lineCycleStage === 1) {
-            start = b.start; end = b.end;                    // current line only
-        } else if (lineCycleStage === 2) {
-            start = b.start; end = ta.value.length;           // line -> end of file
-        } else {
-            // line -> after header. The current line is always fully
-            // included: below the header, select from the header boundary
-            // through the END of the current line (mirroring stage 2's
-            // "line -> end of file"); at or inside the header itself,
-            // select from the START of the current line through the
-            // header boundary. Using Math.min/max on the two raw offsets
-            // instead would exclude the current line's own text on the
-            // "below the header" side (b.start to b.end never entering
-            // the range at all) - this branch avoids that.
-            var headerEnd = firstLineAfterHeader(ta.value);
-            if (b.start >= headerEnd) {
-                start = headerEnd; end = b.end;
-            } else {
-                start = b.start; end = headerEnd;
-            }
+        switch (selCycleStage) {
+            case 1:
+                start = b.start; end = b.end;                 // the current line
+                break;
+            case 2:
+                start = caret; end = b.end;                   // cursor -> line end
+                break;
+            case 3:
+                start = b.start; end = caret;                 // line start -> cursor
+                break;
+            case 4:
+                start = b.start; end = ta.value.length;       // line -> end of file
+                break;
+            case 5:
+                // line -> after the header block. This stage always holds the
+                // full current line. Below the header block, the selection
+                // goes from the boundary of the header block to the END of the
+                // current line, as stage 4 goes to the end of the file. In the
+                // header block, the selection goes from the START of the
+                // current line to that same boundary. Math.min and Math.max on
+                // the two raw offsets would remove the text of the current line
+                // on the side below the header block (b.start to b.end would
+                // not enter the range at all). This branch prevents that.
+                headerEnd = firstLineAfterHeader(ta.value);
+                if (b.start >= headerEnd) {
+                    start = headerEnd; end = b.end;
+                } else {
+                    start = b.start; end = headerEnd;
+                }
+                break;
+            case 6:
+                // The body of the note: all text after the header block. A
+                // note with no header block has no boundary, and
+                // firstLineAfterHeader gives 0. This stage then selects the
+                // same text as stage 7.
+                start = firstLineAfterHeader(ta.value); end = ta.value.length;
+                break;
+            default:
+                start = 0; end = ta.value.length;             // the whole note
+                break;
         }
 
         ta.focus();
         ta.setSelectionRange(start, end);
-        lineCycleAppliedStart = start;
-        lineCycleAppliedEnd = end;
+        selCycleAppliedStart = start;
+        selCycleAppliedEnd = end;
     }
 
     // Expand the abbreviation on the current line (from first non-space to
