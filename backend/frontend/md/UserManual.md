@@ -203,7 +203,7 @@ buttons, from left to right:
 - <i class="material-icons">settings</i> — open the [Config](Config) page
 - <i class="material-icons">cloud_download</i> / <i class="material-icons">cloud_upload</i> — git pull / push
   - **Force** checkbox — makes the next git sync action destructive (see [Git synchronization](#git-synchronization))
-- <i class="material-icons">info</i> — show the metadata of the page
+- <i class="material-icons">info</i> — show the metadata panel of the page
 - <i class="material-icons">save</i> / <i class="material-icons">edit</i> — save the note / enable or disable edit mode
 
 OMN-Go hides the admin-only buttons when you log in as guest.
@@ -342,6 +342,22 @@ write them in a natural form:
   application accepts does nothing.
 - Do not put a `:` in a page name. `[Draft](Notes:Draft)` looks like a link
   with the scheme `notes:`, and OMN-Go sends it to the system.
+
+### Copy a link to this page
+
+OMN-Go writes the Markdown link to the page for you.
+
+1. Press <i class="material-icons">info</i> in the header to show the metadata panel.
+2. Press <i class="material-icons">link</i> **Copy a link to this page**, in the column of buttons at the right of the panel.
+3. Open the note where you want the link, and paste.
+
+The link holds the title of the page and the address of the page: `[Trip planning](/projects/Trip%20planning.html?tag=go#day-two)`.
+
+The address starts at the notes root and holds no device name. The link is thus correct on each device that opens your notes. A link that carries `127.0.0.1` is correct on one device only.
+
+If the address of the page holds parameters or an anchor, the link holds them too. Open the [Bookmarks](Bookmarks) page with `?tag=go`, copy the link, and the link opens the same list of bookmarks.
+
+This button shows on each page. The two buttons above it, [Send this note](#send-a-note) and Copy this note as text, show on a note only.
 
 ## Edit links for non-page files
 
@@ -777,8 +793,8 @@ You must be an admin to send a note and to receive a note.
 ### Send a note
 
 1. Open the note.
-2. Press <i class="material-icons">info</i> in the header to show the metadata block.
-3. Press <i class="material-icons">share</i> **Send this note** at the right of the `File:` line.
+2. Press <i class="material-icons">info</i> in the header to show the metadata panel.
+3. Press <i class="material-icons">share</i> **Send this note**, at the top of the column of buttons at the right of the panel.
 
 On Android the share sheet opens. Select the application that carries the note.
 
@@ -786,7 +802,7 @@ On the desktop the browser saves the file in your download directory. Attach the
 
 Press <i class="material-icons">content_copy</i> **Copy this note as text** to put the Markdown on the clipboard instead. Use this when you want to paste the note into a message.
 
-The two controls show only on a note. A view with no Markdown source behind it, the [Config](Config) page for example, has no controls.
+These two controls show only on a note. A view with no Markdown source behind it, the [Config](Config) page for example, has only [Copy a link to this page](#copy-a-link-to-this-page).
 
 **The name of the file.** OMN-Go makes one flat name from the full name of the note. The note `project/Sub/WeeklyPlan` becomes `project-Sub-WeeklyPlan.md`. Two notes that have the same short name are thus two different attachments in one message.
 

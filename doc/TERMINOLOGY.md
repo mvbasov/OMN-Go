@@ -65,6 +65,8 @@ index holds. Keep "document" there and only there.
 | the note box (the Quick Note panel) | the quick note dialog, the text box, the note popup |
 | the bookmark form (the Ingest Bookmark panel) | the bookmark dialog, the bookmark popup, the ingest panel |
 | the start page buttons (the two buttons on Welcome) | the big buttons, the cards, the tiles |
+| the metadata panel (the block the *info* button shows) | the metadata block, the info panel, the properties box |
+| the page link (UI label: *Copy a link to this page*) | the permalink, the deep link, the page URL |
 
 `dump` stays correct in `sqlite3 .dump` and `websqldump.js` — those are the real
 names of external artifacts, not synonyms for a backup.

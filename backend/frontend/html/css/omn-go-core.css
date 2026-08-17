@@ -524,10 +524,30 @@ a.taglink {
     border-radius: 4px;
     font-size: 13px;
 }
-/* The "File:" line, and the controls that send this note (see the metadata
-   panel builder in omn-go-core.js). The colour and the rule under it were
-   inline "#0056b3" and "#ccc" until 26.08.37 - unthemed, so the line was
-   nearly invisible on the dark theme. */
+/* The two parts of the panel: the metadata at the left, the controls in a
+   column at the right (see the metadata panel builder in omn-go-core.js).
+   The column holds each control under the control before it, so a new control
+   makes the column longer and leaves the width of the metadata alone. Until
+   26.08.53 the controls were in the "File:" line, and each new control took
+   width from the name of the note. */
+.metadata-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.metadata-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.metadata-actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+/* The "File:" line, and the status text of the controls. The colour and the
+   rule under it were inline "#0056b3" and "#ccc" until 26.08.37 - unthemed,
+   so the line was nearly invisible on the dark theme. */
 .metadata-file-row {
     display: flex;
     align-items: center;
@@ -538,10 +558,17 @@ a.taglink {
     color: var(--accent);
     font-weight: bold;
 }
+/* A long value gets a hanging indent: the first line starts at the left
+   margin, and each line after it is indented. The name of the key thus stays
+   the only text at the left edge, and the eye finds the next key. A long word
+   with no space in it - a URL in a Tags line, for example - breaks instead of
+   pushing the panel wider. */
 .metadata-file-name {
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
+    padding-left: 2em;
+    text-indent: -2em;
 }
 .metadata-send-status {
     flex: 0 0 auto;
@@ -568,6 +595,9 @@ a.taglink {
 }
 .metadata-row {
     margin-bottom: 4px;
+    padding-left: 2em;
+    text-indent: -2em;
+    overflow-wrap: anywhere;
 }
 
 /* -- The receive box on the incoming index (templates/incoming_index.md).

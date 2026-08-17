@@ -1260,33 +1260,95 @@ function omnGoSendNote(note) {
     window.location.href = omnGoExportURL(note);
 }
 
+// omnGoCopyText puts one string on the clipboard.
+//
+// navigator.clipboard needs a secure context. http://localhost counts as one,
+// so the Clipboard API works on the device itself and inside the Android
+// WebView. A LAN guest on http://192.168.x.x does not get it, and the older
+// execCommand path takes the copy. This function throws when both ways fail.
+// Each caller shows the failure in the status text of the metadata panel.
+async function omnGoCopyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('the browser refused the copy');
+}
+
 // omnGoCopyNote puts the same Markdown on the clipboard, for pasting into a
 // chat or a mail body.
-//
-// navigator.clipboard needs a secure context. http://localhost counts as
-// one, so it works on the device itself and inside the Android WebView; a
-// LAN guest on http://192.168.x.x does not get it, and falls back to the
-// old execCommand path.
 async function omnGoCopyNote(note, say) {
     try {
         const res = await fetch(omnGoExportURL(note), { cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const text = await res.text();
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-        } else {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.setAttribute('readonly', '');
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            const ok = document.execCommand('copy');
-            document.body.removeChild(ta);
-            if (!ok) throw new Error('the browser refused the copy');
-        }
+        await omnGoCopyText(await res.text());
         say('Copied');
+    } catch (e) {
+        say('Copy failed: ' + e.message);
+    }
+}
+
+// --- A link to the page on screen ---
+
+// omnGoPageTitle gives the text of that link. The "Title:" line of the note is
+// the first choice, because that is the name the reader knows. Title and
+// PageName are the fallbacks, in that order, for a view with no note behind
+// it - the Config page, for example.
+function omnGoPageTitle() {
+    var out = '';
+    document.querySelectorAll('meta[name]').forEach(function (m) {
+        if (out) return;
+        if (m.getAttribute('name').toLowerCase() === 'title') {
+            out = (m.getAttribute('content') || '').trim();
+        }
+    });
+    if (!out && typeof Title !== 'undefined' && Title) out = String(Title).trim();
+    if (!out && typeof PageName !== 'undefined' && PageName) out = String(PageName).trim();
+    return out || 'link';
+}
+
+// omnGoPageLink builds a Markdown link to the page on screen, for pasting into
+// another note.
+//
+// The target is the address of this page WITHOUT the scheme and the host: the
+// absolute path, the query string and the fragment, as the address bar holds
+// them. A path keeps its meaning on each device that opens the same notes. A
+// host does not: the Android application and the desktop application both
+// serve the pages at 127.0.0.1, so a link that carries the host works on the
+// one device that made it and nowhere else.
+//
+// The browser encodes the path, so a space is already %20. The two
+// parentheses are the characters that the browser leaves alone and that
+// Markdown reads as the end of a link, so this function encodes them. In the
+// link text, a backslash and the two brackets get a backslash in front of
+// them.
+//
+// rewriteInternalLink (backend/markdown.go) cuts the query and the fragment
+// off before it looks at the extension, and it leaves a name that has an
+// extension alone. A link of this shape thus reaches the reader as it was
+// written.
+function omnGoPageLink() {
+    var loc = window.location;
+    var target = (loc.pathname + loc.search + loc.hash)
+        .replace(/\(/g, '%28').replace(/\)/g, '%29');
+    var text = omnGoPageTitle().replace(/([\\\[\]])/g, '\\$1');
+    return '[' + text + '](' + target + ')';
+}
+
+// omnGoCopyPageLink puts that link on the clipboard.
+async function omnGoCopyPageLink(say) {
+    try {
+        await omnGoCopyText(omnGoPageLink());
+        say('Link copied');
     } catch (e) {
         say('Copy failed: ' + e.message);
     }
@@ -1330,6 +1392,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     panel.textContent = '';
 
+    // The panel is one row: the metadata at the left, a column of controls at
+    // the right. A control goes under the control before it, so a new control
+    // makes the column longer. It does not make the "File:" line narrower,
+    // which is what a third control in that line did.
+    const layout = document.createElement('div');
+    layout.className = 'metadata-layout';
+    const body = document.createElement('div');
+    body.className = 'metadata-body';
+    const actions = document.createElement('div');
+    actions.className = 'metadata-actions';
+
     const fileRow = document.createElement('div');
     fileRow.className = 'metadata-file-row';
     const fileLabel = document.createElement('span');
@@ -1337,17 +1410,18 @@ document.addEventListener("DOMContentLoaded", () => {
     fileLabel.textContent = 'File: ' + noteName;
     fileRow.appendChild(fileLabel);
 
-    // The controls, at the right of the name.
-    //
-    // Only on a real note: IS_MARKDOWN is off for the Config dashboard, the
-    // search page and the other views that borrow this page shell, and those
-    // have no Markdown source to send. Only with a server: an exported page
-    // opened from disk has no endpoint to ask.
-    const sendable = noteName &&
-        (typeof IS_MARKDOWN !== 'undefined' && IS_MARKDOWN) &&
-        window.location.protocol !== 'file:';
+    // A page opened from disk (file:) has no server to ask, and no address
+    // that another note can point at. Such a page gets no controls.
+    const online = window.location.protocol !== 'file:';
 
-    if (sendable) {
+    // The two note controls need a note: IS_MARKDOWN is off for the Config
+    // dashboard, the search page and the other views that borrow this page
+    // shell, and those have no Markdown source to send. The link control has
+    // no such condition, because each of those views has an address.
+    const sendable = noteName &&
+        (typeof IS_MARKDOWN !== 'undefined' && IS_MARKDOWN) && online;
+
+    if (online) {
         const status = document.createElement('span');
         status.className = 'metadata-send-status';
         const say = function (msg) {
@@ -1370,13 +1444,17 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         fileRow.appendChild(status);
-        fileRow.appendChild(button('share', 'Send this note',
-            function () { omnGoSendNote(noteName); }));
-        fileRow.appendChild(button('content_copy', 'Copy this note as text',
-            function () { omnGoCopyNote(noteName, say); }));
+        if (sendable) {
+            actions.appendChild(button('share', 'Send this note',
+                function () { omnGoSendNote(noteName); }));
+            actions.appendChild(button('content_copy', 'Copy this note as text',
+                function () { omnGoCopyNote(noteName, say); }));
+        }
+        actions.appendChild(button('link', 'Copy a link to this page',
+            function () { omnGoCopyPageLink(say); }));
     }
 
-    panel.appendChild(fileRow);
+    body.appendChild(fileRow);
 
     document.querySelectorAll('meta').forEach(m => {
         const name = m.getAttribute('name');
@@ -1388,8 +1466,12 @@ document.addEventListener("DOMContentLoaded", () => {
         key.textContent = name.charAt(0).toUpperCase() + name.slice(1) + ':';
         row.appendChild(key);
         row.appendChild(document.createTextNode(' ' + content));
-        panel.appendChild(row);
+        body.appendChild(row);
     });
+
+    layout.appendChild(body);
+    if (actions.childNodes.length) layout.appendChild(actions);
+    panel.appendChild(layout);
 });
 
 window.addEventListener('pageshow', function(event) {
