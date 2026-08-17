@@ -156,6 +156,20 @@ not the words for the user-facing action.
 - the Database Backups page (`/db_backups`)
 - the Quick Notes page, the Bookmarks page
 - the How to use Bookmarks page (`BookmarksHowTo`)
+
+## The file index
+
+The page shows three trees, one question each. Each tree keeps its name in
+every text: the button, the crumb, the manual and the API document.
+
+| Use | Do not use instead |
+| --- | --- |
+| the Bundled tree (what the build carries) | the embedded tree, EmbedFS, the app files |
+| the Served tree (`html/`) | the web tree, the html directory, the output tree |
+| the Source tree (`md/`) | the notes tree, the markdown tree, the source directory |
+| the state word (the word on the first line of a row) | the status, the badge, the label |
+| app-owned (in `versionDependentAssets`) | version-dependent, managed, owned by the app |
+| local only (a path that stays on this device) | not in git, private, device-only |
 - the Incoming notes page (`incoming/incoming.html`)
 
 ## Banned words in all files

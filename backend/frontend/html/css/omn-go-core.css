@@ -73,6 +73,18 @@
     --info:          #17a2b8;   /* create / note / bookmark teal */
     --secondary:     #6c757d;   /* refresh / settings gray */
 
+    /* File-index state colours (see files_index.go: the word says what a file
+       is, the colour says what happens to it). Each value is measured at
+       4.5:1 or better against BOTH backgrounds of its own theme - the page
+       --bg and the card --bg-surface - because the words are 11px. The
+       semantic accents above do not reach that on one theme each, so this
+       page does not borrow them. */
+    --file-app:      #9a5b00;   /* the next version replaces this file  5.2:1 */
+    --file-alert:    #b3261e;   /* ... and the device copy differs      6.2:1 */
+    --file-keep:     #1f7a35;   /* yours - OMN-Go keeps it              5.1:1 */
+    --file-derived:  #12798a;   /* OMN-Go makes it again                4.8:1 */
+    --file-plain:    #6b6b6b;   /* nothing at stake                     5.1:1 */
+
     /* Start-page buttons (see .omn-start-buttons in section 6) */
     --start-notes-bg:     #0056b3;   /* "My Quick Notes" card */
     --start-bookmarks-bg: #17a2b8;   /* "My Bookmarks" card */
@@ -131,6 +143,12 @@
     --accent:        #4d9fff;
     --accent-hover:  #6cb0ff;
 
+    --file-app:      #f0a13c;   /* 7.0:1 */
+    --file-alert:    #ff8a80;   /* 6.5:1 */
+    --file-keep:     #5ec97a;   /* 7.1:1 */
+    --file-derived:  #4fc3d7;   /* 7.2:1 */
+    --file-plain:    #9aa0a6;   /* 5.4:1 */
+
     --start-notes-bg:     #1c5ea8;
     --start-bookmarks-bg: #14707e;
     --start-btn-text:     #eef3f8;
@@ -185,6 +203,12 @@
 
         --accent:        #4d9fff;
         --accent-hover:  #6cb0ff;
+
+        --file-app:      #f0a13c;   /* 7.0:1 */
+        --file-alert:    #ff8a80;   /* 6.5:1 */
+        --file-keep:     #5ec97a;   /* 7.1:1 */
+        --file-derived:  #4fc3d7;   /* 7.2:1 */
+        --file-plain:    #9aa0a6;   /* 5.4:1 */
 
         --start-notes-bg:     #1c5ea8;
         --start-bookmarks-bg: #14707e;
@@ -1327,10 +1351,64 @@ mark.omn-search-hit.omn-search-hit-current {
     padding: 4px 0 16px;
 }
 
-/* The way back up. Separators are their own spans rather than ::before, so the
-   crumb text is exactly what the server escaped and nothing else. */
+/* -- The first screen: one button per tree -- */
+/* One column at EVERY width, on purpose. A wide screen gets a narrower page
+   rather than three columns: one layout to build, one to test, and each target
+   stays the size of a thumb. The pattern is the start-page button of Welcome
+   (.omn-start-button), with its own classes because this page is server-built
+   markup and that one is written in a note. */
+.files-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 46em;
+    margin: 4px 0 8px;
+}
+.files-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-sizing: border-box;
+    min-height: 72px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: var(--start-notes-bg);
+    color: var(--start-btn-text);
+    text-decoration: none;
+    text-indent: 0;
+    box-shadow: 0 2px 4px var(--shadow);
+}
+.files-card:hover,
+.files-card:focus {
+    filter: brightness(1.12);
+}
+.files-card-served { background: var(--start-bookmarks-bg); }
+.files-card-source { background: #4c6b8a; }
+:root[data-theme="dark"] .files-card-source { background: #3f5a75; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) .files-card-source,
+    :root[data-theme="auto"] .files-card-source { background: #3f5a75; }
+}
+.files-card-icon {
+    font-size: 34px;
+    flex: 0 0 auto;
+}
+.files-card-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.files-card-title { font-size: 17px; font-weight: 600; }
+.files-card-where { font-size: 12px; opacity: 0.9; }
+.files-card-count { font-size: 11px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+
+/* -- The way back up -- */
+/* Each crumb carries its own trailing slash and NOTHING is written between
+   two of them, so the trail reads as the path it is: html/js/ . Until 26.08.53
+   the labels held a slash AND a separator span went between them, which made
+   the crumb of html/js/ read "html/ / js/". */
 .files-crumbs {
-    margin-bottom: 10px;
+    margin-bottom: 4px;
     font-size: 14px;
     overflow-wrap: anywhere;
 }
@@ -1340,30 +1418,32 @@ mark.omn-search-hit.omn-search-hit-current {
 .files-crumbs a:hover {
     text-decoration: underline;
 }
-.files-crumb-sep {
-    margin: 0 2px;
-    color: var(--text-dim);
-}
 .files-crumb-here {
     font-weight: 600;
     color: var(--text-strong);
 }
 
-/* One heading per source (embedded / on disk), carrying that source's totals -
-   which are recursive, so the number answers "how big is this subtree" rather
-   than "how many rows are below". */
-.files-section {
-    margin: 18px 0 6px;
-    padding-bottom: 4px;
-    font-size: 15px;
-    color: var(--text-heading);
-    border-bottom: 1px solid var(--border-soft);
-}
-.files-section-count {
-    color: var(--text-dim);
+/* The totals of the subtree, then how many rows of THIS directory are worth a
+   second look. The wording keeps the two apart: "below" belongs to the totals. */
+.files-summary {
+    margin: 2px 0 6px;
     font-size: 12px;
-    font-weight: normal;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
 }
+
+/* The key. It lists only the colours that this directory uses - a key that
+   names every possible state is noise on a phone. */
+.files-legend {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.files-legend b { font-weight: 600; }
+
 .files-empty,
 .files-more {
     padding: 6px 0;
@@ -1377,52 +1457,61 @@ mark.omn-search-hit.omn-search-hit-current {
     list-style: none;
 }
 
-/* The row is a flex line: the name takes the slack, the facts sit right.
-   It does NOT wrap.
-
-   It used to. The name held "flex: 1 1 12em", and flex breaks a line on the
-   hypothetical size of an item, not on the size that the item can shrink to.
-   12em plus the facts was more than a phone gives, so the line broke and the
-   facts went to a second row - while the name, which grows, filled the first
-   row and left a wide empty space beside a short name. highlight.min.js and
-   katex.min.js showed it first, because the widest size text (271 KB) crosses
-   the limit before a shorter one does.
-
-   With nowrap the facts stay beside the name. The name still shrinks, and a
-   name that is longer than the space that is left wraps INSIDE its own
-   column. No name is cut and no name is shortened. */
+/* -- One row, two lines -- */
+/* The name owns the first line and shares it with one word: what the file is.
+   The facts go on the second line. Two lines is deliberate at every width, and
+   it replaces the one-line row of 26.08.53, where the facts and the name
+   competed for the same space and a long name broke one character per line on
+   a phone. */
 .files-row {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 10px;
-    padding: 4px 0;
+    gap: 1px 8px;
+    padding: 5px 0;
     border-bottom: 1px solid var(--border-soft);
     font-size: 13px;
+    overflow: hidden;
 }
 .files-name {
     flex: 1 1 auto;
     min-width: 0;
-    overflow-wrap: anywhere;
-    text-decoration: none;
-}
-.files-name:hover {
-    text-decoration: underline;
-}
-/* One group for each fact on the right. It never breaks apart, thus the size,
-   the state, the owner and the edit link keep their order and their column
-   look down the list. */
-.files-tags {
-    flex: 0 0 auto;
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    white-space: nowrap;
+    gap: 6px;
+}
+.files-name a {
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.files-name a:hover {
+    text-decoration: underline;
 }
 /* Directories are the navigation on this page, so they are the one thing that
    looks heavier than a file. */
-.files-dir .files-name {
+.files-dir .files-name a {
     font-weight: 600;
+}
+/* What the file IS, as a type mark. Every ligature used here is in the bundled
+   subset of the icon font, so the column costs no new asset. */
+.files-kind {
+    font-size: 16px;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+}
+.files-state {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+}
+.files-facts {
+    flex: 1 0 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-left: 22px;   /* under the name, clear of the type mark */
 }
 .files-size,
 .files-meta {
@@ -1432,18 +1521,20 @@ mark.omn-search-hit.omn-search-hit-current {
     font-variant-numeric: tabular-nums;
 }
 
-/* An embedded row says whether the file is extracted yet. A row of either
-   section says "app-owned" when the next version change replaces the file and
-   your edits go to a backup. A user-owned file carries no word: it is the
-   normal case. Colour is a hint only - the word says the same thing. */
-.files-state-present { color: var(--success); }
-.files-state-absent  { color: var(--text-faint); }
-.files-owner-app     { color: var(--danger); }
+/* Colour says what HAPPENS to a file, and only that. The word beside it says
+   what the file is, and "app-owned" is written out on the second line of every
+   row it applies to - colour is a hint, never the carrier. */
+.files-c-app     { color: var(--file-app); }
+.files-c-alert   { color: var(--file-alert); }
+.files-c-keep    { color: var(--file-keep); }
+.files-c-derived { color: var(--file-derived); }
+.files-c-plain   { color: var(--file-plain); }
 
 /* Only where editing a file in place makes sense - never for images, fonts or
    anything else the editor would corrupt. */
 .files-edit {
     flex: 0 0 auto;
+    margin-left: auto;
     padding: 1px 6px;
     color: var(--accent);
     border: 1px solid var(--border);
@@ -1459,10 +1550,8 @@ mark.omn-search-hit.omn-search-hit-current {
 
 /* The refusal shown to a guest. Same shape as the search page's explanation:
    an address someone can legitimately reach should say what it needs, not
-   answer with a bare code. */
-.files-page.is-denied .files-crumbs {
-    display: none;
-}
+   answer with a bare code. The refused page carries the notice and nothing
+   else, so there is no crumb and no list to hide. */
 .files-notice {
     padding: 8px 0 4px;
     max-width: 46em;

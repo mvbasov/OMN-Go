@@ -2,15 +2,18 @@ package backend
 
 // Tests for the file index page.
 //
-// Three things here are worth more than the rest, because each is a claim the
+// Four things here are worth more than the rest, because each is a claim the
 // page makes that nothing else in the app would catch if it stopped being
 // true:
 //
-//   - it shows ONE directory. The whole design turns on that, and "flat list
-//     of everything" is what it drifted into twice while being planned.
+//   - it shows ONE directory of ONE tree. The whole design turns on that, and
+//     "flat list of everything" is what it drifted into twice while being
+//     planned.
+//   - one NAME has one ROW. Until 26.08.53 a name that both shipped and sat on
+//     the device was printed twice, in two sections, with nothing to pair them.
 //   - it never WRITES. The obvious way to resolve an embedded path is
 //     materializeAsset, which extracts the file as a side effect - a listing
-//     built that way would silently defeat lazy extraction for all 42 of them.
+//     built that way would silently defeat lazy extraction for all 70 of them.
 //   - templates never appear. That is currently guaranteed by the embeds being
 //     separate rather than by any code here, which is exactly the kind of
 //     guarantee that evaporates without a test.
@@ -22,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func getFilesPage(t *testing.T, a *App, query string) *httptest.ResponseRecorder {
@@ -37,15 +41,82 @@ func getFilesPage(t *testing.T, a *App, query string) *httptest.ResponseRecorder
 	return rec
 }
 
+// served asks for one directory of the Served tree, which is the tree most of
+// these tests are about.
+func served(t *testing.T, a *App, dir string) string {
+	t.Helper()
+	q := "tree=served"
+	if dir != "" {
+		q += "&dir=" + dir
+	}
+	return getFilesPage(t, a, q).Body.String()
+}
+
 // writeDiskFile drops a file under StorageDir/html.
 func writeDiskFile(t *testing.T, a *App, rel, body string) {
 	t.Helper()
-	full := filepath.Join(a.StorageDir, "html", filepath.FromSlash(rel))
+	writeStorageFile(t, a, "html", rel, body)
+}
+
+// writeNoteFile drops a file under StorageDir/md.
+func writeNoteFile(t *testing.T, a *App, rel, body string) {
+	t.Helper()
+	writeStorageFile(t, a, "md", rel, body)
+}
+
+func writeStorageFile(t *testing.T, a *App, sub, rel, body string) {
+	t.Helper()
+	full := filepath.Join(a.StorageDir, sub, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(full, []byte(body), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// ----------------------------------------------------------------------
+// The first screen
+// ----------------------------------------------------------------------
+
+// Three buttons and nothing else. A listing under them was the shape that made
+// the old page unreadable: two kinds of file on one screen with no way to tell
+// which question each answered.
+func TestFilesPage_FirstScreenIsThreeTrees(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/mine.js", "// mine")
+
+	body := getFilesPage(t, a, "").Body.String()
+	for _, want := range []string{"Bundled", "Served", "Source",
+		"tree=bundled", "tree=served", "tree=source"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the first screen is missing %q", want)
+		}
+	}
+	if strings.Contains(body, "mine.js") {
+		t.Error("the first screen listed a file; it carries three buttons only")
+	}
+	if strings.Contains(body, `class="files-row"`) {
+		t.Error("the first screen carries a listing row")
+	}
+}
+
+// A link written before 26.08.54 has a dir and no tree. It must still land on
+// the tree it meant.
+func TestNormalizeFilesTree(t *testing.T) {
+	cases := []struct{ raw, dir, want string }{
+		{"", "", ""},
+		{"", "js/", filesTreeServed},
+		{"served", "", filesTreeServed},
+		{"bundled", "", filesTreeBundled},
+		{"source", "", filesTreeSource},
+		{"nonsense", "", ""},
+		{"nonsense", "js/", filesTreeServed},
+	}
+	for _, c := range cases {
+		if got := normalizeFilesTree(c.raw, c.dir); got != c.want {
+			t.Errorf("normalizeFilesTree(%q, %q) = %q, want %q", c.raw, c.dir, got, c.want)
+		}
 	}
 }
 
@@ -61,7 +132,7 @@ func TestFilesPage_ShowsOneDirectoryAtATime(t *testing.T) {
 	writeDiskFile(t, a, "css/mine.css", "body{}")
 	writeDiskFile(t, a, "Welcome.html", "<html></html>")
 
-	root := getFilesPage(t, a, "").Body.String()
+	root := served(t, a, "")
 	if !strings.Contains(root, ">js/<") {
 		t.Error("the root does not list js/ as a directory")
 	}
@@ -72,7 +143,7 @@ func TestFilesPage_ShowsOneDirectoryAtATime(t *testing.T) {
 		t.Error("a file at the root level is missing")
 	}
 
-	js := getFilesPage(t, a, "dir=js%2F").Body.String()
+	js := served(t, a, "js%2F")
 	if !strings.Contains(js, "mine.js") {
 		t.Error("?dir=js/ does not list the file in js/")
 	}
@@ -87,25 +158,48 @@ func TestFilesPage_NavigatesAndOffersAWayBack(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "Test/OMN-Go/Fetch.html", "<html></html>")
 
-	root := getFilesPage(t, a, "").Body.String()
+	root := served(t, a, "")
 	if !strings.Contains(root, "dir=Test%2F") {
 		t.Fatalf("no link into Test/ from the root")
 	}
 
-	mid := getFilesPage(t, a, "dir=Test%2F").Body.String()
+	mid := served(t, a, "Test%2F")
 	if !strings.Contains(mid, "dir=Test%2FOMN-Go%2F") {
 		t.Fatalf("no link into Test/OMN-Go/ from Test/")
 	}
 
-	leaf := getFilesPage(t, a, "dir=Test%2FOMN-Go%2F").Body.String()
+	leaf := served(t, a, "Test%2FOMN-Go%2F")
 	if !strings.Contains(leaf, "Fetch.html") {
 		t.Error("the leaf directory does not list its file")
 	}
 	// The breadcrumb must offer BOTH ancestors, not just the immediate one.
-	for _, want := range []string{`href="/OMNGoFiles.html"`, "dir=Test%2F"} {
+	for _, want := range []string{`href="/OMNGoFiles.html?tree=served"`, "dir=Test%2F"} {
 		if !strings.Contains(leaf, want) {
 			t.Errorf("breadcrumb is missing %q; a leaf you cannot leave is a dead end", want)
 		}
+	}
+}
+
+// The crumb reads as the path it is. Until 26.08.53 each label carried a slash
+// AND a separator span went between two labels, so html/js/ read "html/ / js/".
+func TestFilesCrumbs_HaveNoDoubledSlash(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/mine.js", "// mine")
+
+	body := served(t, a, "js%2F")
+	if strings.Contains(body, "files-crumb-sep") {
+		t.Error("the crumb still writes a separator between two labels")
+	}
+	if strings.Contains(body, "html/ / js/") || strings.Contains(body, "html//js/") {
+		t.Error("the crumb shows a doubled slash")
+	}
+	if !strings.Contains(body, `<span class="files-crumb-here">js/</span>`) {
+		t.Error("the last crumb is not the directory in view")
+	}
+
+	crumbs := filesCrumbs(filesTreeSource, "Test/OMN-Go/")
+	if len(crumbs) != 3 || crumbs[0].Label != "md/" || crumbs[2].Label != "OMN-Go/" {
+		t.Errorf("filesCrumbs gave %+v", crumbs)
 	}
 }
 
@@ -117,11 +211,11 @@ func TestFilesPage_DirectoryTotalsAreRecursive(t *testing.T) {
 	writeDiskFile(t, a, "Test/a/one.html", "12345")
 	writeDiskFile(t, a, "Test/b/two.html", "12345")
 
-	files, _, _, _ := foldToDir(a.diskFiles(), "")
+	dirs, _, _, _ := foldToDir(a.treeEntries(filesTreeServed), "")
 	var test *filesDirRow
-	for i := range files {
-		if files[i].Name == "Test" {
-			test = &files[i]
+	for i := range dirs {
+		if dirs[i].Name == "Test" {
+			test = &dirs[i]
 		}
 	}
 	if test == nil {
@@ -132,6 +226,166 @@ func TestFilesPage_DirectoryTotalsAreRecursive(t *testing.T) {
 	}
 	if test.Bytes != 10 {
 		t.Errorf("Test/ reports %d bytes, want 10", test.Bytes)
+	}
+}
+
+// ----------------------------------------------------------------------
+// One name, one row
+// ----------------------------------------------------------------------
+
+// The reason the page was rebuilt. A file that ships AND sits on the device is
+// one row that states the relation, not two rows in two sections.
+func TestFilesPage_OneNameOneRow(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "js/omn-go-core.js", "// changed by hand")
+
+	body := served(t, a, "js%2F")
+	if n := strings.Count(body, ">omn-go-core.js<"); n != 1 {
+		t.Errorf("omn-go-core.js has %d rows, want 1", n)
+	}
+	for _, gone := range []string{"Embedded in the application", "On this device"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the two-section layout is still rendered: %q", gone)
+		}
+	}
+}
+
+// The four states of the Served tree, each with the colour that says what
+// happens to the file.
+func TestFilesPage_StatesAndColours(t *testing.T) {
+	a := newTestApp(t)
+	// Shipped, extracted, and edited: the size differs, so no byte read is
+	// needed to know. It is app-owned, thus the change is the one that is lost.
+	writeDiskFile(t, a, "js/omn-go-core.js", "// a hand edit")
+	// Shipped, extracted, untouched: written from the embed itself.
+	sameBody, err := staticFS.ReadFile("frontend/html/js/local_counter.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeDiskFile(t, a, "js/local_counter.js", string(sameBody))
+	// Never shipped.
+	writeDiskFile(t, a, "js/mine.js", "// mine")
+
+	body := served(t, a, "js%2F")
+	for _, want := range []string{
+		"changed here", "as shipped", "not extracted", "yours",
+		filesColorAlert, filesColorApp, filesColorKeep, filesColorPlain,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the listing never says %q", want)
+		}
+	}
+	// The word is the fact; the colour is a hint. app-owned is spelled out.
+	if !strings.Contains(body, ">app-owned<") {
+		t.Error("no row spells out app-owned")
+	}
+}
+
+// A .html page that has a note behind it is made by OMN-Go, not written by the
+// user. Calling it "yours" told the user their own work was at stake when it
+// was not.
+func TestFilesPage_CompiledPageSaysSo(t *testing.T) {
+	a := newTestApp(t)
+	writeNoteFile(t, a, "Log.md", "Title: Log\n\nbody\n")
+	writeDiskFile(t, a, "Log.html", "<html></html>")
+	writeDiskFile(t, a, "Orphan.html", "<html></html>")
+
+	body := served(t, a, "")
+	if !strings.Contains(body, "compiled") {
+		t.Error("a compiled page is not reported as compiled")
+	}
+	if !strings.Contains(body, filesColorDerived) {
+		t.Error("a compiled page carries no derived colour")
+	}
+	// A page with no note behind it is not compiled from anything.
+	row := rowOfName(t, a, filesTreeServed, "", "Orphan.html")
+	if row.State != "yours" {
+		t.Errorf("Orphan.html reads %q; nothing generates it", row.State)
+	}
+}
+
+// The .txt pair of note_files.go: md/x.txt is the file, html/x.txt is a copy.
+// The sign of the difference decides what happens next, and the two cases have
+// different remedies, so they must not read the same.
+func TestFilesPage_TxtMirror(t *testing.T) {
+	a := newTestApp(t)
+	old := time.Now().Add(-2 * time.Hour)
+
+	// In step: same size, same modification time - which is what
+	// copyFileWithTime produces on purpose.
+	writeNoteFile(t, a, "log.txt", "one")
+	writeDiskFile(t, a, "log.txt", "one")
+	touch(t, filepath.Join(a.StorageDir, "md", "log.txt"), old)
+	touch(t, filepath.Join(a.StorageDir, "html", "log.txt"), old)
+
+	// The copy is newer than the file: an external editor wrote html/ and gave
+	// OMN-Go no signal. Nothing repairs this by itself.
+	writeNoteFile(t, a, "ahead.txt", "one")
+	writeDiskFile(t, a, "ahead.txt", "one and more")
+	touch(t, filepath.Join(a.StorageDir, "md", "ahead.txt"), old)
+
+	body := served(t, a, "")
+	if !strings.Contains(body, "copy of md/log.txt") {
+		t.Error("a .txt under html/ does not say which file it is a copy of")
+	}
+	if !strings.Contains(body, "copy is ahead") {
+		t.Error("a copy newer than its source is not reported")
+	}
+	if !strings.Contains(body, "save it once to copy it back to md/") {
+		t.Error("the one case that no start repairs does not say what to do")
+	}
+
+	src := served(t, a, "")
+	_ = src
+	source := getFilesPage(t, a, "tree=source").Body.String()
+	if !strings.Contains(source, "copied to html/") {
+		t.Error("the Source tree does not say that a .txt is copied into html/")
+	}
+}
+
+func touch(t *testing.T, path string, when time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, when, when); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// rowOfName renders one tree and returns the row of one name, so a test can
+// assert on the fields rather than on a substring of HTML.
+func rowOfName(t *testing.T, a *App, tree, dir, name string) filesFileRow {
+	t.Helper()
+	_, here, _, _ := foldToDir(a.treeEntries(tree), dir)
+	for _, e := range here {
+		if filepath.Base(e.path) == name {
+			return a.filesRowFor(tree, e)
+		}
+	}
+	t.Fatalf("no row for %q in %s/%s", name, tree, dir)
+	return filesFileRow{}
+}
+
+// A same-size edit is the case that sizes alone cannot answer, and a note is
+// exactly where it happens: one word swapped for another of equal length.
+func TestFilesPage_SameSizeEditIsFound(t *testing.T) {
+	a := newTestApp(t)
+	shipped, err := staticFS.ReadFile("frontend/md/Editor.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := []byte(string(shipped))
+	edited[len(edited)/2] = '#' // same length, different bytes
+	writeNoteFile(t, a, "Editor.md", string(edited))
+
+	row := rowOfName(t, a, filesTreeSource, "", "Editor.md")
+	if row.State != "changed here" {
+		t.Errorf("a same-size edit reads %q; sizes alone cannot see it, so the "+
+			"bytes have to be compared", row.State)
+	}
+	if !row.AppOwned {
+		t.Error("Editor.md is in versionDependentAssets, thus the change is the one that is lost")
+	}
+	if row.StateColor != filesColorAlert {
+		t.Errorf("an app-owned file that was changed reads %q, want the alert colour", row.StateColor)
 	}
 }
 
@@ -155,6 +409,11 @@ func TestFilesPage_NeverListsTemplates(t *testing.T) {
 			}
 		}
 	}
+	a := newTestApp(t)
+	body := getFilesPage(t, a, "tree=bundled").Body.String()
+	if strings.Contains(body, "files_page.html") {
+		t.Error("a template reached the Bundled tree")
+	}
 }
 
 func TestFilesPage_ExcludesDatabaseBackups(t *testing.T) {
@@ -162,40 +421,88 @@ func TestFilesPage_ExcludesDatabaseBackups(t *testing.T) {
 	writeDiskFile(t, a, "db_backup/omn-go-host-2026-08-01.jsonl", "{}")
 	writeDiskFile(t, a, "js/mine.js", "// mine")
 
-	for _, f := range a.diskFiles() {
+	for _, f := range a.walkStorage("html") {
 		if strings.HasPrefix(f.path, "db_backup") {
 			t.Fatalf("the walk yielded %q", f.path)
 		}
 	}
-	root := getFilesPage(t, a, "").Body.String()
+	root := served(t, a, "")
 	if strings.Contains(root, "db_backup") {
 		t.Error("db_backup/ appears as a directory row")
 	}
 	// ... and it cannot be reached by asking for it directly either.
-	deep := getFilesPage(t, a, "dir=db_backup%2F").Body.String()
-	if strings.Contains(deep, "omn-go-host") {
+	if strings.Contains(served(t, a, "db_backup%2F"), "omn-go-host") {
 		t.Error("?dir=db_backup/ listed a backup")
 	}
 }
 
-// The embedded starter notes appear as a directory named md/, which is a
-// different question from "what notes do I have" - that is what the Tags page
-// and search are for.
-func TestFilesPage_EmbeddedNotesAppearAsMdDirectory(t *testing.T) {
-	found := false
-	for _, f := range embeddedFiles() {
-		if f.path == "md/UserManual.md" {
-			found = true
-		}
+// The Bundled tree carries the starter notes as md/. The Source tree carries
+// the notes on the device. The Served tree carries neither: a note is not
+// served from html/, its compiled page is.
+func TestFilesPage_TreesHoldTheRightThings(t *testing.T) {
+	a := newTestApp(t)
+	writeNoteFile(t, a, "Log.md", "Title: Log\n\nbody\n")
+
+	bundled := getFilesPage(t, a, "tree=bundled").Body.String()
+	if !strings.Contains(bundled, ">md/<") {
+		t.Error("md/ is not offered as a directory of the Bundled tree")
 	}
-	if !found {
-		t.Error("the embedded md/ tree is missing from the walk")
+	if strings.Contains(bundled, "Log.md") {
+		t.Error("a note of the device reached the Bundled tree")
+	}
+	if strings.Contains(bundled, `class="files-edit"`) {
+		t.Error("the Bundled tree offers an edit link; an edit operates on the copy " +
+			"on the device, and that copy has a row in another tree")
 	}
 
+	source := getFilesPage(t, a, "tree=source").Body.String()
+	if !strings.Contains(source, "Log.md") {
+		t.Error("the Source tree does not list a note of the device")
+	}
+
+	servedRoot := served(t, a, "")
+	if strings.Contains(servedRoot, ">md/<") {
+		t.Error("md/ still appears inside the Served tree, which is html/ only")
+	}
+}
+
+// The Bundled tree says app-owned as a word on the second line, like the other
+// two trees. Colour alone would leave the fact unreadable for a reader who does
+// not see it.
+func TestFilesPage_BundledSpellsOutAppOwned(t *testing.T) {
 	a := newTestApp(t)
-	root := getFilesPage(t, a, "").Body.String()
-	if !strings.Contains(root, ">md/<") {
-		t.Error("md/ is not offered as a directory at the embedded root")
+	body := getFilesPage(t, a, "tree=bundled&dir=js%2F").Body.String()
+	if !strings.Contains(body, `<span class="files-facts">`) {
+		t.Fatal("no facts line in the Bundled tree")
+	}
+	if !strings.Contains(body, ">app-owned<") {
+		t.Error("the Bundled tree never spells out app-owned")
+	}
+	if !strings.Contains(body, filesColorApp) {
+		t.Error("the Bundled tree carries no app colour")
+	}
+	// A shipped file that the application does not own carries no such word,
+	// and there is at least one in js/.
+	row := rowOfName(t, a, filesTreeBundled, "js/", "local_counter.js")
+	if row.AppOwned {
+		t.Error("local_counter.js is not in versionDependentAssets")
+	}
+}
+
+// A path under md/local/, or any path with a local- segment, stays on this
+// device. That is the one fact the Source tree adds beyond the states.
+func TestFilesPage_SourceMarksLocalOnly(t *testing.T) {
+	a := newTestApp(t)
+	writeNoteFile(t, a, "local/Draft.md", "Title: Draft\n\nx\n")
+	writeNoteFile(t, a, "local-notes/Second.md", "Title: Second\n\nx\n")
+
+	first := rowOfName(t, a, filesTreeSource, "local/", "Draft.md")
+	if len(first.Extra) == 0 || first.Extra[0] != "local only" {
+		t.Errorf("md/local/Draft.md is not marked local only: %+v", first.Extra)
+	}
+	second := rowOfName(t, a, filesTreeSource, "local-notes/", "Second.md")
+	if len(second.Extra) == 0 {
+		t.Error("a local- directory is not marked local only")
 	}
 }
 
@@ -240,16 +547,22 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	writeDiskFile(t, a, "Welcome.html", "<html></html>")
 	writeDiskFile(t, a, "images/photo.png", "\x89PNG")
 
-	body := getFilesPage(t, a, "dir=js%2F").Body.String()
+	body := served(t, a, "js%2F")
 	if !strings.Contains(body, `href="/js/mine.js?edit=true"`) {
 		t.Error("no edit link on a .js file")
 	}
+	// A file that ships and is not extracted yet keeps its edit link: pressing
+	// it goes through handleGetNote, which extracts the file and then opens the
+	// editor on it.
+	if !strings.Contains(body, `href="/js/katex.min.js?edit=true"`) {
+		t.Error("a file that is not extracted yet lost its edit link")
+	}
 
-	root := getFilesPage(t, a, "").Body.String()
+	root := served(t, a, "")
 	if strings.Contains(root, `Welcome.html?edit=true`) {
 		t.Error("edit link on a compiled page")
 	}
-	imgs := getFilesPage(t, a, "dir=images%2F").Body.String()
+	imgs := served(t, a, "images%2F")
 	if !strings.Contains(imgs, "photo.png") {
 		t.Error("images/ content must still be LISTED")
 	}
@@ -260,142 +573,126 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	}
 }
 
-// The "Embedded in the application" section offers no edit link. That
-// section answers "what does this build ship". An edit always operates on
-// the copy on the device, and the other section has the row of that copy.
-// Two links to one editor, in two rows that sit one above the other, said
-// that there were two things to edit.
-func TestFilesPage_EmbeddedSectionOffersNoEditLink(t *testing.T) {
+// A note of the Source tree opens the editor through its PAGE address, which is
+// what resolvePageName expects and what the Edit button of the page does.
+func TestFilesPage_SourceNoteEditsThroughItsPage(t *testing.T) {
 	a := newTestApp(t)
-	// A shipped script, extracted, thus it has a row in the two sections.
-	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+	writeNoteFile(t, a, "Test/Deep.md", "Title: Deep\n\nx\n")
 
-	embedded, device := filesPageSections(t, getFilesPage(t, a, "dir=js%2F").Body.String())
-
-	if strings.Contains(embedded, `class="files-edit"`) {
-		t.Error("the embedded section still offers an edit link")
+	row := rowOfName(t, a, filesTreeSource, "Test/", "Deep.md")
+	if row.URL != "/Test/Deep.html" {
+		t.Errorf("the row links to %q, want the page", row.URL)
 	}
-	if strings.Contains(embedded, "?edit=true") {
-		t.Error("the embedded section still carries an edit URL")
-	}
-	// The way to the editor stays: the row of the same file on the device.
-	if !strings.Contains(device, `href="/js/omn-go-core.js?edit=true"`) {
-		t.Error("the device section lost the edit link of an extracted file")
+	if row.EditURL != "/Test/Deep.html?edit=true" {
+		t.Errorf("the edit link is %q", row.EditURL)
 	}
 }
 
-// A device row marks an app-owned file. This is the section where a user
-// edits, and an app-owned file loses those edits at the next version change.
-//
-// A user-owned file carries NO word. It is the normal case, and a word on
-// each other row made the list wide and said nothing.
-func TestFilesPage_DeviceRowsMarkAnAppOwnedFile(t *testing.T) {
-	a := newTestApp(t)
-	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted") // versionDependentAssets
-	writeDiskFile(t, a, "js/mine.js", "// mine")             // not shipped at all
+// ----------------------------------------------------------------------
+// Ownership
+// ----------------------------------------------------------------------
 
-	body := getFilesPage(t, a, "dir=js%2F").Body.String()
-	_, device := filesPageSections(t, body)
-
-	if !strings.Contains(device, "app-owned") {
-		t.Error("the device section never says app-owned")
+// isVersionDependent reads a path as versionDependentAssets writes it: relative
+// to the storage directory. The mapping from a logical path of one tree is
+// filesStoragePath, and getting it wrong would mark every file safe.
+func TestFilesStoragePathAndOwnership(t *testing.T) {
+	cases := []struct {
+		tree, logical, want string
+	}{
+		{filesTreeServed, "js/omn-go-core.js", "html/js/omn-go-core.js"},
+		{filesTreeSource, "UserManual.md", "md/UserManual.md"},
+		{filesTreeBundled, "js/omn-go-core.js", "html/js/omn-go-core.js"},
+		{filesTreeBundled, "md/UserManual.md", "md/UserManual.md"},
 	}
-	// The mark belongs to the app-owned row only. mine.js is the row that
-	// must carry nothing, thus the mark count is the app-owned row count.
-	if n := strings.Count(device, "app-owned"); n != 1 {
-		t.Errorf("the device section has %d app-owned marks, want 1 (omn-go-core.js)", n)
-	}
-	if !isVersionDependent("js/omn-go-core.js") {
-		t.Error("the test file is not app-owned any more, thus the test proves nothing")
-	}
-	if isVersionDependent("js/mine.js") {
-		t.Error("a file that the application does not ship was reported as app-owned")
-	}
-}
-
-// No row says "yours". The word was on each user-owned row of the two
-// sections. It made each row wider, and a page of rows that all say the same
-// thing says nothing.
-func TestFilesPage_NeverSaysYours(t *testing.T) {
-	a := newTestApp(t)
-	writeDiskFile(t, a, "js/mine.js", "// mine")
-	writeDiskFile(t, a, "json/bookmarker-tags.json", "{}") // user-owned, shipped
-
-	for _, q := range []string{"", "dir=js%2F", "dir=json%2F"} {
-		if body := getFilesPage(t, a, q).Body.String(); strings.Contains(body, "yours") {
-			t.Errorf("the page for %q still says \"yours\"", q)
+	for _, c := range cases {
+		got := filesStoragePath(c.tree, c.logical)
+		if got != c.want {
+			t.Errorf("filesStoragePath(%q, %q) = %q, want %q", c.tree, c.logical, got, c.want)
+		}
+		if !isVersionDependent(got) {
+			t.Errorf("%q is not app-owned; the test proves nothing if the list changed", got)
 		}
 	}
+	if isVersionDependent("html/js/mine.js") {
+		t.Error("a file that the application does not ship was reported as app-owned")
+	}
+	if isVersionDependent("js/omn-go-core.js") {
+		t.Error("a logical path must not match; the list holds storage paths")
+	}
 }
 
-// The facts of a row sit in one group. The CSS does not break that group
-// apart, and it does not send the group to a second line. The row thus keeps
-// the shape of a column down the list. A row that wrapped put the facts under
-// the name and left a wide empty space beside a short name (highlight.min.js,
-// katex.min.js at 360 px).
-//
-// The name is NOT shortened. It takes the space that is left, and a name that
-// is longer than that space wraps inside its own column.
-func TestFilesPage_RowKeepsItsFactsInOneGroup(t *testing.T) {
+func TestFilesEmbeddedPath(t *testing.T) {
+	cases := []struct{ tree, logical, want string }{
+		{filesTreeServed, "js/x.js", "frontend/html/js/x.js"},
+		{filesTreeSource, "Editor.md", "frontend/md/Editor.md"},
+		{filesTreeBundled, "md/Editor.md", "frontend/md/Editor.md"},
+		{filesTreeBundled, "css/x.css", "frontend/html/css/x.css"},
+	}
+	for _, c := range cases {
+		if got := filesEmbeddedPath(c.tree, c.logical); got != c.want {
+			t.Errorf("filesEmbeddedPath(%q, %q) = %q, want %q", c.tree, c.logical, got, c.want)
+		}
+	}
+	// The path has to be readable, or every comparison silently falls back to
+	// "same size" and the page stops answering its main question.
+	if _, err := staticFS.ReadFile(filesEmbeddedPath(filesTreeServed, "js/omn-go-core.js")); err != nil {
+		t.Errorf("the embedded path does not resolve: %v", err)
+	}
+}
+
+// ----------------------------------------------------------------------
+// The row, and the page around it
+// ----------------------------------------------------------------------
+
+// The name owns the first line and shares it with one word. The facts are on
+// the second. A one-line row squeezed the name into a column of two characters
+// on a phone.
+func TestFilesPage_RowIsTwoLines(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
 
-	body := getFilesPage(t, a, "dir=js%2F").Body.String()
-	if !strings.Contains(body, `<span class="files-tags">`) {
-		t.Error("a row has no files-tags group")
+	body := served(t, a, "js%2F")
+	if !strings.Contains(body, `<span class="files-name">`) {
+		t.Error("a row has no name element")
 	}
-	// The device row shows the date and keeps the full time in the title.
+	if !strings.Contains(body, `<span class="files-facts">`) {
+		t.Error("a row has no facts line")
+	}
+	if !strings.Contains(body, `class="material-icons files-kind"`) {
+		t.Error("a row carries no type mark")
+	}
+	// The row shows the date and keeps the full time in the title.
 	if strings.Count(body, `class="files-meta" title="`) == 0 {
-		t.Error("a device row does not carry the full time in a title")
+		t.Error("a row on the device does not carry the full time in a title")
 	}
 }
 
-// ----------------------------------------------------------------------
-// Provenance
-// ----------------------------------------------------------------------
-
-// filesPageSections splits a rendered page into the "Embedded in the
-// application" half and the "On this device" half. Both halves carry an owner
-// word, and only one of them has an edit link. A test that searches the whole
-// body cannot say which section it found.
-func filesPageSections(t *testing.T, body string) (embedded, device string) {
-	t.Helper()
-	// The cut starts at the first heading, thus the page SHELL is in no
-	// half. The shell carries an Edit button of its own (index.html), and
-	// its onclick holds the text "?edit=true".
-	_, rest, ok := strings.Cut(body, "Embedded in the application")
-	if !ok {
-		t.Fatal("the page has no \"Embedded in the application\" section")
+func TestFilesKindIcon(t *testing.T) {
+	cases := map[string]string{
+		"x.html": "html", "x.md": "article", "x.js": "javascript",
+		"x.css": "css", "x.json": "data_object", "x.txt": "subject",
+		"x.png": "image", "x.woff2": "text_fields", "x.qqq": "insert_drive_file",
 	}
-	embedded, device, ok = strings.Cut(rest, "On this device")
-	if !ok {
-		t.Fatal("the page has no \"On this device\" section")
+	for name, want := range cases {
+		if got := filesKindIcon(name, false); got != want {
+			t.Errorf("filesKindIcon(%q) = %q, want %q", name, got, want)
+		}
 	}
-	return embedded, device
+	if got := filesKindIcon("js", true); got != "folder" {
+		t.Errorf("a directory got %q", got)
+	}
 }
 
-func TestFilesPage_EmbeddedStateAndOwnership(t *testing.T) {
-	a := newTestApp(t)
-	// omn-go-core.js ships and is version-dependent; extract one copy so the
-	// two states can be told apart in the same listing.
-	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
-
-	body, _ := filesPageSections(t, getFilesPage(t, a, "dir=js%2F").Body.String())
-	if !strings.Contains(body, "on disk") {
-		t.Error("an extracted embedded file is not reported as being on disk")
+// The key names only the colours the directory uses. A key that lists every
+// state is noise on a phone.
+func TestFilesLegend_NamesOnlyWhatIsUsed(t *testing.T) {
+	rows := []filesFileRow{{State: "yours", StateColor: filesColorKeep}}
+	legend := filesLegend(filesTreeServed, rows)
+	if len(legend) != 1 || legend[0].Color != filesColorKeep {
+		t.Errorf("legend = %+v, want the keep line only", legend)
 	}
-	if !strings.Contains(body, "not yet") {
-		t.Error("no embedded file is reported as unextracted; at least one should be")
-	}
-	if !strings.Contains(body, "app-owned") {
-		t.Error("a versionDependentAssets entry is not marked app-owned")
-	}
-
-	if !isVersionDependent("js/omn-go-core.js") {
-		t.Error("omn-go-core.js should be app-owned")
-	}
-	if isVersionDependent("json/bookmarker-tags.json") {
-		t.Error("a user-owned asset was reported as app-owned")
+	if len(filesLegend(filesTreeServed, nil)) != 0 {
+		t.Error("an empty directory still printed a key")
 	}
 }
 
@@ -408,8 +705,10 @@ func TestFilesPage_WritesNothing(t *testing.T) {
 	before := countFiles(t, a.StorageDir)
 
 	getFilesPage(t, a, "")
-	getFilesPage(t, a, "dir=js%2F")
-	getFilesPage(t, a, "dir=md%2F")
+	getFilesPage(t, a, "tree=bundled")
+	getFilesPage(t, a, "tree=bundled&dir=js%2F")
+	getFilesPage(t, a, "tree=served&dir=js%2F")
+	getFilesPage(t, a, "tree=source")
 
 	if after := countFiles(t, a.StorageDir); after != before {
 		t.Errorf("storage went from %d files to %d; listing a file must not create it", before, after)
@@ -440,7 +739,7 @@ func countFiles(t *testing.T, root string) int {
 
 func remoteFilesRequest(t *testing.T, a *App, cookie string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/OMNGoFiles.html", nil)
+	req := httptest.NewRequest(http.MethodGet, "/OMNGoFiles.html?tree=served&dir=js%2F", nil)
 	req.RemoteAddr = "192.168.1.50:41234"
 	if cookie != "" {
 		req.AddCookie(&http.Cookie{Name: "session_role", Value: cookie})
@@ -456,10 +755,7 @@ func TestFilesPage_Authorization(t *testing.T) {
 
 	// A connection from the device itself is always the owner - that is how the
 	// Android WebView and the desktop browser both arrive.
-	if body := getFilesPage(t, a, "").Body.String(); !strings.Contains(body, "secret-name.js") == false {
-		_ = body // listing is at dir=js/, checked below
-	}
-	if body := getFilesPage(t, a, "dir=js%2F").Body.String(); !strings.Contains(body, "secret-name.js") {
+	if body := served(t, a, "js%2F"); !strings.Contains(body, "secret-name.js") {
 		t.Error("a local connection was refused")
 	}
 
@@ -487,8 +783,8 @@ func TestFilesPage_Authorization(t *testing.T) {
 	}
 }
 
-// hasRole is now the single definition of the rule, so authMiddleware must
-// still behave exactly as it did when it carried the condition inline.
+// hasRole is the single definition of the rule, so authMiddleware must still
+// behave exactly as it did when it carried the condition inline.
 func TestAuthMiddlewareStillRefusesAfterExtraction(t *testing.T) {
 	a := newTestApp(t)
 	h := a.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -566,8 +862,8 @@ func TestFilesPage_HostileDirNeverEscapes(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "js/mine.js", "// mine")
 
-	for _, q := range []string{"dir=..%2F..%2Fetc", "dir=%2Fetc%2Fpasswd", "dir=nope%2F", "dir=..%2F.."} {
-		body := getFilesPage(t, a, q).Body.String()
+	for _, q := range []string{"..%2F..%2Fetc", "%2Fetc%2Fpasswd", "nope%2F", "..%2F.."} {
+		body := served(t, a, q)
 		if strings.Contains(body, "mine.js") {
 			t.Errorf("%s leaked a file from a real directory", q)
 		}
@@ -585,19 +881,19 @@ func TestFilesPage_HostileDirNeverEscapes(t *testing.T) {
 
 	// The two that name nothing list nothing at all - not a file row, not a
 	// directory row. "files-row" is the class every row of either kind carries.
-	for _, q := range []string{"dir=%2Fetc%2Fpasswd", "dir=nope%2F"} {
-		if body := getFilesPage(t, a, q).Body.String(); strings.Contains(body, "files-row") {
+	for _, q := range []string{"%2Fetc%2Fpasswd", "nope%2F"} {
+		if body := served(t, a, q); strings.Contains(body, "files-row") {
 			t.Errorf("%s listed something; it names no directory in the tree", q)
 		}
 	}
 
 	// The ones that name nothing say so, rather than rendering a bare heading.
-	empty := getFilesPage(t, a, "dir=nope%2F").Body.String()
-	if !strings.Contains(empty, "Nothing is") {
+	empty := served(t, a, "nope%2F")
+	if !strings.Contains(empty, "holds nothing") {
 		t.Error("an empty directory does not say it is empty")
 	}
-	if !strings.Contains(empty, `href="/OMNGoFiles.html"`) {
-		t.Error("an empty directory offers no way back to the root")
+	if !strings.Contains(empty, `href="/OMNGoFiles.html?tree=served"`) {
+		t.Error("an empty directory offers no way back to the root of its tree")
 	}
 }
 
@@ -607,7 +903,7 @@ func TestFilesPage_CapIsHonest(t *testing.T) {
 		writeDiskFile(t, a, filepath.ToSlash(filepath.Join("many", itoa(i)+".txt")), "x")
 	}
 
-	body := getFilesPage(t, a, "dir=many%2F").Body.String()
+	body := served(t, a, "many%2F")
 	if !strings.Contains(body, "50 not shown") {
 		t.Error("the cap did not say how many files it withheld; a listing that " +
 			"quietly stops lies about how many files exist")
@@ -619,7 +915,7 @@ func TestFilesPage_CapIsHonest(t *testing.T) {
 		t.Error("no way to expand the directory")
 	}
 
-	all := getFilesPage(t, a, "dir=many%2F&all=1").Body.String()
+	all := getFilesPage(t, a, "tree=served&dir=many%2F&all=1").Body.String()
 	if strings.Contains(all, "not shown") {
 		t.Error("all=1 did not expand the directory")
 	}
@@ -632,8 +928,7 @@ func TestFilesPage_DirectoryRowsAreNeverCapped(t *testing.T) {
 	for i := 0; i < 250; i++ {
 		writeDiskFile(t, a, "d"+itoa(i)+"/f.txt", "x")
 	}
-	body := getFilesPage(t, a, "").Body.String()
-	if !strings.Contains(body, "dir=d249%2F") {
+	if !strings.Contains(served(t, a, ""), "dir=d249%2F") {
 		t.Error("the 250th directory is missing; directory rows must not be capped")
 	}
 }
@@ -644,7 +939,7 @@ func TestFilesPage_EscapesFileNames(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, `js/<img src=x onerror=alert(1)>.js`, "// x")
 
-	body := getFilesPage(t, a, "dir=js%2F").Body.String()
+	body := served(t, a, "js%2F")
 	if strings.Contains(body, "<img src=x onerror=alert(1)>") {
 		t.Error("a file name reached the page as markup")
 	}
@@ -670,14 +965,14 @@ func TestFilesPage_ScalesToABigDirectory(t *testing.T) {
 		writeDiskFile(t, a, "big"+itoa(i)+".txt", "x")
 	}
 
-	body := getFilesPage(t, a, "").Body.String()
-	if !strings.Contains(body, "2800 not shown") {
+	body := served(t, a, "")
+	if !strings.Contains(body, "not shown") {
 		t.Errorf("3 000 files did not render capped at %d", filesDirLimit)
 	}
-	// Each of the two sections caps independently, so the page as a whole can
-	// carry two capped lists and no more.
-	if n := strings.Count(body, `class="files-row"`); n > 2*filesDirLimit {
-		t.Errorf("%d file rows, want at most %d", n, 2*filesDirLimit)
+	// One list now, not two, so the page carries one capped list of rows plus
+	// the directory rows of the tree.
+	if n := strings.Count(body, `class="files-row"`); n > filesDirLimit+40 {
+		t.Errorf("%d file rows, want at most %d", n, filesDirLimit+40)
 	}
 	if len(body) > 256*1024 {
 		t.Errorf("the page is %d KB; the cap exists so that it cannot be", len(body)/1024)

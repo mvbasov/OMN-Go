@@ -1723,7 +1723,7 @@ server.
 | `/Config.html` | `serveConfigPage` | Rendered server-side; posts to `/api/config` |
 | `/OMNGoTags.html` | `serveTagsPage` | Auto-generated tag index; staleness is checked against the newest mtime of **all** notes, not one source. Honors `?refresh` |
 | `/db_backups` | `serveDBBackupsPage` | Admin page. All data comes from `GET /api/db/backups`. **Admin-only**, unlike other pages |
-| `/OMNGoFiles.html` | `serveFilesPage` | The file index of the embedded and on-disk file trees. **Admin-only**. See §5.3 |
+| `/OMNGoFiles.html` | `serveFilesPage` | The file index: the Bundled, Served and Source trees. **Admin-only**. See §5.3 |
 
 `injectRuntimeVars` adds this block to every served page:
 
@@ -1760,28 +1760,64 @@ cannot do.
 
 #### `GET /OMNGoFiles.html`
 
-The file index lists everything that OMN-Go can serve, in the shape that a
-browser uses for `file:///`. It shows **one directory at a time**, with a
-breadcrumb up and links down. Each directory has two sections, because a file
-can exist in one section, in the other, or in both, and the difference matters:
+The file index shows the files that OMN-Go holds, in the shape that a browser
+uses for `file:///`: **one directory at a time**, with a breadcrumb up and
+links down.
 
-| Section | Source | What a row means |
+The address with no parameter is the **first screen**: three buttons, one for
+each tree, and nothing else. Each tree answers one question:
+
+| Tree | `?tree=` | Root | The question |
+| --- | --- | --- | --- |
+| Bundled | `bundled` | `staticFS` (`frontend/html`, `frontend/md`) | What does this build carry? |
+| Served | `served` | `StorageDir/html` | What does a URL find, and where did it come from? |
+| Source | `source` | `StorageDir/md` | What did you write, and how large is it? |
+
+Until 26.08.53 two of these were sections of one screen and a name in both was
+printed two times. Each tree is a screen of its own now, and inside a tree each
+**name has one row**.
+
+**Two channels in a row.** The word says what the file **is**. The colour says
+what **happens** to it. The colour tokens are `--file-app`, `--file-alert`,
+`--file-keep`, `--file-derived` and `--file-plain`, and each has a value for
+each theme (`omn-go-core.css`, section 1). Colour is never the only carrier:
+`app-owned` is a word on the second line of each row that it applies to, in
+each of the three trees.
+
+| Word | Colour | Meaning |
 | --- | --- | --- |
-| Embedded in the application | `staticFS` (`frontend/html`, `frontend/md`) | What this build ships. A row says whether the file has been extracted to disk yet, and marks an app-owned file. No edit link |
-| On this device | `StorageDir/html` | What is actually on the device, with its size, its modification date, the same app-owned mark, and an edit link where an edit makes sense |
+| `as shipped` | app (orange) when app-owned, else plain | The copy on the device is the same as the copy in the build |
+| `changed here` | alert (red) when app-owned, else keep (green) | The two copies differ |
+| `not extracted` | app or plain | The build carries the file, and no request has asked for it yet |
+| `compiled` | derived (teal) | OMN-Go made this page from a note |
+| `copy of md/<path>` | derived | A `.txt` beside a note, copied into `html/` (§ `note_files.go`) |
+| `copy is old` / `copy is ahead` | derived / alert | The two copies of that `.txt` differ. `old` repairs itself at the next start. `ahead` needs one save in the editor |
+| `yours` | keep | Only on the device: an upload, or a file you wrote |
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `dir` | string | no | root | Directory to show, relative to `html/`, e.g. `js/`, `Test/OMN-Go/` |
+| `tree` | `bundled`, `served`, `source` | no | — | Which tree to show. With no value the page shows the three buttons |
+| `dir` | string | no | root | Directory to show, relative to the root of that tree, e.g. `js/`, `Test/OMN-Go/` |
 | `all` | `1`, `true` | no | — | Show every file in the directory instead of the first 200 |
+
+A `dir` with no `tree` selects the Served tree. Each link that the page of
+26.08.53 produced has that shape, and it still lands where it did.
 
 `normalizeFilesDir` normalizes `dir`. It resolves `..` segments, and a result
 that would climb above the root collapses to the root. The page uses `dir` only
-as a **string prefix over the paths already collected** from the two roots. It
-never joins `dir` onto a filesystem path. A value that names nothing therefore
+as a **string prefix over the paths already collected** by the walk. It never
+joins `dir` onto a filesystem path. A value that names nothing therefore
 matches nothing and renders an empty directory with a working breadcrumb.
+
+**How the state is decided.** The two sides of a name are paired by the walk
+(`treeEntries`). A file on one side only gives `not extracted` or one of the
+device-only words. A file on both sides is compared: the sizes first, which
+answers most pairs for free, then the bytes when the sizes are equal. The byte
+read is bounded by `filesCompareMax` (2 MB), and a larger pair of equal size
+reads `same size`. Reading an embedded file is not writing, so this does not
+break the rule below.
 
 **Authorization.** The page is admin-only, with the usual local connection
 bypass. The server registers it as its own exact route, and does not dispatch
@@ -1802,42 +1838,35 @@ the cause and the cure. No filename appears anywhere in the refusal.
 * `db_backup/` — the page excludes the database backups by name. This is a
   listing decision and not an access control. Anyone who can reach the server
   can still fetch the files, exactly as before this page existed.
+* Your notes do not appear in the Served tree. A note is not served from
+  `html/`. Its compiled page is, and that page says `compiled`.
 
 **Row extras**
 
-* An **edit** link appears in the device section only, and only where an edit
-  in place makes sense. The page decides this from the resolved content type
-  and shows the link for text content (`.js`, `.json`, `.css`, `.md`, …).
-  There is no edit link on an image, a font, audio or video. There is also no
-  edit link on an `.html` file. To edit a page, open it and press the Edit
-  button of that page.
-* The embedded section carries **no** edit link at all. An edit always
-  operates on the copy on the device, and that copy has its own row. An
-  embedded file that says `not yet` is on no device row: open its own link
-  first, which extracts it, and the device row comes with the next load of
-  the index.
-* An embedded row carries `on disk` or `not yet`. A row of either section
-  carries `app-owned` when the file is in `versionDependentAssets`. At the
-  next change of `APP_VERSION`, `refreshEmbeddedAssets` creates a backup of
-  your copy and replaces it. A user-owned file carries **no** word: the
-  server extracts it once and then leaves it alone, which is the normal case.
-  The device section carries the mark too, because that section is where a
-  file is edited.
-* The facts on the right sit in one `files-tags` group. The group does not
-  break apart, and it does not go to a second line. The row thus keeps the
-  shape of a column down the list. The device row shows the date only, and
-  the full time is in a `title`.
-* **No name is shortened.** The name takes the space that is left. A name
-  that is longer than that space wraps inside its own column. The row itself
-  is `flex-wrap: nowrap` now. It used to wrap: the name held `flex: 1 1 12em`,
-  and flex breaks a line on the hypothetical size of an item and not on the
-  size it can shrink to. `12em` plus the facts was more than a phone gives.
-  The facts thus went to a second row. The name grows, thus it filled the
-  first row and left a wide empty space beside a short name.
+* An **edit** link appears where an edit in place makes sense. The page decides
+  this from the resolved content type and shows the link for text content
+  (`.js`, `.json`, `.css`, `.md`, …). There is no edit link on an image, a
+  font, audio or video. There is also no edit link on an `.html` file: to edit
+  a page, open it and press the Edit button of that page.
+* A row that says `not extracted` still has an edit link. `handleGetNote`
+  extracts the file and then opens the editor on it.
+* The **Bundled** tree has no edit link at all. An edit always operates on the
+  copy on the device, and that copy has a row in the Served tree or in the
+  Source tree.
+* A row of the **Source** tree carries `local only` when the path stays on this
+  device (`md/local/`, or a `local-` segment).
+* The row is **two lines**. The name and the state word are on the first line,
+  and the facts are on the second. The name thus always has the width of the
+  screen. Before 26.08.54 the row was one line and a long name broke one
+  character to a line on a phone.
+* The date is on the row of a file that is on the device. The row shows the
+  day, and the full time is in a `title`.
 
 Directory totals are **recursive**. The file count and size in a directory row
-cover the whole subtree. The number therefore answers "how big is this" and not
-"how many rows are directly inside".
+cover the whole subtree, and one name counts one time. The number therefore
+answers "how big is this" and not "how many rows are directly inside". A
+directory of one kind carries one word: `not extracted`, `not shipped` or
+`yours`.
 
 **The 200-file cap** applies to files only. The page never caps directory rows,
 so navigation always works. When the page trims the list, it says how many

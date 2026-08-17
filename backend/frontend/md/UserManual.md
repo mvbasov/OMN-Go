@@ -909,56 +909,72 @@ reference.
 
 ## The file index
 
-The [file index](OMNGoFiles) lists every file that OMN-Go can serve. It
-shows one directory at a time, like a browser that shows a `file:///`
-folder. A trail of links leads up, and the subdirectories are links down.
-The page is **admin-only**. From another device on the network, you must
-log in as admin. From the device itself, you are always admin.
+The [file index](OMNGoFiles) shows the files that OMN-Go holds. The page is **admin-only**. From another device on the network, you must log in as admin. From the device itself, you are always admin.
 
-OMN-Go shows each directory two times, because these are two different
-questions:
+### Three trees
 
-- **Embedded in the application** — the files that this build of OMN-Go
-  ships. Each row shows whether OMN-Go wrote that file to disk (*on disk* /
-  *not yet*). This section has no **edit** link, because an edit always
-  operates on the copy on the device.
-- **On this device** — the files that the device stores. Each row shows
-  the size, the day when OMN-Go last wrote the file, and an **edit** link
-  where an edit makes sense. Point at the date to see the time also.
+The first screen has three buttons. Each one answers one question:
 
-A row of either section shows **app-owned** when the next version of
-OMN-Go replaces that file. OMN-Go backs up your copy first, but it stops
-using your changes. The stylesheets and scripts of the frontend are
-app-owned. A row with no such word is your file: OMN-Go extracted it one
-time and then never changes it, and you can edit it safely.
+- **Bundled** — the files inside the application. This is what the version that you run carries.
+- **Served** — `html/`, the files that a URL finds. A page, a script, a stylesheet, an image, and each file that you sent to a note.
+- **Source** — `md/`, your notes and the text files beside them.
 
-The size, the state and the **edit** link stay together on the right of a
-row. OMN-Go shortens no name. A name that is longer than the space that is
-left takes two lines, and the rest of the row stays where it is.
+A tree shows **one directory at a time**, like a browser that shows a `file:///` folder. The trail at the top leads up, and each subdirectory is a link down.
 
-The count and the size of a directory cover all files below it, and not
-only the rows you see. The numbers thus answer the question "how big is
-this whole folder". A very large directory shows its first 200 files. It
-also shows how many files it holds back, with a link to show all of them.
+### One row for one file
 
-A file on the device that you can edit as text has an **edit** link. The
-link uses the `?edit=true` form from
-[Edit links for non-page files](#edit-links-for-non-page-files), with the
-URL already filled in. Images, fonts, sounds and video have no edit link,
-because the editor would only damage them. Pages with the `.html`
-extension also have no edit link. Open such a page and use the normal Edit
-button.
+Each name has one row, and each name shows one time. A row has two lines. The name is on the first line, with one word at the right. The facts about the file are on the second line.
 
-A shipped file that says *not yet* is in no device row, thus it has no
-edit link. Open the file with its own link first. OMN-Go writes it to the
-device at that moment, and the row with the edit link comes after a
-reload of the index.
+**The word says what the file is. The colour says what happens to it.**
 
-Two things never appear in the file index. The page templates are part of
-OMN-Go and not part of your data. The `db_backup/` folder appears on the
-[Database backups](#database-backups) screen instead.
+| The word | What it says |
+| --- | --- |
+| *as shipped* | The file comes with the application, and the copy on the device is the same. |
+| *changed here* | The file comes with the application, and the copy on the device is different. |
+| *not extracted* | The file comes with the application, and the device has no copy yet. |
+| *compiled* | OMN-Go made this page from one of your notes. |
+| *copy of md/…* | The file is a copy of a text file that is beside a note. See [Text files beside your notes](#text-files-beside-your-notes). |
+| *yours* | The file is on the device only. An image that you sent to a note is an example. |
 
-The page only reads. Nothing on it deletes, moves, or creates a file.
+| The colour | What happens to the file |
+| --- | --- |
+| orange | The next version of OMN-Go replaces this file. |
+| red | The next version replaces it, and you changed it. OMN-Go copies your file to a backup, and then it does not use your changes. |
+| green | The file is yours. OMN-Go keeps it, always. |
+| blue-green | OMN-Go makes the file again when it needs to. To delete it costs you nothing. |
+| grey | Nothing is at stake. |
+
+The colour is a help only. Each row that the next version replaces also shows the word **app-owned** on its second line, in each of the three trees. The stylesheets and the scripts of the frontend are app-owned, and so are eight of the notes that come with the application.
+
+The date is on the row of a file that is on the device. The date says when OMN-Go last wrote the file. Point at a date to see the time also.
+
+A row of the **Source** tree shows **local only** when the file stays on this device. See [Files that stay on this device](#files-that-stay-on-this-device).
+
+### Directories
+
+A directory row gives the number of files below the directory and their size. The numbers cover each file below the directory, and not only the files that you see. The numbers thus answer the question "how large is this whole folder".
+
+A directory with files of one kind only says so: *not extracted*, *not shipped* or *yours*.
+
+### The edit link
+
+A file that OMN-Go can show as text has an **edit** link. The link uses the `?edit=true` form from [Edit links for non-page files](#edit-links-for-non-page-files), with the address already in it.
+
+An image, a font, a sound and a video have no edit link, because the editor would only damage the file. A page with the `.html` extension also has no edit link. Open the page and press the Edit button of the page.
+
+A file that says *not extracted* also has an edit link. Open the link. OMN-Go writes the file to the device at that moment, and the editor opens on it.
+
+The **Bundled** tree has no edit link. An edit always operates on the copy on the device, and that copy has a row in the Served tree or in the Source tree.
+
+### Limits
+
+A very large directory shows its first 200 files. It also gives the number of files that it holds back, with a link to show each of them. A directory row is never held back.
+
+Two things never come into the file index. The page templates are a part of OMN-Go and not a part of your data. The `db_backup/` folder is on the [Database backups](#database-backups) screen instead.
+
+Your notes are not in the Served tree. A note is not served from `html/`. Its page is, and that page says *compiled*.
+
+The page only reads. Nothing on the page deletes, moves or creates a file.
 
 ## The Status page
 

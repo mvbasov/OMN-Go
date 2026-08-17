@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // ----------------------------------------------------------------------
@@ -496,46 +495,73 @@ type filesCrumb struct {
 	Dir   string
 }
 
+// filesTreeCard is one button of the first screen.
+type filesTreeCard struct {
+	Key   string
+	Icon  string
+	Title string
+	Where string
+	Count string
+	Class string
+}
+
+// filesLegendItem is one line of the key under the crumb.
+type filesLegendItem struct {
+	Color string
+	Word  string
+	Text  string
+}
+
 // filesDirRow is a subdirectory of the directory being shown. Files and Bytes
-// are RECURSIVE totals for that subtree.
+// are RECURSIVE totals for that subtree, and one name counts one time even
+// when it is on both sides. The four flags answer "is this whole subtree of
+// one kind": see (*filesDirRow).note in files_index.go.
 type filesDirRow struct {
-	Name  string
-	Dir   string
-	Files int
-	Bytes int64
+	Name        string
+	Dir         string
+	Files       int
+	Bytes       int64
+	anyShips    bool
+	anyDevice   bool
+	everyShips  bool
+	everyDevice bool
 }
 
-// filesFileRow is one file. Every field is a raw value that renderFilesPage
-// escapes itself - names come from uploads and note titles, so they are
-// user-controlled and this file assembles HTML by hand.
+// filesFileRow is one NAME of the tree in view. Every field is a raw value
+// that renderFilesPage escapes itself - names come from uploads and note
+// titles, so they are user-controlled and this file assembles HTML by hand.
+//
+// State is the word on the first line and says what the file is. StateColor
+// and OwnerColor are the classes that say what happens to it. See the block
+// comment of files_index.go for the two channels.
 type filesFileRow struct {
-	Name     string
-	Path     string
-	URL      string
-	EditURL  string // "" when the row offers no edit link
-	Size     int64
-	Mod      time.Time
-	OnDisk   bool // embedded: has it been extracted yet
-	AppOwned bool // embedded: replaced on the next version change
-	IsLocal  bool // a row of the on-disk section, which reports mtime not state
-}
-
-type filesSection struct {
-	Title  string
-	Dirs   []filesDirRow
-	Files  []filesFileRow
-	Total  int   // files directly in this directory, before the cap
-	Hidden int   // ... how many of them are not shown
-	Count  int   // files in this whole subtree
-	Bytes  int64 // ... and their size
-	Empty  bool
+	Name       string
+	Path       string
+	URL        string
+	EditURL    string // "" when the row offers no edit link
+	Kind       string // a Material Icons ligature
+	Size       string
+	Mod        string // "" for a file that is not on the device
+	ModFull    string
+	State      string
+	StateColor string
+	AppOwned   bool
+	OwnerColor string
+	Extra      []string
 }
 
 type filesPageView struct {
+	Tree       string // "" on the first screen
 	Dir        string
 	Crumbs     []filesCrumb
-	Embedded   filesSection
-	Disk       filesSection
+	Cards      []filesTreeCard
+	Legend     []filesLegendItem
+	Summary    string
+	Dirs       []filesDirRow
+	Files      []filesFileRow
+	Total      int // files directly in this directory, before the cap
+	Hidden     int // ... how many of them are not shown
+	Empty      bool
 	ShowingAll bool
 	Denied     bool
 }
@@ -557,46 +583,64 @@ const filesDeniedNotice = `<div class="files-notice">` +
 	`network.</p>` +
 	`</div>`
 
+// filesOwnerHint is the tooltip of the app-owned mark.
+const filesOwnerHint = "The next version of OMN-Go backs up your copy and replaces it"
+
 func renderFilesPage(v filesPageView) string {
 	if v.Denied {
 		return fill(filesPageTmpl, map[string]string{
-			"DENIED":   " is-denied",
-			"NOTICE":   filesDeniedNotice,
-			"CRUMBS":   "",
-			"SECTIONS": "",
+			"DENIED": " is-denied",
+			"NOTICE": filesDeniedNotice,
+			"BODY":   "",
 		})
 	}
-
-	var crumbs strings.Builder
-	for i, c := range v.Crumbs {
-		if i > 0 {
-			crumbs.WriteString(`<span class="files-crumb-sep">/</span>`)
-		}
-		if i == len(v.Crumbs)-1 {
-			fmt.Fprintf(&crumbs, `<span class="files-crumb-here">%s</span>`, escapeHTML(c.Label))
-			continue
-		}
-		fmt.Fprintf(&crumbs, `<a href="%s">%s</a>`, escapeHTML(filesPageURL(c.Dir, false)), escapeHTML(c.Label))
+	if v.Tree == "" {
+		return fill(filesPageTmpl, map[string]string{
+			"DENIED": "",
+			"NOTICE": "",
+			"BODY":   renderFilesCards(v),
+		})
 	}
-
-	var out strings.Builder
-	renderFilesSection(&out, v.Embedded, v, false)
-	renderFilesSection(&out, v.Disk, v, true)
-
 	return fill(filesPageTmpl, map[string]string{
-		"DENIED":   "",
-		"NOTICE":   "",
-		"CRUMBS":   crumbs.String(),
-		"SECTIONS": out.String(),
+		"DENIED": "",
+		"NOTICE": "",
+		"BODY":   renderFilesListing(v),
 	})
 }
 
-// filesPageURL builds a link back to this page. Only two parameters exist, and
-// both are produced here rather than anywhere in a template, so neither can be
-// spliced from a request value.
-func filesPageURL(dir string, all bool) string {
+// renderFilesCards is the first screen: three buttons, one column at every
+// width. A wide screen gets a narrower page rather than three columns - one
+// layout to build, one to test, and the three targets stay the size of a
+// thumb.
+func renderFilesCards(v filesPageView) string {
+	var b strings.Builder
+	b.WriteString(`<div class="files-cards">`)
+	for _, c := range v.Cards {
+		fmt.Fprintf(&b, `<a class="files-card %s" href="%s">`+
+			`<i class="material-icons files-card-icon">%s</i>`+
+			`<span class="files-card-text">`+
+			`<span class="files-card-title">%s</span>`+
+			`<span class="files-card-where">%s</span>`+
+			`<span class="files-card-count">%s</span>`+
+			`</span></a>`,
+			escapeHTML(c.Class), escapeHTML(filesPageURL(c.Key, "", false)),
+			escapeHTML(c.Icon), escapeHTML(c.Title), escapeHTML(c.Where),
+			escapeHTML(c.Count))
+	}
+	b.WriteString(`</div>`)
+	return b.String()
+}
+
+// filesPageURL builds a link back into this page. Only three parameters exist,
+// and all of them are produced here rather than anywhere in a template, so
+// none can be spliced from a request value.
+func filesPageURL(tree, dir string, all bool) string {
 	out := "/OMNGoFiles.html"
 	sep := "?"
+	if tree != "" {
+		out += sep + "tree=" + url.QueryEscape(tree)
+		sep = "&"
+	}
 	if dir != "" {
 		out += sep + "dir=" + url.QueryEscape(dir)
 		sep = "&"
@@ -607,85 +651,125 @@ func filesPageURL(dir string, all bool) string {
 	return out
 }
 
-func renderFilesSection(b *strings.Builder, sec filesSection, v filesPageView, local bool) {
-	fmt.Fprintf(b, `<h2 class="files-section">%s <span class="files-section-count">%s · %s</span></h2>`,
-		escapeHTML(sec.Title), escapeHTML(filesCountLabel(sec.Count)), escapeHTML(filesSize(sec.Bytes)))
+func renderFilesListing(v filesPageView) string {
+	var b strings.Builder
 
-	if sec.Empty {
-		what := "Nothing is embedded at this path."
-		if local {
-			what = "Nothing is on disk at this path yet."
+	// The crumb. Each label carries its own slash and nothing goes between
+	// two of them, so the trail reads as the path it is: html/js/ .
+	b.WriteString(`<div class="files-crumbs">`)
+	for i, c := range v.Crumbs {
+		if i == len(v.Crumbs)-1 {
+			fmt.Fprintf(&b, `<span class="files-crumb-here">%s</span>`, escapeHTML(c.Label))
+			continue
 		}
-		fmt.Fprintf(b, `<p class="files-empty">%s</p>`, escapeHTML(what))
-		return
+		fmt.Fprintf(&b, `<a href="%s">%s</a>`,
+			escapeHTML(filesPageURL(v.Tree, c.Dir, false)), escapeHTML(c.Label))
+	}
+	b.WriteString(`</div>`)
+
+	fmt.Fprintf(&b, `<p class="files-summary">%s</p>`, escapeHTML(v.Summary))
+
+	if len(v.Legend) > 0 {
+		b.WriteString(`<div class="files-legend">`)
+		for _, item := range v.Legend {
+			fmt.Fprintf(&b, `<div><b class="%s">%s</b> — %s</div>`,
+				escapeHTML(item.Color), escapeHTML(item.Word), escapeHTML(item.Text))
+		}
+		b.WriteString(`</div>`)
 	}
 
-	// The facts on the right go in one files-tags group. The group does not
-	// break apart, and it does not go to a second line. The row thus keeps
-	// the shape of a column down the list. The name takes the space that is
-	// left. A name that is longer than that space wraps inside its own
-	// column: no name is cut (see .files-name in omn-go-core.css).
+	if v.Empty {
+		b.WriteString(`<p class="files-empty">This directory holds nothing.</p>`)
+		return b.String()
+	}
+
 	b.WriteString(`<ul class="files-list">`)
-	for _, d := range sec.Dirs {
-		fmt.Fprintf(b, `<li class="files-row files-dir">`+
-			`<a class="files-name" href="%s">%s</a>`+
-			`<span class="files-tags"><span class="files-meta">%s · %s</span></span></li>`,
-			escapeHTML(filesPageURL(d.Dir, false)), escapeHTML(d.Name+"/"),
+	for _, d := range v.Dirs {
+		fmt.Fprintf(&b, `<li class="files-row files-dir">`+
+			`<span class="files-name"><i class="material-icons files-kind">folder</i>`+
+			`<a href="%s">%s</a></span>`,
+			escapeHTML(filesPageURL(v.Tree, d.Dir, false)), escapeHTML(d.Name+"/"))
+		if word, color := filesDirNote(v.Tree, d); word != "" {
+			fmt.Fprintf(&b, `<span class="files-state %s">%s</span>`,
+				escapeHTML(color), escapeHTML(word))
+		}
+		fmt.Fprintf(&b, `<span class="files-facts"><span class="files-size">%s · %s</span>`+
+			`</span></li>`,
 			escapeHTML(filesCountLabel(d.Files)), escapeHTML(filesSize(d.Bytes)))
 	}
-	for _, f := range sec.Files {
-		b.WriteString(`<li class="files-row">`)
-		fmt.Fprintf(b, `<a class="files-name" href="%s">%s</a>`,
-			escapeHTML(f.URL), escapeHTML(f.Name))
-		b.WriteString(`<span class="files-tags">`)
-		fmt.Fprintf(b, `<span class="files-size">%s</span>`, escapeHTML(filesSize(f.Size)))
-
-		if f.IsLocal {
-			// The date only. The hour and the minute made the row too
-			// wide for a phone, and each other fact went to a second
-			// line. The full time stays in the title.
-			fmt.Fprintf(b, `<span class="files-meta" title="%s">%s</span>`,
-				escapeHTML(f.Mod.Format("2006-01-02 15:04")),
-				escapeHTML(f.Mod.Format("2006-01-02")))
-		} else {
-			state, cls := "not yet", "files-state-absent"
-			if f.OnDisk {
-				state, cls = "on disk", "files-state-present"
-			}
-			fmt.Fprintf(b, `<span class="files-meta %s">%s</span>`, cls, escapeHTML(state))
-		}
-
-		// Only an app-owned file gets a word. A user-owned file needs no
-		// label: it is the normal case, and a word on each other row made
-		// the list wide and said nothing. The mark is in the two sections.
-		// It is more important in the disk section: that row is a file
-		// that a user can edit now, and an app-owned file loses those
-		// edits at the next version change.
-		if f.AppOwned {
-			fmt.Fprintf(b, `<span class="files-meta files-owner-app" title="%s">app-owned</span>`,
-				escapeHTML(filesOwnerHint))
-		}
-
-		if f.EditURL != "" {
-			fmt.Fprintf(b, `<a class="files-edit" href="%s">edit</a>`, escapeHTML(f.EditURL))
-		}
-		b.WriteString(`</span></li>`)
+	for _, f := range v.Files {
+		renderFilesRow(&b, f)
 	}
 	b.WriteString(`</ul>`)
 
-	if sec.Hidden > 0 {
-		fmt.Fprintf(b, `<p class="files-more">%s not shown `+
+	if v.Hidden > 0 {
+		fmt.Fprintf(&b, `<p class="files-more">%s not shown `+
 			`<a href="%s">show all %s &rarr;</a></p>`,
-			escapeHTML(itoa(sec.Hidden)),
-			escapeHTML(filesPageURL(v.Dir, true)),
-			escapeHTML(itoa(sec.Total)))
+			escapeHTML(itoa(v.Hidden)),
+			escapeHTML(filesPageURL(v.Tree, v.Dir, true)),
+			escapeHTML(itoa(v.Total)))
 	}
+	return b.String()
 }
 
-// filesOwnerHint is the tooltip of the app-owned mark. A row with no mark
-// needs no tooltip: a user-owned file is the normal case, and the server
-// extracts it one time and then leaves it alone.
-const filesOwnerHint = "Ships with the app: the next version change backs up your copy and replaces it"
+// renderFilesRow writes one row: the name and the state on the first line, the
+// facts on the second. The name owns the first line, thus no name is ever
+// squeezed into a column of two characters.
+func renderFilesRow(b *strings.Builder, f filesFileRow) {
+	b.WriteString(`<li class="files-row">`)
+	fmt.Fprintf(b, `<span class="files-name">`+
+		`<i class="material-icons files-kind">%s</i><a href="%s">%s</a></span>`,
+		escapeHTML(f.Kind), escapeHTML(f.URL), escapeHTML(f.Name))
+	if f.State != "" {
+		fmt.Fprintf(b, `<span class="files-state %s">%s</span>`,
+			escapeHTML(f.StateColor), escapeHTML(f.State))
+	}
+	b.WriteString(`<span class="files-facts">`)
+	fmt.Fprintf(b, `<span class="files-size">%s</span>`, escapeHTML(f.Size))
+	if f.Mod != "" {
+		// The date only. The hour and the minute made the row too wide for a
+		// phone. The full time stays in the title.
+		fmt.Fprintf(b, `<span class="files-meta" title="%s">%s</span>`,
+			escapeHTML(f.ModFull), escapeHTML(f.Mod))
+	}
+	// The ownership word is on the second line of every row that has it, in
+	// each of the three trees. Colour is a hint; this word is the fact.
+	if f.AppOwned {
+		fmt.Fprintf(b, `<span class="files-meta %s" title="%s">app-owned</span>`,
+			escapeHTML(f.OwnerColor), escapeHTML(filesOwnerHint))
+	}
+	for _, extra := range f.Extra {
+		fmt.Fprintf(b, `<span class="files-meta">%s</span>`, escapeHTML(extra))
+	}
+	if f.EditURL != "" {
+		fmt.Fprintf(b, `<a class="files-edit" href="%s">edit</a>`, escapeHTML(f.EditURL))
+	}
+	b.WriteString(`</span></li>`)
+}
+
+// filesDirNote gives the one word a directory row can carry: a subtree that is
+// entirely shipped, or entirely made on the device, says so. A mixed subtree
+// says nothing, because the rows inside it answer better.
+//
+// The device-only word differs by tree, and the reason is html/Test/: in the
+// Served tree a directory of compiled pages is not the user's work, so the
+// word there is the neutral "not shipped". In the Source tree a directory that
+// does not ship IS the user's, so it says "yours".
+func filesDirNote(tree string, d filesDirRow) (word, color string) {
+	if tree == filesTreeBundled {
+		return "", ""
+	}
+	switch {
+	case d.everyShips && !d.anyDevice:
+		return "not extracted", filesColorPlain
+	case d.everyDevice && !d.anyShips:
+		if tree == filesTreeSource {
+			return "yours", filesColorKeep
+		}
+		return "not shipped", filesColorPlain
+	}
+	return "", ""
+}
 
 // --- Search results page (search_page.html) ---
 
