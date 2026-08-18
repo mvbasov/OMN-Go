@@ -1432,15 +1432,27 @@ mark.omn-search-hit.omn-search-hit-current {
     font-variant-numeric: tabular-nums;
 }
 
-/* The key. It lists only the colours that this directory uses - a key that
-   names every possible state is noise on a phone. */
+/* The key: folded by default, and it lists only the words that this directory
+   actually uses. On a real installation most screens use one word or none, so
+   the key is for the reader who meets a word for the first time. <details> is
+   the browser's own control - no script, and it stays open while the page
+   lives. */
 .files-legend {
     margin: 0 0 8px;
     font-size: 11px;
     color: var(--text-dim);
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
+}
+.files-legend > summary {
+    width: fit-content;
+    padding: 2px 0;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.files-legend > summary:hover {
+    color: var(--accent);
+}
+.files-legend > div {
+    padding: 1px 0 1px 14px;
 }
 .files-legend b { font-weight: 600; }
 

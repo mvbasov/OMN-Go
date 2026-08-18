@@ -522,6 +522,7 @@ type filesDirRow struct {
 	Files       int
 	Bytes       int64
 	anyShips    bool
+	shipCount   int
 	anyDevice   bool
 	everyShips  bool
 	everyDevice bool
@@ -669,13 +670,17 @@ func renderFilesListing(v filesPageView) string {
 
 	fmt.Fprintf(&b, `<p class="files-summary">%s</p>`, escapeHTML(v.Summary))
 
+	// Folded by default, and absent when this directory uses no word at all.
+	// <details> is the browser's own control: no script, it keeps its state
+	// while the page lives, and a reader who knows the words never opens it.
 	if len(v.Legend) > 0 {
-		b.WriteString(`<div class="files-legend">`)
+		b.WriteString(`<details class="files-legend">` +
+			`<summary>What the words mean</summary>`)
 		for _, item := range v.Legend {
 			fmt.Fprintf(&b, `<div><b class="%s">%s</b> — %s</div>`,
 				escapeHTML(item.Color), escapeHTML(item.Word), escapeHTML(item.Text))
 		}
-		b.WriteString(`</div>`)
+		b.WriteString(`</details>`)
 	}
 
 	if v.Empty {
@@ -747,28 +752,22 @@ func renderFilesRow(b *strings.Builder, f filesFileRow) {
 	b.WriteString(`</span></li>`)
 }
 
-// filesDirNote gives the one word a directory row can carry: a subtree that is
-// entirely shipped, or entirely made on the device, says so. A mixed subtree
-// says nothing, because the rows inside it answer better.
+// filesDirNote gives the one word a directory row can carry, and it is the
+// same rule as the rows: speak only when the application is involved.
 //
-// The device-only word differs by tree, and the reason is html/Test/: in the
-// Served tree a directory of compiled pages is not the user's work, so the
-// word there is the neutral "not shipped". In the Source tree a directory that
-// does not ship IS the user's, so it says "yours".
+// 26.08.54 had this the other way round and marked what was NOT shipped. On a
+// real installation that is nearly every directory - the note tree, the
+// compiled pages, the images - so the page carried a column of words that
+// said "ordinary". Now a directory speaks when OMN-Go delivered files into
+// it, and the count says how many.
 func filesDirNote(tree string, d filesDirRow) (word, color string) {
-	if tree == filesTreeBundled {
+	if tree == filesTreeBundled || !d.anyShips {
 		return "", ""
 	}
-	switch {
-	case d.everyShips && !d.anyDevice:
-		return "not extracted", filesColorPlain
-	case d.everyDevice && !d.anyShips:
-		if tree == filesTreeSource {
-			return "yours", filesColorKeep
-		}
-		return "not shipped", filesColorPlain
+	if d.everyShips && !d.anyDevice {
+		return itoa(d.Files) + " " + filesFromTheApp + ", none extracted", filesColorPlain
 	}
-	return "", ""
+	return itoa(d.shipCount) + " " + filesFromTheApp, filesColorApp
 }
 
 // --- Search results page (search_page.html) ---

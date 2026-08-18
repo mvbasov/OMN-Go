@@ -20,6 +20,21 @@ package backend
 // its own screen now, and inside a tree each NAME has exactly one row that
 // states the relation.
 //
+// SILENCE IS THE ORDINARY CASE. On a real installation most files are the
+// user's: the notes they wrote, the pages OMN-Go compiled from those notes,
+// the images they put in them. 26.08.54 gave each of those a word - "yours",
+// "compiled", "as shipped" - and the words that mattered drowned in them. A
+// row now speaks ONLY when the application is involved:
+//
+//	not extracted     the build carries this file and this device has no copy
+//	changed here      the build carries it and the copy here differs
+//	edited outside    a .txt copy in html/ is newer than the file in md/
+//	waits for restart ... or older, and the next start repairs it
+//	same size         too large to compare, and the two sizes agree
+//
+// A file with no word is yours, or is one OMN-Go makes again when it needs
+// to. Neither costs you anything, so neither needs a word.
+//
 // TWO CHANNELS PER ROW. The word says what the file IS. The colour says what
 // HAPPENS to it:
 //
@@ -27,9 +42,8 @@ package backend
 //	red     ... and the copy on the device differs, so that work goes to a
 //	        backup and stops being used. Also the one .txt case that no
 //	        start repairs by itself (see filesMirrorState).
-//	green   yours - OMN-Go keeps it
-//	teal    OMN-Go makes it again when it needs to (a compiled page, a copy
-//	        of a file in md/)
+//	green   you changed a file that OMN-Go keeps
+//	teal    OMN-Go repairs this by itself at the next start
 //	grey    nothing at stake
 //
 // Colour is never the only carrier: "app-owned" is a WORD on the second line
@@ -341,6 +355,7 @@ func (d *filesDirRow) note(e filesEntry) {
 		d.everyShips = false
 	} else {
 		d.anyShips = true
+		d.shipCount++
 	}
 }
 
@@ -492,21 +507,25 @@ func filesSameBytes(embeddedLogical, diskPath string, size int64) (same bool, ch
 // needed. The sign of a difference decides what happens next, and the two
 // cases have different remedies:
 //
-//	the copy is older  the next start refreshes it (syncNoteFilesToHTML)
-//	the copy is newer  nothing repairs this by itself. An external editor
-//	                   wrote html/ and gave OMN-Go no signal. One save in the
-//	                   internal editor copies it back (syncNoteFileToMD).
+//	the copy is older  the next start refreshes it (syncNoteFilesToHTML), so
+//	                   the row says "waits for restart" and needs no remedy
+//	the copy is newer  nothing repairs this by itself. An editor outside
+//	                   OMN-Go wrote html/ and gave OMN-Go no signal. One save
+//	                   in the editor copies it back (syncNoteFileToMD).
+//
+// A pair that agrees says NOTHING. That is the ordinary state of every .txt
+// beside a note, and it was the longest word on the page.
 func filesMirrorState(source, copyOf *indexedFile) (word, color string, extra string) {
 	if source == nil || copyOf == nil {
 		return "", "", ""
 	}
 	if source.size == copyOf.size && source.mod.Equal(copyOf.mod) {
-		return "", filesColorDerived, ""
+		return "", "", ""
 	}
 	if copyOf.mod.After(source.mod) {
-		return "copy is ahead", filesColorAlert, "save it once to copy it back to md/"
+		return "edited outside", filesColorAlert, "save it once in the editor"
 	}
-	return "copy is old", filesColorDerived, "the next start refreshes it"
+	return "waits for restart", filesColorDerived, ""
 }
 
 // filesRowFor turns one entry into one row of the tree in view.
@@ -591,7 +610,8 @@ func filesEmbeddedPath(tree, logical string) string {
 }
 
 // filesState fills in the word on the first line, its colour, and the
-// remaining facts. This is where the two channels of the page are decided.
+// remaining facts. This is where the two channels of the page are decided,
+// and where most rows are decided to say nothing at all.
 func (a *App) filesState(tree string, e filesEntry, row *filesFileRow) {
 	if e.device != nil {
 		row.Mod = e.device.mod.Format("2006-01-02")
@@ -620,10 +640,10 @@ func (a *App) filesState(tree string, e filesEntry, row *filesFileRow) {
 		case !checked && e.ships.size == e.device.size:
 			row.State, row.StateColor = "same size", filesColorPlain
 		case same:
-			row.State, row.StateColor = "as shipped", filesColorPlain
-			if row.AppOwned {
-				row.StateColor = filesColorApp
-			}
+			// SILENT. The copy here is the copy in the build, so nothing is
+			// at stake. "app-owned" on the second line still says where the
+			// file came from and what the next version does to it, which is
+			// the only part a reader can act on.
 		default:
 			row.State, row.StateColor = "changed here", filesColorKeep
 			if row.AppOwned {
@@ -639,29 +659,29 @@ func (a *App) filesState(tree string, e filesEntry, row *filesFileRow) {
 		}
 
 	default:
-		// Only on the device. Which of three things it is decides the word.
-		row.State, row.StateColor = "yours", filesColorKeep
-		low := strings.ToLower(e.path)
-		switch {
-		case tree == filesTreeServed && strings.HasSuffix(low, ".html") &&
-			fileExists(filepath.Join(a.StorageDir, "md", filepath.FromSlash(strings.TrimSuffix(e.path, ".html")+".md"))):
-			row.State, row.StateColor = "compiled", filesColorDerived
-		case tree == filesTreeServed && isSyncedNoteFile(e.path):
-			if src := a.filesStat("md", e.path); src != nil {
-				row.State, row.StateColor = "copy of md/"+e.path, filesColorDerived
-				if word, color, extra := filesMirrorState(src, e.device); word != "" {
-					row.State, row.StateColor = word, color
-					row.Extra = append(row.Extra, extra)
-				}
-			}
-		case tree == filesTreeSource && isSyncedNoteFile(e.path):
-			row.State, row.StateColor = "copied to html/", filesColorDerived
-			if copyOf := a.filesStat("html", e.path); copyOf != nil {
-				if word, color, extra := filesMirrorState(e.device, copyOf); word != "" {
-					row.State, row.StateColor = word, color
-					row.Extra = append(row.Extra, extra)
-				}
-			}
+		// Only on the device: a note the user wrote, an upload, or a page
+		// that OMN-Go compiled from a note. All three are the ordinary case
+		// of their tree and say NOTHING.
+		//
+		// The exception is the .txt pair of note_files.go, and only when the
+		// two copies disagree.
+		if !isSyncedNoteFile(e.path) {
+			return
+		}
+		var source, copyOf *indexedFile
+		switch tree {
+		case filesTreeServed:
+			source, copyOf = a.filesStat("md", e.path), e.device
+		case filesTreeSource:
+			source, copyOf = e.device, a.filesStat("html", e.path)
+		}
+		word, color, extra := filesMirrorState(source, copyOf)
+		if word == "" {
+			return
+		}
+		row.State, row.StateColor = word, color
+		if extra != "" {
+			row.Extra = append(row.Extra, extra)
 		}
 	}
 }
@@ -684,10 +704,9 @@ func (a *App) filesStat(sub, logical string) *indexedFile {
 	return &indexedFile{path: logical, size: st.Size(), mod: st.ModTime()}
 }
 
-func fileExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && !st.IsDir()
-}
+// filesFromTheApp is the tail of the one word a directory row can carry. It
+// is a constant because filesLegend has to recognize the line it built.
+const filesFromTheApp = "from the app"
 
 // ----------------------------------------------------------------------
 // The handler
@@ -740,7 +759,7 @@ func (a *App) serveFilesPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Empty = len(view.Dirs) == 0 && len(view.Files) == 0
 	view.Summary = filesSummary(subtreeCount, subtreeBytes, view.Dir != "" || len(dirs) > 0, view.Files)
-	view.Legend = filesLegend(view.Tree, view.Files)
+	view.Legend = filesLegend(view.Tree, view.Files, view.Dirs)
 
 	a.writeFilesPage(w, view)
 }
@@ -800,34 +819,74 @@ func filesSummary(count int, bytes int64, below bool, rows []filesFileRow) strin
 	return out
 }
 
-// filesLegend explains the colours that this directory actually uses. A key
-// that lists every possible state is noise on a phone.
-func filesLegend(tree string, rows []filesFileRow) []filesLegendItem {
-	seen := map[string]bool{}
+// filesLegend explains the words that THIS page uses, and nothing else.
+//
+// The key is the pair (word, colour), because one word can carry two
+// outcomes: "changed here" is green on a file that OMN-Go keeps and red on a
+// file that the next version replaces. A key on the colour alone would have
+// to choose one of the two, and a key on the word alone would print the line
+// twice.
+//
+// The page folds this away by default (renderFilesListing). Most screens of a
+// real installation use one word or none, so the key is for the reader who
+// meets a word for the first time.
+func filesLegend(tree string, rows []filesFileRow, dirs []filesDirRow) []filesLegendItem {
+	type key struct{ word, color string }
+	seen := map[key]bool{}
 	for _, r := range rows {
 		if r.State != "" {
-			seen[r.StateColor] = true
+			seen[key{r.State, r.StateColor}] = true
 		}
 		if r.AppOwned {
-			seen[r.OwnerColor] = true
+			seen[key{"app-owned", r.OwnerColor}] = true
+		}
+		for _, x := range r.Extra {
+			seen[key{x, filesColorPlain}] = true
 		}
 	}
+	for _, d := range dirs {
+		if w, c := filesDirNote(tree, d); w != "" {
+			seen[key{w, c}] = true
+		}
+	}
+
+	// One line for each pair, in a fixed order. A pair with no line here gets
+	// none: an explanation invented on the spot is worse than silence.
 	all := []filesLegendItem{
+		{Color: filesColorAlert, Word: "changed here",
+			Text: "you changed it, and the next version of OMN-Go replaces it. OMN-Go backs up your copy first"},
+		{Color: filesColorKeep, Word: "changed here",
+			Text: "you changed a file that came with OMN-Go. OMN-Go keeps your copy"},
 		{Color: filesColorApp, Word: "app-owned",
 			Text: "the next version of OMN-Go replaces this file"},
-		{Color: filesColorAlert, Word: "changed here",
-			Text: "… and you changed it, so OMN-Go backs up your copy and stops using it"},
-		{Color: filesColorKeep, Word: "yours",
-			Text: "OMN-Go keeps this file, always"},
-		{Color: filesColorDerived, Word: "compiled",
-			Text: "OMN-Go makes this file again when it needs to"},
-		{Color: filesColorPlain, Word: "as shipped",
-			Text: "nothing at stake"},
+		{Color: filesColorApp, Word: "not extracted",
+			Text: "OMN-Go carries this file, and this device has no copy of it yet"},
+		{Color: filesColorPlain, Word: "not extracted",
+			Text: "OMN-Go carries this file, and this device has no copy of it yet"},
+		{Color: filesColorPlain, Word: "same size",
+			Text: "the file is too large to compare, and the two copies have the same size"},
+		{Color: filesColorAlert, Word: "edited outside",
+			Text: "an editor outside OMN-Go wrote the copy in html/. Save the file one time in the editor to copy it back to md/"},
+		{Color: filesColorDerived, Word: "waits for restart",
+			Text: "the file in md/ is newer. The next start of OMN-Go copies it into html/"},
+		{Color: filesColorPlain, Word: "local only",
+			Text: "git synchronization does not carry this file. It stays on this device"},
 	}
 	var out []filesLegendItem
 	for _, item := range all {
-		if seen[item.Color] {
+		k := key{item.Word, item.Color}
+		if seen[k] {
 			out = append(out, item)
+			delete(seen, k)
+		}
+	}
+	// A directory line carries a count, thus it cannot be in the table above.
+	// One line covers each of them.
+	for k := range seen {
+		if strings.Contains(k.word, filesFromTheApp) {
+			out = append(out, filesLegendItem{Color: k.color, Word: "… " + filesFromTheApp,
+				Text: "OMN-Go delivered that many of the files below this directory"})
+			break
 		}
 	}
 	return out

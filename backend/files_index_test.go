@@ -250,26 +250,30 @@ func TestFilesPage_OneNameOneRow(t *testing.T) {
 	}
 }
 
-// The four states of the Served tree, each with the colour that says what
-// happens to the file.
+// The words that survive, and the colour that says what happens to the file.
+//
+// The rule since 26.08.55: a row speaks only when the application is
+// involved. On a real installation nearly every file is the user's, and a
+// word on each of those rows buried the words that matter.
 func TestFilesPage_StatesAndColours(t *testing.T) {
 	a := newTestApp(t)
 	// Shipped, extracted, and edited: the size differs, so no byte read is
 	// needed to know. It is app-owned, thus the change is the one that is lost.
 	writeDiskFile(t, a, "js/omn-go-core.js", "// a hand edit")
-	// Shipped, extracted, untouched: written from the embed itself.
+	// Shipped, extracted, untouched: written from the embed itself. This row
+	// must say NOTHING.
 	sameBody, err := staticFS.ReadFile("frontend/html/js/local_counter.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeDiskFile(t, a, "js/local_counter.js", string(sameBody))
-	// Never shipped.
+	// Never shipped: also silent.
 	writeDiskFile(t, a, "js/mine.js", "// mine")
 
 	body := served(t, a, "js%2F")
 	for _, want := range []string{
-		"changed here", "as shipped", "not extracted", "yours",
-		filesColorAlert, filesColorApp, filesColorKeep, filesColorPlain,
+		"changed here", "not extracted",
+		filesColorAlert, filesColorApp, filesColorPlain,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the listing never says %q", want)
@@ -279,34 +283,47 @@ func TestFilesPage_StatesAndColours(t *testing.T) {
 	if !strings.Contains(body, ">app-owned<") {
 		t.Error("no row spells out app-owned")
 	}
+	// The words of 26.08.54 that said "ordinary" are gone.
+	for _, gone := range []string{"as shipped", "yours", "compiled"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("the listing still says %q; the ordinary case must be silent", gone)
+		}
+	}
+
+	// Read the two silent rows directly, so the assertion is about the row and
+	// not about a substring of the page.
+	for _, name := range []string{"local_counter.js", "mine.js"} {
+		if row := rowOfName(t, a, filesTreeServed, "js/", name); row.State != "" {
+			t.Errorf("%s says %q; nothing is at stake, so it must say nothing", name, row.State)
+		}
+	}
 }
 
-// A .html page that has a note behind it is made by OMN-Go, not written by the
-// user. Calling it "yours" told the user their own work was at stake when it
-// was not.
-func TestFilesPage_CompiledPageSaysSo(t *testing.T) {
+// A page that OMN-Go compiled from a note, a note the user wrote, and an
+// upload are the ordinary case of their tree. Each one says nothing at all.
+func TestFilesPage_OrdinaryFilesAreSilent(t *testing.T) {
 	a := newTestApp(t)
 	writeNoteFile(t, a, "Log.md", "Title: Log\n\nbody\n")
 	writeDiskFile(t, a, "Log.html", "<html></html>")
-	writeDiskFile(t, a, "Orphan.html", "<html></html>")
+	writeDiskFile(t, a, "images/photo.png", "\x89PNG")
 
-	body := served(t, a, "")
-	if !strings.Contains(body, "compiled") {
-		t.Error("a compiled page is not reported as compiled")
+	for _, name := range []string{"Log.html"} {
+		if row := rowOfName(t, a, filesTreeServed, "", name); row.State != "" {
+			t.Errorf("%s says %q; a compiled page is the ordinary case", name, row.State)
+		}
 	}
-	if !strings.Contains(body, filesColorDerived) {
-		t.Error("a compiled page carries no derived colour")
+	if row := rowOfName(t, a, filesTreeSource, "", "Log.md"); row.State != "" {
+		t.Errorf("a note you wrote says %q", row.State)
 	}
-	// A page with no note behind it is not compiled from anything.
-	row := rowOfName(t, a, filesTreeServed, "", "Orphan.html")
-	if row.State != "yours" {
-		t.Errorf("Orphan.html reads %q; nothing generates it", row.State)
+	if row := rowOfName(t, a, filesTreeServed, "images/", "photo.png"); row.State != "" {
+		t.Errorf("an upload says %q", row.State)
 	}
 }
 
 // The .txt pair of note_files.go: md/x.txt is the file, html/x.txt is a copy.
-// The sign of the difference decides what happens next, and the two cases have
-// different remedies, so they must not read the same.
+// A pair that agrees says NOTHING - that is the ordinary state of every text
+// file beside a note. Only a pair that disagrees speaks, and the two
+// directions do not read the same, because the remedies differ.
 func TestFilesPage_TxtMirror(t *testing.T) {
 	a := newTestApp(t)
 	old := time.Now().Add(-2 * time.Hour)
@@ -318,28 +335,41 @@ func TestFilesPage_TxtMirror(t *testing.T) {
 	touch(t, filepath.Join(a.StorageDir, "md", "log.txt"), old)
 	touch(t, filepath.Join(a.StorageDir, "html", "log.txt"), old)
 
-	// The copy is newer than the file: an external editor wrote html/ and gave
-	// OMN-Go no signal. Nothing repairs this by itself.
+	// The copy is newer than the file: an editor outside OMN-Go wrote html/
+	// and gave OMN-Go no signal. Nothing repairs this by itself.
 	writeNoteFile(t, a, "ahead.txt", "one")
 	writeDiskFile(t, a, "ahead.txt", "one and more")
 	touch(t, filepath.Join(a.StorageDir, "md", "ahead.txt"), old)
 
+	// The copy is older: the next start repairs it.
+	writeNoteFile(t, a, "behind.txt", "two and more")
+	writeDiskFile(t, a, "behind.txt", "two")
+	touch(t, filepath.Join(a.StorageDir, "html", "behind.txt"), old)
+
 	body := served(t, a, "")
-	if !strings.Contains(body, "copy of md/log.txt") {
-		t.Error("a .txt under html/ does not say which file it is a copy of")
+	if strings.Contains(body, "copy of md/log.txt") || strings.Contains(body, "log.txt</a></span><span class=\"files-state") {
+		t.Error("a .txt pair that agrees still carries a word")
 	}
-	if !strings.Contains(body, "copy is ahead") {
-		t.Error("a copy newer than its source is not reported")
+	if row := rowOfName(t, a, filesTreeServed, "", "log.txt"); row.State != "" {
+		t.Errorf("a .txt in step says %q", row.State)
 	}
-	if !strings.Contains(body, "save it once to copy it back to md/") {
+	if !strings.Contains(body, "edited outside") {
+		t.Error("a copy newer than its file is not reported")
+	}
+	if !strings.Contains(body, "save it once in the editor") {
 		t.Error("the one case that no start repairs does not say what to do")
 	}
+	if !strings.Contains(body, "waits for restart") {
+		t.Error("a copy older than its file is not reported")
+	}
 
-	src := served(t, a, "")
-	_ = src
+	// The Source tree sees the same pair from the other side.
 	source := getFilesPage(t, a, "tree=source").Body.String()
-	if !strings.Contains(source, "copied to html/") {
-		t.Error("the Source tree does not say that a .txt is copied into html/")
+	if !strings.Contains(source, "edited outside") {
+		t.Error("the Source tree does not report a copy that was edited outside")
+	}
+	if row := rowOfName(t, a, filesTreeSource, "", "log.txt"); row.State != "" {
+		t.Errorf("the Source tree says %q for a pair in step", row.State)
 	}
 }
 
@@ -503,6 +533,39 @@ func TestFilesPage_SourceMarksLocalOnly(t *testing.T) {
 	second := rowOfName(t, a, filesTreeSource, "local-notes/", "Second.md")
 	if len(second.Extra) == 0 {
 		t.Error("a local- directory is not marked local only")
+	}
+}
+
+// A directory speaks only when the application delivered files into it. Until
+// 26.08.55 the rule was inverted and nearly every directory of a real
+// installation carried a word that said "ordinary".
+func TestFilesDirNote_MarksOnlyAppFiles(t *testing.T) {
+	a := newTestApp(t)
+	writeDiskFile(t, a, "Journal/2026-08-01.html", "<html></html>")
+	writeDiskFile(t, a, "images/photo.png", "x")
+	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+
+	dirs, _, _, _ := foldToDir(a.treeEntries(filesTreeServed), "")
+	for _, d := range dirs {
+		word, color := filesDirNote(filesTreeServed, d)
+		switch d.Name {
+		case "Journal", "images":
+			if word != "" {
+				t.Errorf("%s/ says %q; the application delivered nothing into it", d.Name, word)
+			}
+		case "js":
+			if !strings.Contains(word, "from the app") || color != filesColorApp {
+				t.Errorf("js/ says %q in %q", word, color)
+			}
+		case "css", "json":
+			// Shipped, and nothing extracted yet.
+			if !strings.Contains(word, "none extracted") {
+				t.Errorf("%s/ says %q, want the none-extracted form", d.Name, word)
+			}
+		}
+	}
+	if word, _ := filesDirNote(filesTreeBundled, filesDirRow{anyShips: true, shipCount: 3}); word != "" {
+		t.Errorf("the Bundled tree marks a directory: %q", word)
 	}
 }
 
@@ -683,16 +746,46 @@ func TestFilesKindIcon(t *testing.T) {
 	}
 }
 
-// The key names only the colours the directory uses. A key that lists every
-// state is noise on a phone.
+// The key names only the words that this directory uses, it is folded, and a
+// directory that uses no word gets no key at all.
 func TestFilesLegend_NamesOnlyWhatIsUsed(t *testing.T) {
-	rows := []filesFileRow{{State: "yours", StateColor: filesColorKeep}}
-	legend := filesLegend(filesTreeServed, rows)
-	if len(legend) != 1 || legend[0].Color != filesColorKeep {
-		t.Errorf("legend = %+v, want the keep line only", legend)
+	rows := []filesFileRow{{State: "changed here", StateColor: filesColorKeep}}
+	legend := filesLegend(filesTreeServed, rows, nil)
+	if len(legend) != 1 || legend[0].Color != filesColorKeep || legend[0].Word != "changed here" {
+		t.Errorf("legend = %+v, want the green changed-here line only", legend)
 	}
-	if len(filesLegend(filesTreeServed, nil)) != 0 {
+	// The same word in the other colour is a different line, because the two
+	// outcomes differ.
+	red := filesLegend(filesTreeServed, []filesFileRow{
+		{State: "changed here", StateColor: filesColorAlert, AppOwned: true, OwnerColor: filesColorAlert},
+	}, nil)
+	if len(red) != 2 {
+		t.Errorf("legend = %+v, want the red changed-here line and app-owned", red)
+	}
+	if len(filesLegend(filesTreeServed, nil, nil)) != 0 {
 		t.Error("an empty directory still printed a key")
+	}
+}
+
+func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
+	a := newTestApp(t)
+	writeNoteFile(t, a, "Log.md", "Title: Log\n\nx\n")
+	writeDiskFile(t, a, "Log.html", "<html></html>")
+
+	// A directory of nothing but the user's own files needs no key.
+	quiet := served(t, a, "")
+	if strings.Contains(quiet, "What the words mean") {
+		t.Error("a directory that uses no word still printed a key")
+	}
+
+	// One that does uses a folded <details>, and it must not be open.
+	writeDiskFile(t, a, "js/omn-go-core.js", "// edited")
+	loud := served(t, a, "js%2F")
+	if !strings.Contains(loud, `<details class="files-legend"><summary>What the words mean</summary>`) {
+		t.Error("the key is not a folded details element")
+	}
+	if strings.Contains(loud, "<details open") {
+		t.Error("the key is open by default")
 	}
 }
 

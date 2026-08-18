@@ -1777,6 +1777,12 @@ Until 26.08.53 two of these were sections of one screen and a name in both was
 printed two times. Each tree is a screen of its own now, and inside a tree each
 **name has one row**.
 
+**Silence is the ordinary case.** On a real installation most files are the
+user's: the notes, the pages OMN-Go compiled from them, the uploads. 26.08.54
+gave each of those a word (`yours`, `compiled`, `as shipped`) and the words
+that mattered drowned in them. Since 26.08.55 a row speaks only when the
+application is involved.
+
 **Two channels in a row.** The word says what the file **is**. The colour says
 what **happens** to it. The colour tokens are `--file-app`, `--file-alert`,
 `--file-keep`, `--file-derived` and `--file-plain`, and each has a value for
@@ -1786,13 +1792,21 @@ each of the three trees.
 
 | Word | Colour | Meaning |
 | --- | --- | --- |
-| `as shipped` | app (orange) when app-owned, else plain | The copy on the device is the same as the copy in the build |
-| `changed here` | alert (red) when app-owned, else keep (green) | The two copies differ |
-| `not extracted` | app or plain | The build carries the file, and no request has asked for it yet |
-| `compiled` | derived (teal) | OMN-Go made this page from a note |
-| `copy of md/<path>` | derived | A `.txt` beside a note, copied into `html/` (§ `note_files.go`) |
-| `copy is old` / `copy is ahead` | derived / alert | The two copies of that `.txt` differ. `old` repairs itself at the next start. `ahead` needs one save in the editor |
-| `yours` | keep | Only on the device: an upload, or a file you wrote |
+| *(none)* | — | The file is the user's, or OMN-Go makes it again when it needs to. Nothing is at stake |
+| `not extracted` | app when app-owned, else plain | The build carries the file, and no request has asked for it yet |
+| `changed here` | alert when app-owned, else keep | The build carries it and the copy on the device differs |
+| `edited outside` | alert | A `.txt` copy in `html/` is newer than the file in `md/`. One save in the editor copies it back |
+| `waits for restart` | derived | ... or older, and `syncNoteFilesToHTML` repairs it at the next start |
+| `same size` | plain | Larger than `filesCompareMax`, and the two sizes agree |
+
+A directory row carries `<n> from the app`, or `<n> from the app, none
+extracted`, and nothing at all when the application delivered no file into it.
+
+**The key** (`filesLegend`) is built from the pairs `(word, colour)` that the
+rendered rows and directory rows actually use, and it renders as a `<details>`
+element that is **closed** by default. The pair is the key, not the word: the
+same `changed here` is green on a file OMN-Go keeps and red on a file the next
+version replaces. A directory that uses no word gets no key.
 
 **Parameters**
 

@@ -923,28 +923,31 @@ A tree shows **one directory at a time**, like a browser that shows a `file:///`
 
 ### One row for one file
 
-Each name has one row, and each name shows one time. A row has two lines. The name is on the first line, with one word at the right. The facts about the file are on the second line.
+Each name has one row, and each name shows one time. A row has two lines. The name is on the first line, and the facts about the file are on the second line.
 
-**The word says what the file is. The colour says what happens to it.**
+**Most rows say nothing more.** A note that you wrote, a page that OMN-Go made from your note, an image that you sent to a note: each of them is yours, OMN-Go does not touch it, thus the row is quiet. A row speaks only when OMN-Go is involved:
 
 | The word | What it says |
 | --- | --- |
-| *as shipped* | The file comes with the application, and the copy on the device is the same. |
-| *changed here* | The file comes with the application, and the copy on the device is different. |
 | *not extracted* | The file comes with the application, and the device has no copy yet. |
-| *compiled* | OMN-Go made this page from one of your notes. |
-| *copy of md/…* | The file is a copy of a text file that is beside a note. See [Text files beside your notes](#text-files-beside-your-notes). |
-| *yours* | The file is on the device only. An image that you sent to a note is an example. |
+| *changed here* | The file comes with the application, and the copy on the device is different. |
+| *edited outside* | An editor that is not the OMN-Go editor wrote the copy of a text file in `html/`. Save the file one time in the editor to copy it back to `md/`. See [Text files beside your notes](#text-files-beside-your-notes). |
+| *waits for restart* | The text file in `md/` is more recent than its copy. The next start of OMN-Go makes the copy again. |
+| *same size* | The file is too large to compare, and the two copies have the same size. |
+
+**The colour says what happens to the file.**
 
 | The colour | What happens to the file |
 | --- | --- |
 | orange | The next version of OMN-Go replaces this file. |
 | red | The next version replaces it, and you changed it. OMN-Go copies your file to a backup, and then it does not use your changes. |
-| green | The file is yours. OMN-Go keeps it, always. |
-| blue-green | OMN-Go makes the file again when it needs to. To delete it costs you nothing. |
+| green | You changed a file that OMN-Go does not replace. Your change stays. |
+| blue-green | OMN-Go repairs this by itself at the next start. |
 | grey | Nothing is at stake. |
 
 The colour is a help only. Each row that the next version replaces also shows the word **app-owned** on its second line, in each of the three trees. The stylesheets and the scripts of the frontend are app-owned, and so are eight of the notes that come with the application.
+
+Press **What the words mean** below the trail to see the words that the directory on the screen uses. The list is closed at the start, and it gives only those words. A directory that uses no word has no such list.
 
 The date is on the row of a file that is on the device. The date says when OMN-Go last wrote the file. Point at a date to see the time also.
 
@@ -954,7 +957,7 @@ A row of the **Source** tree shows **local only** when the file stays on this de
 
 A directory row gives the number of files below the directory and their size. The numbers cover each file below the directory, and not only the files that you see. The numbers thus answer the question "how large is this whole folder".
 
-A directory with files of one kind only says so: *not extracted*, *not shipped* or *yours*.
+A directory says **10 from the app** when OMN-Go delivered files into it, and **2 from the app, none extracted** when the device has no copy of any of them. A directory of your own files says nothing.
 
 ### The edit link
 
