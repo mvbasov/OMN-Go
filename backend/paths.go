@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -48,4 +49,18 @@ func (a *App) resolvePageName(name string) (mdPath, htmlPath, baseName string, i
 	mdPath = filepath.Join(a.StorageDir, "md", filepath.Clean(baseName+".md"))
 	htmlPath = a.pageHTMLPath(baseName)
 	return mdPath, htmlPath, baseName, true
+}
+
+// fileExists reports whether p is a file that is there to be read. A
+// directory is not a file, thus a directory answers false.
+//
+// It lived in files_index.go until 26.08.55, where the file index used it to
+// find the note behind a compiled page. That state ("compiled") went away
+// when the page stopped naming the ordinary case, and the helper went with
+// it - but note_exchange.go calls it three times, and the build broke. It
+// belongs here instead: this file is about paths on disk, and no caller of
+// this helper owns it.
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
 }
