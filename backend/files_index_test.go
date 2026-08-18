@@ -760,7 +760,12 @@ func TestFilesLegend_NamesOnlyWhatIsUsed(t *testing.T) {
 		{State: "changed here", StateColor: filesColorAlert, AppOwned: true, OwnerColor: filesColorAlert},
 	}, nil)
 	if len(red) != 2 {
-		t.Errorf("legend = %+v, want the red changed-here line and app-owned", red)
+		t.Errorf("legend = %+v, want the red changed-here line and the red app-owned line", red)
+	}
+	for _, item := range red {
+		if item.Color != filesColorAlert {
+			t.Errorf("legend line %q is %q; both words of that row are red", item.Word, item.Color)
+		}
 	}
 	if len(filesLegend(filesTreeServed, nil, nil)) != 0 {
 		t.Error("an empty directory still printed a key")
@@ -769,11 +774,16 @@ func TestFilesLegend_NamesOnlyWhatIsUsed(t *testing.T) {
 
 func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
 	a := newTestApp(t)
-	writeNoteFile(t, a, "Log.md", "Title: Log\n\nx\n")
-	writeDiskFile(t, a, "Log.html", "<html></html>")
+	writeNoteFile(t, a, "Notes/Log.md", "Title: Log\n\nx\n")
+	writeDiskFile(t, a, "Notes/Log.html", "<html></html>")
 
-	// A directory of nothing but the user's own files needs no key.
-	quiet := served(t, a, "")
+	// A directory of nothing but the user's own files needs no key. It has to
+	// be a SUBDIRECTORY: the root of the Served tree always holds the assets
+	// that the build carries, thus it always uses at least one word.
+	quiet := served(t, a, "Notes%2F")
+	if strings.Contains(quiet, "Log.html") == false {
+		t.Fatal("the test directory is empty; the assertion below would pass for the wrong reason")
+	}
 	if strings.Contains(quiet, "What the words mean") {
 		t.Error("a directory that uses no word still printed a key")
 	}

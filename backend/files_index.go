@@ -859,6 +859,12 @@ func filesLegend(tree string, rows []filesFileRow, dirs []filesDirRow) []filesLe
 			Text: "you changed a file that came with OMN-Go. OMN-Go keeps your copy"},
 		{Color: filesColorApp, Word: "app-owned",
 			Text: "the next version of OMN-Go replaces this file"},
+		// The same word in the alert colour: filesState paints BOTH words of
+		// such a row red, because both describe the one outcome. A directory
+		// whose only app-owned rows were changed would otherwise leave the
+		// red "app-owned" with no line at all.
+		{Color: filesColorAlert, Word: "app-owned",
+			Text: "the next version of OMN-Go replaces this file, and your change goes to a backup"},
 		{Color: filesColorApp, Word: "not extracted",
 			Text: "OMN-Go carries this file, and this device has no copy of it yet"},
 		{Color: filesColorPlain, Word: "not extracted",
