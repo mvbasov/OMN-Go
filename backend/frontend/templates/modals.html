@@ -53,6 +53,14 @@
         <button onclick="window.performSync('abort')" class="btn-cancel">Abort Operation</button>
     </div>
 </div>
+<div id="push-conflict-modal" class="overlay hidden">
+    <div class="modal">
+        <h2>Push Rejected</h2>
+        <p>The remote has newer commits and rejected the push. Pull the remote changes first, or overwrite the remote:</p>
+        <button onclick="window.performPushForce()">Force Push<br><small>Overwrites the history on the remote to match this device — destructive. Prefer pulling the remote changes first.</small></button>
+        <button onclick="window.hidePushConflictModal()" class="btn-cancel">Abort</button>
+    </div>
+</div>
 <!--
   The receive box of the Incoming notes page (note exchange).
 

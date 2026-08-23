@@ -362,37 +362,6 @@ body {
     background: var(--bg-hover);
 }
 
-/* The sync "force" toggle. Labelled "!" rather than "Force": it sits between
-   the two sync buttons it modifies, where a word costs more width than it
-   earns, and the tooltip carries the meaning. Given a one-character label, the
-   danger has to be legible in the character itself - hence the weight and the
-   danger colour, rather than the 12px muted grey a word could get away with.
-
-   It is a <label>, not a <button>, so it needs the surrounding chrome spelled
-   out to line up with its neighbours. */
-.header-actions .btn-force {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    padding: 4px 8px;
-    border: 1px solid var(--border-strong);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--danger);
-}
-
-.header-actions .btn-force:hover {
-    background: var(--bg-hover);
-}
-
-.header-actions .btn-force input {
-    margin: 0;
-    cursor: pointer;
-}
-
 .header-info {
     font-size: 0.9em;
     color: var(--text-muted);

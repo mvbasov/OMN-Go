@@ -135,6 +135,7 @@ if (window.location.protocol !== 'file:') {
             switch (data.status) {
                 case 'success':
                     if (modal) modal.classList.add('hidden');
+                    window.hidePushConflictModal();
                     return data;
                 case 'conflict':
                     if (modal) {
@@ -148,9 +149,23 @@ if (window.location.protocol !== 'file:') {
                         else window.runSync('pull_mark');
                     }
                     return data;
-                case 'push_conflict':
-                    alert('Push rejected: the remote has new commits. Please pull first, then try pushing again.');
+                case 'push_conflict': {
+                    // The remote rejected the push. It is not a
+                    // fast-forward update. Keep the failed push's commit
+                    // message so a "Force Push" retry can reuse it. Offer
+                    // the choice in a modal, like the pull conflict one. A
+                    // rejected push leaves local state untouched (see
+                    // syncPush). Abort is a pure UI cancel.
+                    window._retryPushMessage = opts.message || null;
+                    const pModal = document.getElementById('push-conflict-modal');
+                    if (pModal) {
+                        pModal.classList.remove('hidden');
+                    } else {
+                        const choice = confirm('Push rejected: the remote has new commits.\n\nOK to Force Push (destructive), Cancel to Abort.');
+                        if (choice) window.performPushForce();
+                    }
                     return data;
+                }
                 case 'needs_commit_message':
                     alert('Please provide a commit message.');
                     return data;
@@ -212,24 +227,53 @@ if (window.location.protocol !== 'file:') {
             }
         };
 
-        window.syncAction = async function (action) {
-            let forceCb = document.getElementById('forceSyncCb');
-            let force = forceCb && forceCb.checked;
-            if (force) {
-                if (!confirm("WARNING: Force " + action + " is a destructive operation that may overwrite remote or local changes. Are you sure?")) {
+        // hidePushConflictModal dismisses the push-rejection modal.
+        // A rejected push never touches local state. The backend returns
+        // push_conflict before any mutation. The Abort button only hides
+        // this modal, like the pull modal's Abort button.
+        window.hidePushConflictModal = function() {
+            const modal = document.getElementById('push-conflict-modal');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        // performPushForce handles "Force Push" on the push-rejection modal.
+        // It retries the failed push as push_force. It reuses the original
+        // commit message when the rejected push had one. A force push with
+        // no message asks for one first. The backend requires a commit
+        // message for a force push, even when there is nothing new to
+        // commit. The message is a checkpoint before a destructive push
+        // (see syncPush).
+        window.performPushForce = async function() {
+            window.hidePushConflictModal();
+
+            let message = window._retryPushMessage || '';
+            if (!message) {
+                message = window.prompt
+                    ? (window.prompt('Force push requires a commit message.\n\nDescribe what this push changes on the remote:') || '').trim()
+                    : '';
+                if (!message) {
+                    alert('Force push cancelled — no commit message.');
                     return;
                 }
             }
-            if (forceCb) forceCb.checked = false;
 
+            const data = await window.runSync('push_force', { message });
+            if (data && data.status === 'success') {
+                if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+                    window.location.reload();
+                }
+            }
+        };
+
+        window.syncAction = async function (action) {
             if (action === 'upload') {
                 // Uploads always go through the commit-message modal, which
                 // also shows the file list and handles "nothing to commit".
-                previewAndCommit(force);
+                previewAndCommit();
                 return;
             }
 
-            const data = await window.runSync(action, { force });
+            const data = await window.runSync(action);
             if (data && data.status === 'success') {
                 if (confirm('Sync complete.\n\nWould you like to reload the page now to see updated content?')) {
                     window.location.reload();
@@ -275,7 +319,7 @@ if (window.location.protocol !== 'file:') {
         return { syncAction };
     })();
 
-    window.previewAndCommit = async function(force) {
+    window.previewAndCommit = async function() {
         // Building the preview walks the whole worktree diff, which is the
         // slow half of an upload on a large note collection - show progress
         // here too, not just during the commit/push that follows.
@@ -313,7 +357,7 @@ if (window.location.protocol !== 'file:') {
                 // There is nothing to commit, so no commit message is asked
                 // for: the upload goes straight to the push.
                 if (preview.unpushed) {
-                    const data = await window.runSync('upload', { force });
+                    const data = await window.runSync('upload');
                     if (data && data.status === 'success') {
                         if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
                             window.location.reload();
@@ -337,7 +381,6 @@ if (window.location.protocol !== 'file:') {
             var listEl = document.getElementById('commitFileList');
             if (listEl) listEl.textContent = files.join('\n');
             document.getElementById('commitModal').style.display = 'flex';
-            window._commitForce = force;
         } catch(e) {
             alert('Error: ' + e);
         }
@@ -349,10 +392,9 @@ if (window.location.protocol !== 'file:') {
             alert('Please enter a commit message.');
             return;
         }
-        const force = window._commitForce || false;
         hideCommitModal();
 
-        const data = await window.runSync('upload', { force, message });
+        const data = await window.runSync('upload', { message });
         if (data && data.status === 'success') {
             if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
                 window.location.reload();

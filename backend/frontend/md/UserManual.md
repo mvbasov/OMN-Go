@@ -201,8 +201,7 @@ buttons, from left to right:
 - <i class="material-icons">bookmark_add</i> — add a bookmark
 - <i class="material-icons">refresh</i> — force-recompile the current page
 - <i class="material-icons">settings</i> — open the [Config](Config) page
-- <i class="material-icons">cloud_download</i> / <i class="material-icons">cloud_upload</i> — git pull / push
-  - **Force** checkbox — makes the next git sync action destructive (see [Git synchronization](#git-synchronization))
+- <i class="material-icons">cloud_download</i> / <i class="material-icons">cloud_upload</i> — git pull / push (see [Git synchronization](#git-synchronization))
 - <i class="material-icons">info</i> — show the metadata panel of the page
 - <i class="material-icons">save</i> / <i class="material-icons">edit</i> — save the note / enable or disable edit mode
 
@@ -733,7 +732,7 @@ SSH.
 - <i class="material-icons">cloud_upload</i> **Upload (push)** shows the
   list of changed files and asks for a commit message. It then commits and
   pushes. If the remote has newer commits, the remote rejects the push.
-  Pull first, then push again.
+  A dialog then offers **Force Push** or **Abort** (see below).
 
 **Conflicts.** If a pull finds changes that git cannot merge
 automatically, a dialog gives three choices:
@@ -747,10 +746,15 @@ automatically, a dialog gives three choices:
   files, then upload them.
 - **Abort** — cancels the pull. Nothing has changed.
 
-**The Force checkbox** in the header makes the *next* pull or push forced.
-A forced pull behaves like Force Pull above. A forced push overwrites the
-history on the remote. The checkbox always asks for confirmation. It
-disables itself after one use. Use it only in an emergency.
+**A rejected push** opens a dialog with two choices:
+
+- **Force Push** — overwrites the history on the remote to match this
+  device. **Destructive:** the force push destroys changes that exist
+  only on the remote. Use it only when you know the remote is behind on
+  purpose. If the rejected push had no commit message, the dialog asks
+  for one before the force push runs.
+- **Abort** — cancels the push. Your local commit stays in place. Pull
+  the remote changes first, then push again.
 
 ### Files that stay on this device
 
