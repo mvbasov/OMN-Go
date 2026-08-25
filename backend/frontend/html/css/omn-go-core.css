@@ -112,6 +112,20 @@
     --shadow:        rgba(0, 0, 0, 0.1);
     --shadow-soft:   rgba(0, 0, 0, 0.05);
     --shadow-strong: rgba(0, 0, 0, 0.2);
+
+    /* Code blocks (hljs) - see section 10. Light values equal the vendor
+       highlight theme (highlight.default.min.css), so the light look is
+       unchanged. */
+    --code-bg:           #f3f3f3;
+    --code-text:         #444;
+    --code-comment:      #697070;
+    --code-punctuation:  #444a;
+    --code-string:       #800;
+    --code-variable:     #ab5656;
+    --code-literal:      #695;
+    --code-built-in:     #397300;
+    --code-meta:         #1f7199;
+    --code-meta-string:  #38a;
 }
 
 /* -- Dark palette, explicit: <html data-theme="dark"> --
@@ -169,6 +183,18 @@
     --shadow:        rgba(0, 0, 0, 0.4);
     --shadow-soft:   rgba(0, 0, 0, 0.25);
     --shadow-strong: rgba(0, 0, 0, 0.6);
+
+    /* Code blocks (hljs) - dark (github-dark palette) */
+    --code-bg:           #303336;   /* equals --bg-inset */
+    --code-text:         #c9d1d9;
+    --code-comment:      #8b949e;
+    --code-punctuation:  #c9d1d966;
+    --code-string:       #a5d6ff;
+    --code-variable:     #ffa657;
+    --code-literal:      #79c0ff;
+    --code-built-in:     #7ee787;
+    --code-meta:         #79c0ff;
+    --code-meta-string:  #a5d6ff;
 }
 
 /* -- Dark palette, automatic: theme "auto" (or no data-theme attribute,
@@ -230,6 +256,18 @@
         --shadow:        rgba(0, 0, 0, 0.4);
         --shadow-soft:   rgba(0, 0, 0, 0.25);
         --shadow-strong: rgba(0, 0, 0, 0.6);
+
+        /* Code blocks (hljs) - dark (github-dark palette) */
+        --code-bg:           #303336;   /* equals --bg-inset */
+        --code-text:         #c9d1d9;
+        --code-comment:      #8b949e;
+        --code-punctuation:  #c9d1d966;
+        --code-string:       #a5d6ff;
+        --code-variable:     #ffa657;
+        --code-literal:      #79c0ff;
+        --code-built-in:     #7ee787;
+        --code-meta:         #79c0ff;
+        --code-meta-string:  #a5d6ff;
     }
 }
 
@@ -2304,6 +2342,45 @@ mark.omn-search-hit.omn-search-hit-current {
     max-width: 85vw;
     padding-left: 5vw;
 }
+
+/* -- Code blocks (hljs) - the vendor theme (highlight.default.min.css)
+   ships light colors only. These rules substitute the --code-* design
+   tokens from section 1, so fenced ``` blocks follow light / dark / auto
+   like the rest of the page. Light token values equal the vendor theme,
+   so the light look is unchanged; the higher specificity beats the vendor
+   rules without !important. -- */
+#preview pre code.hljs {
+    background: var(--code-bg);
+    color: var(--code-text);
+}
+#preview pre code.hljs .hljs-comment { color: var(--code-comment); }
+#preview pre code.hljs .hljs-punctuation,
+#preview pre code.hljs .hljs-tag { color: var(--code-punctuation); }
+#preview pre code.hljs .hljs-deletion,
+#preview pre code.hljs .hljs-number,
+#preview pre code.hljs .hljs-quote,
+#preview pre code.hljs .hljs-selector-class,
+#preview pre code.hljs .hljs-selector-id,
+#preview pre code.hljs .hljs-string,
+#preview pre code.hljs .hljs-template-tag,
+#preview pre code.hljs .hljs-type { color: var(--code-string); }
+#preview pre code.hljs .hljs-section,
+#preview pre code.hljs .hljs-title { color: var(--code-string); font-weight: 700; }
+#preview pre code.hljs .hljs-link,
+#preview pre code.hljs .hljs-operator,
+#preview pre code.hljs .hljs-regexp,
+#preview pre code.hljs .hljs-selector-attr,
+#preview pre code.hljs .hljs-selector-pseudo,
+#preview pre code.hljs .hljs-symbol,
+#preview pre code.hljs .hljs-template-variable,
+#preview pre code.hljs .hljs-variable { color: var(--code-variable); }
+#preview pre code.hljs .hljs-literal { color: var(--code-literal); }
+#preview pre code.hljs .hljs-addition,
+#preview pre code.hljs .hljs-built_in,
+#preview pre code.hljs .hljs-bullet,
+#preview pre code.hljs .hljs-code { color: var(--code-built-in); }
+#preview pre code.hljs .hljs-meta { color: var(--code-meta); }
+#preview pre code.hljs .hljs-meta .hljs-string { color: var(--code-meta-string); }
 
 /* ==========================================================================
    11. Utilities & legacy compatibility
