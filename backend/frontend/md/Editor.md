@@ -6,18 +6,11 @@ Tags: Document, OMN-Go, OMN-Go app
 
 # The OMN-Go Editor
 
-Press <i class="material-icons">edit</i> on any page to open the built-in
-editor. You can also open any file with `?edit=true`. See the
-[User Manual](UserManual#edit-links-for-non-page-files).
+Press <i class="material-icons">edit</i> on any page to open the built-in editor. You can also open any file with `?edit=true`. See the [User Manual](UserManual#edit-links-for-non-page-files).
 
-The editor is a page of its own. It loads the Markdown source of the note when
-it opens, and it writes the Markdown source back when you save. A rendered note
-therefore never carries a hidden second copy of its own text.
+The editor is a page of its own. It loads the Markdown source of the note when it opens, and it writes the Markdown source back when you save. A rendered note therefore never carries a hidden second copy of its own text.
 
-The cursor starts directly after the `Title:`/`Date:`/… header block of the
-note. You start in the body of the note, and not at the end of the file. If you
-arrive from a console error that you pressed, the cursor starts on the line with
-the error instead.
+The cursor starts directly after the `Title:`/`Date:`/… header block of the note. You start in the body of the note, and not at the end of the file. If you arrive from a console error that you pressed, the cursor starts on the line with the error instead.
 
 ## The toolbar
 
@@ -56,24 +49,13 @@ Left to right:
 - <i class="material-icons">close</i> **Cancel** — leave the editor without
   saving. If you have unsaved changes, the editor asks you first.
 
-The editor shows the name of the note at its bottom ("Editing …"). Drag an
-image file onto the text area to upload the image. The editor inserts an
-`<img>` tag at the cursor. The tag has the `omn-imported-image` class, which
-limits the width of the image. The image therefore does not render at its full
-native resolution.
+The editor shows the name of the note at its bottom ("Editing …"). Drag an image file onto the text area to upload the image. The editor inserts an `<img>` tag at the cursor. The tag has the `omn-imported-image` class, which limits the width of the image. The image therefore does not render at its full native resolution.
 
 ## Find and replace
 
-Press <i class="material-icons">search</i>, or press **Ctrl/Cmd + F**.
-**Ctrl/Cmd + H** opens the find bar with the replace field already shown. The
-find bar appears between the toolbar and the text. It pushes the note down and
-does not cover it, so you see the text while you change it. If you selected
-text before you opened the find bar, that text is already the query.
+Press <i class="material-icons">search</i>, or press **Ctrl/Cmd + F**. **Ctrl/Cmd + H** opens the find bar with the replace field already shown. The find bar appears between the toolbar and the text. It pushes the note down and does not cover it, so you see the text while you change it. If you selected text before you opened the find bar, that text is already the query.
 
-The find bar highlights every match. It also puts a ring around the match that
-the counter points to. The counter reads **3 / 17**, or *no matches*, or *bad
-pattern*. In a very large note the counter stops at 1000 matches and reads
-**1000+**. It does not show an exact count above 1000.
+The find bar highlights every match. It also puts a ring around the match that the counter points to. The counter reads **3 / 17**, or *no matches*, or *bad pattern*. In a very large note the counter stops at 1000 matches and reads **1000+**. It does not show an exact count above 1000.
 
 ### Moving between matches
 
@@ -106,8 +88,7 @@ The three switches are at the right of the query field:
   for `a.b` finds `a.b` and does not find `axb`. A `$` in the replacement is a
   dollar sign.
 
-The editor remembers the three switches for each device. If you work with
-regular expressions, the find bar stays in that mode.
+The editor remembers the three switches for each device. If you work with regular expressions, the find bar stays in that mode.
 
 ### Replacing
 
@@ -117,19 +98,13 @@ The chevron at the left of the find bar shows and hides the replace field.
   again and again to move forward through the note.
 - **All** changes every match and reports the number of changes.
 
-Both buttons make one step for **Ctrl + Z**. One undo returns the note to its
-previous state, even after you change hundreds of matches.
+Both buttons make one step for **Ctrl + Z**. One undo returns the note to its previous state, even after you change hundreds of matches.
 
 ### What is being searched
 
-The find bar searches the **Markdown source** of the note. This is the same
-text that you edit, and not the rendered page. The find bar therefore searches
-the header block at the top of the file like any other line. It also searches
-the text inside a `<script>` block or a fenced code block.
+The find bar searches the **Markdown source** of the note. This is the same text that you edit, and not the rendered page. The find bar therefore searches the header block at the top of the file like any other line. It also searches the text inside a `<script>` block or a fenced code block.
 
-The search panel in the page header is a different search. It searches your
-notes as OMN-Go *published* them. See
-[Searching](UserManual#searching) in the User Manual for the search panel.
+The search panel in the page header is a different search. It searches your notes as OMN-Go *published* them. See [Searching](UserManual#searching) in the User Manual for the search panel.
 
 ## Tab and Emmet
 
@@ -139,8 +114,7 @@ The **Tab** key does one of two things:
   abbreviation, Tab **expands** the abbreviation into HTML.
 - If it is not an Emmet abbreviation, Tab inserts a normal tab character.
 
-You can type a compact abbreviation and press Tab to get the full markup. For
-example, type
+You can type a compact abbreviation and press Tab to get the full markup. For example, type
 
 ```
 ul>li*3
@@ -183,18 +157,11 @@ expands to:
 </div>
 ```
 
-The children of a few container tags get an implied tag name. For example,
-`ul>.item` becomes `<ul><li class="item">…`, and `table>tr>td` also works.
-Other container tags behave in the same way.
+The children of a few container tags get an implied tag name. For example, `ul>.item` becomes `<ul><li class="item">…`, and `table>tr>td` also works. Other container tags behave in the same way.
 
 **Limits.** The editor supports a compact subset of Emmet, and not full Emmet.
-It does not support the climb-up operator `^`. It does not support text
-generators such as `lorem`. If the editor does not recognize an abbreviation,
-Tab inserts a tab character instead. The editor also limits the repeat count,
-so a large number cannot lock the editor. This page lists the full supported
-set.
+It does not support the climb-up operator `^`. It does not support text generators such as `lorem`. If the editor does not recognize an abbreviation, Tab inserts a tab character instead. The editor also limits the repeat count, so a large number cannot lock the editor. This page lists the full supported set.
 
 ---
 
-See the [User Manual](UserManual) for everything else. See
-[Scripting Rules](ScriptRules) for the rules about a note script.
+See the [User Manual](UserManual) for everything else. See [Scripting Rules](ScriptRules) for the rules about a note script.

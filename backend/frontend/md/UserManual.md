@@ -166,11 +166,7 @@ Inside it:
   [Configuration reference](#configuration-reference)). The file stays
   local to the device. Git never synchronizes it.
 
-On first start, OMN-Go creates the storage directory, a default
-`config.json`, and a few starter pages ([Welcome](Welcome),
-[QuickNotes](QuickNotes), [Bookmarks](Bookmarks),
-[BookmarksHowTo](BookmarksHowTo), [ScriptRules](ScriptRules),
-[Editor](Editor)).
+On first start, OMN-Go creates the storage directory, a default `config.json`, and a few starter pages ([Welcome](Welcome), [QuickNotes](QuickNotes), [Bookmarks](Bookmarks), [BookmarksHowTo](BookmarksHowTo), [ScriptRules](ScriptRules), [Editor](Editor)).
 
 ## Login and roles
 
@@ -180,20 +176,14 @@ You set two passwords on the [Config](Config) page:
   synchronization, and change the configuration.
 - **Guest** — read-oriented access for other people on your network.
 
-A local connection (`127.0.0.1` or `localhost`) skips the login. The
-WebView of the Android application also makes a local connection. The
-passwords apply when you enable [LAN sharing](#sharing-on-the-lan) and a
-remote caller connects from another device.
+A local connection (`127.0.0.1` or `localhost`) skips the login. The WebView of the Android application also makes a local connection. The passwords apply when you enable [LAN sharing](#sharing-on-the-lan) and a remote caller connects from another device.
 
 **Change the default passwords before enabling LAN sharing.** A fresh
-install ships with `admin_secret_changeme` and
-`guest_secret_changeme`. Anyone on your network who read this manual
-knows these two passwords.
+install ships with `admin_secret_changeme` and `guest_secret_changeme`. Anyone on your network who read this manual knows these two passwords.
 
 ## The interface
 
-Press the page title to expand the header bar. The header bar has these
-buttons, from left to right:
+Press the page title to expand the header bar. The header bar has these buttons, from left to right:
 
 - <i class="material-icons">home</i> — open the [Welcome](Welcome) page
 - <i class="material-icons">note_add</i> — create a new page
@@ -223,8 +213,7 @@ The name you confirm sets where OMN-Go creates the new page:
 - OMN-Go uses a name with a slash, like `work/Ideas`, as written.
 - A leading slash, like `/Ideas`, forces a top-level page.
 
-OMN-Go adds a link to the new page at the end of the page you started
-from.
+OMN-Go adds a link to the new page at the top of the page you started from. The link goes directly below the header block, or at the start of a page that has no header block.
 
 ## Editing pages
 
@@ -232,45 +221,24 @@ from.
 2. Make your changes.
 3. Press <i class="material-icons">save</i>.
 
-When you save, OMN-Go updates the `Modified:` header line and recompiles
-the page. The editor is a page of its own. It loads the Markdown source of
-the note when it opens. Its small toolbar has an Emmet-style HTML expander
-and a select-current-line button. See
-[The editor and Emmet](Editor) for the toolbar and the abbreviation
-syntax.
+When you save, OMN-Go updates the `Modified:` header line and recompiles the page. The editor is a page of its own. It loads the Markdown source of the note when it opens. Its small toolbar has an Emmet-style HTML expander and a select-current-line button. See [The editor and Emmet](Editor) for the toolbar and the abbreviation syntax.
 
 **Internal vs. external editor.** If you disable *Use Internal Editor* on
-the [Config](Config) page, the edit button sends the file to an external
-editor. On the desktop application, OMN-Go runs the command from *Desktop
-External Cmd*, for example `subl`. On the Android application, OMN-Go
-opens the system app-chooser. When you come back, the page reloads with
-your changes.
+the [Config](Config) page, the edit button sends the file to an external editor. On the desktop application, OMN-Go runs the command from *Desktop External Cmd*, for example `subl`. On the Android application, OMN-Go opens the system app-chooser. When you come back, the page reloads with your changes.
 
 **Images.** Drag an image file onto the editor area. OMN-Go uploads the
-file to `images/`. OMN-Go then puts a Markdown image reference at the
-cursor.
+file to `images/`. OMN-Go then puts a Markdown image reference at the cursor.
 
 **Find and replace.** Press <i class="material-icons">search</i> in the
-editor toolbar, or press **Ctrl-F**. To start with the replace field
-shown, press **Ctrl-H**. The find bar opens between the toolbar and the
-text. It pushes the note down and does not cover it.
+editor toolbar, or press **Ctrl-F**. To start with the replace field shown, press **Ctrl-H**. The find bar opens between the toolbar and the text. It pushes the note down and does not cover it.
 
-The editor highlights every match. It puts a ring around the current match
-and shows a **3 / 17** counter. Press **Enter** to move to the next match.
-Press **Shift-Enter** to move to the previous match. Press **Esc** to
-close the find bar.
+The editor highlights every match. It puts a ring around the current match and shows a **3 / 17** counter. Press **Enter** to move to the next match. Press **Shift-Enter** to move to the previous match. Press **Esc** to close the find bar.
 
-Three switches enable case sensitivity, whole-word matching and regular
-expressions. **Replace** changes one match, and **All** changes every
-match. One **Ctrl-Z** undoes either change. The find bar searches the
-Markdown source, which is the text you edit. It finds header lines and the
-contents of code blocks like any other text. For full details, see
-[The editor and Emmet](Editor#find-and-replace).
+Three switches enable case sensitivity, whole-word matching and regular expressions. **Replace** changes one match, and **All** changes every match. One **Ctrl-Z** undoes either change. The find bar searches the Markdown source, which is the text you edit. It finds header lines and the contents of code blocks like any other text. For full details, see [The editor and Emmet](Editor#find-and-replace).
 
 ## Page format: the header block
 
-Every page starts with a header block. The header block contains
-`Key: value` lines, and the first blank line ends it. Example:
+Every page starts with a header block. The header block contains `Key: value` lines, and the first blank line ends it. Example:
 
 ```
 Title: Shopping list
@@ -297,8 +265,7 @@ First line of the actual note...
 
 ## Markdown in a nutshell
 
-You write pages in Markdown with GitHub-flavored extensions (tables,
-strikethrough, task lists):
+You write pages in Markdown with GitHub-flavored extensions (tables, strikethrough, task lists):
 
 ```
 # Heading            ## Subheading
@@ -312,15 +279,11 @@ strikethrough, task lists):
 |-------|-------|
 ```
 
-Line breaks are literal. One newline in the editor makes a line break in
-the page. For all other syntax, use the
-[GitHub Markdown guide](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax).
-It is close to the Markdown dialect of OMN-Go.
+Line breaks are literal. One newline in the editor makes a line break in the page. For all other syntax, use the [GitHub Markdown guide](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax). It is close to the Markdown dialect of OMN-Go.
 
 ## Links: absolute, relative, external
 
-When OMN-Go compiles a page, it normalizes the internal links. You can
-write them in a natural form:
+When OMN-Go compiles a page, it normalizes the internal links. You can write them in a natural form:
 
 - `[Notes](Ideas)` — **bare page name**. OMN-Go resolves the name relative
   to the current page, like a file in the same folder, and adds `.html`.
@@ -360,34 +323,22 @@ This button shows on each page. The two buttons above it, [Send this note](#send
 
 ## Edit links for non-page files
 
-To open any file that OMN-Go serves in the editor, add `?edit=true` to its
-URL. With this URL you can keep "edit me" shortcuts in your notes for
-static assets:
+To open any file that OMN-Go serves in the editor, add `?edit=true` to its URL. With this URL you can keep "edit me" shortcuts in your notes for static assets:
 
 ```
 [Edit my stylesheet](/css/custom.css?edit=true)
 [Edit shared data](/user_json/inventory.json?edit=true)
 ```
 
-The link opens the raw file in the internal editor. If you configured an
-external editor, the link opens the file there. When you save, OMN-Go
-writes the file back in place. A file that comes with OMN-Go opens with
-its content, also when the storage directory does not hold that file yet.
-If the file does not exist, the editor opens an empty page. Your first
-save makes the file.
+The link opens the raw file in the internal editor. If you configured an external editor, the link opens the file there. When you save, OMN-Go writes the file back in place. A file that comes with OMN-Go opens with its content, also when the storage directory does not hold that file yet. If the file does not exist, the editor opens an empty page. Your first save makes the file.
 
 If the editor cannot read the file, it shows a red message and turns the
 *Save* button off. This keeps an empty editor from replacing a file that
 has content.
 
-OMN-Go does not open a picture, a font, an audio file or a video file in
-an editor. An editor writes text, and a save would damage such a file.
-The link answers with a short page and a link to the file. The
-[file index](OMNGoFiles) gives no edit link for these files.
+OMN-Go does not open a picture, a font, an audio file or a video file in an editor. An editor writes text, and a save would damage such a file. The link answers with a short page and a link to the file. The [file index](OMNGoFiles) gives no edit link for these files.
 
-If you do not know the name of a file, open
-[the file index](OMNGoFiles). It lists every file that OMN-Go serves and
-gives the same link ready-made.
+If you do not know the name of a file, open [the file index](OMNGoFiles). A file that OMN-Go can show as text has an **edit** link there, with the address already in it. An image, a font, an audio file, a video file and a compiled `.html` page have no edit link. See [The edit link](#the-edit-link).
 
 ## Text files beside your notes
 
@@ -412,28 +363,31 @@ Three limits to know:
 
 - Only a `.txt` file is copied. Put a file of a different type in `html/`, where OMN-Go serves it directly.
 - OMN-Go deletes nothing. If you delete `md/log.txt`, the copy in `html/` stays and the link continues to operate. Delete the two files.
-- An external editor gives OMN-Go no signal when it writes. Such a change stays in `html/`. To copy it to `md/`, save the file one time in the internal editor.
+- An external editor writes only to `html/`, and OMN-Go does not copy such a change to `md/` by itself. OMN-Go does see it: the [file index](OMNGoFiles) marks the file *edited outside*. Save the file one time in the internal editor to copy it to `md/`.
 
 ## Math and code highlighting
 
-OMN-Go renders formulas with KaTeX, fully offline. Math rendering is
-**opt-in per page**. To enable it, put this line anywhere on the page. A
-good habit is to put the line at the top of the body, directly after the
-header block:
+OMN-Go renders formulas with KaTeX, fully offline. Math rendering is **opt-in per page**. To enable it, put this line anywhere on the page. A good habit is to put the line at the top of the body, directly after the header block:
 
 ```
 <script>var OMN_GO_KATEX=true</script>
 ```
 
-Without that line, `$...$` stays literal text. Pages about money
-(`$5 and $10`) thus do not change into formulas. This manual page has the
-flag set. Here is a live example. The inline text `$E = mc^2$` renders as
-$E = mc^2$. A display block follows:
+Without that line, `$...$` stays literal text. Pages about money (`$5 and $10`) thus do not change into formulas. This manual page has the flag set, thus the two examples below are live.
 
 <script>var OMN_GO_KATEX=true</script>
 
-- inline: `$E = mc^2$`
-- display block:
+Inline math goes between one `$` on each side. Write:
+
+```
+The mass-energy relation is $E = mc^2$.
+```
+
+Renders to:
+
+The mass-energy relation is $E = mc^2$.
+
+A display block goes between two `$` on each side, on lines of its own. Write:
 
 ```
 $$
@@ -441,11 +395,15 @@ $$
 $$
 ```
 
-OMN-Go protects underscores and other Markdown-sensitive characters inside
-`$...$` and `$$...$$`. Write normal TeX.
+Renders to:
 
-OMN-Go highlights the syntax of a fenced code block that has a language
-name:
+$$
+\frac{a}{b} = \sum_{i=1}^{n} x_i
+$$
+
+OMN-Go protects underscores and other Markdown-sensitive characters inside `$...$` and `$$...$$`. Write normal TeX.
+
+OMN-Go highlights the syntax of a fenced code block that has a language name:
 
 ````
 ```go
@@ -455,8 +413,7 @@ func main() { fmt.Println("hi") }
 
 ## Material icons in notes
 
-OMN-Go ships with the Google Material Icons font. You can put any icon in
-a note with a small piece of inline HTML:
+OMN-Go ships with the Google Material Icons font. You can put any icon in a note with a small piece of inline HTML:
 
 ```
 <i class="material-icons">home</i>
@@ -468,13 +425,11 @@ renders as: <i class="material-icons">home</i>
 <i class="material-icons">lightbulb</i> An idea!
 <i class="material-icons" style="font-size:48px;color:#28a745;">check_circle</i>
 
-Find icon names at [fonts.google.com/icons](https://fonts.google.com/icons).
-Select the "Material Icons" style. Use the snake_case name.
+Find icon names at [fonts.google.com/icons](https://fonts.google.com/icons). Select the "Material Icons" style. Use the snake_case name.
 
 ## Buttons and shortcuts inside a page
 
-The header buttons call JavaScript functions. These functions are
-available on every page. You can put your own buttons anywhere in a note:
+The header buttons call JavaScript functions. These functions are available on every page. You can put your own buttons anywhere in a note:
 
 ```
 <button onclick="document.getElementById('bmPanel').classList.remove('hidden')">
@@ -486,9 +441,7 @@ available on every page. You can put your own buttons anywhere in a note:
 </button>
 ```
 
-For navigation, plain links are usually better than buttons. The header
-has no *Quick notes* button. The Quick Notes page is a normal page, so
-make a link to it:
+For navigation, plain links are usually better than buttons. The header has no *Quick notes* button. The Quick Notes page is a normal page, so make a link to it:
 
 ```
 [Quick notes](/QuickNotes)
@@ -506,25 +459,13 @@ You can also make a link look like a button:
 Try it: [Quick notes](/QuickNotes) · [Bookmarks](/Bookmarks)
 
 **Android intents (Android only).** On the Android application, a link or
-a button can do more. It can open a system screen, start another Android
-application, run a Termux command, or scan a barcode into the Quick Notes
-page. OMN-Go disables this function by default. See
-[Android Intents & Termux](AndroidIntents).
+a button can do more. It can open a system screen, start another Android application, run a Termux command, or scan a barcode into the Quick Notes page. OMN-Go disables this function by default. See [Android Intents & Termux](AndroidIntents).
 
 ## The Tags page
 
-The Tags page (the note `OMNGoTags`) indexes every note that has a `Tags:`
-header line. The page shows an alphabetical cloud of all tags
-at the top. Below the cloud it shows one section per tag, with links to
-the notes that use the tag. To open the Tags page, press a tag pill in a
-page header. The pill opens the section of that tag.
+The Tags page (the note `OMNGoTags`) indexes every note that has a `Tags:` header line. The page shows an alphabetical cloud of all tags at the top. Below the cloud it shows one section per tag, with links to the notes that use the tag. To open the Tags page, press a tag pill in a page header. The pill opens the section of that tag.
 
-OMN-Go **generates the page automatically**. It rebuilds the page at
-startup and each time the tags of a note change. Do not edit the page by
-hand. A "do not edit" comment at the top gives this warning, and the next
-rebuild overwrites your changes. The page is plain static HTML with no
-note scripts, so it also works when you open the compiled `html/` tree
-offline. OMN-Go omits the notes that have no tags.
+OMN-Go **generates the page automatically**. It rebuilds the page at startup and each time the tags of a note change. Do not edit the page by hand. A "do not edit" comment at the top gives this warning, and the next rebuild overwrites your changes. The page is plain static HTML with no note scripts, so it also works when you open the compiled `html/` tree offline. OMN-Go omits the notes that have no tags.
 
 ### The tags of the pages that come with OMN-Go
 
@@ -541,16 +482,11 @@ The other files use the same two words. The [file index](OMNGoFiles) marks each 
 
 ## Searching
 
-To open the search panel, press the magnifier in the page header. On a
-keyboard, press **Ctrl-K** or **/**.
+To open the search panel, press the magnifier in the page header. On a keyboard, press **Ctrl-K** or **/**.
 
-The search panel searches your notes as OMN-Go publishes them. To search
-the text of the note that you edit, use the find bar of the editor. The
-find bar also searches the header lines and the contents of the code
-blocks. See [Find and replace](Editor#find-and-replace).
+The search panel searches your notes as OMN-Go publishes them. To search the text of the note that you edit, use the find bar of the editor. The find bar also searches the header lines and the contents of the code blocks. See [Find and replace](Editor#find-and-replace).
 
-There are two searches. The chips at the top of the panel show which
-search you use:
+There are two searches. The chips at the top of the panel show which search you use:
 
 - **This page** — this is page search. It searches the note you have open.
   It always works and needs no setting. It costs nothing, because OMN-Go
@@ -565,19 +501,11 @@ search you use:
 
 ### How to start the search
 
-Typing does not search. Type your query, then press the **magnifier button**
-at the right of the input field, or press **Enter**. This is the same button
-that the [search page](OMNGoSearch) has, in the same position.
+Typing does not search. Type your query, then press the **magnifier button** at the right of the input field, or press **Enter**. This is the same button that the [search page](OMNGoSearch) has, in the same position.
 
-A search of all notes reads every note that the index holds. A search at each
-key that you press does that work five or six times for one word and shows
-you only the last answer.
+A search of all notes reads every note that the index holds. A search at each key that you press does that work five or six times for one word and shows you only the last answer.
 
-While the search operates, a bar below the input field moves from side to
-side. It makes no promise about the time, because the time depends on the
-quantity of your notes. The panel also shows *Searching…*. The bar goes away
-when the results come. You get the same bar when you press **All notes**,
-which searches immediately.
+While the search operates, a bar below the input field moves from side to side. It makes no promise about the time, because the time depends on the quantity of your notes. The panel also shows *Searching…*. The bar goes away when the results come. You get the same bar when you press **All notes**, which searches immediately.
 
 **Enter** does one of two things, and the field tells you which:
 
@@ -586,88 +514,48 @@ which searches immediately.
 - You changed the field. Enter searches for the new text. The panel shows
   *Press ↵ or the magnifier to search* while the two do not agree.
 
-The search page shows the progress indicator of the application while the
-server makes the results.
+The search page shows the progress indicator of the application while the server makes the results.
 
 ### What it matches
 
-Your query does not have to be exact. OMN-Go tries each term of the query
-on three rungs, best first:
+Your query does not have to be exact. OMN-Go tries each term of the query on three rungs, best first:
 
 1. the term as written — `json` finds `json`
 2. the letters in order — `andint` finds **And**roid **Int**ents
 3. a near miss — `fecth` finds `fetch`. A swapped pair of letters is the
    most common typing error.
 
-All terms must match. The query `fetch json` finds the notes that contain
-both terms. To limit a term to one part of a note, use `title:`, `tag:` or
-`path:`. An example is `tag:recipe bread`.
+All terms must match. The query `fetch json` finds the notes that contain both terms. To limit a term to one part of a note, use `title:`, `tag:` or `path:`. An example is `tag:recipe bread`.
 
-OMN-Go ignores case and accents in every script. The query `елка` finds
-`Ёлка`.
+OMN-Go ignores case and accents in every script. The query `елка` finds `Ёлка`.
 
 ### Reading the results
 
-Each line shows where the match is, and highlights the match. A `‹/›` mark
-tells you that the line is in a note script or in a code block, and not in
-prose. OMN-Go does not rank such a line lower, because code in notes is a
-normal thing to look for.
+Each line shows where the match is, and highlights the match. A `‹/›` mark tells you that the line is in a note script or in a code block, and not in prose. OMN-Go does not rank such a line lower, because code in notes is a normal thing to look for.
 
-If a note has sections, the result names the section and not the line. A
-quick note shows its timestamp. A bookmark shows its title. A note with
-headings shows the heading. When you open the result, OMN-Go opens that
-section, and not the top of a long page.
+If a note has sections, the result names the section and not the line. A quick note shows its timestamp. A bookmark shows its title. A note with headings shows the heading. When you open the result, OMN-Go opens that section, and not the top of a long page.
 
-"Line 1842" does not answer the question *where*. "27 Jul, 07:23" answers
-it.
+"Line 1842" does not answer the question *where*. "27 Jul, 07:23" answers it.
 
-OMN-Go searches bookmarks by what you see: the title, the address, the
-tags and the notes. It does not search the stored form. This is important.
-OMN-Go writes a bookmark with the title *Cats & Dogs* to disk with the `&`
-encoded. Before this change, you could not find that bookmark by its own
-name.
+OMN-Go searches bookmarks by what you see: the title, the address, the tags and the notes. It does not search the stored form. This is important. OMN-Go writes a bookmark with the title *Cats & Dogs* to disk with the `&` encoded. Before this change, you could not find that bookmark by its own name.
 
-When you press a result in **This page**, OMN-Go closes the search panel.
-It marks every occurrence in the page and moves to the first one. When you
-press a result in **All notes**, OMN-Go opens the note of the match. The
-note is already scrolled to the match, and the terms you typed are marked.
-You do not have to find them again by eye.
+When you press a result in **This page**, OMN-Go closes the search panel. It marks every occurrence in the page and moves to the first one. When you press a result in **All notes**, OMN-Go opens the note of the match. The note is already scrolled to the match, and the terms you typed are marked. You do not have to find them again by eye.
 
-The marks include the matches in a fenced code block, together with the
-syntax colours of that block. Before, a match in a ```` ``` ```` block was
-in the result list but had no mark in the page, and only prose and an
-inline `code` span showed one.
+The marks include the matches in a fenced code block, together with the syntax colours of that block. Before, a match in a ```` ``` ```` block was in the result list but had no mark in the page, and only prose and an inline `code` span showed one.
 
-The full [search page](OMNGoSearch) behaves the same way. The *See all
-results* link opens that page. The search page is easier to read for a
-long list. It is also an ordinary URL that you can bookmark or send to
-another person.
+The full [search page](OMNGoSearch) behaves the same way. The *See all results* link opens that page. The search page is easier to read for a long list. It is also an ordinary URL that you can bookmark or send to another person.
 
-OMN-Go removes the highlight from the address bar directly after it
-applies the marks. The URL that you copy or bookmark is thus the plain
-one. A reload of the page does not put the marks back.
+OMN-Go removes the highlight from the address bar directly after it applies the marks. The URL that you copy or bookmark is thus the plain one. A reload of the page does not put the marks back.
 
-In one case OMN-Go marks nothing. A term that matched only on a lower
-rung, such as `fecth` for `fetch`, is not in the note in the form you
-typed. There is thus nothing to mark. The result list has already shown
-you the lines that matched.
+In one case OMN-Go marks nothing. A term that matched only on a lower rung, such as `fecth` for `fetch`, is not in the note in the form you typed. There is thus nothing to mark. The result list has already shown you the lines that matched.
 
 ### What it costs
 
-Page search costs nothing. Global search keeps the search index in memory.
-The index is approximately half the size of the text it covers, which is
-about 3 MB for 2000 notes. The Config page shows the current figure. On a
-device with little memory, keep global search disabled. Page search works
-in both cases.
+Page search costs nothing. Global search keeps the search index in memory. The index is approximately half the size of the text it covers, which is about 3 MB for 2000 notes. The Config page shows the current figure. On a device with little memory, keep global search disabled. Page search works in both cases.
 
-There are two limits. First, OMN-Go searches only the first 500 KiB of a
-very large file. The results say so when this happens. Second, OMN-Go
-cannot link directly to some sections. Examples are a heading in a
-non-Latin script, and a heading that contains a link, code or a formula.
+There are two limits. First, OMN-Go searches only the first 500 KiB of a very large file. The results say so when this happens. Second, OMN-Go cannot link directly to some sections. Examples are a heading in a non-Latin script, and a heading that contains a link, code or a formula.
 
-These results still name the section. They open the page at the top. This
-behavior is deliberate. OMN-Go does not make a link when the link can send
-you to the wrong place.
+These results still name the section. They open the page at the top. This behavior is deliberate. OMN-Go does not make a link when the link can send you to the wrong place.
 
 ## Theme
 
@@ -681,38 +569,71 @@ you save, the choice applies immediately to every page.
 
 ## Configuration reference
 
-The [Config](Config) page edits `config.json`. It has these fields:
+The [Config](Config) page edits `config.json`. The page puts the settings into six groups, and this reference uses the same groups and the same order.
+
+### General
+
+| Setting | Meaning |
+|---------|---------|
+| Author Name | OMN-Go writes this name into the `Author:` line of the header block of a new page. |
+| Theme | Auto / Light / Dark, see [Theme](#theme). |
+| Use Internal Editor | If you disable it, OMN-Go sends the files to an external editor. |
+| Desktop External Cmd | Editor command for the desktop application (for example `subl` or `code`). |
+
+### Network & Access
 
 | Setting | Meaning |
 |---------|---------|
 | Server Port | TCP port of the OMN-Go server (default `8080`). It takes effect after a restart. |
 | Admin Password | Full-access password for remote callers. |
 | Guest Password | Read-oriented password for remote callers. |
-| Author Name | OMN-Go writes this name into the `Author:` line of the header block of a new page. |
-| Theme | Auto / Light / Dark, see [Theme](#theme). |
-| Use Internal Editor | If you disable it, OMN-Go sends the files to an external editor. |
-| Desktop External Cmd | Editor command for the desktop application (for example `subl` or `code`). |
 | Share on LAN | Serve other devices, see [Sharing on the LAN](#sharing-on-the-lan). A change of this setting restarts the application. |
-| Hostname | Device label in the database backup filenames (see [Database backups](#database-backups)). The default is the OS hostname. On Android, set a short name like `phone`. |
+
+### DB Backups
+
+| Setting | Meaning |
+|---------|---------|
+| Hostname (device label) | Device label in the database backup filenames (see [Database backups](#database-backups)). The default is the OS hostname. On Android, set a short name like `phone`. |
 | Backup Prune Depth | How many backups to keep per database (default `3`). When you create a backup, OMN-Go deletes the oldest backups above this count. |
 | Max Upload Size (MB) | Largest image or JSON file that you can drag into the editor or share into the Quick Notes page (default `3`). |
+
+### Android Integration
+
+| Setting | Meaning |
+|---------|---------|
+| Fullscreen mode | Which system bars the Android application hides. *Off* shows the status bar. *Fullscreen* hides the status bar and is the default. *Immersive* hides the status bar and the navigation bar. Swipe from an edge to show them for a short time. The setting applies as soon as you save. |
+| Enable intent: links | Lets a note start Android `intent:` URIs when you press the link. Disabled by default. See [Android Intents & Termux](AndroidIntents). |
+| Enable Termux commands | Also lets notes run Termux shell commands. You must enable *Enable intent: links* too. Disabled by default. See [Android Intents & Termux](AndroidIntents). |
+
+These three settings do nothing on the desktop application and in a LAN browser.
+
+### Search
+
+Page search always operates and needs no setting. These settings control the global index only. See [Searching](#searching).
+
+| Setting | Meaning |
+|---------|---------|
+| Enable global search | Builds and holds the index of the whole storage. Disabled by default. The index is the one standing memory cost of OMN-Go, and it is about half the size of the text that it covers. |
+| Include in the index | What the index covers. *Notes* and *Bookmarks* are on by default. *Scripts (html/js)*, *JSON (html/json)* and *Uploaded JSON (html/user_json)* are off. |
+| Also index OMN-Go's own scripts | Adds the scripts that come with the application to the index. Disabled by default. They are several times the size of a normal note collection. |
+| Search in | Where a search starts. *All notes* is the default. *The open page only* starts each search on the page that you read. |
+| Index status | Not a setting. It tells what the index holds now. |
+
+### Git Sync
+
+| Setting | Meaning |
+|---------|---------|
 | Git Servers | Up to five git server slots, see [Git synchronization](#git-synchronization). |
-| Fullscreen mode (Android) | Which system bars the Android application hides. *Off* shows the status bar. *Fullscreen* hides the status bar and is the default. *Immersive* hides the status bar and the navigation bar. Swipe from an edge to show them for a short time. The setting applies as soon as you save. Android only. |
-| Enable intent: links (Android) | Lets a note start Android `intent:` URIs when you press the link. Disabled by default. Android only. See [Android Intents & Termux](AndroidIntents). |
-| Enable Termux commands (Android) | Also lets notes run Termux shell commands. You must enable *Enable intent: links* too. Disabled by default. See [Android Intents & Termux](AndroidIntents). |
 
-Two settings exist only in the file. `mime_types` holds the
-extension-to-content-type overrides. `force_pull_one_time` makes the next
-git sync do one forced pull. OMN-Go normally manages
-`force_pull_one_time`.
+### Settings that only the file holds
 
-`config.json` belongs to one device. OMN-Go never commits or synchronizes
-it. Each device keeps its own passwords, port and git keys.
+Two settings have no field on the page. `mime_types` holds the extension-to-content-type overrides. `force_pull_one_time` makes the next git sync do one forced pull. OMN-Go normally manages `force_pull_one_time`.
+
+`config.json` belongs to one device. OMN-Go never commits or synchronizes it. Each device keeps its own passwords, port and git keys.
 
 ## Git synchronization
 
-OMN-Go synchronizes the whole storage directory with a git remote over
-SSH.
+OMN-Go synchronizes the whole storage directory with a git remote over SSH.
 
 **Setup.**
 
@@ -758,9 +679,7 @@ automatically, a dialog gives three choices:
 
 ### Files that stay on this device
 
-Give a file or a directory a name that starts with `local-`. OMN-Go then
-keeps it out of git. The file stays on this device, and it does not go to
-the other devices.
+Give a file or a directory a name that starts with `local-`. OMN-Go then keeps it out of git. The file stays on this device, and it does not go to the other devices.
 
 | Name | Result |
 | --- | --- |
@@ -768,23 +687,13 @@ the other devices.
 | `md/local-drafts/Monday.md` | Each note in the directory stays here |
 | a database with the name `local-notes` | Each backup of it stays here |
 
-The rule looks at the name of the file and at the name of each directory
-above it. The name must **start** with `local-`, and the capitals count.
-A file with the name `mylocal-data.json` is thus a normal file that goes
-to the other devices.
+The rule looks at the name of the file and at the name of each directory above it. The name must **start** with `local-`, and the capitals count. A file with the name `mylocal-data.json` is thus a normal file that goes to the other devices.
 
-A file with such a name is also safe from **Force Pull**. That command
-deletes a local file that git does not track, but it keeps a file that
-`.gitignore` matches.
+A file with such a name is also safe from **Force Pull**. That command deletes a local file that git does not track, but it keeps a file that `.gitignore` matches.
 
-If you give the `local-` name to a file that the other devices already
-have, the next upload removes that file from git. The file stays on this
-device. The next download deletes the copy on each other device. The
-upload dialog shows the name of such a file before you write the commit
-message.
+If you give the `local-` name to a file that the other devices already have, the next upload removes that file from git. The file stays on this device. The next download deletes the copy on each other device. The upload dialog shows the name of such a file before you write the commit message.
 
-The older rule `/md/local/` stays. Each note in that one directory also
-stays on this device.
+The older rule `/md/local/` stays. Each note in that one directory also stays on this device.
 
 ## Send and receive one note
 
@@ -876,11 +785,7 @@ OMN-Go never deletes a received note. Delete the notes in `md/incoming/` yoursel
 
 ## Database backups
 
-A note script can store data in a real SQL database. See the
-[Database](Database) page for the API. These databases are outside git.
-OMN-Go does **not** synchronize them with your notes automatically. To
-move the contents of a database between devices, or to keep a copy, create
-a **backup**.
+A note script can store data in a real SQL database. See the [Database](Database) page for the API. These databases are outside git. OMN-Go does **not** synchronize them with your notes automatically. To move the contents of a database between devices, or to keep a copy, create a **backup**.
 
 1. Open the [Config](Config) page.
 2. Select **DB Backups**.
@@ -895,21 +800,11 @@ For each database you can then:
 - **Restore** — replaces a full database with a backup that you select. A
   confirmation dialog shows what you overwrite.
 
-A colored dot shows the state of each database (in sync, not backed up,
-backup newer, no backups, ...). A new device has no database file. On such
-a device, OMN-Go restores the newest backup automatically the first time a
-note opens the database. Two related settings are on the
-[Config](Config) page under **DB Backups**. **Hostname** labels this
-device in the backup filenames. **Backup Prune Depth** sets how many
-backups to keep per database.
+A colored dot shows the state of each database (in sync, not backed up, backup newer, no backups, ...). A new device has no database file. On such a device, OMN-Go restores the newest backup automatically the first time a note opens the database. Two related settings are on the [Config](Config) page under **DB Backups**. **Hostname** labels this device in the backup filenames. **Backup Prune Depth** sets how many backups to keep per database.
 
-OMN-Go backs up a database whose name starts with `local-` on the device,
-but keeps it out of git.
+OMN-Go backs up a database whose name starts with `local-` on the device, but keeps it out of git.
 
-To load data from an existing SQL dump, use the [SQL Import](SQLImport)
-note. Such a dump is a `sqlite3 .dump` file or old `websqldump.js` output.
-Then press **Backup now**. See the [Database](Database) page for the full
-reference.
+To load data from an existing SQL dump, use the [SQL Import](SQLImport) note. Such a dump is a `sqlite3 .dump` file or old `websqldump.js` output. Then press **Backup now**. See the [Database](Database) page for the full reference.
 
 ## The file index
 
@@ -981,7 +876,7 @@ Two things never come into the file index. The page templates are a part of OMN-
 
 Your notes are not in the Served tree. A note is not served from `html/`. Its page is, and that page says *compiled*.
 
-The page only reads. Nothing on the page deletes, moves or creates a file.
+The page deletes nothing and moves nothing. One action on it creates a file. The edit link of a row that says *not extracted* writes that file to the device at the moment you open the link.
 
 ## The Status page
 
@@ -1006,8 +901,7 @@ Press the button of the part that you want. A progress bar runs while OMN-Go rea
 
 ## Sharing on the LAN
 
-By default, the server answers **only this device**. With LAN sharing
-disabled, other devices cannot open a connection.
+By default, the server answers **only this device**. With LAN sharing disabled, other devices cannot open a connection.
 
 To share your notes on the local network:
 
@@ -1016,43 +910,26 @@ To share your notes on the local network:
 3. Save the configuration.
 4. Confirm the restart prompt.
 
-The application restarts to re-bind the server. The Android application
-closes. Open it again. On the desktop application, the page reloads by
-itself.
+The application restarts to re-bind the server. The Android application closes. Open it again. On the desktop application, the page reloads by itself.
 
-On Android, a **persistent notification** shows while LAN sharing is
-active. It gives the exact address that other devices must open, for
-example `http://192.168.1.5:8080`. It also has a **Stop** button. The
-first start with LAN sharing enabled asks for the notification permission
-and for an exemption from battery optimization. Grant both. If you do not,
-the server may not answer when the screen stays locked for some time.
+On Android, a **persistent notification** shows while LAN sharing is active. It gives the exact address that other devices must open, for example `http://192.168.1.5:8080`. It also has a **Stop** button. The first start with LAN sharing enabled asks for the notification permission and for an exemption from battery optimization. Grant both. If you do not, the server may not answer when the screen stays locked for some time.
 
-With LAN sharing disabled, OMN-Go shows no notification and asks for no
-permissions.
+With LAN sharing disabled, OMN-Go shows no notification and asks for no permissions.
 
-On another device, open the address in a browser. Log in with the guest
-password for read access, or with the admin password for full access.
+On another device, open the address in a browser. Log in with the guest password for read access, or with the admin password for full access.
 **Security note:** Any person on your network who has a password can
-access your notes. OMN-Go has no HTTPS. Use LAN sharing only on a trusted
-home network. Do not use it to publish on the internet.
+access your notes. OMN-Go has no HTTPS. Use LAN sharing only on a trusted home network. Do not use it to publish on the internet.
 
 ## Raw HTML and JavaScript in pages
 
-Markdown pages can contain raw HTML. The
-[icon](#material-icons-in-notes) and
-[button](#buttons-and-shortcuts-inside-a-page) examples above use raw
-HTML. Pages can also contain note scripts. The [Bookmarks](Bookmarks) page
-stores its data in a note script. Two rules keep note scripts correct. See
-[ScriptRules](ScriptRules) for details and examples:
+Markdown pages can contain raw HTML. The [icon](#material-icons-in-notes) and [button](#buttons-and-shortcuts-inside-a-page) examples above use raw HTML. Pages can also contain note scripts. The [Bookmarks](Bookmarks) page stores its data in a note script. Four rules keep note scripts correct. See [ScriptRules](ScriptRules) for details and examples:
 
-- Put your code in a block scope (`{ ... }` or an IIFE). Then the
-  variables of one page cannot collide with the note scripts of another
-  page, or with the scripts of OMN-Go.
-- The backend compiles the page one time and then caches it. The note
-  scripts run on every view, so make them idempotent.
+- Put your code in a block scope (`{ ... }` or an IIFE). Then the variables of one page cannot collide with the note scripts of another page, or with the scripts of OMN-Go.
+- Attach to `window` each function that an HTML `onclick` calls.
+- Write no empty line inside a `<script>` block. An empty line ends the HTML element that holds the block, and Markdown then reads the rest of the code as text.
+- The backend compiles the page one time and then caches it. The note scripts run on every view, so make them idempotent.
 
-Note scripts run with full access to the page. Put only note scripts that
-you understand and trust in your notes.
+Note scripts run with full access to the page. Put only note scripts that you understand and trust in your notes.
 
 ## Your own CSS and JavaScript
 

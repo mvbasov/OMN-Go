@@ -3,10 +3,7 @@ Date: 2026-08-06 12:00:00
 Category: Test
 Tags: JavaScript, DB, Test, OMN-Go, OMN-Go user
 
-The list below is inline data in this note (hand-editable, syncs with your
-notes). The ticks are ephemeral state in SQLite (`local-inline_demo`,
-per-device). This split — structure in the note, state in the database — is
-often the right answer for a checklist.
+The list below is inline data in this note (hand-editable, syncs with your notes). The ticks are ephemeral state in SQLite (`local-inline_demo`, per-device). This split — structure in the note, state in the database — is often the right answer for a checklist.
 
 <script>
 window.inlineTestItems = ['Buy milk', 'Write tests', 'Ship it'];

@@ -4,16 +4,14 @@ Category: Test
 Tags: JavaScript, Test, OMN-Go, OMN-Go user
 
 ### Live query string
-This page's own query string, parsed with `URLSearchParams` — open one of the
-links under "URL parameters" below and watch it update.
+This page's own query string, parsed with `URLSearchParams` — open one of the links under "URL parameters" below and watch it update.
 <pre id="result">
 ...
 </pre>
 
 - - -
 
-See [URI schemes test](UriSchemesTest) for `tel:`/`geo:`/`sms:`/`mailto:` links
-and the Android intent catalog.
+See [URI schemes test](UriSchemesTest) for `tel:`/`geo:`/`sms:`/`mailto:` links and the Android intent catalog.
 
 #### Anchor
 * [LinkTest#url-parameters](LinkTest#url-parameters)

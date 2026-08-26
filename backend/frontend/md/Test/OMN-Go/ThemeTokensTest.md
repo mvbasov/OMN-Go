@@ -3,23 +3,19 @@ Date: 2026-08-06 12:00:00
 Category: Test
 Tags: JavaScript, CSS, Test, OMN-Go, OMN-Go user
 
-Live swatches of the design tokens from `omn-go-core.css`. Flip the app's
-theme and reload to see these move — never hardcode a colour, use one of
-these instead.
+Live swatches of the design tokens from `omn-go-core.css`. Flip the app's theme and reload to see these move — never hardcode a colour, use one of these instead.
 
 <style>
 .tt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: 0.6rem;
-}
-.tt-swatch {
+} .tt-swatch {
   border: 1px solid var(--border-card);
   border-radius: 8px;
   padding: 0.5rem;
   font-size: 0.8em;
-}
-.tt-swatch code {
+} .tt-swatch code {
   display: block;
   font-size: 0.75em;
   color: var(--text-muted);

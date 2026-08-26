@@ -6,17 +6,9 @@ Tags: Android, Intent, Termux, OMN-Go, OMN-Go app
 
 # Android Intents & Termux
 
-On Android, a link or a button in a note can fire an Android **intent**. An
-intent can open a system Settings screen or start another application. An
-intent can also run a command in **Termux**, or scan a barcode into the Quick
-Notes page. Only the Android application supports this feature. The same links
-do nothing in the desktop application or in a LAN browser.
+On Android, a link or a button in a note can fire an Android **intent**. An intent can open a system Settings screen or start another application. An intent can also run a command in **Termux**, or scan a barcode into the Quick Notes page. Only the Android application supports this feature. The same links do nothing in the desktop application or in a LAN browser.
 
-Everything on this page is **off by default**. You enable it on the
-[Config](Config) page. You do not write every note yourself. A note can
-arrive by [git synchronization](UserManual#git-synchronization), or another
-device can edit the note over [LAN sharing](UserManual#sharing-on-the-lan). See
-[Security](#security) below.
+Everything on this page is **off by default**. You enable it on the [Config](Config) page. You do not write every note yourself. A note can arrive by [git synchronization](UserManual#git-synchronization), or another device can edit the note over [LAN sharing](UserManual#sharing-on-the-lan). See [Security](#security) below.
 
 ## Turning it on
 
@@ -27,20 +19,17 @@ On the [Config](Config) page, under **Android Integration**:
 - **Enable Termux commands** (`enable_termux_intent`) — this switch also
   permits the Termux path. The master switch must be on as well.
 
-Both switches stay off until you enable them. A change applies at the next
-press. You do not restart the application.
+Both switches stay off until you enable them. A change applies at the next press. You do not restart the application.
 
 ## A first example: Wi-Fi settings
 
-An intent link is a Markdown link with an `intent:` URI as its address. This
-link opens the Wi-Fi settings of the device:
+An intent link is a Markdown link with an `intent:` URI as its address. This link opens the Wi-Fi settings of the device:
 
 ```
 [Open Wi-Fi settings](intent:#Intent;action=android.settings.WIFI_SETTINGS;end)
 ```
 
-Try it. This link needs *Enable intent: links* on:
-[Open Wi-Fi settings](intent:#Intent;action=android.settings.WIFI_SETTINGS;end)
+Try it. This link needs *Enable intent: links* on: [Open Wi-Fi settings](intent:#Intent;action=android.settings.WIFI_SETTINGS;end)
 
 A note renders raw HTML, so you can also write the link as a button:
 
@@ -54,9 +43,7 @@ A note renders raw HTML, so you can also write the link as a button:
   <i class="material-icons">wifi</i> Wi-Fi settings
 </button></a>
 
-The `action=` part names the task. `android.settings.WIFI_SETTINGS` opens the
-Wi-Fi screen directly. The wider `android.settings.WIRELESS_SETTINGS` opens the
-full network and wireless screen.
+The `action=` part names the task. `android.settings.WIFI_SETTINGS` opens the Wi-Fi screen directly. The wider `android.settings.WIRELESS_SETTINGS` opens the full network and wireless screen.
 
 ## More Settings screens
 
@@ -69,21 +56,28 @@ Replace the `action=` value with one of these values:
 [Device info](intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end)
 ```
 
+Renders to:
+
+[Bluetooth](intent:#Intent;action=android.settings.BLUETOOTH_SETTINGS;end)
+[NFC](intent:#Intent;action=android.settings.NFC_SETTINGS;end)
+[Location](intent:#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end)
+[Device info](intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end)
+
 ## Launching apps
 
-An `intent:` URI can also address another application. If no installed
-application can handle the intent, Android opens the optional
-`S.browser_fallback_url` extra instead. Percent-encode the value of this extra,
-so that it does not break the URI:
+An `intent:` URI can also address another application. If no installed application can handle the intent, Android opens the optional `S.browser_fallback_url` extra instead. Percent-encode the value of this extra, so that it does not break the URI:
 
 ```
 [Open a page](intent://example.com#Intent;scheme=https;S.browser_fallback_url=https%3A%2F%2Fexample.com;end)
 ```
 
+Renders to:
+
+[Open a page](intent://example.com#Intent;scheme=https;S.browser_fallback_url=https%3A%2F%2Fexample.com;end)
+
 ## Opening a file on the device
 
-A note can open a photo, a PDF or any other file that is already on the device.
-The address needs three parts:
+A note can open a photo, a PDF or any other file that is already on the device. The address needs three parts:
 
 - `intent:///` and then the absolute path. **Three slashes.** Two of them
   belong to the URI, and the third is the start of the path. With two slashes,
@@ -105,20 +99,13 @@ A PDF:
 [Open the PDF](intent:///storage/emulated/0/DCIM/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;end)
 ```
 
-Both links open the application that you use for that type of file. If you set
-no default application, Android shows the list of the applications that can do
-it.
+Both links open the application that you use for that type of file. If you set no default application, Android shows the list of the applications that can do it.
 
 ### Such a link stays on one device
 
-The address is a path on this device. The file at the end of it is **outside**
-OMN-Go, and OMN-Go carries only what is inside its own storage directory.
+The address is a path on this device. The file at the end of it is **outside** OMN-Go, and OMN-Go carries only what is inside its own storage directory.
 
-Git synchronization thus moves the note and not the file. On your second
-device the same link opens nothing, because the path is possibly not there. It
-is worse when the path IS there and holds a different file. The link then opens
-the wrong file and says nothing about it. A note that you send to a different
-person has the same fault.
+Git synchronization thus moves the note and not the file. On your second device the same link opens nothing, because the path is possibly not there. It is worse when the path IS there and holds a different file. The link then opens the wrong file and says nothing about it. A note that you send to a different person has the same fault.
 
 Two results come from this:
 
@@ -130,42 +117,27 @@ Two results come from this:
   [Text files beside your notes](UserManual#text-files-beside-your-notes). Not
   each directory of the storage travels. `html/images/` does not, for example.
 
-The desktop application and a LAN browser do nothing with an intent link at
-all. This is by design: only the Android application has a share sheet and
-other applications to open.
+The desktop application and a LAN browser do nothing with an intent link at all. This is by design: only the Android application has a share sheet and other applications to open.
 
 ### One named application
 
-Add `package=` to send the file to one application and to no other. This
-example uses [Aves Libre](https://f-droid.org/packages/deckers.thibault.aves.libre/),
-an open-source gallery:
+Add `package=` to send the file to one application and to no other. This example uses [Aves Libre](https://f-droid.org/packages/deckers.thibault.aves.libre/), an open-source gallery:
 
 ```
 [Open in Aves Libre](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;package=deckers.thibault.aves.libre;end)
 ```
 
-A link with `package=` shows *No app can handle this link* when that
-application is not installed, or when it is installed but does not accept a
-`file:` address of that type. A link without `package=` is thus the better
-choice for a note that you send to a different person.
+A link with `package=` shows *No app can handle this link* when that application is not installed, or when it is installed but does not accept a `file:` address of that type. A link without `package=` is thus the better choice for a note that you send to a different person.
 
 ### To find the name of an application
 
-Write the link **without** `package=` and follow it one time. Android shows
-the list of every application that can open that file. This list is the
-answer: an application in it can do the work, and an application that is not
-in it cannot.
+Write the link **without** `package=` and follow it one time. Android shows the list of every application that can open that file. This list is the answer: an application in it can do the work, and an application that is not in it cannot.
 
-Then add `package=` for the one that you want. To read the name of an
-installed application, open *Settings*, then *Apps*, then that application.
-Some devices show the name at the bottom of the page of the application. A
-file manager also shows the name in the properties of the APK file.
+Then add `package=` for the one that you want. To read the name of an installed application, open *Settings*, then *Apps*, then that application. Some devices show the name at the bottom of the page of the application. A file manager also shows the name in the properties of the APK file.
 
 ### A file manager as the opener
 
-Some applications accept only a `content:` address, which a note cannot
-write. A file manager is the way through in that case: send the file to the
-file manager, and open it from there.
+Some applications accept only a `content:` address, which a note cannot write. A file manager is the way through in that case: send the file to the file manager, and open it from there.
 
 These three are open-source and are in F-Droid:
 
@@ -179,8 +151,7 @@ com.amaze.filemanager       Amaze File Manager
 [Open with Ghost Commander](intent:///storage/emulated/0/DCIM/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;package=com.ghostsq.commander;end)
 ```
 
-Try the link without `package=` first. A file manager is only necessary when
-no viewer of yours takes the file directly.
+Try the link without `package=` first. A file manager is only necessary when no viewer of yours takes the file directly.
 
 ### Types for other files
 
@@ -204,27 +175,17 @@ audio/mpeg   video/mp4
 
 ## Scanning a barcode into Quick Notes
 
-A link can start a scanner and wait for the result. OMN-Go then puts the result
-into a review dialog. You can edit the result before you save it to the
-[Quick Notes](QuickNotes) page. This example uses
-[Binary Eye](https://f-droid.org/en/packages/de.markusfisch.android.binaryeye/),
-an open-source scanner:
+A link can start a scanner and wait for the result. OMN-Go then puts the result into a review dialog. You can edit the result before you save it to the [Quick Notes](QuickNotes) page. This example uses [Binary Eye](https://f-droid.org/en/packages/de.markusfisch.android.binaryeye/), an open-source scanner:
 
 ```
 [Scan a code](intent:#Intent;action=com.google.zxing.client.android.SCAN;package=de.markusfisch.android.binaryeye;S.omngo_capture_extra=SCAN_RESULT;end)
 ```
 
-`S.omngo_capture_extra=SCAN_RESULT` is the marker of OMN-Go. It tells OMN-Go to
-start the intent for a result, and then to paste back the extra with the name
-`SCAN_RESULT`. After the scan, the Quick Note dialog opens with the decoded
-text. You review the text and save it. If you cancel the scan, nothing happens.
-This example needs only *Enable intent: links* and does not use Termux.
+`S.omngo_capture_extra=SCAN_RESULT` is the marker of OMN-Go. It tells OMN-Go to start the intent for a result, and then to paste back the extra with the name `SCAN_RESULT`. After the scan, the Quick Note dialog opens with the decoded text. You review the text and save it. If you cancel the scan, nothing happens. This example needs only *Enable intent: links* and does not use Termux.
 
 ## Termux integration
 
-With Termux installed and **Enable Termux commands** on, a note can run a shell
-command. This runs code on your device. The Termux path therefore always shows
-a **confirmation dialog** before the command runs.
+With Termux installed and **Enable Termux commands** on, a note can run a shell command. This runs code on your device. The Termux path therefore always shows a **confirmation dialog** before the command runs.
 
 ### Prerequisites
 
@@ -256,16 +217,13 @@ The parts:
 
 ### Passing arguments (the `?` and `&` convention)
 
-An intent URI cannot carry a list. Therefore you **pack the arguments into the
-path**. Put a `?` after the program. Separate the arguments with `&`. Write a
-space *inside* one argument as `%20`:
+An intent URI cannot carry a list. Therefore you **pack the arguments into the path**. Put a `?` after the program. Separate the arguments with `&`. Write a space *inside* one argument as `%20`:
 
 ```
 S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/bash?-c&echo%20hello%20world
 ```
 
-This runs `bash -c "echo hello world"` with two arguments, `-c` and
-`echo hello world`. There are two rules:
+This runs `bash -c "echo hello world"` with two arguments, `-c` and `echo hello world`. There are two rules:
 
 - Only the **first** `?` splits the program from the arguments. An argument can
   therefore contain a `?`.
@@ -285,15 +243,11 @@ B.com.termux.RUN_COMMAND_BACKGROUND=true
 - **Foreground** (`false`) opens a visible Termux terminal session. Termux
   returns the output as one combined transcript.
 
-If you ask OMN-Go to capture output (see below) and you do not set this switch,
-OMN-Go uses **background**. The capture then works correctly. Set the switch to
-`false` if you want the terminal to open.
+If you ask OMN-Go to capture output (see below) and you do not set this switch, OMN-Go uses **background**. The capture then works correctly. Set the switch to `false` if you want the terminal to open.
 
 ### Capturing command output
 
-Add the `S.omngo_capture_output` marker of OMN-Go to paste the output of a
-command into the Quick Note review dialog. The value of the marker selects the
-stream:
+Add the `S.omngo_capture_output` marker of OMN-Go to paste the output of a command into the Quick Note review dialog. The value of the marker selects the stream:
 
 - `stdout` (the default) — standard output
 - `stderr` — error output (separate in background mode only)
@@ -303,10 +257,7 @@ stream:
 [Kernel info](intent:#Intent;action=com.termux.RUN_COMMAND;component=com.termux/.app.RunCommandService;S.com.termux.RUN_COMMAND_LABEL=Kernel%20info;S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/uname?-a;S.omngo_capture_output=stdout;end)
 ```
 
-Press the link and confirm. Termux then runs `uname -a` in the background. The
-output fills the Quick Note dialog. You review the output and save it. If the
-command fails, OMN-Go adds an `exit code: N` line. A successful (zero) exit adds
-nothing.
+Press the link and confirm. Termux then runs `uname -a` in the background. The output fills the Quick Note dialog. You review the output and save it. If the command fails, OMN-Go adds an `exit code: N` line. A successful (zero) exit adds nothing.
 
 Try it. This example needs Termux and both switches on:
 
@@ -316,20 +267,11 @@ Try it. This example needs Termux and both switches on:
 
 ## Security
 
-Both switches are **off by default**. The Termux path needs three more things.
-Termux must be installed. You must grant the Termux permission. You must confirm
-each command. The two switches, the permission and the confirmation make four
-independent consents before a note can run anything.
+Both switches are **off by default**. The Termux path needs three more things. Termux must be installed. You must grant the Termux permission. You must confirm each command. The two switches, the permission and the confirmation make four independent consents before a note can run anything.
 
-A link that opens a file gives one path to one other application. It gives no
-new permission to OMN-Go and none to the other application: an application that
-may not read a file still may not read it. What the link does is let Android
-pass the path instead of stopping OMN-Go for passing it.
+A link that opens a file gives one path to one other application. It gives no new permission to OMN-Go and none to the other application: an application that may not read a file still may not read it. What the link does is let Android pass the path instead of stopping OMN-Go for passing it.
 
-A note is not always your own note. A note can arrive by git synchronization.
-Another device can edit a note over LAN sharing. OMN-Go never saves a captured
-result silently. A captured result always goes into a dialog that you review
-first. Leave Termux off unless you write all of your notes yourself.
+A note is not always your own note. A note can arrive by git synchronization. Another device can edit a note over LAN sharing. OMN-Go never saves a captured result silently. A captured result always goes into a dialog that you review first. Leave Termux off unless you write all of your notes yourself.
 
 ## Troubleshooting
 

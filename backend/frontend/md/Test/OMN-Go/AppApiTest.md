@@ -3,8 +3,7 @@ Date: 2026-08-06 12:00:00
 Category: Test
 Tags: JavaScript, Test, OMN-Go, OMN-Go user
 
-App-level JS a page can call: progress overlay, forced refresh, search-style
-highlighting.
+App-level JS a page can call: progress overlay, forced refresh, search-style highlighting.
 
 <button id="aatProgress">Show progress overlay</button>
 <button id="aatRefresh">refreshPage()</button>

@@ -11,18 +11,15 @@ Bundled Material Icons (no network needed) — `<i class="material-icons">name</
   grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: 0.75rem;
   text-align: center;
-}
-.icons-test-item {
+} .icons-test-item {
   background: var(--bg-surface);
   border: 1px solid var(--border-card);
   border-radius: 8px;
   padding: 0.6rem 0.25rem;
-}
-.icons-test-item .material-icons { 
+} .icons-test-item .material-icons {
   font-size: 1.8rem;
   color: var(--accent);
-}
-.icons-test-item .icons-test-name {
+} .icons-test-item .icons-test-name {
   display: block;
   font-size: 0.75em;
   color: var(--text-muted);

@@ -6,8 +6,7 @@ Tags: OMN-Go, OMN-Go user
 
 <!--
   Good job, you have opened the editor.
-This is the .md source
-that will be compiled to .html
+This is the .md source that will be compiled to .html
   Also the User Manual has a lot of useful stuff.
   The two buttons below are ordinary links. Delete the <div> block if you
 do not want them.

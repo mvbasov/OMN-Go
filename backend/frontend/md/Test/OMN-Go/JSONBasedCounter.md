@@ -43,9 +43,7 @@ async function incrementServerCounter(filename) {
     display.innerHTML += `Error: ${error.message}`;
     throw error;
   }
-}
-// Usage: call 
-incrementServerCounter('local-counter.json');
+} // Usage: call incrementServerCounter('local-counter.json');
 </script>
 
 - - -

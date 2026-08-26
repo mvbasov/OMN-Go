@@ -29,6 +29,20 @@ See [Android Intents](../../AndroidIntents) for details
 * [Location](intent:#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end)
 * [Device info](intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end)
 
+#### Open a file with another program (only Android)
+
+The two links below hold a path that is an example. Open the page in the editor and put the path of a file that is on your device before you press the link.
+
+* [Picture with Aves Libre](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;package=deckers.thibault.aves.libre;end)
+* [PDF with the system chooser](intent:///storage/emulated/0/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;end)
+
+The next link needs no edit. `favicon.ico` is in the storage directory of OMN-Go, thus it is on each device that runs the standard build. The F-Droid build has `net.basov.omngo.fdroid` in that path.
+
+* [(GitHub) OMN-Go favicon with the system chooser](intent:///storage/emulated/0/Android/media/net.basov.omngo/html/favicon.ico#Intent;scheme=file;action=android.intent.action.VIEW;type=image/x-icon;end)
+* [(F-Droid) OMN-Go favicon with the system chooser](intent:///storage/emulated/0/Android/media/net.basov.omngo.fdroid/html/favicon.ico#Intent;scheme=file;action=android.intent.action.VIEW;type=image/x-icon;end)
+
+A link with `package=` says *No app can handle this link* when that application is not on the device. Remove `package=` to see each application that can open the file.
+
 - - -
 
 <span id="local_counter">...</span>.
