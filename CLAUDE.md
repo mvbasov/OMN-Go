@@ -78,6 +78,7 @@ Do not remove a constraint without an instruction from the maintainer.
 | `fastlane/metadata/android/en-US/` | Store metadata and `changelogs/<versionCode>.txt`. Each changelog line starts with `•`. |
 | `metadata/` | `net.basov.omngo.fdroid.yml`, the F-Droid build recipe. |
 | `doc/` | Maintainer documents. `API.md` holds the endpoint reference. `TERMINOLOGY.md` holds the controlled vocabulary. `initial_prompt.md` holds the historical origin prompt. |
+| `CLAUDE.md` | This document. The Docker context excludes it. |
 
 The repository does not hold `go.sum`, `output-binaries/`, `data/`, `.env`, or keystores.
 
@@ -90,9 +91,6 @@ Two statements in the tree are wrong. Do not trust them.
 * Some comments name `CODE_REVIEW.md`, `claude/note-exchange-plan.md`, and
   `claude/tags-page-plan.md`. These files do not exist, and git history has no record
   of them. They were AI session notes. Do not look for them.
-
-`local/update_script.py` and `local/initial/project_setup_script.py` are obsolete.
-The maintainer will delete them. Do not use them.
 
 ---
 
@@ -250,7 +248,7 @@ The maintainer will delete them. Do not use them.
   `chore`, `doc`, `tool`.
 * Common scopes: `android`, `sync`, `git`, `core`, `ui`, `f-droid`, `build`,
   `search`, `test`, `editor`, `frontend`, `gitlab`, `github`, `markdown`, `exchange`,
-  `config`, `db`.
+  `config`, `db`, `ai`.
 * Commit messages follow the vocabulary in `doc/TERMINOLOGY.md`.
 * `master` is the working branch.
 * The maintainer commits to `master` directly.
@@ -338,3 +336,6 @@ release notes, and the commit messages.
 5. Bump the version in each commit. See section 6.
 6. Do not create a tag.
 7. Write each document and commit message in Simplified Technical English.
+8. **Never push to the repository. Never commit.** The maintainer applies each change.
+9. Give each change as a unified diff for `git apply`.
+10. Give a short commit message together with the patch. Use the format in section 7.
