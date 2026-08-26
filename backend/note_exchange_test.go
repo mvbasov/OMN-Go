@@ -203,13 +203,15 @@ func TestImportNote(t *testing.T) {
 		t.Fatalf("landed at %+v", res)
 	}
 
-	// FileName: is gone, because the note no longer lives there. Imported:
-	// is added. The sender's Date: and Modified: are facts about their note
+	// FileName: stays, and holds the name the note had on the device of the
+	// sender. It says which note this copy is a copy of. Imported: is added
+	// after it. The sender's Date: and Modified: are facts about their note
 	// and are untouched.
 	want := "Title: Weekly plan\n" +
 		"Date: 2026-08-01 09:00:00\n" +
 		"Modified: 2026-08-02 10:00:00\n" +
 		"Category: Notes\n" +
+		"FileName: project/Sub/WeeklyPlan\n" +
 		"Imported: 2026-08-09 12:34:56\n" +
 		"\nThe body.\n"
 	if got := incomingFile(t, a, "project/Sub/WeeklyPlan.md"); got != want {
@@ -295,7 +297,7 @@ func TestImportNoteNormalizesNewlines(t *testing.T) {
 	if _, err := a.importNote([]byte(crlf), "", testNow); err != nil {
 		t.Fatal(err)
 	}
-	want := "Title: T\nImported: 2026-08-09 12:34:56\n\nbody\n"
+	want := "Title: T\nFileName: CR/Note\nImported: 2026-08-09 12:34:56\n\nbody\n"
 	if got := incomingFile(t, a, "CR/Note.md"); got != want {
 		t.Errorf("CRLF note:\n got  %q\n want %q", got, want)
 	}
@@ -398,8 +400,8 @@ func TestExportNoteSource(t *testing.T) {
 }
 
 // A -> B -> C. The second import must REPLACE the Imported: line, not add a
-// second one, and the second export must replace FileName: rather than let
-// two of them travel.
+// second one, and the second export must replace the FileName: that the
+// first import kept, rather than let two of them travel.
 func TestExportImportTwoHops(t *testing.T) {
 	a := newTestApp(t)
 	dir := filepath.Join(a.StorageDir, "md", "project", "Sub")
@@ -436,8 +438,14 @@ func TestExportImportTwoHops(t *testing.T) {
 	if !strings.Contains(got, "Imported: 2026-08-09 13:34:56") {
 		t.Errorf("Imported: is not the latest hop:\n%s", got)
 	}
-	if strings.Contains(got, "FileName:") {
-		t.Errorf("FileName: survived an import:\n%s", got)
+	// FileName: survives the import and names where hop 2 came from, which
+	// is the name the note had after hop 1. One line, not two: the export
+	// of hop 2 replaced the line that the import of hop 1 kept.
+	if n := strings.Count(got, "FileName:"); n != 1 {
+		t.Errorf("%d FileName: lines after two hops, want 1:\n%s", n, got)
+	}
+	if !strings.Contains(got, "FileName: "+hop1.Name) {
+		t.Errorf("FileName: does not name the previous hop %q:\n%s", hop1.Name, got)
 	}
 	if !strings.Contains(got, "Date: 2026-01-01 00:00:00") ||
 		!strings.Contains(got, "Original body.") {

@@ -242,10 +242,19 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 		return importResult{}, fmt.Errorf("the note is empty")
 	}
 
-	// FileName: is taken, not read: it names where the note came FROM, and
-	// the note is about to live somewhere else. Leaving it in would be a
-	// line that lies about the file it sits in.
-	original, src := takeHeaderKey(src, headerKeyFileName)
+	// FileName: is read and kept, not taken. It names where the note came
+	// FROM. That is a fact the reader can use. It tells which note on which
+	// device this copy is a copy of. A name that says
+	// "project/Sub/WeeklyPlan" says more than "incoming" alone.
+	//
+	// The line thus does not name the file that holds it. That costs
+	// nothing, because no code reads FileName: from a note on disk. The
+	// import reads it here, from the bytes that arrived. The export sets
+	// it (exportNoteSource -> setHeaderKey), and setHeaderKey replaces the
+	// line that is there. A note that arrives, stays, and goes out again
+	// thus leaves with the name it has HERE, and carries one FileName:
+	// line, not two.
+	original, _ := headerValue(src, headerKeyFileName)
 
 	rel := sanitizeImportPath(original)
 	if rel == "" {

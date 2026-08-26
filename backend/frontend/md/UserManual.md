@@ -720,7 +720,7 @@ These two controls show only on a note. A view with no Markdown source behind it
 
 **The name of the file.** OMN-Go makes one flat name from the full name of the note. The note `project/Sub/WeeklyPlan` becomes `project-Sub-WeeklyPlan.md`. Two notes that have the same short name are thus two different attachments in one message.
 
-**The `FileName:` line.** OMN-Go writes the full name of the note into the header of the file that it sends. The receiver reads this line and puts the note into the same directory structure. The line is only in the file that travels. Your own note does not change.
+**The `FileName:` line.** OMN-Go writes the full name of the note into the header of the file that it sends. The receiver reads this line and puts the note into the same directory structure. Your own note does not change, because an export only reads it.
 
 ### A message with the file
 
@@ -766,7 +766,9 @@ Each received note goes below `md/incoming/`. That directory is the root for the
 
 **A received note never writes over one of your notes.** OMN-Go adds an index to a name that is already in use. The names are `WeeklyPlan-2`, then `WeeklyPlan-3`.
 
-OMN-Go removes the `FileName:` line and adds an `Imported:` line that holds the date and the time of the import. The `Date:` and `Modified:` lines are facts about the note of the sender, thus they stay as they are.
+OMN-Go keeps the `FileName:` line and adds an `Imported:` line that holds the date and the time of the import. The `Date:` and `Modified:` lines are facts about the note of the sender, thus they stay as they are.
+
+The `FileName:` line of a received note names the note on the device of the sender. It thus does not name the file that holds it here. It tells you which note this copy is a copy of. When you send the note on, OMN-Go writes the name that the note has on your device over that line. One note in flight carries one `FileName:` line.
 
 OMN-Go puts a link to the new note at the top of the list on the [Incoming notes](incoming/incoming) note. The newest note is the first one in the list.
 
