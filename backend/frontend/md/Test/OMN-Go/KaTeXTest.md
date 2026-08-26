@@ -4,7 +4,7 @@ Category: Test
 Tags: KaTeX, Test, OMN-Go, OMN-Go user
 
 <!-- OMN_GO_KATEX must stay a bare top-level global: omn-go-core.js reads
-     this exact name to decide whether to load KaTeX. Don't wrap it. -->
+     this exact name to decide whether to load KaTeX. Do not wrap it. -->
 <script>var OMN_GO_KATEX=true;</script>
 
 #### The simplest test

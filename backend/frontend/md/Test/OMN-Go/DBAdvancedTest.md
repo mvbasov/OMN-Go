@@ -41,8 +41,8 @@ Split out of [DB test](DBTest) — the basic `db.exec` counter lives there.
 <script type="module">
 {
     // Old-style OMN note scripts using window.openDatabase keep working.
-    // Self-sufficient: creates/seeds the same table the batch demo above
-    // uses, so this section works even if that one hasn't run yet.
+    // Self-sufficient: this code creates and fills the same table as the
+    // batch demo above. This section works before that demo runs.
     const wdb = openDatabase('local-dbtest_extras', '1.0', 'DB test extras', 1);
     wdb.transaction((tx) => {
         tx.executeSql('CREATE TABLE IF NOT EXISTS pair (k TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0)');

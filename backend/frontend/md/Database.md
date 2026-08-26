@@ -85,8 +85,8 @@ await db.batch([
     ['UPDATE items SET done = 1 WHERE id = ?', [3]],
     ['INSERT INTO log (message) VALUES (?)', ['Completed item 3']]
 ]);
-// Either both rows changed, or (e.g. if the "log" table doesn't
-// exist) neither did - the UPDATE above is rolled back too.
+// Both rows change together, or no row changes. An absent "log"
+// table also rolls back the UPDATE above.
 ```
 
 `db.exec()` on its own is also atomic, because it is a batch of one statement. For that reason alone, a single `INSERT` or `UPDATE` never needs `batch()`. Use `batch()` when two or more statements must succeed together or fail together.

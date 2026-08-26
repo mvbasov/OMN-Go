@@ -36,7 +36,7 @@ See [URI schemes test](UriSchemesTest) for `tel:`/`geo:`/`sms:`/`mailto:` links 
     const result = {};
     for (const [key, value] of params.entries()) {
       if (result.hasOwnProperty(key)) {
-        // If it's already an array, push the new value
+        // Add the new value when the value is already an array.
         if (Array.isArray(result[key])) {
           result[key].push(value);
         } else {
