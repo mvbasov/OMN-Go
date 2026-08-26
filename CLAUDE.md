@@ -242,8 +242,33 @@ Two statements in the tree are wrong. Do not trust them.
 
 ## 7. Commits and branches
 
-* Commit message format: `type(scope): Sentence. vYY.MM.NN`
-* Example: `feat(sync): add force and abort options to the push dialog. Remove the force checkbox from the header. v26.08.58`
+### Commit message format
+
+A commit message has three parts: a subject line, one empty line, and a list of
+the changes.
+
+1. Subject line: `type(scope): Sentence. vYY.MM.NN`. Write **at most 80
+   characters**, the version included.
+2. One empty line.
+3. One `-` bullet for each change. Write one change in one bullet. Put a period
+   at the end of each bullet.
+
+Write the subject line and each bullet in Simplified Technical English. See
+section 10.
+
+```
+docs(manual): Fix and improve manual. v26.08.60
+
+- Fix four wrong statements, add the script empty-line rule.
+- Group the configuration table into the same six parts as the Config page.
+- Reflow every bundled note to one line for each paragraph.
+```
+
+A commit that makes one small change can have one bullet. A commit that needs no
+list at all still needs the subject line.
+
+### Types, scopes and branches
+
 * Types in use, most frequent first: `fix`, `feat`, `build`, `refactor`, `release`,
   `chore`, `doc`, `tool`.
 * Common scopes: `android`, `sync`, `git`, `core`, `ui`, `f-droid`, `build`,
