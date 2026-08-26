@@ -3,6 +3,7 @@ package backend
 import (
 	"net"
 	"net/http"
+	"strings"
 )
 
 func (a *App) isLocalConnection(r *http.Request) bool {
@@ -39,8 +40,75 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 		// The log stream does this (see logger.go).
 		w.Header().Set("Cache-Control", "no-cache")
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(&pageCacheWriter{ResponseWriter: w}, r)
 	})
+}
+
+// pageCacheWriter changes "no-cache" to "no-store" for a page, and for a
+// page only. It is the second half of the one cache decision above.
+//
+// "no-cache" is enough for a normal load. Chromium keeps the copy, asks
+// the server, and gets the new page. A BACK or FORWARD load is different:
+// Chromium reads the copy and does not ask the server at all. The page
+// that OMN-Go changed while the page waited in the history thus comes
+// back in its old form. The + button shows this: it writes a link into
+// the page you started from, and Back then showed that page with no link
+// until a second Back or a refresh.
+//
+// "no-store" is the only word that stops it. Chromium keeps no copy, thus
+// Back has nothing to read and must ask the server.
+//
+// The rule covers a page and not an asset on purpose. KaTeX, highlight.js
+// and the fonts are hundreds of kilobytes, and "no-store" on them would
+// fetch that weight again for each page that you open.
+//
+// Two conditions guard the change, and each one keeps an existing rule:
+//
+//   - The response says "text/html". Each page handler sets this type
+//     (serveHTMLPage, serveConfigPage, serveTagsPage, serveSearchPage,
+//     serveFilesPage, serveStatusPage, serveDBBackupsPage, and the
+//     editor). No asset does.
+//   - Cache-Control still holds the "no-cache" from above. A handler that
+//     wrote its own words keeps them, which is what logger.go needs.
+type pageCacheWriter struct {
+	http.ResponseWriter
+	decided bool
+}
+
+// decide runs one time, at the moment the header goes out. Write also
+// calls it, because a handler that writes a body with no WriteHeader
+// sends the header at that moment.
+func (w *pageCacheWriter) decide() {
+	if w.decided {
+		return
+	}
+	w.decided = true
+	if w.Header().Get("Cache-Control") != "no-cache" {
+		return
+	}
+	if !strings.HasPrefix(w.Header().Get("Content-Type"), "text/html") {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+func (w *pageCacheWriter) WriteHeader(status int) {
+	w.decide()
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *pageCacheWriter) Write(b []byte) (int, error) {
+	w.decide()
+	return w.ResponseWriter.Write(b)
+}
+
+// Flush keeps the log stream alive. logger.go asks the writer for
+// http.Flusher, and a wrapper with no Flush would fail that question and
+// hold each line until the response ends.
+func (w *pageCacheWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // ActiveConnCount returns the current number of in-flight requests.
