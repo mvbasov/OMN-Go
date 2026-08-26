@@ -143,8 +143,8 @@ type sqlResult struct {
 }
 
 type sqlResponse struct {
-	Status  string      `json:"status"`
-	Message string      `json:"message,omitempty"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
 	// Index of the statement that failed (only with status "error" when a
 	// specific statement, rather than the request itself, was at fault).
 	FailedStatement *int        `json:"failed_statement,omitempty"`
