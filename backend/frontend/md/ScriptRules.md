@@ -38,7 +38,7 @@ window.doSomething = function() {
 
 ### Rule 3: Write no empty line inside a `<script>` block
 
-A note is Markdown, and Markdown ends an HTML block at the first empty line. A `<script>` block at the top level of the note survives an empty line. A `<script>` block **inside another HTML element** does not. The empty line ends the element, and Markdown then reads the rest of your code as text. The page loses the code and shows a part of it on the screen.
+A note is Markdown, and Markdown ends an HTML block at the first empty line. An empty line does no damage to a `<script>` block at the top level of the note. An empty line breaks a `<script>` block **inside another HTML element**. The empty line ends that element. Markdown then reads the rest of your code as text. The page loses the code and shows a part of it on the screen.
 
 This note script is inside a `<div>`, and the empty line breaks it:
 
@@ -67,7 +67,7 @@ let b = 2;
 
 Use a comment line, `//`, where you want to separate two parts of the code. A comment line is not an empty line.
 
-The same rule covers a `<style>` block and each other HTML element that holds more than one line.
+The same rule applies to a `<style>` block. It applies to each other HTML element that holds more than one line.
 
 ### See also
 

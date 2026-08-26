@@ -31,7 +31,7 @@ See [Android Intents](../../AndroidIntents) for details
 
 #### Open a file with another program (only Android)
 
-The two links below hold a path that is an example. Open the page in the editor and put the path of a file that is on your device before you press the link.
+The two links below hold an example path. Open the page in the editor. Put in the path of a file that is on your device. Then press the link.
 
 * [Picture with Aves Libre](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;package=deckers.thibault.aves.libre;end)
 * [PDF with the system chooser](intent:///storage/emulated/0/Documents/001.pdf#Intent;scheme=file;action=android.intent.action.VIEW;type=application/pdf;end)

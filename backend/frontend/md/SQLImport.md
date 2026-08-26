@@ -8,7 +8,7 @@ Tags: Database, SQL, OMN-Go, OMN-Go app
 Import an SQL dump into a server-side database. Two dialects are understood:
 
 - **sqlite3 `.dump`** output — executed as-is (transaction wrappers and PRAGMAs are stripped; `X'...'` BLOB literals pass through).
-- **websqldump.js** output (the old WebSQL export helper) — its `INSERT ... VALUES ("...")` lines use unescaped double quotes, so they are **re-parsed into parameterized statements** instead of being executed as raw SQL. Rows that contained a literal `"` character were already damaged at dump time and are reported, not guessed at.
+- **websqldump.js** output (the old WebSQL export helper). Its `INSERT ... VALUES ("...")` lines use unescaped double quotes. OMN-Go thus **re-parses them into parameterized statements** and does not run them as raw SQL. Rows that contained a literal `"` character were already damaged at dump time and are reported, not guessed at.
 
 The dump is applied through the normal `/api/sql` endpoint in batches, each batch one transaction. After a successful import, go to the <a href="/db_backups">Database Backups</a> page and press **Backup now** — the import itself does not create a backup.
 

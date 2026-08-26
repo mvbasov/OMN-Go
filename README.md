@@ -179,10 +179,10 @@ Versioning in this project is informal. Numbers do not indicate stability or roa
 
 OMN-Go is a personal tool for one person, and not an enterprise product. It has
 no separate accounts: the admin role and the guest role share one set of notes.
-A note script and the SQL API operate with full rights, thus a script in a note
-can change or delete any note and any database. LAN sharing sends plain HTTP
-with no encryption. Use it only on a network that you control, and never on a
-public network. Keep your own backup of your notes. The author gives no warranty
+A note script and the SQL API operate with full rights. A script in a note can
+change or delete any note and any database. LAN sharing sends plain HTTP with no
+encryption. Use it only on a network that you control. Never use it on a public
+network. Keep your own backup of your notes. The author gives no warranty
 and takes no responsibility for lost data.
 
 ## License

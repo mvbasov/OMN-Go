@@ -101,7 +101,7 @@ A quick note is one short text with a timestamp. OMN-Go puts every quick note on
 2. Press <i class="material-icons">insert_comment</i>.
 3. Write the text and press *Save*.
 
-*Copy* puts the text on the clipboard and saves nothing. Use *Copy* when a text came into the box from a share or from a scan and you only want to paste it into a different application.
+*Copy* puts the text on the clipboard and saves nothing. A text can come into the box from a share or from a scan. Use *Copy* when you want only to paste that text into a different application.
 
 **With a browser bookmark on a desktop.** A query in the address also opens the note box. Make a bookmark of this address in your browser. Open that bookmark when you want to write a note. Use the port of your server:
 
@@ -356,7 +356,7 @@ OMN-Go serves your notes from `md/`, and each other file from `html/`. A link is
 
 Each copy keeps the modification time of its source. Thus the pair becomes stable: a start that comes after a save finds nothing to do.
 
-The copy in `md/` is the one that git synchronization carries with your notes. `.gitignore` keeps each `.txt` file below `html/` out of git, because it is only a copy: two copies of one text in git is one too many, and the second one is what a merge conflict looks for. After a download, OMN-Go makes the copy in `html/` again, thus the link operates immediately.
+The copy in `md/` is the one that git synchronization carries with your notes. `.gitignore` keeps each `.txt` file below `html/` out of git, because it is only a copy. Two copies of one text in git is one too many. The second copy is what makes a merge conflict. After a download, OMN-Go makes the copy in `html/` again, thus the link operates immediately.
 
 Subdirectories stay: `md/project/data.txt` becomes `html/project/data.txt`.
 
@@ -364,7 +364,7 @@ Three limits to know:
 
 - Only a `.txt` file is copied. Put a file of a different type in `html/`, where OMN-Go serves it directly.
 - OMN-Go deletes nothing. If you delete `md/log.txt`, the copy in `html/` stays and the link continues to operate. Delete the two files.
-- An external editor writes only to `html/`, and OMN-Go does not copy such a change to `md/` by itself. OMN-Go does see it: the [file index](OMNGoFiles) marks the file *edited outside*. Save the file one time in the internal editor to copy it to `md/`.
+- An external editor writes only to `html/`, and OMN-Go does not copy such a change to `md/` by itself. OMN-Go detects the change. The [file index](OMNGoFiles) marks the file *edited outside*. Save the file one time in the internal editor to copy it to `md/`.
 
 ## Math and code highlighting
 
@@ -374,7 +374,7 @@ OMN-Go renders formulas with KaTeX, fully offline. Math rendering is **opt-in pe
 <script>var OMN_GO_KATEX=true</script>
 ```
 
-Without that line, `$...$` stays literal text. Pages about money (`$5 and $10`) thus do not change into formulas. This manual page has the flag set, thus the two examples below are live.
+Without that line, `$...$` stays literal text. Pages about money (`$5 and $10`) thus do not change into formulas. This manual page has the flag set. The two examples below thus show the result.
 
 <script>var OMN_GO_KATEX=true</script>
 
@@ -570,7 +570,7 @@ you save, the choice applies immediately to every page.
 
 ## Configuration reference
 
-The [Config](Config) page edits `config.json`. The page puts the settings into six groups, and this reference uses the same groups and the same order.
+The [Config](Config) page edits `config.json`. The page puts the settings into six groups. This reference uses the same groups, in the same order.
 
 ### General
 
@@ -614,7 +614,7 @@ Page search always operates and needs no setting. These settings control the glo
 
 | Setting | Meaning |
 |---------|---------|
-| Enable global search | Builds and holds the index of the whole storage. Disabled by default. The index is the one standing memory cost of OMN-Go, and it is about half the size of the text that it covers. |
+| Enable global search | Builds the index of the whole storage. Disabled by default. OMN-Go holds this index in memory while it runs. The index is about half the size of the text that it covers. |
 | Include in the index | What the index covers. *Notes* and *Bookmarks* are on by default. *Scripts (html/js)*, *JSON (html/json)* and *Uploaded JSON (html/user_json)* are off. |
 | Also index OMN-Go's own scripts | Adds the scripts that come with the application to the index. Disabled by default. They are several times the size of a normal note collection. |
 | Search in | Where a search starts. *All notes* is the default. *The open page only* starts each search on the page that you read. |
@@ -758,13 +758,13 @@ Some applications, Telegram for example, give a `.md` attachment the type `appli
 
 The box is closed when the page opens, because the usual reason to open this page is to see what arrived. It does not show on Android at all: there the share sheet does this work.
 
-The box is a part of OMN-Go and not a part of the note. The note itself holds only the list, thus you can write your own text at the top of it and OMN-Go keeps that text where you put it.
+The box is a part of OMN-Go and not a part of the note. The note itself holds only the list. You can thus write your own text at the top of the note. OMN-Go keeps that text where you put it.
 
 ### Where a received note goes
 
 Each received note goes below `md/incoming/`. That directory is the root for the name in the `FileName:` line. A note with the name `project/Sub/WeeklyPlan` on the device of the sender becomes `incoming/project/Sub/WeeklyPlan` on your device.
 
-**A received note never writes over one of your notes.** If the name is already in use, OMN-Go adds an index to it: `WeeklyPlan-2`, then `WeeklyPlan-3`.
+**A received note never writes over one of your notes.** OMN-Go adds an index to a name that is already in use. The names are `WeeklyPlan-2`, then `WeeklyPlan-3`.
 
 OMN-Go removes the `FileName:` line and adds an `Imported:` line that holds the date and the time of the import. The `Date:` and `Modified:` lines are facts about the note of the sender, thus they stay as they are.
 
@@ -825,7 +825,7 @@ A tree shows **one directory at a time**, like a browser that shows a `file:///`
 
 Each name has one row, and each name shows one time. A row has two lines. The name is on the first line, and the facts about the file are on the second line.
 
-**Most rows say nothing more.** A note that you wrote, a page that OMN-Go made from your note, an image that you sent to a note: each of them is yours, OMN-Go does not touch it, thus the row is quiet. A row speaks only when OMN-Go is involved:
+**Most rows say nothing more.** Three examples are a note that you wrote, a page that OMN-Go made from it, and an image that you sent to a note. Each of them is yours, and OMN-Go does not touch it. The row is thus quiet. A row speaks only when OMN-Go is involved:
 
 | The word | What it says |
 | --- | --- |
@@ -857,7 +857,7 @@ A row of the **Source** tree shows **local only** when the file stays on this de
 
 A directory row gives the number of files below the directory and their size. The numbers cover each file below the directory, and not only the files that you see. The numbers thus answer the question "how large is this whole folder".
 
-A directory says **10 from the app** when OMN-Go delivered files into it, and **2 from the app, none extracted** when the device has no copy of any of them. A directory of your own files says nothing.
+A directory says **10 from the app** when OMN-Go delivered files into it. It says **2 from the app, none extracted** when the device has no copy of any of them. A directory of your own files says nothing.
 
 ### The edit link
 
@@ -877,7 +877,7 @@ Two things never come into the file index. The page templates are a part of OMN-
 
 Your notes are not in the Served tree. A note is not served from `html/`. Its page is, and that page says *compiled*.
 
-The page deletes nothing and moves nothing. One action on it creates a file. The edit link of a row that says *not extracted* writes that file to the device at the moment you open the link.
+The page deletes nothing and moves nothing. One action on it creates a file. A row can say *not extracted*. Open the edit link of that row, and OMN-Go writes the file to the device.
 
 ## The Status page
 
@@ -988,8 +988,8 @@ One page is different. The [Bookmarks](Bookmarks) page loads `css/Bookmarker.css
 
 OMN-Go is a personal tool for one person. It has no separate accounts and no separate data for a second person. The admin role and the guest role give access to one set of notes. A connection from the device itself is always admin. See [Login and roles](#login-and-roles).
 
-A note script and the SQL API operate with full rights. A script in a note can change or delete any note, any file in the storage directory and any database. Put in your notes only the scripts that you wrote, or that you trust. See [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
+A note script and the SQL API operate with full rights. A script in a note can change or delete any note, any file in the storage directory and any database. Use only the scripts that you wrote, or that you trust. See [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
 
-LAN sharing sends plain HTTP with no encryption. Another person on the same network can read what OMN-Go sends. Use LAN sharing only on a network that you control. Do not put OMN-Go on a public network, and do not open a port to it from the internet. See [Sharing on the LAN](#sharing-on-the-lan).
+LAN sharing sends plain HTTP with no encryption. Another person on the same network can read what OMN-Go sends. Use LAN sharing only on a network that you control. Do not put OMN-Go on a public network. Do not open a port to it from the internet. See [Sharing on the LAN](#sharing-on-the-lan).
 
 OMN-Go is not an enterprise product. Keep your own backup of your notes. [Git synchronization](#git-synchronization) and the [database backups](#database-backups) help you, but the backup stays your responsibility. The author gives no warranty and takes no responsibility for lost data. The MIT license gives the legal form of this statement.

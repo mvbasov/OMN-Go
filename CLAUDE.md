@@ -248,7 +248,7 @@ A commit message has three parts: a subject line, one empty line, and a list of
 the changes.
 
 1. Subject line: `type(scope): Sentence. vYY.MM.NN`. Write **at most 80
-   characters**, the version included.
+   characters**. Count the version in that limit.
 2. One empty line.
 3. One `-` bullet for each change. Write one change in one bullet. Put a period
    at the end of each bullet.
@@ -264,8 +264,8 @@ docs(manual): Fix and improve manual. v26.08.60
 - Reflow every bundled note to one line for each paragraph.
 ```
 
-A commit that makes one small change can have one bullet. A commit that needs no
-list at all still needs the subject line.
+A commit that makes one small change can have one bullet. Each commit needs the
+subject line, also when it has no list.
 
 ### Types, scopes and branches
 

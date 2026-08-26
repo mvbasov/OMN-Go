@@ -127,7 +127,7 @@ Add `package=` to send the file to one application and to no other. This example
 [Open in Aves Libre](intent:///storage/emulated/0/DCIM/Camera/001.jpg#Intent;scheme=file;action=android.intent.action.VIEW;type=image/jpeg;package=deckers.thibault.aves.libre;end)
 ```
 
-A link with `package=` shows *No app can handle this link* when that application is not installed, or when it is installed but does not accept a `file:` address of that type. A link without `package=` is thus the better choice for a note that you send to a different person.
+A link with `package=` shows *No app can handle this link* in two cases. The first case is an application that is not installed. The second case is an application that is installed, but does not accept a `file:` address of that type. A link without `package=` is thus the better choice for a note that you send to a different person.
 
 ### To find the name of an application
 
@@ -269,7 +269,7 @@ Try it. This example needs Termux and both switches on:
 
 Both switches are **off by default**. The Termux path needs three more things. Termux must be installed. You must grant the Termux permission. You must confirm each command. The two switches, the permission and the confirmation make four independent consents before a note can run anything.
 
-A link that opens a file gives one path to one other application. It gives no new permission to OMN-Go and none to the other application: an application that may not read a file still may not read it. What the link does is let Android pass the path instead of stopping OMN-Go for passing it.
+A link that opens a file gives one path to one other application. It gives no new permission to OMN-Go, and none to the other application. An application that may not read a file still may not read it. What the link does is let Android pass the path instead of stopping OMN-Go for passing it.
 
 A note is not always your own note. A note can arrive by git synchronization. Another device can edit a note over LAN sharing. OMN-Go never saves a captured result silently. A captured result always goes into a dialog that you review first. Leave Termux off unless you write all of your notes yourself.
 
