@@ -190,8 +190,8 @@ Two statements in the tree are wrong. Do not trust them.
   also ends at the first non-header line, which the parser keeps.
 * `isHeaderFirstLine` and `firstLineAfterHeader` in `omn-go-editor.js` are a direct
   port of the Go code. **Keep the two versions the same.**
-* Read or write a single key with `setHeaderKey`, `takeHeaderKey`, or
-  `splitHeaderRegion`. These functions splice into the original string. The result
+* Read or write a single key with `setHeaderKey` or `splitHeaderRegion`. These
+  functions splice into the original string. The result
   keeps `header + separator + body` equal to the content, byte for byte. Never
   rebuild a header block with a hard-coded `"\n\n"`.
 * Write one line for each paragraph in a bundled note. `html.WithHardWraps()` is on.

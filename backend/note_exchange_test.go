@@ -97,31 +97,6 @@ func TestSetHeaderKey(t *testing.T) {
 	}
 }
 
-func TestTakeHeaderKey(t *testing.T) {
-	value, rest := takeHeaderKey("Title: T\nFileName: a/b/C\nDate: d\n\nB\n", "FileName")
-	if value != "a/b/C" {
-		t.Errorf("value = %q, want a/b/C", value)
-	}
-	if want := "Title: T\nDate: d\n\nB\n"; rest != want {
-		t.Errorf("rest = %q, want %q", rest, want)
-	}
-
-	value, rest = takeHeaderKey("Title: T\n\nB\n", "FileName")
-	if value != "" {
-		t.Errorf("an absent key gave %q", value)
-	}
-	if rest != "Title: T\n\nB\n" {
-		t.Errorf("an absent key changed the note: %q", rest)
-	}
-
-	// Taking the only header line takes the block with it. A note that
-	// carried nothing but FileName: must not begin with a blank line.
-	value, rest = takeHeaderKey("FileName: only\n\nB\n", "FileName")
-	if value != "only" || rest != "B\n" {
-		t.Errorf("sole key: value %q rest %q", value, rest)
-	}
-}
-
 // ----------------------------------------------------------------------
 // Names
 // ----------------------------------------------------------------------

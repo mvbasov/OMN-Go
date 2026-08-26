@@ -208,34 +208,3 @@ func setHeaderKey(content, key, value string) string {
 	}
 	return header + "\n" + line + sep + body
 }
-
-// takeHeaderKey returns the value of key and content with that header line
-// removed. value is "" when the key is absent, and content comes back
-// unchanged in that case.
-//
-// Removing the ONLY header line removes the block: what is left is a body
-// with the separator still in front of it, so the separator goes too. A note
-// that arrives carrying nothing but "FileName:" must not become a note that
-// starts with a blank line.
-func takeHeaderKey(content, key string) (value, rest string) {
-	header, sep, body := splitHeaderRegion(content)
-	if header == "" {
-		return "", content
-	}
-
-	lines := strings.Split(header, "\n")
-	for i, l := range lines {
-		if !strings.EqualFold(headerKeyOf(l), key) {
-			continue
-		}
-		if c := strings.IndexByte(l, ':'); c >= 0 {
-			value = strings.TrimSpace(l[c+1:])
-		}
-		kept := append(append([]string{}, lines[:i]...), lines[i+1:]...)
-		if len(kept) == 0 {
-			return value, body
-		}
-		return value, strings.Join(kept, "\n") + sep + body
-	}
-	return "", content
-}
