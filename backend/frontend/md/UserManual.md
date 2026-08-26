@@ -49,6 +49,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
 - [Your own CSS and JavaScript](#your-own-css-and-javascript)
 - [Troubleshooting](#troubleshooting)
+- [Disclaimer](#disclaimer)
 
 ---
 
@@ -981,3 +982,14 @@ One page is different. The [Bookmarks](Bookmarks) page loads `css/Bookmarker.css
   permission. Allow notifications for OMN-Go in the system settings. LAN
   sharing works in both cases. Without the notification there is no
   visible address and no Stop button.
+
+
+## Disclaimer
+
+OMN-Go is a personal tool for one person. It has no separate accounts and no separate data for a second person. The admin role and the guest role give access to one set of notes. A connection from the device itself is always admin. See [Login and roles](#login-and-roles).
+
+A note script and the SQL API operate with full rights. A script in a note can change or delete any note, any file in the storage directory and any database. Put in your notes only the scripts that you wrote, or that you trust. See [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
+
+LAN sharing sends plain HTTP with no encryption. Another person on the same network can read what OMN-Go sends. Use LAN sharing only on a network that you control. Do not put OMN-Go on a public network, and do not open a port to it from the internet. See [Sharing on the LAN](#sharing-on-the-lan).
+
+OMN-Go is not an enterprise product. Keep your own backup of your notes. [Git synchronization](#git-synchronization) and the [database backups](#database-backups) help you, but the backup stays your responsibility. The author gives no warranty and takes no responsibility for lost data. The MIT license gives the legal form of this statement.
