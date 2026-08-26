@@ -339,6 +339,20 @@ subject line, also when it has no list.
 `doc/TERMINOLOGY.md` binds the README, the bundled notes, the F-Droid metadata, the
 release notes, and the commit messages.
 
+**The rule also covers each code comment and each commit message that you write.**
+`doc/TERMINOLOGY.md` does not name them, and that gap let text through unchecked.
+It is closed here: apply the `ste-writing` skill to every word that a person
+reads, and not only to a document. Code, identifiers and command syntax stay as
+they are.
+
+A code comment keeps the long form that section 3 asks for. Length is not the
+question. The question is the shape of each sentence: one idea in one sentence,
+at most 25 words, active voice, no semicolon, no contraction.
+
+Check your own text before you give a patch. A sentence over the limit and a
+banned word are both easy to find with a search, and both are easy to miss by
+eye.
+
 * Write each new document in ASD-STE100 Simplified Technical English. The
   `ste-writing` skill does this.
 * Use the controlled vocabulary table. It has a "do not use" column.
@@ -360,7 +374,8 @@ release notes, and the commit messages.
 4. Report the `go vet` and `go test` result for each Go change.
 5. Bump the version in each commit. See section 6.
 6. Do not create a tag.
-7. Write each document and commit message in Simplified Technical English.
+7. Write each document, code comment and commit message in Simplified Technical
+   English. Check your own text before you give the patch. See section 10.
 8. **Never push to the repository. Never commit.** The maintainer applies each change.
 9. Give each change as a unified diff for `git apply`.
 10. Give a short commit message together with the patch. Use the format in section 7.
