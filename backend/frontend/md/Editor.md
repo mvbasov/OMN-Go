@@ -138,8 +138,7 @@ expands to:
 
 The children of a few container tags get an implied tag name. For example, `ul>.item` becomes `<ul><li class="item">…`, and `table>tr>td` also works. Other container tags behave in the same way.
 
-**Limits.** The editor supports a compact subset of Emmet, and not full Emmet.
-It does not support the climb-up operator `^`. It does not support text generators such as `lorem`. If the editor does not recognize an abbreviation, Tab inserts a tab character instead. The editor also limits the repeat count, so a large number cannot lock the editor. This page lists the full supported set.
+**Limits.** The editor supports a compact subset of Emmet, and not full Emmet. It does not support the climb-up operator `^`. It does not support text generators such as `lorem`. If the editor does not recognize an abbreviation, Tab inserts a tab character instead. The editor also limits the repeat count, so a large number cannot lock the editor. This page lists the full supported set.
 
 ---
 

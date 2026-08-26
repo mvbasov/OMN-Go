@@ -173,8 +173,7 @@ You set two passwords on the [Config](Config) page:
 
 A local connection (`127.0.0.1` or `localhost`) skips the login. The WebView of the Android application also makes a local connection. The passwords apply when you enable [LAN sharing](#sharing-on-the-lan) and a remote caller connects from another device.
 
-**Change the default passwords before enabling LAN sharing.** A fresh
-install ships with `admin_secret_changeme` and `guest_secret_changeme`. Anyone on your network who read this manual knows these two passwords.
+**Change the default passwords before enabling LAN sharing.** A fresh install ships with `admin_secret_changeme` and `guest_secret_changeme`. Anyone on your network who read this manual knows these two passwords.
 
 ## The interface
 
@@ -216,14 +215,11 @@ OMN-Go adds a link to the new page at the top of the page you started from. The 
 
 When you save, OMN-Go updates the `Modified:` header line and recompiles the page. The editor is a page of its own. It loads the Markdown source of the note when it opens. Its small toolbar has an Emmet-style HTML expander and a select-current-line button. See [The editor and Emmet](Editor) for the toolbar and the abbreviation syntax.
 
-**Internal vs. external editor.** If you disable *Use Internal Editor* on
-the [Config](Config) page, the edit button sends the file to an external editor. On the desktop application, OMN-Go runs the command from *Desktop External Cmd*, for example `subl`. On the Android application, OMN-Go opens the system app-chooser. When you come back, the page reloads with your changes.
+**Internal vs. external editor.** If you disable *Use Internal Editor* on the [Config](Config) page, the edit button sends the file to an external editor. On the desktop application, OMN-Go runs the command from *Desktop External Cmd*, for example `subl`. On the Android application, OMN-Go opens the system app-chooser. When you come back, the page reloads with your changes.
 
-**Images.** Drag an image file onto the editor area. OMN-Go uploads the
-file to `images/`. OMN-Go then puts a Markdown image reference at the cursor.
+**Images.** Drag an image file onto the editor area. OMN-Go uploads the file to `images/`. OMN-Go then puts a Markdown image reference at the cursor.
 
-**Find and replace.** Press <i class="material-icons">search</i> in the
-editor toolbar, or press **Ctrl-F**. To start with the replace field shown, press **Ctrl-H**. The find bar opens between the toolbar and the text. It pushes the note down and does not cover it.
+**Find and replace.** Press <i class="material-icons">search</i> in the editor toolbar, or press **Ctrl-F**. To start with the replace field shown, press **Ctrl-H**. The find bar opens between the toolbar and the text. It pushes the note down and does not cover it.
 
 The editor highlights every match. It puts a ring around the current match and shows a **3 / 17** counter. Press **Enter** to move to the next match. Press **Shift-Enter** to move to the previous match. Press **Esc** to close the find bar.
 
@@ -307,9 +303,7 @@ To open any file that OMN-Go serves in the editor, add `?edit=true` to its URL. 
 
 The link opens the raw file in the internal editor. If you configured an external editor, the link opens the file there. When you save, OMN-Go writes the file back in place. A file that comes with OMN-Go opens with its content, also when the storage directory does not hold that file yet. If the file does not exist, the editor opens an empty page. Your first save makes the file.
 
-If the editor cannot read the file, it shows a red message and turns the
-*Save* button off. This keeps an empty editor from replacing a file that
-has content.
+If the editor cannot read the file, it shows a red message and turns the *Save* button off. This keeps an empty editor from replacing a file that has content.
 
 OMN-Go does not open a picture, a font, an audio file or a video file in an editor. An editor writes text, and a save would damage such a file. The link answers with a short page and a link to the file. The [file index](OMNGoFiles) gives no edit link for these files.
 

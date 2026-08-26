@@ -120,8 +120,7 @@ db.transaction(function(tx) {
 
 OMN-Go accepts `version`, `displayName` and `size` for call-shape compatibility, then ignores them. The backend has no version negotiation and no storage quota to configure.
 
-**One behavioral difference from real WebSQL** exists. A script can queue
-statements synchronously inside the `transaction()` callback. Those statements run as one atomic transaction on the backend, the same as real WebSQL.
+**One behavioral difference from real WebSQL** exists. A script can queue statements synchronously inside the `transaction()` callback. Those statements run as one atomic transaction on the backend, the same as real WebSQL.
 
 There is one exception. A script can also queue a statement *from inside a success callback*. In this case the script calls `tx.executeSql(...)` from within the `okCb` of another statement. That new statement runs as a **separate** transaction after the first one. It does not join the original transaction.
 
