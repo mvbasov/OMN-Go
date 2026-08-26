@@ -14,10 +14,8 @@ Everything on this page is **off by default**. You enable it on the [Config](Con
 
 On the [Config](Config) page, under **Android Integration**:
 
-- **Enable intent: links** (`enable_intent_uri`) — the master switch. With this
-  switch off, no intent link does anything.
-- **Enable Termux commands** (`enable_termux_intent`) — this switch also
-  permits the Termux path. The master switch must be on as well.
+- **Enable intent: links** (`enable_intent_uri`) — the master switch. With this switch off, no intent link does anything.
+- **Enable Termux commands** (`enable_termux_intent`) — this switch also permits the Termux path. The master switch must be on as well.
 
 Both switches stay off until you enable them. A change applies at the next press. You do not restart the application.
 
@@ -79,13 +77,9 @@ Renders to:
 
 A note can open a photo, a PDF or any other file that is already on the device. The address needs three parts:
 
-- `intent:///` and then the absolute path. **Three slashes.** Two of them
-  belong to the URI, and the third is the start of the path. With two slashes,
-  `storage` becomes the host name of the address and Android looks for a file
-  that is not there.
+- `intent:///` and then the absolute path. **Three slashes.** Two of them belong to the URI, and the third is the start of the path. With two slashes, `storage` becomes the host name of the address and Android looks for a file that is not there.
 - `scheme=file`, which makes the address a `file:` address.
-- `type=`, the type of the file. Without it Android does not know which
-  applications can open the file, and the link finds none of them.
+- `type=`, the type of the file. Without it Android does not know which applications can open the file, and the link finds none of them.
 
 A photo:
 
@@ -109,13 +103,8 @@ Git synchronization thus moves the note and not the file. On your second device 
 
 Two results come from this:
 
-- Keep a link like this in a note that stays on this device. A note in
-  `md/local/`, or a note with a name that starts with `local-`, does not go to
-  git. See [Files that stay on this device](UserManual#files-that-stay-on-this-device).
-- Put the file **into** your notes when the file must travel with them. A
-  `.txt` file beside a note goes to each device. See
-  [Text files beside your notes](UserManual#text-files-beside-your-notes). Not
-  each directory of the storage travels. `html/images/` does not, for example.
+- Keep a link like this in a note that stays on this device. A note in `md/local/`, or a note with a name that starts with `local-`, does not go to git. See [Files that stay on this device](UserManual#files-that-stay-on-this-device).
+- Put the file **into** your notes when the file must travel with them. A `.txt` file beside a note goes to each device. See [Text files beside your notes](UserManual#text-files-beside-your-notes). Not each directory of the storage travels. `html/images/` does not, for example.
 
 The desktop application and a LAN browser do nothing with an intent link at all. This is by design: only the Android application has a share sheet and other applications to open.
 
@@ -165,12 +154,8 @@ audio/mpeg   video/mp4
 
 ### What can stop this
 
-- **The path must be exact.** `/storage/emulated/0/` is the internal storage of
-  the device. A memory card has a different path. Use a file manager to read
-  the path of the file.
-- **The other application needs its own permission to read storage.** A gallery
-  and a file manager have it. An application that does not have it opens an
-  empty screen or an error.
+- **The path must be exact.** `/storage/emulated/0/` is the internal storage of the device. A memory card has a different path. Use a file manager to read the path of the file.
+- **The other application needs its own permission to read storage.** A gallery and a file manager have it. An application that does not have it opens an empty screen or an error.
 - **A space in a path** must be written as `%20`.
 
 ## Scanning a barcode into Quick Notes
@@ -189,13 +174,9 @@ With Termux installed and **Enable Termux commands** on, a note can run a shell 
 
 ### Prerequisites
 
-1. Install [Termux](https://f-droid.org/en/packages/com.termux/) (the F-Droid
-   build).
-2. Permit other applications to send commands to Termux. In Termux, add
-   `allow-external-apps=true` to `~/.termux/termux.properties`. Then run
-   `termux-reload-settings`.
-3. At the first command, OMN-Go asks for the Termux **RUN_COMMAND** permission.
-   Grant the permission, then press the link again.
+1. Install [Termux](https://f-droid.org/en/packages/com.termux/) (the F-Droid build).
+2. Permit other applications to send commands to Termux. In Termux, add `allow-external-apps=true` to `~/.termux/termux.properties`. Then run `termux-reload-settings`.
+3. At the first command, OMN-Go asks for the Termux **RUN_COMMAND** permission. Grant the permission, then press the link again.
 
 ### The command URI
 
@@ -207,13 +188,9 @@ A minimal command that runs `uname -a`:
 
 The parts:
 
-- `action=com.termux.RUN_COMMAND` and
-  `component=com.termux/.app.RunCommandService` must be exactly as shown. These
-  two parts address the command service of Termux.
-- `S.com.termux.RUN_COMMAND_LABEL` — a short name that the confirmation dialog
-  shows. This part is optional. Write a space as `%20`.
-- `S.com.termux.RUN_COMMAND_PATH` — the program to run, and its packed
-  arguments. See the next section.
+- `action=com.termux.RUN_COMMAND` and `component=com.termux/.app.RunCommandService` must be exactly as shown. These two parts address the command service of Termux.
+- `S.com.termux.RUN_COMMAND_LABEL` — a short name that the confirmation dialog shows. This part is optional. Write a space as `%20`.
+- `S.com.termux.RUN_COMMAND_PATH` — the program to run, and its packed arguments. See the next section.
 
 ### Passing arguments (the `?` and `&` convention)
 
@@ -225,10 +202,8 @@ S.com.termux.RUN_COMMAND_PATH=$PREFIX/bin/bash?-c&echo%20hello%20world
 
 This runs `bash -c "echo hello world"` with two arguments, `-c` and `echo hello world`. There are two rules:
 
-- Only the **first** `?` splits the program from the arguments. An argument can
-  therefore contain a `?`.
-- **Every** `&` separates two arguments. An argument therefore cannot contain a
-  literal `&`.
+- Only the **first** `?` splits the program from the arguments. An argument can therefore contain a `?`.
+- **Every** `&` separates two arguments. An argument therefore cannot contain a literal `&`.
 
 ### Foreground or background
 
@@ -238,10 +213,8 @@ Add the Termux switch to select how the command runs:
 B.com.termux.RUN_COMMAND_BACKGROUND=true
 ```
 
-- **Background** (`true`) runs the command without a terminal. It captures
-  `stdout` and `stderr` separately.
-- **Foreground** (`false`) opens a visible Termux terminal session. Termux
-  returns the output as one combined transcript.
+- **Background** (`true`) runs the command without a terminal. It captures `stdout` and `stderr` separately.
+- **Foreground** (`false`) opens a visible Termux terminal session. Termux returns the output as one combined transcript.
 
 If you ask OMN-Go to capture output (see below) and you do not set this switch, OMN-Go uses **background**. The capture then works correctly. Set the switch to `false` if you want the terminal to open.
 
@@ -275,22 +248,12 @@ A note is not always your own note. A note can arrive by git synchronization. An
 
 ## Troubleshooting
 
-- **A link does nothing.** Make sure that *Enable intent: links* is on. In the
-  desktop application and in a LAN browser these links do nothing by design.
-- **A file does not open.** Make sure that the path is exact and that the link
-  has three slashes after `intent:` and a `type=`. If the application opens and
-  shows nothing, that application has no permission to read your storage.
-- **A Termux command does nothing.** Make sure that *Enable Termux commands* is
-  on and that Termux is installed. Make sure that you granted the RUN_COMMAND
-  permission. Make sure that you set `allow-external-apps=true` in Termux, and
-  that you then ran `termux-reload-settings`.
-- **No output appeared.** The command possibly gave no output. You were
-  possibly on the editor page when the command finished. In that case Android
-  shows a plain dialog with the text, and not the Quick Note panel of the
-  application.
+- **A link does nothing.** Make sure that *Enable intent: links* is on. In the desktop application and in a LAN browser these links do nothing by design.
+- **A file does not open.** Make sure that the path is exact and that the link has three slashes after `intent:` and a `type=`. If the application opens and shows nothing, that application has no permission to read your storage.
+- **A Termux command does nothing.** Make sure that *Enable Termux commands* is on and that Termux is installed. Make sure that you granted the RUN_COMMAND permission. Make sure that you set `allow-external-apps=true` in Termux, and that you then ran `termux-reload-settings`.
+- **No output appeared.** The command possibly gave no output. You were possibly on the editor page when the command finished. In that case Android shows a plain dialog with the text, and not the Quick Note panel of the application.
 
 ## See also
 
 - [User Manual](UserManual) — everything else about how to write notes.
-- [Scripting Rules](ScriptRules) — the rules for raw HTML and JavaScript in a
-  note. An intent button uses these rules.
+- [Scripting Rules](ScriptRules) — the rules for raw HTML and JavaScript in a note. An intent button uses these rules.

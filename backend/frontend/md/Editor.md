@@ -16,9 +16,7 @@ The cursor starts directly after the `Title:`/`Date:`/… header block of the no
 
 Left to right:
 
-- <i class="material-icons">code</i> **Expand Emmet abbreviation** — expand
-  the abbreviation on the current line into HTML. This button does the same as
-  the **Tab** key. See below.
+- <i class="material-icons">code</i> **Expand Emmet abbreviation** — expand the abbreviation on the current line into HTML. This button does the same as the **Tab** key. See below.
 - <i class="material-icons">format_line_spacing</i> **Cycle selection** — press this button again and again to select more of the note. The cycle has seven selections. An eighth press starts the cycle again:
   1. The current line.
   2. From the cursor to the end of the line.
@@ -35,19 +33,11 @@ Left to right:
   A note without a header block has no boundary between the header block and the body. For such a note, the sixth selection is the same as the seventh.
 
   If you move the cursor or make a different selection, the editor resets the cycle. The next press selects the current line again.
-- <i class="material-icons">wrap_text</i> **Word wrap** — wrap long lines to
-  the width of the window. With word wrap off, a long line continues past the
-  edge of the window and you scroll sideways.
-- <i class="material-icons">format_list_numbered</i> **Line numbers** — show a
-  numbered gutter at the left. This button is available only with word wrap
-  *off*. A wrapped line fills several rows on the screen, but it stays one
-  line. The numbers and the text therefore cannot stay in step.
-- <i class="material-icons">search</i> **Find / replace** — open the find
-  bar. See [below](#find-and-replace).
-- <i class="material-icons">save</i> **Save** — save the note and return to
-  the rendered page. Keyboard shortcut: **Ctrl/Cmd + S**.
-- <i class="material-icons">close</i> **Cancel** — leave the editor without
-  saving. If you have unsaved changes, the editor asks you first.
+- <i class="material-icons">wrap_text</i> **Word wrap** — wrap long lines to the width of the window. With word wrap off, a long line continues past the edge of the window and you scroll sideways.
+- <i class="material-icons">format_list_numbered</i> **Line numbers** — show a numbered gutter at the left. This button is available only with word wrap *off*. A wrapped line fills several rows on the screen, but it stays one line. The numbers and the text therefore cannot stay in step.
+- <i class="material-icons">search</i> **Find / replace** — open the find bar. See [below](#find-and-replace).
+- <i class="material-icons">save</i> **Save** — save the note and return to the rendered page. Keyboard shortcut: **Ctrl/Cmd + S**.
+- <i class="material-icons">close</i> **Cancel** — leave the editor without saving. If you have unsaved changes, the editor asks you first.
 
 The editor shows the name of the note at its bottom ("Editing …"). Drag an image file onto the text area to upload the image. The editor inserts an `<img>` tag at the cursor. The tag has the `omn-imported-image` class, which limits the width of the image. The image therefore does not render at its full native resolution.
 
@@ -73,16 +63,9 @@ After the last match, the find bar continues from the first match.
 
 The three switches are at the right of the query field:
 
-- **Aa** — match case. This switch is off by default, so `note` finds `Note`
-  and `NOTE`.
-- **ab** — whole word. When you enable it, `note` no longer matches inside
-  `notes` or `footnote`. The switch understands every alphabet, and not only
-  the Latin alphabet. It works the same way on Russian text.
-- **.\*** — regular expression. In this mode the query is a pattern, and not
-  literal text. In the replacement, `$1`, `$2` … stand for the bracketed
-  groups of the pattern, and `$&` stands for the whole match. If a pattern
-  does not compile, the find bar turns the field red and the counter reads
-  *bad pattern*. The find bar never reports zero matches for such a pattern.
+- **Aa** — match case. This switch is off by default, so `note` finds `Note` and `NOTE`.
+- **ab** — whole word. When you enable it, `note` no longer matches inside `notes` or `footnote`. The switch understands every alphabet, and not only the Latin alphabet. It works the same way on Russian text.
+- **.\*** — regular expression. In this mode the query is a pattern, and not literal text. In the replacement, `$1`, `$2` … stand for the bracketed groups of the pattern, and `$&` stands for the whole match. If a pattern does not compile, the find bar turns the field red and the counter reads *bad pattern*. The find bar never reports zero matches for such a pattern.
 
   Outside this mode the find bar treats every character literally. A search
   for `a.b` finds `a.b` and does not find `axb`. A `$` in the replacement is a
@@ -94,8 +77,7 @@ The editor remembers the three switches for each device. If you work with regula
 
 The chevron at the left of the find bar shows and hides the replace field.
 
-- **Replace** changes the current match and moves to the next match. Press it
-  again and again to move forward through the note.
+- **Replace** changes the current match and moves to the next match. Press it again and again to move forward through the note.
 - **All** changes every match and reports the number of changes.
 
 Both buttons make one step for **Ctrl + Z**. One undo returns the note to its previous state, even after you change hundreds of matches.
@@ -110,8 +92,7 @@ The search panel in the page header is a different search. It searches your note
 
 The **Tab** key does one of two things:
 
-- If the text on the current line, up to the cursor, is an Emmet
-  abbreviation, Tab **expands** the abbreviation into HTML.
+- If the text on the current line, up to the cursor, is an Emmet abbreviation, Tab **expands** the abbreviation into HTML.
 - If it is not an Emmet abbreviation, Tab inserts a normal tab character.
 
 You can type a compact abbreviation and press Tab to get the full markup. For example, type
@@ -137,10 +118,8 @@ An abbreviation is a tag name with any of these parts:
 - `#name` — an id, `.name` — a class (repeatable): `div#main.box.wide`
 - `[attr=value]` — attributes: `a[href=# title="Go home"]`
 - `{text}` — text content: `p{Hello}`
-- `>` child, `+` sibling, `*N` repeat, `( … )` group:
-  `nav>ul>li*2>a`
-- `$` — the editor replaces this with the item number inside a repeat (`$$`
-  adds leading zeros): `li.item$*3`
+- `>` child, `+` sibling, `*N` repeat, `( … )` group: `nav>ul>li*2>a`
+- `$` — the editor replaces this with the item number inside a repeat (`$$` adds leading zeros): `li.item$*3`
 
 In this worked example, the abbreviation
 

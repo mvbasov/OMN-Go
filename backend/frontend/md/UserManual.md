@@ -158,14 +158,9 @@ OMN-Go keeps everything in one storage directory:
 
 Inside it:
 
-- `md/` — your notes as Markdown files. **This is the source of truth.**
-  You back up this directory, and git synchronizes it.
-- `html/` — compiled pages plus static assets (`css/`, `js/`, `images/`,
-  `user_json/`). The compiled `.html` files are the HTML cache. OMN-Go
-  rebuilds a page when the matching `.md` file is newer.
-- `config.json` — the settings of this device (see
-  [Configuration reference](#configuration-reference)). The file stays
-  local to the device. Git never synchronizes it.
+- `md/` — your notes as Markdown files. **This is the source of truth.** You back up this directory, and git synchronizes it.
+- `html/` — compiled pages plus static assets (`css/`, `js/`, `images/`, `user_json/`). The compiled `.html` files are the HTML cache. OMN-Go rebuilds a page when the matching `.md` file is newer.
+- `config.json` — the settings of this device (see [Configuration reference](#configuration-reference)). The file stays local to the device. Git never synchronizes it.
 
 On first start, OMN-Go creates the storage directory, a default `config.json`, and a few starter pages ([Welcome](Welcome), [QuickNotes](QuickNotes), [Bookmarks](Bookmarks), [BookmarksHowTo](BookmarksHowTo), [ScriptRules](ScriptRules), [Editor](Editor)).
 
@@ -173,8 +168,7 @@ On first start, OMN-Go creates the storage directory, a default `config.json`, a
 
 You set two passwords on the [Config](Config) page:
 
-- **Admin** — full access. The admin can edit and save notes, use git
-  synchronization, and change the configuration.
+- **Admin** — full access. The admin can edit and save notes, use git synchronization, and change the configuration.
 - **Guest** — read-oriented access for other people on your network.
 
 A local connection (`127.0.0.1` or `localhost`) skips the login. The WebView of the Android application also makes a local connection. The passwords apply when you enable [LAN sharing](#sharing-on-the-lan) and a remote caller connects from another device.
@@ -208,9 +202,7 @@ The page then opens in edit mode with a prefilled header block.
 
 The name you confirm sets where OMN-Go creates the new page:
 
-- A bare name like `Ideas` becomes a **sibling of the current page**. If
-  you create `Ideas` while you view `projects/Plan`, OMN-Go makes
-  `projects/Ideas`.
+- A bare name like `Ideas` becomes a **sibling of the current page**. If you create `Ideas` while you view `projects/Plan`, OMN-Go makes `projects/Ideas`.
 - OMN-Go uses a name with a slash, like `work/Ideas`, as written.
 - A leading slash, like `/Ideas`, forces a top-level page.
 
@@ -252,17 +244,11 @@ Tags: shopping, home
 First line of the actual note...
 ```
 
-- `Title` sets the page title. OMN-Go shows this title in the browser tab
-  and in the page header.
+- `Title` sets the page title. OMN-Go shows this title in the browser tab and in the page header.
 - OMN-Go updates `Modified` on every save. You never edit this line.
-- `Tags` renders each tag as a pill in the page header. Press a pill to open
-  that tag on the [Tags page](#the-tags-page), which OMN-Go generates
-  automatically.
-- OMN-Go also makes a `<meta>` tag in the compiled page from each header
-  line.
-- If you save a page with no header block, OMN-Go adds a minimal one. It
-  contains `Title`, `Date`, `Modified`, and `Author` from your
-  configuration.
+- `Tags` renders each tag as a pill in the page header. Press a pill to open that tag on the [Tags page](#the-tags-page), which OMN-Go generates automatically.
+- OMN-Go also makes a `<meta>` tag in the compiled page from each header line.
+- If you save a page with no header block, OMN-Go adds a minimal one. It contains `Title`, `Date`, `Modified`, and `Author` from your configuration.
 
 ## Markdown in a nutshell
 
@@ -286,25 +272,13 @@ Line breaks are literal. One newline in the editor makes a line break in the pag
 
 When OMN-Go compiles a page, it normalizes the internal links. You can write them in a natural form:
 
-- `[Notes](Ideas)` — **bare page name**. OMN-Go resolves the name relative
-  to the current page, like a file in the same folder, and adds `.html`.
+- `[Notes](Ideas)` — **bare page name**. OMN-Go resolves the name relative to the current page, like a file in the same folder, and adds `.html`.
 - `[Notes](Ideas.md)` — the same result. OMN-Go rewrites `.md` to `.html`.
-- `[Up](../Plan)` and `[Here](./Ideas)` — **relative paths** work exactly
-  like in a file system.
-- `[Top](/Welcome)` — a **leading slash** makes the link absolute from the
-  notes root. The location of the linking page does not change this.
-- `[Section](#some-heading)` and `[Page section](Ideas#some-heading)` —
-  OMN-Go keeps the anchors. Each heading gets an ID from its text, in
-  lowercase and with hyphens.
-- OMN-Go does not change links with a real file extension (`.png`, `.css`,
-  `.js`, ...). It also does not change a link that starts with a scheme:
-  `http://`, `https://`, `mailto:`, `tel:`, `sms:`, `geo:`, `market:`,
-  `whatsapp:` and every other one. On the Android application such a link
-  goes to the application that owns the scheme — the browser, the mail
-  client, the Messaging application, Maps. A scheme that no installed
-  application accepts does nothing.
-- Do not put a `:` in a page name. `[Draft](Notes:Draft)` looks like a link
-  with the scheme `notes:`, and OMN-Go sends it to the system.
+- `[Up](../Plan)` and `[Here](./Ideas)` — **relative paths** work exactly like in a file system.
+- `[Top](/Welcome)` — a **leading slash** makes the link absolute from the notes root. The location of the linking page does not change this.
+- `[Section](#some-heading)` and `[Page section](Ideas#some-heading)` — OMN-Go keeps the anchors. Each heading gets an ID from its text, in lowercase and with hyphens.
+- OMN-Go does not change links with a real file extension (`.png`, `.css`, `.js`, ...). It also does not change a link that starts with a scheme: `http://`, `https://`, `mailto:`, `tel:`, `sms:`, `geo:`, `market:`, `whatsapp:` and every other one. On the Android application such a link goes to the application that owns the scheme — the browser, the mail client, the Messaging application, Maps. A scheme that no installed application accepts does nothing.
+- Do not put a `:` in a page name. `[Draft](Notes:Draft)` looks like a link with the scheme `notes:`, and OMN-Go sends it to the system.
 
 ### Copy a link to this page
 

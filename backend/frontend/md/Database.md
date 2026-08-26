@@ -12,21 +12,9 @@ OMN-Go gives the `<script>` block of a note access to a real SQL database on the
 
 Each database is a SQLite file at `db/<name>.sqlite` in the storage directory of this device. OMN-Go creates the file the first time a note uses that name.
 
-- **Shared.** Everything that talks to *this one running server* uses the
-  same database. Two browser tabs open to the same desktop application see
-  the same rows immediately. A phone and a laptop that both connect to one
-  device through [LAN sharing](UserManual#sharing-on-the-lan) also see the
-  same rows immediately.
-- **OMN-Go never syncs the live `.sqlite` file** between separate
-  installations. The `db/` directory is excluded from git on purpose,
-  because it is in `.gitignore`. The `config.json` file is excluded in the
-  same way. The server of the Android application and the server of the
-  desktop application each keep their own `db/` directory. To move the
-  *content* of a database between devices, create a **backup**. The backup
-  travels with your notes through git. See
-  [Database Backups](#database-backups) below.
-- **Admin-only.** A guest that connects over the LAN cannot call the
-  database API. A guest can still read pages.
+- **Shared.** Everything that talks to *this one running server* uses the same database. Two browser tabs open to the same desktop application see the same rows immediately. A phone and a laptop that both connect to one device through [LAN sharing](UserManual#sharing-on-the-lan) also see the same rows immediately.
+- **OMN-Go never syncs the live `.sqlite` file** between separate installations. The `db/` directory is excluded from git on purpose, because it is in `.gitignore`. The `config.json` file is excluded in the same way. The server of the Android application and the server of the desktop application each keep their own `db/` directory. To move the *content* of a database between devices, create a **backup**. The backup travels with your notes through git. See [Database Backups](#database-backups) below.
+- **Admin-only.** A guest that connects over the LAN cannot call the database API. A guest can still read pages.
 
 ## Quick start
 
@@ -180,18 +168,11 @@ Open the [Config](Config) page. Press the **Database Backups** button at the top
 The page lists every database that has a live `.sqlite` file or at least one backup. Each row shows a colored status dot:
 
 - 🟢 **in sync** — the database matches its newest backup.
-- 🟡 **not backed up** — the database has changes that are newer than any
-  backup. Press **Backup now** to save them.
-- 🔵 **backup newer** — the newest backup is newer than the database.
-  Usually a pull from another device brought this backup. Press
-  **Restore** if you want the content of the backup.
-- 🔵 **no database** — backups exist, but no `.sqlite` file exists yet.
-  This is the state of a fresh device directly after a pull. OMN-Go
-  restores the database automatically the first time a note opens it. You
-  can also restore it here by hand.
+- 🟡 **not backed up** — the database has changes that are newer than any backup. Press **Backup now** to save them.
+- 🔵 **backup newer** — the newest backup is newer than the database. Usually a pull from another device brought this backup. Press **Restore** if you want the content of the backup.
+- 🔵 **no database** — backups exist, but no `.sqlite` file exists yet. This is the state of a fresh device directly after a pull. OMN-Go restores the database automatically the first time a note opens it. You can also restore it here by hand.
 - ⚪ **no backups** — this database has no backup yet.
-- 🔴 **invalid backup** — OMN-Go cannot parse the newest backup file. The
-  file is damaged, or it holds git conflict markers.
+- 🔴 **invalid backup** — OMN-Go cannot parse the newest backup file. The file is damaged, or it holds git conflict markers.
 
 The dot is only a hint. OMN-Go computes it from the file timestamps. The dot never starts an action on its own.
 
@@ -253,10 +234,7 @@ The actions of the page are plain admin-only HTTP endpoints. You can call them f
 
 ## Limits and errors
 
-- OMN-Go limits each call to the SQL API to **1 MB** of JSON body and
-  **500 statements**. This limit is sufficient for interactive note
-  scripts. If a script needs more, split the work across a few calls. Do
-  not send one very large batch.
+- OMN-Go limits each call to the SQL API to **1 MB** of JSON body and **500 statements**. This limit is sufficient for interactive note scripts. If a script needs more, split the work across a few calls. Do not send one very large batch.
 - When OMN-Go rejects a batch, the error names the statement that failed:
 
   ```js
@@ -267,15 +245,10 @@ The actions of the page are plain admin-only HTTP endpoints. You can call them f
   }
   ```
 
-- SQL runs with the same privileges as any other admin action in OMN-Go.
-  A database is only as trustworthy as the note script that writes to it.
-  Do not paste database code from a note that you do not trust.
+- SQL runs with the same privileges as any other admin action in OMN-Go. A database is only as trustworthy as the note script that writes to it. Do not paste database code from a note that you do not trust.
 
 ## See also
 
 - [SQL Import](SQLImport) — load an existing SQL dump into a database.
-- [User Manual](UserManual) — general page authoring, links, and the
-  other globals (`PageName`, `PAGE_EXT`, ...) that note scripts can use.
-- [Raw HTML and JavaScript in pages](UserManual#raw-html-and-javascript-in-pages)
-  and [ScriptRules](ScriptRules) — the scoping rules that isolate the
-  `<script>` block of each page from other pages.
+- [User Manual](UserManual) — general page authoring, links, and the other globals (`PageName`, `PAGE_EXT`, ...) that note scripts can use.
+- [Raw HTML and JavaScript in pages](UserManual#raw-html-and-javascript-in-pages) and [ScriptRules](ScriptRules) — the scoping rules that isolate the `<script>` block of each page from other pages.
