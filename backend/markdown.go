@@ -20,7 +20,7 @@ import (
 var hrefRe = regexp.MustCompile(`href="([^"]*)"`)
 
 // extRe matches a trailing filename extension (e.g. ".html", ".png", ".js")
-// so we only append ".html" to links that don't already point at a
+// so we only append ".html" to links that do not already point at a
 // concrete file.
 var extRe = regexp.MustCompile(`\.[a-zA-Z0-9]+$`)
 
@@ -221,7 +221,7 @@ func (a *App) rewriteInternalLink(href string) string {
 		return href
 	}
 
-	// Split off the query/fragment suffix so it's never touched by the
+	// Split off the query/fragment suffix so it is never touched by the
 	// extension rewrite below (e.g. "Page?x=1" must not become
 	// "Page?x=1.html", and "Page#section" must not become
 	// "Page#section.html").
@@ -233,7 +233,7 @@ func (a *App) rewriteInternalLink(href string) string {
 	}
 
 	// A bare "?query" or the (already-handled) "#anchor" case with nothing
-	// before it — nothing to rewrite, it's relative to the current page.
+	// before it — nothing to rewrite, it is relative to the current page.
 	if path == "" {
 		return href
 	}
@@ -338,11 +338,11 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 
 	// Chrome-asset (CSS/JS/Home) path prefix. A normal markdown note
 	// (customBody == "") is cached to html/<name>.html and may be opened
-	// directly from disk (file://), where an absolute "/js/..." path doesn't
+	// directly from disk (file://), where an absolute "/js/..." path does not
 	// resolve - so use a prefix relative to the page's own directory depth
 	// (see relPrefix), which resolves correctly both offline and online.
 	// Custom-body pages (Config, DB backups, the external-edit wait page) are
-	// dynamic, served at URLs whose depth doesn't track the page name and
+	// dynamic, served at URLs whose depth does not track the page name and
 	// never opened from disk, so they keep absolute "/" paths.
 	assetPrefix := "/"
 	if customBody == "" {

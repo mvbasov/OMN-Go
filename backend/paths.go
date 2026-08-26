@@ -21,7 +21,7 @@ import (
 // without re-deriving the other.
 //
 // Anything else - a name with a different extension such as ".js", ".css",
-// ".json", ".png" - is not a markdown page at all. It's a plain static
+// ".json", ".png" - is not a markdown page at all. It is a plain static
 // asset that only ever lives under html/, so isPage is false and only
 // htmlPath is meaningful; mdPath is left empty.
 //

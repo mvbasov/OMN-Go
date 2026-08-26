@@ -197,7 +197,7 @@ func renderIndexPage(v indexPageView) string {
 		// relatively via AssetPrefix ("", "../", ...) so the link resolves from
 		// any directory depth both online and offline (file://). The fragment
 		// is tagSlug(t) - the same slug the generated page uses for its section
-		// ids (see tags.go), so both are computed by one Go function and can't
+		// ids (see tags.go), so both are computed by one Go function and cannot
 		// drift. AssetPrefix carries only "./" characters, so it needs no
 		// escaping (mirrors its ASSET_PREFIX use below).
 		fmt.Fprintf(&tags, `<a href="%sOMNGoTags.html#%s" class="taglink"><span class="tagmark">%s</span></a>`,
@@ -1051,14 +1051,14 @@ const runtimeVarsMarker = `<meta id="omn-go-runtime-vars-marker">`
 // modalsMarker is the empty slot index.html emits where the server-only
 // modals go. injectRuntimeVars replaces it with modalsHTML when the backend
 // serves the page; on an exported/offline page (no backend) it stays as an
-// empty div, so those modals simply don't exist there.
+// empty div, so those modals simply do not exist there.
 const modalsMarker = `<div id="omn-go-modals-slot"></div>`
 
 // injectRuntimeVars splices the globals that must reflect the *currently
 // running* server - not whatever was true when a page was last compiled
 // to the on-disk HTML cache - into a rendered page's runtimeVarsMarker.
 // Pages are cached to disk (precompileAllPages / serveHTMLPage's mtime
-// check) so markdown isn't re-rendered per request, but APP_VERSION
+// check) so markdown is not re-rendered per request, but APP_VERSION
 // (bumped between releases), UseInternalEd and Theme (both toggleable at
 // any time from Config) must always reflect *now*; recompiling every page
 // whenever any of them changes would defeat the cache.
@@ -1088,7 +1088,7 @@ func (a *App) injectRuntimeVars(page []byte) []byte {
 		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable(), incomingIndexName)
 	page = bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
 	// Splice the server-only modals into the slot (a no-op on templates that
-	// don't carry it, e.g. the standalone editor page).
+	// do not carry it, e.g. the standalone editor page).
 	page = bytes.Replace(page, []byte(modalsMarker), []byte(modalsHTML), 1)
 	return page
 }

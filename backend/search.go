@@ -573,7 +573,7 @@ func scoreDocument(q parsedQuery, d *searchDocument) (int, matchTier, []lineHit,
 					hits[ln.no] = h
 				}
 				h.spans = append(h.spans, spans...)
-				// SUM across distinct terms, don't keep the best one. A line
+				// SUM across distinct terms, do not keep the best one. A line
 				// carrying every term of the query is the line worth showing,
 				// even when some other line matches a single term more
 				// strongly: "await fetch('/json/test.json')" beats a heading

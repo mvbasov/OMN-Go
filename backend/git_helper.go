@@ -258,9 +258,9 @@ func (a *App) ensureGitignore() {
 	// This app never uses the `git` binary though: commitLocalChanges /
 	// syncPush check every individual file path from wTree.Status()
 	// directly against the gitignore matcher, so that traversal problem
-	// doesn't apply here. Verified against go-git's
+	// does not apply here. Verified against go-git is
 	// plumbing/format/gitignore matcher: a bare "!/html/images/"
-	// pattern's globMatch doesn't require the whole path to be consumed
+	// pattern's globMatch does not require the whole path to be consumed
 	// for a directory-only pattern unless the path stops exactly there,
 	// so it ends up matching (and re-including) every file anywhere
 	// under html/images/, not just the directory entry itself - silently
@@ -378,7 +378,7 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 
 	// Remote setup/selection happens separately, in
 	// ensureRemotesAndGetActive — only sync operations need it (a plain
-	// status/preview read doesn't touch any remote), so it isn't done
+	// status/preview read does not touch any remote), so it is not done
 	// unconditionally here.
 	return repo, nil
 }
@@ -393,15 +393,15 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 // repoint "origin" every time, with no separate history/identity per
 // server. The model here instead is:
 //
-//   - "origin" is a one-time bootstrap remote. It's created only if it
-//     doesn't already exist (seeded from whatever server happens to be
+//   - "origin" is a one-time bootstrap remote. It is created only if it
+//     does not already exist (seeded from whatever server happens to be
 //     active at that moment) and is never modified again afterwards. It
 //     exists purely as a fallback for the case where the active slot has
 //     no URL configured — not as something that tracks config changes.
 //   - Every server slot with a non-empty URL gets its own persistent
 //     remote, named deterministically by slot index ("gitserver0" ..
 //     "gitserver4") rather than by the user-editable "Name" field, so
-//     renaming a server in Config doesn't orphan its remote. These ARE
+//     renaming a server in Config does not orphan its remote. These ARE
 //     kept in sync with config on every call: added when a slot gains a
 //     URL, updated when a slot's URL changes, removed when a slot is
 //     cleared.
@@ -414,7 +414,7 @@ func slotRemoteName(index int) string {
 	return fmt.Sprintf("gitserver%d", index)
 }
 
-// ensureOriginRemote creates "origin" the first time it's missing, seeded
+// ensureOriginRemote creates "origin" the first time it is missing, seeded
 // from fallbackURL, and otherwise leaves it untouched.
 func (a *App) ensureOriginRemote(repo *git.Repository, fallbackURL string) error {
 	if _, err := repo.Remote("origin"); err == nil {
@@ -844,7 +844,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 		hasPendingMerge = true
 		commitOpts.Parents = []plumbing.Hash{headRef.Hash(), h}
 		// The merge resolution may leave the tree identical to one parent
-		// (e.g. purely a "take remote's version" resolution) - that's
+		// (e.g. purely a "take remote's version" resolution) - that is
 		// still a legitimate merge commit, not an empty no-op commit.
 		commitOpts.AllowEmptyCommits = true
 	}
@@ -965,7 +965,7 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 		// handleSyncPreview: config.json holds this device's local
 		// admin/guest passwords and server list and must never be
 		// touched by sync, regardless of what .gitignore currently
-		// says. Relying on the matcher alone isn't safe here — a force
+		// says. Relying on the matcher alone is not safe here — a force
 		// pull's checkout can leave .gitignore in a state (fetched from
 		// remote, possibly without this line, or momentarily stale)
 		// where the matcher no longer protects it, which is exactly
@@ -996,7 +996,7 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 // returns ErrSyncConflict so the caller can offer the user a
 // choice between "pull_abort" and "pull_mark" (3-way merge).
 // trackedWorktreeIsDirty reports whether any TRACKED file has a local
-// modification that hasn't been committed. Untracked content (new notes
+// modification that has not been committed. Untracked content (new notes
 // not yet committed, db_json exports, ...) never counts - only tracked
 // files, because those are exactly what writeTreeToWorktree in syncPull
 // below would silently overwrite with the remote's copy. go-git's native
@@ -1059,7 +1059,7 @@ func (w *syncProgressWriter) Write(p []byte) (int, error) {
 		line = strings.TrimSpace(line)
 		// Servers normally send bare progress text and the "remote:" label is
 		// the client's convention (mirrored here). Strip it if a server does
-		// send one, so the line can't come out as "remote: remote: ...".
+		// send one, so the line cannot come out as "remote: remote: ...".
 		line = strings.TrimSpace(strings.TrimPrefix(line, "remote:"))
 		if line != "" && time.Since(w.last) >= syncProgressInterval {
 			w.last = time.Now()
@@ -1105,7 +1105,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 	// is not an ancestor of the remote tip - i.e. this device has its own
 	// unpushed commits that a blind jump to remote's tree would strand.
 	// An unborn local branch (nothing committed here yet) trivially
-	// qualifies as "already an ancestor" - there's nothing to strand.
+	// qualifies as "already an ancestor" - there is nothing to strand.
 	if headErr == nil {
 		localCommit, cErr := repo.CommitObject(localHead.Hash())
 		if cErr != nil {
@@ -1154,7 +1154,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 	// user database's .sqlite file - could be deleted and silently
 	// recreated by that machinery even on a PLAIN pull, changing the
 	// file's on-disk identity out from under any already-open connection
-	// to it. That's exactly what "attempt to write a readonly database
+	// to it. That is exactly what "attempt to write a readonly database
 	// (1032)" (SQLITE_READONLY_DBMOVED) means: the connection notices, on
 	// its next write, that the file it opened is no longer the file at
 	// that path.
@@ -1314,12 +1314,12 @@ func (a *App) syncPullAbort(wTree *git.Worktree) error {
 // overwrites the exact paths tree contains, and touches nothing else.
 //
 // See the comment in syncPullForce for why that distinction is the whole
-// point: Checkout(Force: true) - even called correctly - doesn't limit its
+// point: Checkout(Force: true) - even called correctly - does not limit its
 // "make the worktree match" behavior to files git actually knows about. On
 // a repo with no commit yet to diff against (a fresh install, before this
 // device has ever completed a sync) or a partially-reconciled state, it
 // falls back to reconciling literally everything on disk against the
-// target tree, deleting whatever isn't part of it - including config.json,
+// target tree, deleting whatever is not part of it - including config.json,
 // which was never tracked and is always in .gitignore, because tracked
 // status and .gitignore are never actually consulted by that fallback.
 func (a *App) writeTreeToWorktree(repo *git.Repository, wTree *git.Worktree, tree *object.Tree) (map[string]bool, error) {
@@ -1434,7 +1434,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 	// deleted" (safe to remove) apart from "file that was never tracked in
 	// the first place" (config.json, or anything else this app manages
 	// outside git - never a candidate for removal here, regardless of
-	// what's in the new tree).
+	// what is in the new tree).
 	oldPaths, err := oldTrackedPaths(repo)
 	if err != nil {
 		return fmt.Errorf("failed to read current tracked tree: %v", err)
@@ -1499,7 +1499,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 // see the comment on syncPush for why: it made "push" silently do
 // nothing against whichever remote it happened to check, which is
 // exactly wrong once multiple remotes (git server "profiles"/slots) are
-// in play and the just-switched-to one hasn't seen local HEAD yet.
+// in play and the just-switched-to one has not seen local HEAD yet.
 
 // syncPush implements both "push" and "force push":
 //
@@ -1518,7 +1518,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 //     that commit - because the working tree was clean (correctly,
 //     nothing NEW to commit) while the separate pre-check's own
 //     fetch-and-compare against profile 2 could end up wrong in ways an
-//     actual repo.Push attempt against profile 2 isn't. Removed in favor
+//     actual repo.Push attempt against profile 2 is not. Removed in favor
 //     of always just asking the real remote via the push itself.)
 //   - If there ARE uncommitted local changes, a commit message is
 //     required; without one it returns ErrCommitMessageRequired.
@@ -1788,7 +1788,7 @@ func conflictingPaths(wTree *git.Worktree, remoteTree *object.Tree) ([]string, e
 
 		remoteFile, err := remoteTree.File(path)
 		if err != nil {
-			continue // remote doesn't have this file - nothing to reconcile
+			continue // remote does not have this file - nothing to reconcile
 		}
 		remoteContentStr, _ := remoteFile.Contents()
 		if string(localContent) == remoteContentStr {
@@ -2009,7 +2009,7 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Same reasoning as handleSync: don't let a status/preview read run
+	// Same reasoning as handleSync: do not let a status/preview read run
 	// concurrently with an in-progress checkout/reset from another sync.
 	a.GitMutex.Lock()
 	defer a.GitMutex.Unlock()

@@ -28,7 +28,7 @@ const (
 // normalizeTheme maps any input to a valid theme value. Unknown or empty
 // values (including configs written before the theme field existed)
 // become ThemeAuto. Centralized here so the config loader, the config
-// POST handler and the page renderer can't disagree on what's valid -
+// POST handler and the page renderer cannot disagree on what is valid -
 // everything downstream (injectRuntimeVars, renderConfigPage) may safely
 // assume the value is one of the three constants.
 func normalizeTheme(s string) string {
@@ -284,7 +284,7 @@ func (a *App) loadConfig(storageDir string) {
 	} else {
 		data, readErr := os.ReadFile(configPath)
 		if readErr != nil {
-			// Can't read an existing config.json - leave a.Config at its
+			// Cannot read an existing config.json - leave a.Config at its
 			// zero value and say so loudly, rather than silently running
 			// with an empty/broken config that looks intentional.
 			log.Printf("loadConfig: failed to read %s: %v", configPath, readErr)
@@ -307,9 +307,9 @@ func (a *App) loadConfig(storageDir string) {
 		a.Config.ServerPort = a.fallbackPort()
 	}
 	// Configs written before max_upload_size_mb existed (or one explicitly
-	// saved as 0/negative, which isn't a sane limit) fall back to the
+	// saved as 0/negative, which is not a sane limit) fall back to the
 	// default here - same reasoning as the ServerPort fixup just above.
-	// Not persisted immediately: it'll be written out next time config.json
+	// Not persisted immediately: it will be written out next time config.json
 	// is saved for any other reason, same as the theme normalization below.
 	if a.Config.MaxUploadSizeMB <= 0 {
 		a.Config.MaxUploadSizeMB = defaultMaxUploadSizeMB

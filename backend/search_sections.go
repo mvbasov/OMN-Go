@@ -496,7 +496,8 @@ const bookmarkJoin = " · "
 //
 // Anything in the note OUTSIDE the array is still indexed as ordinary prose:
 // Bookmarks.md is machine-managed, but nothing stops someone adding a note
-// above the script, and "I typed it and search can't find it" is a bad answer.
+// above the script, and "I typed it and search cannot find it" is a bad
+// answer.
 //
 // If the file is not the shape this expects - hand-edited, half-written, from
 // another tool - it falls back to plain line indexing. Degraded, not broken.

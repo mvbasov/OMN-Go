@@ -262,7 +262,7 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			snapshot = *c
 		})
 
-		// Persist outside the lock — file I/O shouldn't block other
+		// Persist outside the lock — file I/O should not block other
 		// goroutines that only need a config read.
 		data, err := json.MarshalIndent(snapshot, "", "  ")
 		if err != nil {
@@ -314,7 +314,7 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 //     user reopens the app manually - at which point MainActivity also
 //     re-evaluates which permissions LAN sharing now needs.
 //   - Desktop: spawn a fresh copy of our own executable (marked with
-//     OMN_GO_RESTARTED=1 so main_desktop.go doesn't open a second browser
+//     OMN_GO_RESTARTED=1 so main_desktop.go does not open a second browser
 //     tab), then exit. The bind-retry loop in server.go absorbs the brief
 //     window where the child races the parent's socket teardown.
 //
@@ -372,7 +372,7 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 //
 // Extracted as its own pure function (no runtime.GOOS check inside) so it
 // can be unit-tested directly - runtime.GOOS is a compile-time constant
-// and can't be faked in a test running on a non-Android build.
+// and cannot be faked in a test running on a non-Android build.
 func resolveAndroidEditName(name, baseName string, isPage bool) string {
 	if isPage {
 		return baseName + ".md"
@@ -620,7 +620,7 @@ var (
 // uploadRejected marks a saveUploadedFile failure as caused by the
 // uploaded file itself (wrong type, too large) rather than a server-side
 // I/O problem, so handleUpload/handleUploadJSON can answer 400 instead of
-// 500 - the client sent something we won't accept, not something broke.
+// 500 - the client sent something we will not accept, not something broke.
 type uploadRejected struct{ msg string }
 
 func (e *uploadRejected) Error() string { return e.msg }
@@ -636,7 +636,7 @@ func (e *uploadRejected) Error() string { return e.msg }
 //
 // allowedExt is matched case-insensitively against the uploaded file's
 // extension; an empty allowedExt skips the type check entirely. maxBytes
-// <= 0 skips the size check (used by tests that don't care about it -
+// <= 0 skips the size check (used by tests that do not care about it -
 // real callers always pass a.maxUploadBytes(), which is never <= 0).
 func (a *App) saveUploadedFile(r *http.Request, formField, destDir string, allowedExt []string, maxBytes int64) (filename string, err error) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB in-memory threshold before spilling to temp files; NOT the size cap (see maxBytes below)
@@ -724,7 +724,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// gives dropped images a sane default width instead of rendering at
 	// full native resolution.
 	// NOTE: this must be a normal double-quoted string, not a backtick raw
-	// string - backticks don't interpret \n as an escape at all, so it was
+	// string - backticks do not interpret \n as an escape at all, so it was
 	// literally inserting the two characters "\" and "n" into the note
 	// instead of a newline (compare handleUploadJSON right below, which
 	// already gets this right).
@@ -798,8 +798,8 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	// Not on disk yet - fall back to the embedded default, or synthesize a
 	// fresh empty page. Either way, persist it so this fallback only ever
 	// runs once per page. Failures here are logged (not fatal to the
-	// request) since the in-memory `data` we're about to serve is still
-	// correct even if we can't cache it to disk.
+	// request) since the in-memory `data` we are about to serve is still
+	// correct even if we cannot cache it to disk.
 	embedPath := "frontend/md/" + baseName + ".md"
 	if embedData, embedErr := staticFS.ReadFile(embedPath); embedErr == nil {
 		data = embedData
@@ -1019,7 +1019,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 	}
 
 	// The auto-generated Tags index: regenerated when stale against ALL notes
-	// (not just its own .md), so it can't use the normal one-source mtime path
+	// (not just its own .md), so it cannot use the normal one-source mtime path
 	// below. See serveTagsPage / tags.go.
 	if name == "OMNGoTags" {
 		a.serveTagsPage(w, r)

@@ -623,7 +623,7 @@ func TestHandleConfigSavesAndroidIntentToggles(t *testing.T) {
 // ended in ".md", but the name reaching handleEditExternal is whatever URL
 // was being viewed (often "Name.html"), not necessarily the real source
 // file. resolveAndroidEditName is the fix, normalizing that name before
-// it's ever sent to the Android client.
+// it is ever sent to the Android client.
 func TestResolveAndroidEditName(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -696,7 +696,7 @@ func TestHandleBookmarkSplitsNotesBySemicolon(t *testing.T) {
 		"title": {"Ex"},
 		"tags":  {"a, b"},
 		// three ';'-separated pieces; the trailing blank must be dropped. The
-		// double quotes are mid-note so the empty-note check below can't be
+		// double quotes are mid-note so the empty-note check below cannot be
 		// fooled by the "\"\"" a note *ending* in a quote would marshal to.
 		"notes": {` a "b" c ; it's second ; `},
 	}

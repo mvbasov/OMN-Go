@@ -138,7 +138,7 @@ var staticFS embed.FS
 // tree is lazily extracted to StorageDir/html on first request (see
 // serveLazyEmbed / serveStaticAsset) and is treated as user-editable
 // content that a person can open with ?edit=true and overwrite. Templates
-// are neither - they're Go-side rendering logic, not user content - so
+// are neither - they are Go-side rendering logic, not user content - so
 // mixing them into frontend/html would both let a user "edit" and corrupt
 // them and require excluding them from every static-file listing by hand.
 //
@@ -156,7 +156,7 @@ var templatesFS embed.FS
 //
 // defaultPort, when > 0, is used as the server port whenever config.json
 // does not carry a (positive) server_port of its own - the same
-// "flavor knows, this package can't" reasoning as storageDir: the
+// "flavor knows, this package cannot" reasoning as storageDir: the
 // standard and fdroid Android flavors are installable side by side, so
 // they must not compete for the same default loopback port (see
 // DEFAULT_SERVER_PORT in android/app/build.gradle). Pass 0 to keep the

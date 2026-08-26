@@ -105,7 +105,7 @@ func (a *App) openUserDBLocked(name string) (*sql.DB, error) {
 		return nil, fmt.Errorf("create db directory: %w", err)
 	}
 
-	// busy_timeout: don't fail instantly if a second request races this
+	// busy_timeout: do not fail instantly if a second request races this
 	// one. journal_mode TRUNCATE instead of WAL on purpose: WAL needs a
 	// shared-memory-mapped -shm file, which is unreliable on Android's
 	// FUSE-backed scoped storage where these files live; TRUNCATE keeps
@@ -199,8 +199,8 @@ func (a *App) evictUserDB(name string) {
 // raises when an already-open connection's underlying file was replaced
 // on disk out from under it (SQLITE_READONLY_DBMOVED, code 1032) - the
 // driver re-stats the path on every write and refuses to write once the
-// file it opened no longer matches what's at that path. Matched on
-// message text rather than a driver-specific error type, since that's
+// file it opened no longer matches what is at that path. Matched on
+// message text rather than a driver-specific error type, since that is
 // what modernc.org/sqlite's error actually renders as (verified against
 // a live "attempt to write a readonly database (1032)" report) and avoids
 // this file depending on driver-internal type details for something this

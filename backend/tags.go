@@ -53,7 +53,7 @@ func tagSlug(tag string) string {
 
 // extractTitleTags reads a note's Title and Tags out of its header block,
 // using the exact same rules as compilePageWithBody (which now calls
-// this too, so the two can't drift): the last "Title:" wins; "Tags:" is a
+// this too, so the two cannot drift): the last "Title:" wins; "Tags:" is a
 // comma-separated list, trimmed, empties dropped. title is "" when absent (the
 // caller decides the fallback); tags preserves order and, like the pill path,
 // is NOT de-duplicated here - the tags-page generator de-dupes per page itself.
@@ -140,7 +140,7 @@ func (a *App) buildTagIndex() map[string][]tagPageRef {
 }
 
 // renderTagsMarkdown builds the OMNGoTags note content from a tag index: a
-// header, a "don't edit" comment, a cloud of jump-links, and one section per
+// header, a "do not edit" comment, a cloud of jump-links, and one section per
 // tag. Tags are ordered case-insensitively; pages within a tag by title then
 // path. The body is raw HTML (notes render with html.WithUnsafe()) so the
 // section ids exactly match tagSlug; page links are relative ".html" paths that
@@ -235,7 +235,7 @@ func (a *App) generateTagsPage() error {
 // or renamed bumps its directory's mtime but not necessarily any surviving
 // file's, so scanning files alone would miss those. The generated OMNGoTags.md
 // (a derived file) and the md/local scratch tree are excluded. Stat-only walk,
-// no parsing. Returns the zero time if md/ can't be walked.
+// no parsing. Returns the zero time if md/ cannot be walked.
 func (a *App) newestNoteMtime() time.Time {
 	mdRoot := filepath.Join(a.StorageDir, "md")
 	var newest time.Time

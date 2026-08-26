@@ -83,7 +83,7 @@ func TestRewriteInternalLink(t *testing.T) {
 func TestRenderMarkdownToHTMLMathProtection(t *testing.T) {
 	a := &App{}
 	// Underscores inside math would be corrupted into <em> by the markdown
-	// parser if the $$...$$ / $...$ protection didn't hold.
+	// parser if the $$...$$ / $...$ protection did not hold.
 	md := "Before\n\n$$x_1 + y_2$$\n\nand inline $a_b$ end"
 	out := a.renderMarkdownToHTML([]byte(md))
 

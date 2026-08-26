@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// hostnameUnsafeRe strips anything that can't appear in a database backup
+// hostnameUnsafeRe strips anything that cannot appear in a database backup
 // filename (see db_backup.go): the hostname is embedded verbatim in
 // <timestamp>_<hostname>.jsonl, so it shares the same [A-Za-z0-9_-]
 // alphabet the db names already use.

@@ -68,7 +68,7 @@ import (
 //	{"kind":"trigger","name":"tr1","table":"t","sql":"CREATE TRIGGER ..."}
 //
 // Values: numbers are written exactly (int64 survives via json.Number on
-// read-back); BLOBs - and TEXT that isn't valid UTF-8 - are tagged as
+// read-back); BLOBs - and TEXT that is not valid UTF-8 - are tagged as
 // {"b64":"..."}; everything else is the natural JSON type. One line per
 // row keeps git diffs minimal, and a git conflict marker anywhere in the
 // file fails JSON parsing on a precise line instead of half-applying.
@@ -107,7 +107,7 @@ func (a *App) relStoragePath(full string) string {
 	return filepath.ToSlash(rel)
 }
 
-// quoteIdent safely embeds a SQL identifier in a statement that can't use
+// quoteIdent safely embeds a SQL identifier in a statement that cannot use
 // a placeholder for it (DDL, PRAGMA). Identifiers here always originate
 // from sqlite_master or PRAGMA table_info - i.e. from CREATE statements
 // SQLite itself already accepted - so this is defense in depth, not the

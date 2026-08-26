@@ -29,7 +29,7 @@ import (
 //   - VERSION-DEPENDENT files (versionDependentAssets below) ship as part
 //     of the application and must match the running build: the app's own
 //     JS/CSS, and the system documentation notes. Lazy extraction alone
-//     can't keep these correct across an upgrade - an already-extracted
+//     cannot keep these correct across an upgrade - an already-extracted
 //     copy from the previous version shadows the new one forever, and a
 //     note ADDED in a new release (e.g. md/SQLImport.md) would never appear
 //     at all, since a missing note is synthesized blank rather than pulled
