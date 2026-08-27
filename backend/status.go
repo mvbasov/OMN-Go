@@ -176,6 +176,9 @@ type statusConfig struct {
 	BackupPruneDepth  int      `json:"backup_prune_depth"`
 	Hostname          string   `json:"hostname"`
 	Author            string   `json:"author"`
+	LogDebug          bool     `json:"log_debug"`
+	LogInfo           bool     `json:"log_info"`
+	LogTags           []string `json:"log_tags"`
 }
 
 type statusGitHead struct {
@@ -461,6 +464,9 @@ func statusConfigSection(cfg Config) *statusConfig {
 		BackupPruneDepth:  cfg.BackupPruneDepth,
 		Hostname:          cfg.Hostname,
 		Author:            cfg.Author,
+		LogDebug:          cfg.LogDebug,
+		LogInfo:           cfg.LogInfo,
+		LogTags:           normalizeLogTags(cfg.LogTags),
 	}
 }
 
@@ -911,6 +917,9 @@ func renderStatusMarkdown(res *statusResponse) string {
 			{"backup_prune_depth", strconv.Itoa(c.BackupPruneDepth)},
 			{"hostname", c.Hostname},
 			{"author", c.Author},
+			{"log_debug", yes(c.LogDebug)},
+			{"log_info", yes(c.LogInfo)},
+			{"log_tags", strings.Join(c.LogTags, ", ")},
 		})
 	}
 	if g := res.Git; g != nil {

@@ -57,6 +57,14 @@
                 </span>
                 <i class="material-icons config-menu-chevron">chevron_right</i>
             </button>
+            <button type="button" class="config-menu-item" data-goto="logging">
+                <i class="material-icons config-menu-icon">bug_report</i>
+                <span class="config-menu-text">
+                    <span class="config-menu-name">Logging</span>
+                    <span class="config-menu-desc">Message levels and subsystems</span>
+                </span>
+                <i class="material-icons config-menu-chevron">chevron_right</i>
+            </button>
             <button type="button" class="config-menu-item" data-goto="git">
                 <i class="material-icons config-menu-icon">cloud_sync</i>
                 <span class="config-menu-text">
@@ -97,7 +105,7 @@
           checkbox must be added to it. A text field or a select does not:
           the browser always sends those, empty or not.
         -->
-        <input type="hidden" name="config_fields" value="use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds" />
+        <input type="hidden" name="config_fields" value="use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds,log_debug,log_info,log_tags" />
         <div class="config-screen" data-screen="general">
             <div class="config-subhead">
                 <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
@@ -304,6 +312,45 @@
             <div class="config-field">
                 <label class="config-label">Index status</label>
                 <span class="config-hint">%%SEARCH_INDEX_STATUS%%</span>
+            </div>
+
+            <div class="config-field config-save-row">
+                <span class="config-dirty-indicator"><span class="config-dirty-dot clean"></span><span class="config-dirty-label"></span></span>
+                <button type="button" class="config-save-btn" onclick="saveConfig()">Save Configuration</button>
+            </div>
+        </div>
+
+        <!-- Logging. The server writes every line to /api/logs whatever
+             these switches say, because the sync progress overlay reads
+             that stream. They control what reaches stdout on the server
+             and what reaches the browser console on every page. -->
+        <div class="config-screen" data-screen="logging">
+            <div class="config-subhead">
+                <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
+                <h2 class="config-subtitle">Logging</h2>
+            </div>
+
+            <div class="config-field">
+                <span class="config-hint">The app writes a message for each thing it does. A message has a subsystem in brackets and a level in parentheses, for example <code>[sync] (debug) Staging file: Todo.md</code>. Open the browser console to read them.</span>
+            </div>
+
+            <div class="config-field">
+                <label class="config-label">Levels</label>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgLogDebug" name="log_debug" value="true" %%LOG_DEBUG_CHECKED%% />
+                    <label class="config-label">Debug - each step of an operation</label>
+                </div>
+                <div class="config-checkbox-row">
+                    <input type="checkbox" id="cfgLogInfo" name="log_info" value="true" %%LOG_INFO_CHECKED%% />
+                    <label class="config-label">Info - the result of an operation</label>
+                </div>
+                <span class="config-hint">Both are off until you ask for them. Errors have no switch and always appear.</span>
+            </div>
+
+            <div class="config-field">
+                <label class="config-label">Subsystems</label>
+%%LOG_TAG_BOXES%%
+                <span class="config-hint">A debug or info message appears when its level is on and its subsystem is ticked here. An error appears whatever you tick.</span>
             </div>
 
             <div class="config-field config-save-row">

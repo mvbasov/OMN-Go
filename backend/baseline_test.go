@@ -41,6 +41,12 @@ package backend
 //     (done). The receive box moved out of the incoming index note and into
 //     modals.html, so omn-go-sse.js has to be told which page it belongs on
 //     - and the name stays in Go, beside the code that writes that page.
+//   - 26.08.71 adds OMN_LOG_DEBUG, OMN_LOG_INFO and OMN_LOG_TAGS to
+//     TestBaseline_InjectedRuntimeVarSet (done), and log_debug, log_info and
+//     log_tags to configFormFields. Every page mirrors the server log into
+//     the browser console, and omn-go-sse.js reads these three to decide
+//     what it prints. They must reach a page compiled before the switches
+//     changed, which is what this mechanism is for.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -644,7 +650,8 @@ func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
 // carries. Kept here as one string so a test posts the same declaration the
 // real form does.
 const configFormFields = "use_internal_editor,share_lan,enable_intent_uri," +
-	"enable_termux_intent,search_enabled,search_bundled,search_kinds"
+	"enable_termux_intent,search_enabled,search_bundled,search_kinds," +
+	"log_debug,log_info,log_tags"
 
 // assertConfigOnDisk decodes config.json and hands it to check. Separate from
 // the in-memory assertions because "saved" in this app means both, and a
@@ -1016,7 +1023,13 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 	// 26.08.47 added OMN_INCOMING_PAGE: the receive box lives in the modals
 	// block now, and omn-go-sse.js has to know which page it belongs on
 	// without keeping a second copy of the note's name.
-	want := []string{"APP_VERSION", "OMN_INCOMING_PAGE", "OMN_SEARCH_GLOBAL", "OMN_THEME", "USE_INTERNAL_ED"}
+	// 26.08.71 added the three log switches: the console mirror in
+	// omn-go-sse.js reads them to decide what it prints, and a page compiled
+	// before a switch changed must still get the new answer.
+	want := []string{
+		"APP_VERSION", "OMN_INCOMING_PAGE", "OMN_LOG_DEBUG", "OMN_LOG_INFO",
+		"OMN_LOG_TAGS", "OMN_SEARCH_GLOBAL", "OMN_THEME", "USE_INTERNAL_ED",
+	}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("injected runtime globals changed: got %v, want %v\n"+
 			"Adding one is fine - update this list in the same commit, and "+

@@ -65,6 +65,12 @@ type App struct {
 	metaMu    sync.RWMutex
 	startedAt time.Time
 	boundAddr string
+
+	// logFilter caches the three log switches of the configuration. It
+	// holds a logFilter value, and it is empty until loadConfig runs.
+	// See applyLogFilter for why a log line reads this cache and never
+	// the configuration itself.
+	logFilter atomic.Value
 }
 
 // boundAddress reports the address the HTTP listener is actually on, as

@@ -45,6 +45,9 @@ func (a *App) getConfigPageBody() string {
 		SearchBundled:      cfg.SearchBundled,
 		SearchScope:        cfg.SearchScope,
 		SearchIndexStatus:  a.searchIndexStatus(),
+		LogDebug:           cfg.LogDebug,
+		LogInfo:            cfg.LogInfo,
+		LogTags:            normalizeLogTags(cfg.LogTags),
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
@@ -236,6 +239,22 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 				kinds = append(kinds, r.Form["search_kinds"]...)
 				c.SearchKinds = normalizeSearchKinds(kinds)
 			}
+			if sent("log_debug") {
+				c.LogDebug = r.FormValue("log_debug") == "true"
+			}
+			if sent("log_info") {
+				c.LogInfo = r.FormValue("log_info") == "true"
+			}
+			// log_tags is a checkbox set, the same shape as search_kinds
+			// above, and it needs the same non-nil slice for the same
+			// reason. Unticking every box means "no debug or info line
+			// from any subsystem", which is not the nil that a config
+			// written before this field carries.
+			if sent("log_tags") {
+				tags := []string{}
+				tags = append(tags, r.Form["log_tags"]...)
+				c.LogTags = normalizeLogTags(tags)
+			}
 			// Apply active git index from radio selection
 			if idxStr := r.FormValue("active_git_index"); idxStr != "" {
 				var idx int
@@ -275,6 +294,10 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
+		// The log filter applies at once, and never at a restart. A person
+		// who switches a level on wants the next line, not the next run.
+		a.applyLogFilter(snapshot)
+
 		// Applying the search setting is not deferred to a restart, unlike
 		// ShareLAN below: turning search OFF is exactly what someone does when
 		// a device is short of memory, and telling them to restart first would

@@ -80,7 +80,62 @@ func (a *App) emitLog(lvl logLevel, tag logTag, format string, args ...any) {
 	line := time.Now().Format(logTimeLayout) +
 		"[" + string(tag) + "] (" + string(lvl) + ") " +
 		fmt.Sprintf(format, args...) + "\n"
-	broadcastLogLine(line, true)
+	broadcastLogLine(line, a.logLineEnabled(lvl, tag))
+}
+
+// logFilter is the cached form of the three log switches: Config.LogDebug,
+// Config.LogInfo and Config.LogTags.
+type logFilter struct {
+	debug bool
+	info  bool
+	tags  map[logTag]bool
+}
+
+// applyLogFilter caches the log switches of one configuration.
+//
+// A LOG LINE MUST NEVER TAKE THE CONFIG LOCK. loadConfig holds the config
+// write lock while it runs, and it writes a log line when config.json is
+// unreadable. A Go RWMutex is not reentrant, so a read of the configuration
+// from inside emitLog would deadlock the startup path. An atomic value costs
+// one load for each line and cannot deadlock.
+//
+// The configuration stays the one authority. This is a copy that two places
+// refresh: loadConfig, at the end, and the POST branch of handleConfig,
+// after it writes config.json.
+func (a *App) applyLogFilter(c Config) {
+	f := logFilter{
+		debug: c.LogDebug,
+		info:  c.LogInfo,
+		tags:  make(map[logTag]bool, len(allLogTags)),
+	}
+	for _, t := range normalizeLogTags(c.LogTags) {
+		f.tags[logTag(t)] = true
+	}
+	a.logFilter.Store(f)
+}
+
+// logLineEnabled says whether one line reaches stdout and the browser
+// console. An error always does. A debug or an info line needs its level
+// switched on and its tag ticked.
+//
+// Before loadConfig runs, the cache is empty and this answers the same as a
+// fresh install: faults only. Every line the application writes that early
+// is a fault, so nothing is lost.
+func (a *App) logLineEnabled(lvl logLevel, tag logTag) bool {
+	if lvl == levelError {
+		return true
+	}
+	f, ok := a.logFilter.Load().(logFilter)
+	if !ok {
+		return false
+	}
+	if lvl == levelDebug && !f.debug {
+		return false
+	}
+	if lvl == levelInfo && !f.info {
+		return false
+	}
+	return f.tags[tag]
 }
 
 func (a *App) InitLoggerAndRoute() {

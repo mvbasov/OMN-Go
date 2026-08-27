@@ -276,7 +276,59 @@ type configPageView struct {
 	SearchBundled      bool
 	SearchScope        string // "all" | "page" (normalized)
 	SearchIndexStatus  string // human-readable line for the Search screen
+	LogDebug           bool
+	LogInfo            bool
+	LogTags            []string // normalized
 	GitServers         []gitServerView
+}
+
+// logTagLabels gives each tag the words the Config page shows beside its
+// checkbox. A tag with no entry here falls back to its own text, so a new
+// tag reaches the page with no template edit and no missing box. The map is
+// a label table and never the tag set: allLogTags in log_levels.go is the
+// authority for that.
+var logTagLabels = map[logTag]string{
+	log404:         "Requests for a page that does not exist",
+	logAssets:      "Bundled asset refresh at startup",
+	logConfig:      "Reading and writing config.json",
+	logDB:          "SQLite handles behind /api/sql",
+	logDBBackup:    "Database backup and pruning",
+	logDBBootstrap: "First-run restore on a new device",
+	logDBRestore:   "Database restore from a backup",
+	logEdit:        "The external editor",
+	logExchange:    "Note import and export",
+	logNoteFiles:   "Files carried between md/ and html/",
+	logPage:        "Reading and writing a note",
+	logPrecompile:  "Compiling notes to HTML",
+	logRestart:     "Restarting the server process",
+	logSearch:      "The global search index",
+	logServer:      "Startup, the listener and crashes",
+	logStatus:      "The Status page",
+	logStorage:     "The storage directory",
+	logSync:        "Git sync, the loudest subsystem",
+	logTags:        "The tags index",
+	logTemplates:   "The embedded page templates",
+	logUpload:      "File uploads",
+}
+
+// renderLogTagBoxes builds one checkbox for each tag in allLogTags. The list
+// is built here rather than written into config_page.html, so that a new tag
+// needs one line in log_levels.go and nothing else.
+func renderLogTagBoxes(checked map[string]string) string {
+	var b strings.Builder
+	for _, tag := range allLogTags {
+		label, ok := logTagLabels[tag]
+		if !ok {
+			label = string(tag)
+		}
+		b.WriteString(`                <div class="config-checkbox-row">` + "\n")
+		b.WriteString(`                    <input type="checkbox" name="log_tags" value="` +
+			escapeHTML(string(tag)) + `" ` + checked[string(tag)] + ` />` + "\n")
+		b.WriteString(`                    <label class="config-label"><code>` +
+			escapeHTML(string(tag)) + `</code> - ` + escapeHTML(label) + `</label>` + "\n")
+		b.WriteString("                </div>\n")
+	}
+	return b.String()
 }
 
 func renderConfigPage(v configPageView) string {
@@ -326,6 +378,20 @@ func renderConfigPage(v configPageView) string {
 	for _, k := range v.SearchKinds {
 		kindChecked[k] = "checked"
 	}
+	logDebugChecked := ""
+	if v.LogDebug {
+		logDebugChecked = "checked"
+	}
+	logInfoChecked := ""
+	if v.LogInfo {
+		logInfoChecked = "checked"
+	}
+	// One checkbox per tag, checked when the tag is in the normalized list.
+	logTagChecked := map[string]string{}
+	for _, t := range v.LogTags {
+		logTagChecked[t] = "checked"
+	}
+
 	searchScopeAllSel, searchScopePageSel := "checked", ""
 	if normalizeSearchScope(v.SearchScope) == SearchScopePage {
 		searchScopeAllSel, searchScopePageSel = "", "checked"
@@ -393,6 +459,9 @@ func renderConfigPage(v configPageView) string {
 		"SEARCH_SCOPE_ALL_SEL":   searchScopeAllSel,
 		"SEARCH_SCOPE_PAGE_SEL":  searchScopePageSel,
 		"SEARCH_INDEX_STATUS":    escapeHTML(v.SearchIndexStatus),
+		"LOG_DEBUG_CHECKED":      logDebugChecked,
+		"LOG_INFO_CHECKED":       logInfoChecked,
+		"LOG_TAG_BOXES":          renderLogTagBoxes(logTagChecked),
 		"GIT_SERVERS":            cards.String(),
 	})
 }
@@ -1078,14 +1147,22 @@ const modalsMarker = `<div id="omn-go-modals-slot"></div>`
 // time would leave a stale answer on every page compiled before the toggle
 // changed - exactly the problem this function exists to solve.
 //
+// OMN_LOG_DEBUG, OMN_LOG_INFO and OMN_LOG_TAGS join them for the same
+// reason. omn-go-sse.js decides here what the browser console prints, the
+// three values come from the Config page, and every page carries the
+// EventSource that reads them. A page compiled before the switches changed
+// would otherwise keep the old answer forever.
+//
 // All values are server-controlled (APP_VERSION is a build constant,
-// UseInternalEd a bool, Theme whitelisted through normalizeTheme, and the
-// search flag a bool), never user input, so splicing them with fmt is safe.
+// UseInternalEd a bool, Theme whitelisted through normalizeTheme, the
+// search flag a bool, and the log tags whitelisted through
+// normalizeLogTags), never user input, so splicing them with fmt is safe.
 func (a *App) injectRuntimeVars(page []byte) []byte {
 	cfg := a.GetConfig()
 	script := fmt.Sprintf(
-		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; var OMN_SEARCH_GLOBAL = %t; var OMN_INCOMING_PAGE = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
-		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable(), incomingIndexName)
+		`<script>var APP_VERSION = %q; var USE_INTERNAL_ED = %t; var OMN_THEME = %q; var OMN_SEARCH_GLOBAL = %t; var OMN_INCOMING_PAGE = %q; var OMN_LOG_DEBUG = %t; var OMN_LOG_INFO = %t; var OMN_LOG_TAGS = %q; document.documentElement.setAttribute('data-theme', OMN_THEME);</script>`,
+		APP_VERSION, cfg.UseInternalEd, normalizeTheme(cfg.Theme), a.globalSearchAvailable(), incomingIndexName,
+		cfg.LogDebug, cfg.LogInfo, strings.Join(normalizeLogTags(cfg.LogTags), ","))
 	page = bytes.Replace(page, []byte(runtimeVarsMarker), []byte(script), 1)
 	// Splice the server-only modals into the slot (a no-op on templates that
 	// do not carry it, e.g. the standalone editor page).

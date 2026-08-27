@@ -127,6 +127,41 @@ func normalizeSearchKinds(kinds []string) []string {
 	return out
 }
 
+// logTagsDefault is every tag in allLogTags (log_levels.go), as strings.
+// A fresh install ticks each subsystem, because the two level switches are
+// the control a reader reaches first. The tag list narrows a level that is
+// already on, and it is useless as a second way to switch everything off.
+var logTagsDefault = func() []string {
+	out := make([]string, 0, len(allLogTags))
+	for _, t := range allLogTags {
+		out = append(out, string(t))
+	}
+	return out
+}()
+
+// normalizeLogTags whitelists and de-duplicates, preserving the order of
+// allLogTags. It is the same shape as normalizeSearchKinds above, and the
+// nil rule is load-bearing for the same reason: a config.json written
+// before this field existed has no log_tags key, unmarshals to nil, and
+// must get every tag. A person who unticks every box gets a real empty
+// list, which means "no debug or info line from any subsystem".
+func normalizeLogTags(tags []string) []string {
+	if tags == nil {
+		return append([]string(nil), logTagsDefault...)
+	}
+	want := map[string]bool{}
+	for _, t := range tags {
+		want[strings.ToLower(strings.TrimSpace(t))] = true
+	}
+	out := []string{}
+	for _, known := range logTagsDefault {
+		if want[known] {
+			out = append(out, known)
+		}
+	}
+	return out
+}
+
 // normalizeSearchScope maps anything unrecognised - including the "" in every
 // config written before this field existed - onto SearchScopeAll.
 func normalizeSearchScope(s string) string {
@@ -223,6 +258,18 @@ type Config struct {
 	// load, so a change applies without an app restart. Purely an
 	// Android-client concern; the desktop/LAN server ignores it.
 	AndroidFullscreen string `json:"android_fullscreen"`
+	// LogDebug and LogInfo switch on the two quiet log levels. Both are
+	// false on a fresh install, because every open page mirrors the log
+	// into the browser console and the full detail of 21 subsystems is
+	// noise to a reader who did not ask for it. The error level has no
+	// switch: a person who asks for less noise never asks for fewer
+	// faults. See log_levels.go.
+	LogDebug bool `json:"log_debug"`
+	LogInfo  bool `json:"log_info"`
+	// LogTags is the second axis. A debug or info line prints when its
+	// level is on AND its tag is in this list. An error line ignores the
+	// list. See normalizeLogTags for why absent and empty differ.
+	LogTags []string `json:"log_tags"`
 }
 
 func (a *App) loadConfig(storageDir string) {
@@ -251,6 +298,12 @@ func (a *App) loadConfig(storageDir string) {
 			SearchEnabled: false,
 			SearchKinds:   append([]string(nil), searchKindsDefault...),
 			SearchScope:   SearchScopeAll,
+
+			// Both quiet levels are off, and every subsystem is ticked.
+			// A fresh install therefore writes a fault and nothing else.
+			LogDebug: false,
+			LogInfo:  false,
+			LogTags:  append([]string(nil), logTagsDefault...),
 			// Matches the manifest's Theme.NoTitleBar.Fullscreen, so a
 			// fresh install looks the same as every existing one.
 			AndroidFullscreen: FullscreenOn,
@@ -325,6 +378,9 @@ func (a *App) loadConfig(storageDir string) {
 	// key at all (nil -> the default) and an empty search_scope (-> "all").
 	a.Config.SearchKinds = normalizeSearchKinds(a.Config.SearchKinds)
 	a.Config.SearchScope = normalizeSearchScope(a.Config.SearchScope)
+	// And the log switches: a config predating them has no log_tags key,
+	// which normalizeLogTags turns into every tag.
+	a.Config.LogTags = normalizeLogTags(a.Config.LogTags)
 	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
@@ -345,4 +401,8 @@ func (a *App) loadConfig(storageDir string) {
 		}
 	}
 
+	// Last, because every line above this point is a fault, and a fault
+	// prints whatever the filter says. See applyLogFilter for why the
+	// filter is a cache and not a read of the configuration.
+	a.applyLogFilter(a.Config)
 }

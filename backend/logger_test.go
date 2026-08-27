@@ -146,3 +146,59 @@ func TestAllLogTagsIsComplete(t *testing.T) {
 		t.Errorf("%d tag constants, %d entries in allLogTags", len(declared), len(allLogTags))
 	}
 }
+
+// TestNormalizeLogTags pins the nil rule. An install that upgrades to this
+// version has no log_tags key in config.json, and it must get every tag. A
+// person who unticks every box gets an empty list, which is a different
+// thing and must survive a save.
+func TestNormalizeLogTags(t *testing.T) {
+	if got := normalizeLogTags(nil); len(got) != len(allLogTags) {
+		t.Errorf("nil gave %d tags, want every one of the %d", len(got), len(allLogTags))
+	}
+	if got := normalizeLogTags([]string{}); len(got) != 0 {
+		t.Errorf("an empty list gave %v, want an empty list - unticking every box "+
+			"is not the same as an upgrade with no key", got)
+	}
+	got := normalizeLogTags([]string{"SYNC", " sync ", "not-a-tag", "assets"})
+	want := []string{"assets", "sync"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("normalizeLogTags gave %v, want %v - it lowercases, trims, "+
+			"drops an unknown tag, and keeps the order of allLogTags", got, want)
+	}
+}
+
+// TestLogLineEnabled pins the two axes. A fault always prints. A debug or an
+// info line needs its level on and its tag ticked. A reader who asks for
+// less noise never asks for fewer faults.
+func TestLogLineEnabled(t *testing.T) {
+	a := newTestApp(t)
+
+	a.applyLogFilter(Config{LogDebug: false, LogInfo: false, LogTags: logTagsDefault})
+	if !a.logLineEnabled(levelError, logSync) {
+		t.Error("an error was filtered out with both levels off")
+	}
+	if a.logLineEnabled(levelDebug, logSync) || a.logLineEnabled(levelInfo, logSync) {
+		t.Error("a quiet level printed with both levels off")
+	}
+
+	a.applyLogFilter(Config{LogDebug: true, LogInfo: true, LogTags: []string{"assets"}})
+	if !a.logLineEnabled(levelDebug, logAssets) {
+		t.Error("a ticked tag was filtered out with debug on")
+	}
+	if a.logLineEnabled(levelDebug, logSync) {
+		t.Error("an unticked tag printed with debug on")
+	}
+	if !a.logLineEnabled(levelError, logSync) {
+		t.Error("an error was filtered out by an unticked tag")
+	}
+
+	// Before loadConfig runs the cache is empty. Every line the application
+	// writes that early is a fault, so faults only is the safe answer.
+	fresh := &App{}
+	if !fresh.logLineEnabled(levelError, logServer) {
+		t.Error("an error was filtered out before the config loaded")
+	}
+	if fresh.logLineEnabled(levelInfo, logServer) {
+		t.Error("an info line printed before the config loaded")
+	}
+}
