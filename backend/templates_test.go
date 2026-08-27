@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"io/fs"
 	"regexp"
 	"strings"
 	"testing"
@@ -564,5 +565,103 @@ func TestCompiledPageShellStaysSmall(t *testing.T) {
 		t.Errorf("index.html is %d bytes, over the %d-byte guard. Put the new "+
 			"code in an asset under frontend/html/ and load it with a src, or "+
 			"raise this number on purpose.", n, maxShellBytes)
+	}
+}
+
+// ---------------------------------------------------------------------
+// The clipboard and the documented API
+// ---------------------------------------------------------------------
+
+// TestClipboardHasOneAuthority exists because a second clipboard path
+// gives a second chance to get the Android WebView wrong. That is what
+// happened. Before 26.08.74 the Status page had its own textarea and its
+// own execCommand call. omnGoCopyText took the Clipboard API and returned
+// before its own second way. The copy on the Status page worked on
+// Android 6. The copy in the metadata panel did not.
+//
+// Only omn-go-core.js can call execCommand('copy'). That file holds
+// omnGoCopyText, which each other caller uses. It also holds
+// copyQuickNote, which stays direct. The text of copyQuickNote is already
+// in a textarea, and the focus must stay there for the typing that
+// follows.
+func TestClipboardHasOneAuthority(t *testing.T) {
+	const authority = "frontend/html/js/omn-go-core.js"
+	for _, tree := range []struct {
+		name string
+		fs   fs.FS
+		root string
+	}{
+		{"staticFS", staticFS, "frontend/html"},
+		{"templatesFS", templatesFS, "frontend/templates"},
+	} {
+		err := fs.WalkDir(tree.fs, tree.root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			if !strings.HasSuffix(p, ".js") && !strings.HasSuffix(p, ".html") {
+				return nil
+			}
+			src, rerr := fs.ReadFile(tree.fs, p)
+			if rerr != nil {
+				return rerr
+			}
+			if !strings.Contains(string(src), `execCommand('copy')`) {
+				return nil
+			}
+			if p != authority {
+				t.Errorf("%s calls execCommand('copy'). Call "+
+					"window.omnGoCopyText in its place. That function is the "+
+					"only clipboard writer. It holds what this project knows "+
+					"about the Android WebView.", p)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walking %s: %v", tree.name, err)
+		}
+	}
+}
+
+// documentedCoreAPI names each frontend function that the "Useful
+// functions" section of the User Manual gives to a note script. A
+// documented name is a promise. Each name thus has an explicit window
+// export, and not a bare declaration that becomes global by accident.
+var documentedCoreAPI = []string{
+	"OMNProgress",
+	"omnClearHighlights",
+	"omnGoCopyText",
+	"omnGoOnServerLog",
+	"omnGoOpenDatabase",
+	"omnGoPageLink",
+	"omnGoPageTitle",
+	"omnGoRenderMath",
+	"omnHighlightTerms",
+	"omnSearchOpen",
+}
+
+// TestDocumentedCoreAPIIsExported exists because the manual sends a reader
+// to these names. A rename takes a documented name away, and an IIFE
+// around one file does the same. There is no other sign of the loss. The
+// note that used the name then fails in the browser of the reader, and
+// nowhere else.
+func TestDocumentedCoreAPIIsExported(t *testing.T) {
+	var all strings.Builder
+	for _, f := range []string{
+		"frontend/html/js/omn-go-core.js",
+		"frontend/html/js/omn-go-sse.js",
+	} {
+		src, err := staticFS.ReadFile(f)
+		if err != nil {
+			t.Fatalf("%s is not embedded: %v", f, err)
+		}
+		all.Write(src)
+	}
+	src := all.String()
+	for _, name := range documentedCoreAPI {
+		if !strings.Contains(src, "window."+name+" =") {
+			t.Errorf("the User Manual documents window.%s. No frontend file "+
+				"exports that name. Keep the name, or change the manual in "+
+				"the same commit.", name)
+		}
 	}
 }

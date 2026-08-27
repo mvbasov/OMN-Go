@@ -47,6 +47,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [The Status page](#the-status-page)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
+- [Useful functions of the application scripts](#useful-functions-of-the-application-scripts)
 - [Your own CSS and JavaScript](#your-own-css-and-javascript)
 - [Troubleshooting](#troubleshooting)
 - [Disclaimer](#disclaimer)
@@ -917,6 +918,69 @@ Markdown pages can contain raw HTML. The [icon](#material-icons-in-notes) and [b
 - The backend compiles the page one time and then caches it. The note scripts run on every view, so make them idempotent.
 
 Note scripts run with full access to the page. Put only note scripts that you understand and trust in your notes.
+
+The application scripts give your note script a set of ready functions. See [Useful functions of the application scripts](#useful-functions-of-the-application-scripts).
+
+## Useful functions of the application scripts
+
+Each page loads `js/omn-go-core.js` and `js/omn-go-sse.js`. The functions below are ready before your note script starts. Call them from a note, from a button, or from `js/omn-go-custom.js`. Obey the four rules of [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
+
+### From `omn-go-core.js`
+
+These functions work on a page from the server. They also work on a page that you export and open from disk.
+
+| Function | What it does |
+|----------|--------------|
+| `window.omnGoCopyText(text)` | Writes one string to the clipboard. Gives back a promise. The promise fails when the browser refuses the copy. |
+| `window.omnGoPageLink()` | Gives a Markdown link to the open page. The link text is the title of the page. |
+| `window.omnGoPageTitle()` | Gives the title of the open page. |
+| `window.omnGoRenderMath(element)` | Sets the math in one element. Call it after your script writes new content with a formula in it. |
+| `window.omnHighlightTerms(words)` | Marks each of the words in the page body. Takes an array of strings. |
+| `window.omnClearHighlights()` | Removes each mark of `omnHighlightTerms`. |
+| `window.OMNProgress` | The progress panel of the application. See the next paragraph. |
+
+`OMNProgress` has six methods. `show(title)` opens the panel. `stage(text)` and `detail(text)` write the two lines of text. `percent(n)` sets the bar. `percent(null)` moves the bar from side to side. `hide()` closes the panel. `isVisible()` gives the state.
+
+```
+<button onclick="omnCopyLink()">Copy a link to this page</button>
+<script>
+window.omnCopyLink = async function () {
+    try {
+        await window.omnGoCopyText(window.omnGoPageLink());
+        window.OMNProgress.show('Copied');
+        setTimeout(function () { window.OMNProgress.hide(); }, 900);
+    } catch (e) {
+        alert('Copy failed: ' + e.message);
+    }
+};
+</script>
+```
+
+### From `omn-go-sse.js`
+
+These functions speak to the server. On a page that you export and open from disk they do nothing. Each one writes a line to the browser console.
+
+| Function | What it does |
+|----------|--------------|
+| `window.omnGoOpenDatabase(name)` | Opens a database of the device. See [Database](Database) for the handle and its methods. |
+| `window.omnGoOnServerLog(fn)` | Calls your function for each log line of the server. Gives back a function that stops the calls. Call that function when your work is complete. |
+| `window.omnSearchOpen()` | Opens the search panel. |
+
+```
+<button onclick="omnWatchLog()">Watch the log for 10 seconds</button>
+<script>
+window.omnWatchLog = function () {
+    const stop = window.omnGoOnServerLog(function (line) { console.log(line); });
+    setTimeout(stop, 10000);
+};
+</script>
+```
+
+### Two facts to know
+
+**The clipboard.** `omnGoCopyText` has two ways to the clipboard, and it tries both. The first way is the Clipboard API of the browser. The Android WebView of Android 6 refuses that API. The function then uses the second way, which each browser of this application accepts. Write your copy button with this function. A button that uses the Clipboard API fails on Android 6.
+
+**A name that is not in these tables can change.** The application scripts hold many other functions. The tables above are the promise. Each other name is internal, and a new version can change it.
 
 ## Your own CSS and JavaScript
 

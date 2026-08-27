@@ -16,11 +16,6 @@
     <div id="stBody" class="st-body">Loading…</div>
 </div>
 
-<!-- The clipboard copy needs a real textarea to select. navigator.clipboard
-     is unusable in the Android WebView (see copyQuickNote in
-     omn-go-core.js), so this page uses the same select + execCommand path. -->
-<textarea id="stClip" class="st-clip" aria-hidden="true" tabindex="-1"></textarea>
-
 <style>
 /* Each color comes from the design tokens in omn-go-core.css. This page
    therefore follows the light, dark and auto theme, like each other page. */
@@ -50,7 +45,6 @@
 .st-code, .st-val code { font-family:monospace; background:var(--bg-inset); padding:0.1em 0.35em; border-radius:4px; }
 .st-note { color:var(--text-faint); font-size:0.9em; margin:0.2em 0 0 0; }
 .st-error { color:var(--danger); }
-.st-clip { position:absolute; left:-9999px; top:0; width:1px; height:1px; opacity:0; }
 </style>
 
 <script>
@@ -208,18 +202,19 @@
     // Copy asks the server for the Markdown form of the sections that the
     // page holds. The text is therefore the same text that "Open as text"
     // gives, and a bug report gets each fact in one paste.
+    // omnGoCopyText in omn-go-core.js is the only clipboard writer of the
+    // application. Before 26.08.74 this page had its own textarea and its
+    // own execCommand call. Two paths then had to agree about the Android
+    // WebView. One of the two was wrong.
     document.getElementById('stCopy').addEventListener('click', async function () {
         var btn = this;
-        var clip = document.getElementById('stClip');
         var label = btn.textContent;
         try {
             var res = await fetch('/api/status?format=md&sections=' +
                 encodeURIComponent(loaded.join(',')), { cache: 'no-store' });
             if (!res.ok) { throw new Error('HTTP ' + res.status); }
-            clip.value = await res.text();
-            clip.focus();
-            clip.select();
-            btn.textContent = document.execCommand('copy') ? 'Copied' : 'Copy failed';
+            await window.omnGoCopyText(await res.text());
+            btn.textContent = 'Copied';
         } catch (e) {
             btn.textContent = 'Copy failed';
         }

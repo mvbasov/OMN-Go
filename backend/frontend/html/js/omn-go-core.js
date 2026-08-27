@@ -26,6 +26,11 @@ function omnGoRenderMath(container) {
         throwOnError: false
     });
 }
+// The export is explicit, because the User Manual documents this name. A
+// note script that writes new content to the page calls this function. The
+// function then sets the math in that content. See the "Useful functions"
+// section.
+window.omnGoRenderMath = omnGoRenderMath;
 
 const UI = (function() {
     function executeScripts(container) {
@@ -883,17 +888,23 @@ if (typeof currentNote === 'undefined') {
         // replaces every handler with a printDebug stub, which is right for
         // /api/quick and wrong for a pure clipboard action.
         //
-        // select() + execCommand('copy') on purpose, and NOT
-        // navigator.clipboard. The async Clipboard API is the modern spelling
-        // but it is unusable in the Android WebView this app ships as its main
-        // UI: writeText() needs a clipboard-write permission grant, and
-        // WebChromeClient denies permission requests by default (MainActivity
-        // overrides only the JS dialog callbacks, not onPermissionRequest), so
-        // the returned promise simply never delivers a copy. Verified
-        // on-device. execCommand is formally deprecated, but it is synchronous,
-        // needs no permission, and works in the WebView, plain-http LAN pages
-        // (which are not a secure context, so navigator.clipboard is absent
-        // there anyway) and desktop browsers alike - one path for all three.
+        // This function uses select and execCommand('copy') on purpose. It
+        // does not use the Clipboard API. The Clipboard API is the modern
+        // spelling, but an old Android WebView refuses it. The method
+        // writeText needs a clipboard-write permission, and the WebView
+        // refuses that permission. The refusal does not go to
+        // WebChromeClient.onPermissionRequest. No override in MainActivity
+        // can grant it. A test on the device shows this.
+        //
+        // execCommand is deprecated, but it is synchronous and needs no
+        // permission. It works in the WebView, on a plain-http LAN page and
+        // in a desktop browser. A LAN page is not a secure context, thus
+        // the Clipboard API is absent there. One path serves all three.
+        //
+        // omnGoCopyText below is the general form. It tries the Clipboard
+        // API first. This function stays direct, because its text is
+        // already in a textarea. The focus must stay in that textarea for
+        // the typing that follows.
         //
         // No scratch element is needed: the text already sits in a <textarea>,
         // which is exactly what select() wants.
@@ -1260,17 +1271,47 @@ function omnGoSendNote(note) {
     window.location.href = omnGoExportURL(note);
 }
 
-// omnGoCopyText puts one string on the clipboard.
+// omnGoCopyText writes one string to the clipboard. It is the only
+// clipboard writer of the application. A note script can call it. See the
+// "Useful functions" section of the User Manual.
 //
-// navigator.clipboard needs a secure context. http://localhost counts as one,
-// so the Clipboard API works on the device itself and inside the Android
-// WebView. A LAN guest on http://192.168.x.x does not get it, and the older
-// execCommand path takes the copy. This function throws when both ways fail.
-// Each caller shows the failure in the status text of the metadata panel.
+// THE FUNCTION HAS TWO WAYS. THE SECOND WAY IS NOT A LEGACY BRANCH.
+//
+// The Clipboard API needs a secure context. The address http://127.0.0.1
+// is one. The API is thus present on the device and in the Android
+// WebView. Presence is not permission. The Android WebView refuses the
+// clipboard-write permission. The method writeText then rejects with
+// "NotAllowedError: Write permission denied". The refusal does not go to
+// WebChromeClient.onPermissionRequest. No override in MainActivity can
+// grant it.
+//
+// The refusal comes from an old WebView. A new WebView does the write.
+// Android 6 keeps its System WebView at Chromium 106. That version has the
+// API and refuses the permission. Android 14 has a current WebView. That
+// version does the write after a tap.
+//
+// Before 26.08.74 this function returned at the API call. The refusal on
+// Android 6 thus came to the reader as "Copy failed: Write permission
+// denied". The second way did not run.
+//
+// The second way uses a scratch textarea and execCommand. It is
+// synchronous. It needs no permission. It works in the Android WebView, on
+// a plain-http LAN page and in a desktop browser. A LAN page is not a
+// secure context, thus the Clipboard API is absent there. copyQuickNote
+// above uses the second way direct, because its text is already in a
+// textarea.
+//
+// This function throws an error when both ways fail. Each caller writes
+// the failure in the status text beside the button.
 async function omnGoCopyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return;
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch (e) {
+            // The API is present and refused the write. Go to the
+            // second way below.
+        }
     }
     const ta = document.createElement('textarea');
     ta.value = text;
@@ -1278,11 +1319,16 @@ async function omnGoCopyText(text) {
     ta.style.position = 'fixed';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
+    // Call focus before select. copyQuickNote and the Status page do the
+    // same, and a test on Android 6 shows that both work. execCommand can
+    // refuse a selection in an element that does not have the focus.
+    ta.focus();
     ta.select();
     const ok = document.execCommand('copy');
     document.body.removeChild(ta);
     if (!ok) throw new Error('the browser refused the copy');
 }
+window.omnGoCopyText = omnGoCopyText;
 
 // omnGoCopyNote puts the same Markdown on the clipboard, for pasting into a
 // chat or a mail body.
@@ -1343,6 +1389,8 @@ function omnGoPageLink() {
     var text = omnGoPageTitle().replace(/([\\\[\]])/g, '\\$1');
     return '[' + text + '](' + target + ')';
 }
+window.omnGoPageTitle = omnGoPageTitle;
+window.omnGoPageLink = omnGoPageLink;
 
 // omnGoCopyPageLink puts that link on the clipboard.
 async function omnGoCopyPageLink(say) {
