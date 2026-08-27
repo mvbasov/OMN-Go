@@ -32,7 +32,6 @@ package backend
 
 import (
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,7 +206,7 @@ func (a *App) dropSearchIndex() {
 	a.search.built = time.Time{}
 	a.search.mu.Unlock()
 	if had > 0 {
-		log.Printf("[search] index dropped (%d documents released)", had)
+		a.logInfof(logSearch, "index dropped (%d documents released)", had)
 	}
 }
 
@@ -424,9 +423,9 @@ func (a *App) rebuildSearchIndex() {
 	a.search.mu.Unlock()
 
 	if capped {
-		log.Printf("[search] index capped at %d MB of text; some files were left out", maxIndexBytes>>20)
+		a.logErrf(logSearch, "index capped at %d MB of text; some files were left out", maxIndexBytes>>20)
 	}
-	log.Printf("[search] Indexed %d files (%d lines, %.1f MB) in %s",
+	a.logInfof(logSearch, "Indexed %d files (%d lines, %.1f MB) in %s",
 		len(docs), lines, float64(bytes)/(1<<20), time.Since(started).Round(time.Millisecond))
 }
 
@@ -622,7 +621,7 @@ func (a *App) reloadDocument(d *indexedDoc) *searchDocument {
 	data, truncated, err := readCapped(a.storagePath(d.Path), maxIndexFileBytes)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[search] %s: %v", d.Path, err)
+			a.logErrf(logSearch, "%s: %v", d.Path, err)
 		}
 		return nil
 	}

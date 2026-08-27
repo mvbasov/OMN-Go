@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -384,7 +383,7 @@ func (a *App) createDBBackup(name string) (created string, pruned []string, err 
 	// "in sync" instead of inventing a phantom difference.
 	if info, err := os.Stat(target); err == nil {
 		if err := os.Chtimes(a.userDBPath(name), info.ModTime(), info.ModTime()); err != nil && !os.IsNotExist(err) {
-			log.Printf("[db-backup] touch %s.sqlite: %v", name, err)
+			a.logErrf(logDBBackup, "touch %s.sqlite: %v", name, err)
 		}
 	}
 
@@ -392,7 +391,7 @@ func (a *App) createDBBackup(name string) (created string, pruned []string, err 
 	if err != nil {
 		// The backup itself succeeded; a prune hiccup is not worth
 		// failing the request over.
-		log.Printf("[db-backup] prune %s: %v", name, err)
+		a.logErrf(logDBBackup, "prune %s: %v", name, err)
 		err = nil
 	}
 	return a.relStoragePath(target), pruned, nil
@@ -435,10 +434,10 @@ func (a *App) pruneDBBackups(name string) ([]string, error) {
 	for i := depth; i < len(files); i++ {
 		full := filepath.Join(a.dbBackupDir(name), files[i])
 		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-			log.Printf("[db-backup] prune %s: %v", files[i], err)
+			a.logErrf(logDBBackup, "prune %s: %v", files[i], err)
 			continue
 		}
-		log.Printf("[db-backup] %s: pruned %s", name, files[i])
+		a.logInfof(logDBBackup, "%s: pruned %s", name, files[i])
 		removed = append(removed, a.relStoragePath(full))
 	}
 	return removed, nil
@@ -674,7 +673,7 @@ func (a *App) restoreDBFromBackup(name, fileName string) error {
 			if _, err := tx.Exec(`INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)`, s.Table, s.Value); err != nil {
 				// No AUTOINCREMENT table -> no sqlite_sequence: the saved
 				// counter has nothing to attach to; skip rather than fail.
-				log.Printf("[db-restore] %s: sequence for %s not restorable: %v", name, s.Table, err)
+				a.logErrf(logDBRestore, "%s: sequence for %s not restorable: %v", name, s.Table, err)
 			}
 		}
 	}
@@ -708,7 +707,7 @@ func (a *App) restoreDBFromBackup(name, fileName string) error {
 		os.Chtimes(finalPath, info.ModTime(), info.ModTime())
 	}
 
-	log.Printf("[db-restore] %s: restored from %s (%d objects, %d rows)",
+	a.logInfof(logDBRestore, "%s: restored from %s (%d objects, %d rows)",
 		name, fileName, header.Objects, header.Rows)
 	return nil
 }
@@ -730,7 +729,7 @@ func (a *App) bootstrapIfMissing(name string) (*sql.DB, error) {
 	if err != nil || len(files) == 0 {
 		return nil, err
 	}
-	log.Printf("[db-bootstrap] %s: no database file yet, restoring newest backup %s", name, files[0])
+	a.logInfof(logDBBootstrap, "%s: no database file yet, restoring newest backup %s", name, files[0])
 	if err := a.restoreDBFromBackup(name, files[0]); err != nil {
 		return nil, err
 	}
@@ -752,35 +751,35 @@ func (a *App) serveDBBackupsPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(a.injectRuntimeVars(compiled))
 }
 
-func writeBackupJSON(w http.ResponseWriter, httpStatus int, v interface{}) {
+func (a *App) writeBackupJSON(w http.ResponseWriter, httpStatus int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("[db-backup] encode response: %v", err)
+		a.logErrf(logDBBackup, "encode response: %v", err)
 	}
 }
 
-func backupErr(w http.ResponseWriter, httpStatus int, err error) {
-	writeBackupJSON(w, httpStatus, map[string]string{"status": "error", "message": err.Error()})
+func (a *App) backupErr(w http.ResponseWriter, httpStatus int, err error) {
+	a.writeBackupJSON(w, httpStatus, map[string]string{"status": "error", "message": err.Error()})
 }
 
 // handleDBBackupCreate: POST /api/db/backup?db=NAME
 func (a *App) handleDBBackupCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("POST only"))
+		a.backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("POST only"))
 		return
 	}
 	name := r.URL.Query().Get("db")
 	if !dbNameRe.MatchString(name) {
-		backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid db name %q", name))
+		a.backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid db name %q", name))
 		return
 	}
 	file, pruned, err := a.createDBBackup(name)
 	if err != nil {
-		backupErr(w, http.StatusInternalServerError, err)
+		a.backupErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeBackupJSON(w, http.StatusOK, map[string]interface{}{
+	a.writeBackupJSON(w, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"file":   file,
 		"pruned": pruned,
@@ -790,27 +789,27 @@ func (a *App) handleDBBackupCreate(w http.ResponseWriter, r *http.Request) {
 // handleDBRestore: POST /api/db/restore?db=NAME&file=FILENAME
 func (a *App) handleDBRestore(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("POST only"))
+		a.backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("POST only"))
 		return
 	}
 	name := r.URL.Query().Get("db")
 	fileName := r.URL.Query().Get("file")
 	if !dbNameRe.MatchString(name) {
-		backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid db name %q", name))
+		a.backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid db name %q", name))
 		return
 	}
 	if !backupFileRe.MatchString(fileName) {
-		backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid backup filename %q", fileName))
+		a.backupErr(w, http.StatusBadRequest, fmt.Errorf("invalid backup filename %q", fileName))
 		return
 	}
 	a.dbRestoreMu.Lock()
 	err := a.restoreDBFromBackup(name, fileName)
 	a.dbRestoreMu.Unlock()
 	if err != nil {
-		backupErr(w, http.StatusInternalServerError, err)
+		a.backupErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeBackupJSON(w, http.StatusOK, map[string]string{"status": "success"})
+	a.writeBackupJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
 type backupFileView struct {
@@ -840,7 +839,7 @@ type backupDBView struct {
 // must not mutate anything).
 func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("GET only"))
+		a.backupErr(w, http.StatusMethodNotAllowed, fmt.Errorf("GET only"))
 		return
 	}
 
@@ -948,7 +947,7 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 		dbs = append(dbs, v)
 	}
 
-	writeBackupJSON(w, http.StatusOK, map[string]interface{}{
+	a.writeBackupJSON(w, http.StatusOK, map[string]interface{}{
 		"status":      "success",
 		"hostname":    a.GetConfig().Hostname,
 		"prune_depth": depth,

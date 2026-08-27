@@ -3,7 +3,6 @@ package backend
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -277,9 +276,9 @@ func (a *App) loadConfig(storageDir string) {
 		}
 		data, err := json.MarshalIndent(a.Config, "", "  ")
 		if err != nil {
-			log.Printf("loadConfig: failed to marshal default config: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to marshal default config: %v", err)
 		} else if err := os.WriteFile(configPath, data, 0644); err != nil {
-			log.Printf("loadConfig: failed to write default config.json: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to write default config.json: %v", err)
 		}
 	} else {
 		data, readErr := os.ReadFile(configPath)
@@ -287,13 +286,13 @@ func (a *App) loadConfig(storageDir string) {
 			// Cannot read an existing config.json - leave a.Config at its
 			// zero value and say so loudly, rather than silently running
 			// with an empty/broken config that looks intentional.
-			log.Printf("loadConfig: failed to read %s: %v", configPath, readErr)
+			a.logErrf(logConfig, "loadConfig: failed to read %s: %v", configPath, readErr)
 		} else if err := json.Unmarshal(data, &a.Config); err != nil {
 			// A corrupt config.json used to be swallowed here, leaving
 			// a.Config partially or fully zeroed with no indication why.
 			// Log it clearly so a bad file is obvious instead of looking
 			// like passwords/settings mysteriously reset themselves.
-			log.Printf("loadConfig: failed to parse %s (using defaults for any unparsed fields): %v", configPath, err)
+			a.logErrf(logConfig, "loadConfig: failed to parse %s (using defaults for any unparsed fields): %v", configPath, err)
 		}
 		// [OMN-Go 1.5.21] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
 		for len(a.Config.GitServers) < maxGitServers {
@@ -340,9 +339,9 @@ func (a *App) loadConfig(storageDir string) {
 		}
 		data, err := json.MarshalIndent(a.Config, "", "  ")
 		if err != nil {
-			log.Printf("loadConfig: failed to marshal config after mime-type fixup: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to marshal config after mime-type fixup: %v", err)
 		} else if err := os.WriteFile(configPath, data, 0644); err != nil {
-			log.Printf("loadConfig: failed to write config.json after mime-type fixup: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to write config.json after mime-type fixup: %v", err)
 		}
 	}
 

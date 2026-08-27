@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -266,13 +265,13 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		// goroutines that only need a config read.
 		data, err := json.MarshalIndent(snapshot, "", "  ")
 		if err != nil {
-			log.Printf("handleConfig: failed to marshal config: %v", err)
+			a.logErrf(logConfig, "handleConfig: failed to marshal config: %v", err)
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
 		configPath := filepath.Join(a.StorageDir, "config.json")
 		if err := os.WriteFile(configPath, data, 0644); err != nil {
-			log.Printf("handleConfig: failed to write %s: %v", configPath, err)
+			a.logErrf(logConfig, "handleConfig: failed to write %s: %v", configPath, err)
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
@@ -325,7 +324,7 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	log.Printf("[restart] restart requested via /api/restart")
+	a.logInfof(logRestart, "restart requested via /api/restart")
 	w.Write([]byte("Restarting"))
 
 	go func() {
@@ -337,7 +336,7 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 
 		exe, err := os.Executable()
 		if err != nil {
-			log.Printf("[restart] cannot locate own executable, not restarting: %v", err)
+			a.logErrf(logRestart, "cannot locate own executable, not restarting: %v", err)
 			return
 		}
 		cmd := exec.Command(exe, os.Args[1:]...)
@@ -347,10 +346,10 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 		if err := cmd.Start(); err != nil {
 			// Failing to spawn must NOT kill the running server - a
 			// working old instance beats no instance at all.
-			log.Printf("[restart] failed to start replacement process, keeping current one: %v", err)
+			a.logErrf(logRestart, "failed to start replacement process, keeping current one: %v", err)
 			return
 		}
-		log.Printf("[restart] replacement process started (pid %d), exiting", cmd.Process.Pid)
+		a.logInfof(logRestart, "replacement process started (pid %d), exiting", cmd.Process.Pid)
 		os.Exit(0)
 	}()
 }
@@ -436,10 +435,10 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	if cmd != nil {
 		err := cmd.Start()
 		if err != nil {
-			log.Printf("Failed to run external editor: %v", err)
+			a.logErrf(logEdit, "Failed to run external editor: %v", err)
 		}
 	} else {
-		log.Printf("Failed to run external editor: no command configured")
+		a.logErrf(logEdit, "Failed to run external editor: no command configured")
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -539,7 +538,7 @@ func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	// Update the compiled cache instantly (see the cache contract in
 	// render_cache.go - renderAndCache is the only writer of html/*.html).
 	if _, err := a.renderAndCache("QuickNotes", []byte(fullMarkdown)); err != nil {
-		log.Printf("handleQuickNote: %v", err)
+		a.logErrf(logPage, "handleQuickNote: %v", err)
 	}
 
 	w.Write([]byte("Saved"))
@@ -595,7 +594,7 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 			os.WriteFile(path, []byte(newContent), 0644)
 			// Update the compiled cache instantly (see render_cache.go).
 			if _, err := a.renderAndCache("Bookmarks", []byte(newContent)); err != nil {
-				log.Printf("handleBookmark: %v", err)
+				a.logErrf(logPage, "handleBookmark: %v", err)
 			}
 		}
 	}
@@ -699,13 +698,13 @@ func (a *App) maxUploadBytes() int64 {
 // bad type or too large, the client's fault - and a generic 500 for
 // anything else (disk full, permissions, ...), matching how the rest of
 // this file avoids leaking internal error detail to the response body.
-func writeUploadError(w http.ResponseWriter, logPrefix string, err error) {
+func (a *App) writeUploadError(w http.ResponseWriter, logPrefix string, err error) {
 	var rejected *uploadRejected
 	if errors.As(err, &rejected) {
 		http.Error(w, rejected.msg, http.StatusBadRequest)
 		return
 	}
-	log.Printf("%s: %v", logPrefix, err)
+	a.logErrf(logUpload, "%s: %v", logPrefix, err)
 	http.Error(w, "Upload failed", http.StatusInternalServerError)
 }
 
@@ -713,7 +712,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	imgDir := filepath.Join(a.StorageDir, "html", "images")
 	filename, err := a.saveUploadedFile(r, "image", imgDir, imageUploadExtensions, a.maxUploadBytes())
 	if err != nil {
-		writeUploadError(w, "handleUpload", err)
+		a.writeUploadError(w, "handleUpload", err)
 		return
 	}
 	// HTML rather than markdown image syntax: the goldmark renderer runs
@@ -736,7 +735,7 @@ func (a *App) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	jsonDir := filepath.Join(a.StorageDir, "html", "user_json")
 	filename, err := a.saveUploadedFile(r, "file", jsonDir, jsonUploadExtensions, a.maxUploadBytes())
 	if err != nil {
-		writeUploadError(w, "handleUploadJSON", err)
+		a.writeUploadError(w, "handleUploadJSON", err)
 		return
 	}
 	w.Write(fmt.Appendf(nil, "\n[%s](/user_json/%s)\n", filename, filename))
@@ -813,9 +812,9 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if mkErr := os.MkdirAll(filepath.Dir(mdPath), 0755); mkErr != nil {
-		log.Printf("handleGetNote: failed to create directory for %q: %v", baseName, mkErr)
+		a.logErrf(logPage, "handleGetNote: failed to create directory for %q: %v", baseName, mkErr)
 	} else if writeErr := os.WriteFile(mdPath, data, 0644); writeErr != nil {
-		log.Printf("handleGetNote: failed to persist new page %q: %v", baseName, writeErr)
+		a.logErrf(logPage, "handleGetNote: failed to persist new page %q: %v", baseName, writeErr)
 	}
 
 	w.Write(data)
@@ -901,7 +900,7 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			// Recompile the source page's cache immediately to prevent
 			// caching delays (see render_cache.go).
 			if _, err := a.renderAndCache(source, []byte(content)); err != nil {
-				log.Printf("handleNewPage: %v", err)
+				a.logErrf(logPage, "handleNewPage: %v", err)
 			}
 		}
 	}
@@ -930,12 +929,12 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := os.MkdirAll(filepath.Dir(htmlPath), 0755); err != nil {
-			log.Printf("handleSaveNote: mkdir failed for %q: %v", name, err)
+			a.logErrf(logPage, "handleSaveNote: mkdir failed for %q: %v", name, err)
 			http.Error(w, "Failed to save", http.StatusInternalServerError)
 			return
 		}
 		if err := os.WriteFile(htmlPath, []byte(content), 0644); err != nil {
-			log.Printf("handleSaveNote: write failed for %q: %v", name, err)
+			a.logErrf(logPage, "handleSaveNote: write failed for %q: %v", name, err)
 			http.Error(w, "Failed to save", http.StatusInternalServerError)
 			return
 		}
@@ -956,12 +955,12 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	// going on to compile/write the HTML from content that never actually
 	// made it to disk.
 	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
-		log.Printf("handleSaveNote: mkdir failed for %q: %v", baseName, err)
+		a.logErrf(logPage, "handleSaveNote: mkdir failed for %q: %v", baseName, err)
 		http.Error(w, "Failed to save", http.StatusInternalServerError)
 		return
 	}
 	if err := os.WriteFile(mdPath, []byte(content), 0644); err != nil {
-		log.Printf("handleSaveNote: write failed for %q: %v", baseName, err)
+		a.logErrf(logPage, "handleSaveNote: write failed for %q: %v", baseName, err)
 		http.Error(w, "Failed to save", http.StatusInternalServerError)
 		return
 	}
@@ -973,7 +972,7 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 	// than reporting the save itself as failed. renderAndCache is the single
 	// cache writer (see render_cache.go).
 	if _, err := a.renderAndCache(baseName, []byte(content)); err != nil {
-		log.Printf("handleSaveNote: %v", err)
+		a.logErrf(logPage, "handleSaveNote: %v", err)
 	}
 
 	w.Write([]byte("Saved"))
@@ -1083,7 +1082,7 @@ func (a *App) recompileMarkdownPage(name, mdPath string, errMd error) {
 		// cache rebuild, which is exactly the bug this comment guards
 		// against reintroducing.
 		if _, err := a.renderAndCache(name, mdContent); err != nil {
-			log.Printf("recompileMarkdownPage: %v", err)
+			a.logErrf(logPrecompile, "recompileMarkdownPage: %v", err)
 		}
 	}
 }

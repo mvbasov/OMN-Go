@@ -2,7 +2,6 @@ package backend
 
 import (
 	"fmt"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -273,7 +272,7 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 
 	// One log line per miss, so a broken link is visible in the JS console
 	// and the /api/logs stream without having to reproduce it.
-	log.Printf("[404] %s %s (referer %q)", view.Method, view.URL, view.Referer)
+	a.logInfof(log404, "%s %s (referer %q)", view.Method, view.URL, view.Referer)
 
 	if !wantsHTMLError(r) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -308,7 +307,7 @@ func (a *App) serveNotEditable(w http.ResponseWriter, r *http.Request, relPath s
 	urlPath := "/" + strings.TrimPrefix(relPath, "/")
 	ct := a.resolveContentType(relPath)
 
-	log.Printf("[edit] refused %s (%s): not a text file", urlPath, ct)
+	a.logErrf(logEdit, "refused %s (%s): not a text file", urlPath, ct)
 
 	if !wantsHTMLError(r) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")

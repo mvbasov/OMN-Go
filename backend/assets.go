@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bytes"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -132,7 +131,7 @@ func (a *App) refreshEmbeddedAssets() {
 		embedData, eerr := staticFS.ReadFile("frontend/" + rel)
 		if eerr != nil {
 			// Listed but not embedded in this build - nothing to install.
-			log.Printf("[assets] %s not embedded in this build: %v", rel, eerr)
+			a.logErrf(logAssets, "%s not embedded in this build: %v", rel, eerr)
 			continue
 		}
 		diskPath := filepath.Join(a.StorageDir, filepath.FromSlash(rel))
@@ -142,12 +141,12 @@ func (a *App) refreshEmbeddedAssets() {
 			continue // already current - nothing to do
 		}
 		if rerr != nil && !os.IsNotExist(rerr) {
-			log.Printf("[assets] cannot read %s: %v", diskPath, rerr)
+			a.logErrf(logAssets, "cannot read %s: %v", diskPath, rerr)
 			continue
 		}
 
 		if err := os.MkdirAll(filepath.Dir(diskPath), 0755); err != nil {
-			log.Printf("[assets] skip %s: cannot create dir: %v", rel, err)
+			a.logErrf(logAssets, "skip %s: cannot create dir: %v", rel, err)
 			continue
 		}
 
@@ -159,24 +158,24 @@ func (a *App) refreshEmbeddedAssets() {
 		if existed {
 			bakPath := filepath.Join(backupDir, filepath.FromSlash(rel))
 			if err := os.MkdirAll(filepath.Dir(bakPath), 0755); err != nil {
-				log.Printf("[assets] skip %s: cannot create backup dir: %v", rel, err)
+				a.logErrf(logAssets, "skip %s: cannot create backup dir: %v", rel, err)
 				continue
 			}
 			if err := os.WriteFile(bakPath, diskData, 0644); err != nil {
-				log.Printf("[assets] skip %s: backup failed: %v", rel, err)
+				a.logErrf(logAssets, "skip %s: backup failed: %v", rel, err)
 				continue
 			}
 		}
 
 		if err := os.WriteFile(diskPath, embedData, 0644); err != nil {
-			log.Printf("[assets] write of %s failed: %v", rel, err)
+			a.logErrf(logAssets, "write of %s failed: %v", rel, err)
 			continue
 		}
 		refreshed++
 		if existed {
-			log.Printf("[assets] refreshed %s (previous copy saved to asset_backups/%s/%s)", rel, prevLabel, rel)
+			a.logInfof(logAssets, "refreshed %s (previous copy saved to asset_backups/%s/%s)", rel, prevLabel, rel)
 		} else {
-			log.Printf("[assets] installed %s from this build", rel)
+			a.logInfof(logAssets, "installed %s from this build", rel)
 		}
 	}
 
@@ -184,12 +183,12 @@ func (a *App) refreshEmbeddedAssets() {
 	// simply re-runs it (already-current files compare equal and are
 	// skipped, so this is idempotent).
 	if err := os.WriteFile(verFile, []byte(APP_VERSION+"\n"), 0644); err != nil {
-		log.Printf("[assets] cannot write version stamp %s: %v", verFile, err)
+		a.logErrf(logAssets, "cannot write version stamp %s: %v", verFile, err)
 	}
 	if refreshed > 0 {
 		// The client caches must go. AssetsRefreshed tells the Android
 		// layer to clear the cache of the WebView one time.
 		assetsRefreshed.Store(true)
-		log.Printf("[assets] %d embedded asset(s) refreshed for v%s (previous: %s)", refreshed, APP_VERSION, prevLabel)
+		a.logInfof(logAssets, "%d embedded asset(s) refreshed for v%s (previous: %s)", refreshed, APP_VERSION, prevLabel)
 	}
 }

@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -898,25 +897,25 @@ func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
 			// notes, and this is a claim about the settings.
 			resp.Status = "disabled"
 			resp.Error = "global search is off (Settings -> Search)"
-			writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
+			a.writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
 			return
 		}
 		if !a.ensureSearchIndex() {
 			resp.Status = "unavailable"
 			resp.Error = "the search index is not ready"
-			writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
+			a.writeSearchJSON(w, http.StatusServiceUnavailable, &resp, started)
 			return
 		}
 		a.searchGlobal(&resp, qs)
 	default:
 		resp.Status = "error"
 		resp.Error = "unknown scope " + strconv.Quote(scope)
-		writeSearchJSON(w, http.StatusBadRequest, &resp, started)
+		a.writeSearchJSON(w, http.StatusBadRequest, &resp, started)
 		return
 	}
 
 	resp.Highlight = highlightTerms(parseQuery(resp.Query))
-	writeSearchJSON(w, http.StatusOK, &resp, started)
+	a.writeSearchJSON(w, http.StatusOK, &resp, started)
 }
 
 // searchPage fills resp from the single document named by "on".
@@ -935,7 +934,7 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 
 	doc, err := a.loadPageDocument(get("on"))
 	if err != nil {
-		log.Printf("[search] %s: %v", get("on"), err)
+		a.logErrf(logSearch, "%s: %v", get("on"), err)
 		return
 	}
 	if doc == nil {
@@ -1082,7 +1081,7 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 	}
 	_ = cfg
 	if read > 0 {
-		log.Printf("[search] %q: %d candidates read, %d matched", resp.Query, read, resp.Total)
+		a.logInfof(logSearch, "%q: %d candidates read, %d matched", resp.Query, read, resp.Total)
 	}
 }
 
@@ -1113,12 +1112,12 @@ func buildMatches(doc *searchDocument, hits []lineHit) ([]searchMatch, string) {
 	return out, anchor
 }
 
-func writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, started time.Time) {
+func (a *App) writeSearchJSON(w http.ResponseWriter, status int, resp *searchResponse, started time.Time) {
 	resp.TookMS = time.Since(started).Milliseconds()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("[search] encode: %v", err)
+		a.logErrf(logSearch, "encode: %v", err)
 	}
 }
 

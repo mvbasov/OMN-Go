@@ -97,7 +97,7 @@ func escapeJS(s string) string {
 func loadTemplate(filename string) string {
 	data, err := templatesFS.ReadFile("frontend/templates/" + filename)
 	if err != nil {
-		log.Printf("templates: failed to read embedded %s: %v", filename, err)
+		log.Printf("[templates] (error) failed to read embedded %s: %v", filename, err)
 		return "<p>Missing embedded template: " + escapeHTML(filename) + "</p>"
 	}
 	return string(data)

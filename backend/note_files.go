@@ -37,7 +37,6 @@ package backend
 import (
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,7 +99,7 @@ func (a *App) syncNoteFilesToHTML() {
 			return nil
 		}
 		if copyErr := copyFileWithTime(p, dst); copyErr != nil {
-			log.Printf("[note-files] md/%s to html/: %v", filepath.ToSlash(rel), copyErr)
+			a.logErrf(logNoteFiles, "md/%s to html/: %v", filepath.ToSlash(rel), copyErr)
 			return nil
 		}
 		copied++
@@ -108,7 +107,7 @@ func (a *App) syncNoteFilesToHTML() {
 	})
 
 	if copied > 0 {
-		log.Printf("[note-files] copied %d file(s) from md/ to html/", copied)
+		a.logInfof(logNoteFiles, "copied %d file(s) from md/ to html/", copied)
 	}
 }
 
@@ -144,7 +143,7 @@ func (a *App) syncNoteFileToMD(htmlPath string) {
 	}
 	dst := filepath.Join(a.StorageDir, "md", rel)
 	if copyErr := copyFileWithTime(htmlPath, dst); copyErr != nil {
-		log.Printf("[note-files] html/%s to md/: %v", filepath.ToSlash(rel), copyErr)
+		a.logErrf(logNoteFiles, "html/%s to md/: %v", filepath.ToSlash(rel), copyErr)
 	}
 }
 

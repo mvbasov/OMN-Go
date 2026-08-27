@@ -464,7 +464,7 @@ func scanBookmarksArray(content string, firstLineNo int) (bookmarksBlock, bool) 
 // symptom otherwise is "search results stopped linking into long notes" with
 // nothing to explain it.
 func logAnchorsOff(why string) {
-	log.Printf("[search] section anchors disabled - the renderer no longer "+
+	log.Printf("[search] (error) section anchors disabled - the renderer no longer "+
 		"assigns heading ids the way this build predicts (%s). Results will "+
 		"link at the page instead of the section.", why)
 }
@@ -514,7 +514,7 @@ func (d *searchDocument) addBookmarks(body string, firstLineNo int) {
 		}
 	}
 	if !ok {
-		log.Printf("[search] %s: not a readable bookmarks array, indexing it as plain text", d.Path)
+		log.Printf("[search] (error) %s: not a readable bookmarks array, indexing it as plain text", d.Path)
 		d.addLines(body, firstLineNo)
 		return
 	}

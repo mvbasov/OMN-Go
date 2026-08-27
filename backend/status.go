@@ -3,7 +3,6 @@ package backend
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -293,7 +292,7 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(res); err != nil {
-		log.Printf("[status] encode failed: %v", err)
+		a.logErrf(logStatus, "encode failed: %v", err)
 	}
 }
 
@@ -564,7 +563,7 @@ func (a *App) statusGitDirtySection() (*statusGitDirty, error) {
 		return nil, fmt.Errorf("open worktree: %v", err)
 	}
 
-	log.Printf("[status] Reading the git worktree state")
+	a.logDebugf(logStatus, "Reading the git worktree state")
 	started := time.Now()
 	st, err := wTree.Status()
 	if err != nil {
@@ -582,7 +581,7 @@ func (a *App) statusGitDirtySection() (*statusGitDirty, error) {
 		}
 	}
 	out.Dirty = out.Changed > 0
-	log.Printf("[status] Worktree read in %s: %d changed, %d untracked",
+	a.logInfof(logStatus, "Worktree read in %s: %d changed, %d untracked",
 		time.Since(started).Round(time.Millisecond), out.Changed, out.Untracked)
 	return out, nil
 }

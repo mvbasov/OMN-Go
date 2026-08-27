@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -270,7 +269,7 @@ func (a *App) ensureGitignore() {
 	content, err := os.ReadFile(gitignorePath)
 	if os.IsNotExist(err) {
 		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
-		log.Printf("[sync] Created .gitignore")
+		a.logInfof(logSync, "Created .gitignore")
 		return
 	}
 	if err != nil {
@@ -331,15 +330,15 @@ func (a *App) ensureGitignore() {
 
 	if rewritten || appended {
 		if err := os.WriteFile(gitignorePath, content, 0644); err != nil {
-			log.Printf("[sync] cannot update .gitignore: %v", err)
+			a.logErrf(logSync, "cannot update .gitignore: %v", err)
 			return
 		}
-		log.Printf("[sync] Updated .gitignore (rewritten=%v, appended=%v)", rewritten, appended)
+		a.logInfof(logSync, "Updated .gitignore (rewritten=%v, appended=%v)", rewritten, appended)
 	}
 }
 
 func (a *App) getOrInitRepo() (*git.Repository, error) {
-	log.Printf("[sync] Opening repo at %s", a.StorageDir)
+	a.logDebugf(logSync, "Opening repo at %s", a.StorageDir)
 
 	baseFS := osfs.New(a.StorageDir)
 	stableFS := &stableMtimeFS{baseFS}
@@ -354,7 +353,7 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 	repo, err := git.Open(storer, wtFS)
 
 	if err != nil {
-		log.Printf("[sync] Repo not found, initializing...")
+		a.logInfof(logSync, "Repo not found, initializing...")
 		if initErr := a.manualGitInit(a.StorageDir); initErr != nil {
 			return nil, fmt.Errorf("manual init failed: %v", initErr)
 		}
@@ -363,9 +362,9 @@ func (a *App) getOrInitRepo() (*git.Repository, error) {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
 		a.ensureGitignore()
-		log.Printf("[sync] Repo initialized")
+		a.logInfof(logSync, "Repo initialized")
 	} else {
-		log.Printf("[sync] Repo opened successfully")
+		a.logDebugf(logSync, "Repo opened successfully")
 		// Backfill any .gitignore entries added to gitignoreBase after this
 		// repo was first created (see the appended-entries loop in
 		// ensureGitignore). Previously this only ran again on Android, via
@@ -423,7 +422,7 @@ func (a *App) ensureOriginRemote(repo *git.Repository, fallbackURL string) error
 	if fallbackURL == "" {
 		return nil // nothing to seed it with yet; try again on a later sync
 	}
-	log.Printf("[sync] Remote origin missing, seeding it once from %s", fallbackURL)
+	a.logInfof(logSync, "Remote origin missing, seeding it once from %s", fallbackURL)
 	_, err := repo.CreateRemote(&gitconfig.RemoteConfig{
 		Name: "origin",
 		URLs: []string{fallbackURL},
@@ -442,16 +441,16 @@ func (a *App) ensureSlotRemotes(repo *git.Repository, cfg Config) (activeRemoteN
 		remote, rErr := repo.Remote(name)
 		if url == "" {
 			if rErr == nil {
-				log.Printf("[sync] Removing remote %s (slot %d cleared)", name, i)
+				a.logInfof(logSync, "Removing remote %s (slot %d cleared)", name, i)
 				if dErr := repo.DeleteRemote(name); dErr != nil {
-					log.Printf("[sync] Warning: failed to remove remote %s: %v", name, dErr)
+					a.logErrf(logSync, "failed to remove remote %s: %v", name, dErr)
 				}
 			}
 			continue
 		}
 
 		if rErr != nil {
-			log.Printf("[sync] Adding remote %s -> %s", name, url)
+			a.logInfof(logSync, "Adding remote %s -> %s", name, url)
 			if _, cErr := repo.CreateRemote(&gitconfig.RemoteConfig{Name: name, URLs: []string{url}}); cErr != nil {
 				return "", fmt.Errorf("failed to add remote %s: %v", name, cErr)
 			}
@@ -462,7 +461,7 @@ func (a *App) ensureSlotRemotes(repo *git.Repository, cfg Config) (activeRemoteN
 		if len(existing) == 1 && existing[0] == url {
 			continue // already up to date
 		}
-		log.Printf("[sync] Remote %s URL changed (%v -> %s), updating", name, existing, url)
+		a.logInfof(logSync, "Remote %s URL changed (%v -> %s), updating", name, existing, url)
 		if dErr := repo.DeleteRemote(name); dErr != nil {
 			return "", fmt.Errorf("failed to update remote %s: %v", name, dErr)
 		}
@@ -476,7 +475,7 @@ func (a *App) ensureSlotRemotes(repo *git.Repository, cfg Config) (activeRemoteN
 			return slotRemoteName(cfg.ActiveGitIndex), nil
 		}
 	}
-	log.Printf("[sync] Active server slot has no URL configured, falling back to origin")
+	a.logInfof(logSync, "Active server slot has no URL configured, falling back to origin")
 	return "origin", nil
 }
 
@@ -609,11 +608,11 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 	if idx := strings.Index(gs.URL, "@"); idx != -1 {
 		sshUser = gs.URL[:idx]
 	}
-	log.Printf("[sync] SSH user: %s", sshUser)
+	a.logDebugf(logSync, "SSH user: %s", sshUser)
 
 	keyData := gs.SSHKeyData
 	if keyData == "" {
-		log.Printf("[sync] Error: No SSH key configured")
+		a.logErrf(logSync, "No SSH key configured")
 		return nil, fmt.Errorf("no SSH key configured")
 	}
 
@@ -633,7 +632,7 @@ func (a *App) getSSHAuth() (transport.AuthMethod, error) {
 	publicKeys.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
 		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(),
 	}
-	log.Printf("[sync] SSH auth method created using inline key data")
+	a.logDebugf(logSync, "SSH auth method created using inline key data")
 	return publicKeys, nil
 }
 
@@ -688,7 +687,7 @@ func untrackReason(name string) string {
 func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 	idx, err := repo.Storer.Index()
 	if err != nil {
-		log.Printf("[sync] cannot read the index to find the files to untrack: %v", err)
+		a.logErrf(logSync, "cannot read the index to find the files to untrack: %v", err)
 		return 0
 	}
 
@@ -696,7 +695,7 @@ func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 	removed := 0
 	for _, entry := range idx.Entries {
 		if why := untrackReason(entry.Name); why != "" {
-			log.Printf("[sync] %s%s", entry.Name, why)
+			a.logDebugf(logSync, "%s%s", entry.Name, why)
 			removed++
 			continue
 		}
@@ -708,7 +707,7 @@ func (a *App) untrackLocalOnlyPaths(repo *git.Repository) int {
 
 	idx.Entries = kept
 	if err := repo.Storer.SetIndex(idx); err != nil {
-		log.Printf("[sync] cannot write the index after the removal of %d file(s): %v", removed, err)
+		a.logErrf(logSync, "cannot write the index after the removal of %d file(s): %v", removed, err)
 		return 0
 	}
 	return removed
@@ -730,7 +729,7 @@ const derivedTextPreviewNote = " (a copy of the file in md/: git stops to track 
 func (a *App) untrackTrackedPaths(repo *git.Repository) []string {
 	idx, err := repo.Storer.Index()
 	if err != nil {
-		log.Printf("[sync] cannot read the index to find the files to untrack: %v", err)
+		a.logErrf(logSync, "cannot read the index to find the files to untrack: %v", err)
 		return nil
 	}
 	var out []string
@@ -747,7 +746,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 	// Load gitignore matcher
 	matcher, err := a.loadGitignoreMatcher(wTree)
 	if err != nil {
-		log.Printf("[sync] Warning: could not load .gitignore: %v", err)
+		a.logErrf(logSync, "could not load .gitignore: %v", err)
 		matcher = gitignore.NewMatcher(nil) // no ignore
 	}
 
@@ -761,14 +760,14 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 	// the status.
 	unstaged := a.untrackLocalOnlyPaths(repo)
 
-	log.Printf("[sync] Checking worktree status")
+	a.logDebugf(logSync, "Checking worktree status")
 	status, err := wTree.Status()
 	if err != nil {
 		return false, fmt.Errorf("status check error: %v", err)
 	}
 	_, mergePending := a.loadMergeParent()
 	if status.IsClean() && !mergePending && unstaged == 0 {
-		log.Printf("[sync] Nothing to commit")
+		a.logInfof(logSync, "Nothing to commit")
 		return false, nil
 	}
 
@@ -777,41 +776,41 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 
 		// Skip ignored files
 		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
-			log.Printf("[sync] Ignoring %s (matches .gitignore)", name)
+			a.logDebugf(logSync, "Ignoring %s (matches .gitignore)", name)
 			continue
 		}
 
 		// Exclude root config.json explicitly
 		if name == "config.json" {
-			log.Printf("[sync] Ignoring root config.json (preserve locally)")
+			a.logDebugf(logSync, "Ignoring root config.json (preserve locally)")
 			continue
 		}
 
 		if fileStat.Worktree == git.Deleted {
-			log.Printf("[sync] Staging deletion: %s", name)
+			a.logDebugf(logSync, "Staging deletion: %s", name)
 			_, err := wTree.Remove(name)
 			if err != nil {
-				log.Printf("[sync] Warning: failed to remove %s: %v", name, err)
+				a.logErrf(logSync, "failed to remove %s: %v", name, err)
 			} else {
 				hasRealChanges = true
 			}
 		} else if fileStat.Worktree != git.Unmodified || fileStat.Staging != git.Unmodified {
-			log.Printf("[sync] Staging file: %s", name)
+			a.logDebugf(logSync, "Staging file: %s", name)
 			if err := a.manualStageFile(repo, wTree, name); err != nil {
-				log.Printf("[sync] Warning: manual staging failed for %s: %v", name, err)
+				a.logErrf(logSync, "manual staging failed for %s: %v", name, err)
 			} else {
-				log.Printf("[sync] Staged %s successfully", name)
+				a.logDebugf(logSync, "Staged %s successfully", name)
 				hasRealChanges = true
 			}
 		}
 	}
 
 	if !hasRealChanges && !mergePending {
-		log.Printf("[sync] No real changes could be staged (FUSE false-dirty or ignored)")
+		a.logInfof(logSync, "No real changes could be staged (FUSE false-dirty or ignored)")
 		return false, nil
 	}
 
-	log.Printf("[sync] Committing staged changes")
+	a.logDebugf(logSync, "Committing staged changes")
 	authorName := a.GetConfigAuthor()
 	authorEmail := strings.ReplaceAll(strings.ToLower(authorName), " ", ".") + "@omn-go.local"
 	sig := &object.Signature{
@@ -851,7 +850,7 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 
 	commitHash, err := wTree.Commit(message, commitOpts)
 	if err == git.ErrEmptyCommit {
-		log.Printf("[sync] Commit aborted: git.ErrEmptyCommit")
+		a.logInfof(logSync, "Commit aborted: git.ErrEmptyCommit")
 		return false, nil
 	} else if err != nil {
 		return false, fmt.Errorf("commit error: %v", err)
@@ -859,9 +858,9 @@ func (a *App) commitLocalChanges(repo *git.Repository, wTree *git.Worktree, mess
 
 	if hasPendingMerge {
 		a.clearMergeParent()
-		log.Printf("[sync] Committed merge with hash: %s (parents: HEAD, %s)", commitHash.String(), pendingMergeParent.String())
+		a.logInfof(logSync, "Committed merge with hash: %s (parents: HEAD, %s)", commitHash.String(), pendingMergeParent.String())
 	} else {
-		log.Printf("[sync] Committed with hash: %s", commitHash.String())
+		a.logInfof(logSync, "Committed with hash: %s", commitHash.String())
 	}
 	return true, nil
 }
@@ -884,7 +883,7 @@ func (a *App) premergeHeadPath() string {
 
 func (a *App) savePremergeHead(h plumbing.Hash) {
 	if err := os.WriteFile(a.premergeHeadPath(), []byte(h.String()), 0644); err != nil {
-		log.Printf("[sync] failed to save pre-merge HEAD: %v", err)
+		a.logErrf(logSync, "failed to save pre-merge HEAD: %v", err)
 	}
 }
 
@@ -924,7 +923,7 @@ func (a *App) mergeParentPath() string {
 
 func (a *App) saveMergeParent(h plumbing.Hash) {
 	if err := os.WriteFile(a.mergeParentPath(), []byte(h.String()), 0644); err != nil {
-		log.Printf("[sync] failed to save pending merge parent: %v", err)
+		a.logErrf(logSync, "failed to save pending merge parent: %v", err)
 	}
 }
 
@@ -954,7 +953,7 @@ func (a *App) clearMergeParent() {
 func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher) {
 	status, err := wTree.Status()
 	if err != nil {
-		log.Printf("[sync] force pull: could not compute status for cleanup: %v", err)
+		a.logErrf(logSync, "force pull: could not compute status for cleanup: %v", err)
 		return
 	}
 	for name, fileStat := range status {
@@ -971,18 +970,18 @@ func (a *App) cleanUntrackedFiles(wTree *git.Worktree, matcher gitignore.Matcher
 		// where the matcher no longer protects it, which is exactly
 		// what deleted it.
 		if name == "config.json" {
-			log.Printf("[sync] force pull: keeping root config.json (preserve locally)")
+			a.logDebugf(logSync, "force pull: keeping root config.json (preserve locally)")
 			continue
 		}
 		if matcher != nil && matcher.Match(strings.Split(name, string(filepath.Separator)), false) {
-			log.Printf("[sync] force pull: keeping ignored file %s", name)
+			a.logDebugf(logSync, "force pull: keeping ignored file %s", name)
 			continue
 		}
 		full := filepath.Join(a.StorageDir, name)
 		if err := os.Remove(full); err != nil {
-			log.Printf("[sync] force pull: failed to delete %s: %v", name, err)
+			a.logErrf(logSync, "force pull: failed to delete %s: %v", name, err)
 		} else {
-			log.Printf("[sync] force pull: deleted untracked file %s", name)
+			a.logDebugf(logSync, "force pull: deleted untracked file %s", name)
 		}
 	}
 }
@@ -1040,6 +1039,10 @@ func trackedWorktreeIsDirty(wTree *git.Worktree) (bool, error) {
 // stream, so the unsynchronised buffer below is safe; each call site passes
 // its own instance regardless.
 type syncProgressWriter struct {
+	// app is the only way this writer can reach a logger. go-git owns the
+	// call, so the sideband text arrives with no receiver of its own. Every
+	// construction site is a method on *App and passes itself.
+	app  *App
 	buf  []byte
 	last time.Time
 }
@@ -1063,7 +1066,7 @@ func (w *syncProgressWriter) Write(p []byte) (int, error) {
 		line = strings.TrimSpace(strings.TrimPrefix(line, "remote:"))
 		if line != "" && time.Since(w.last) >= syncProgressInterval {
 			w.last = time.Now()
-			log.Printf("[sync] remote: %s", line)
+			w.app.logDebugf(logSync, "remote: %s", line)
 		}
 	}
 	// Never report an error: failing to log progress must not abort a fetch
@@ -1072,8 +1075,8 @@ func (w *syncProgressWriter) Write(p []byte) (int, error) {
 }
 
 func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
-	log.Printf("[sync] Pull: fetching %s", remoteName)
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
+	a.logInfof(logSync, "Pull: fetching %s", remoteName)
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{app: a}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -1085,7 +1088,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 
 	localHead, headErr := repo.Head()
 	if headErr == nil && localHead.Hash() == remoteRef.Hash() {
-		log.Printf("[sync] Pull: already up to date")
+		a.logInfof(logSync, "Pull: already up to date")
 		return nil
 	}
 
@@ -1096,7 +1099,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		return fmt.Errorf("status check failed: %v", dErr)
 	}
 	if dirty {
-		log.Printf("[sync] Pull: local tracked changes present, cannot fast-forward")
+		a.logInfof(logSync, "Pull: local tracked changes present, cannot fast-forward")
 		return a.newSyncConflict(repo, wTree, remoteRef)
 	}
 
@@ -1120,7 +1123,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 			return fmt.Errorf("ancestry check failed: %v", aErr)
 		}
 		if !isAncestor {
-			log.Printf("[sync] Pull: fast-forward not possible (local has unpushed commits)")
+			a.logInfof(logSync, "Pull: fast-forward not possible (local has unpushed commits)")
 			return a.newSyncConflict(repo, wTree, remoteRef)
 		}
 	}
@@ -1172,9 +1175,9 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		}
 		full := filepath.Join(a.StorageDir, p)
 		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-			log.Printf("[sync] pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
+			a.logErrf(logSync, "pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
 		} else {
-			log.Printf("[sync] pull: removed file no longer tracked upstream: %s", p)
+			a.logDebugf(logSync, "pull: removed file no longer tracked upstream: %s", p)
 		}
 	}
 
@@ -1183,7 +1186,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 		return fmt.Errorf("failed to move local branch: %v", err)
 	}
 
-	log.Printf("[sync] Pull: fast-forward complete")
+	a.logInfof(logSync, "Pull: fast-forward complete")
 	return nil
 }
 
@@ -1197,7 +1200,7 @@ func (a *App) syncPull(repo *git.Repository, wTree *git.Worktree, auth transport
 // that commit's parent is the remote tip and a normal push can
 // fast-forward. The pre-merge HEAD is saved so "pull_abort" can undo this.
 func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{app: a}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -1285,7 +1288,7 @@ func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth tran
 	// genuine two-parent merge commit (local HEAD + this remote tip),
 	// which is what "3-way merge" is actually supposed to produce.
 	a.saveMergeParent(remoteRef.Hash())
-	log.Printf("[sync] Pull: 3-way conflict markers written, awaiting manual resolution")
+	a.logInfof(logSync, "Pull: 3-way conflict markers written, awaiting manual resolution")
 	return nil
 }
 
@@ -1295,7 +1298,7 @@ func (a *App) syncPullMerge(repo *git.Repository, wTree *git.Worktree, auth tran
 func (a *App) syncPullAbort(wTree *git.Worktree) error {
 	hash, ok := a.loadPremergeHead()
 	if !ok {
-		log.Printf("[sync] pull_abort: nothing to abort")
+		a.logInfof(logSync, "pull_abort: nothing to abort")
 		return nil
 	}
 	if err := wTree.Reset(&git.ResetOptions{Commit: hash, Mode: git.HardReset}); err != nil {
@@ -1303,7 +1306,7 @@ func (a *App) syncPullAbort(wTree *git.Worktree) error {
 	}
 	a.clearPremergeHead()
 	a.clearMergeParent()
-	log.Printf("[sync] pull_abort: restored local state to %s", hash.String())
+	a.logInfof(logSync, "pull_abort: restored local state to %s", hash.String())
 	return nil
 }
 
@@ -1411,7 +1414,7 @@ func oldTrackedPaths(repo *git.Repository) (map[string]bool, error) {
 // any file that is neither tracked by git nor covered by .gitignore, per
 // the requirement that only a *force* pull is allowed to delete such files.
 func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth transport.AuthMethod, remoteName string) error {
-	log.Printf("[sync] Force pull: fetching %s", remoteName)
+	a.logInfof(logSync, "Force pull: fetching %s", remoteName)
 
 	if runtime.GOOS == "android" {
 		tmpDir := filepath.Join(a.StorageDir, ".git", "tmp")
@@ -1420,7 +1423,7 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		a.ensureGitignore()
 	}
 
-	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{}})
+	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{app: a}})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
@@ -1464,9 +1467,9 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 		}
 		full := filepath.Join(a.StorageDir, p)
 		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-			log.Printf("[sync] force pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
+			a.logErrf(logSync, "force pull: failed to remove file no longer tracked upstream (%s): %v", p, err)
 		} else {
-			log.Printf("[sync] force pull: removed file no longer tracked upstream: %s", p)
+			a.logDebugf(logSync, "force pull: removed file no longer tracked upstream: %s", p)
 		}
 	}
 
@@ -1477,14 +1480,14 @@ func (a *App) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth tran
 
 	matcher, mErr := a.loadGitignoreMatcher(wTree)
 	if mErr != nil {
-		log.Printf("[sync] force pull: could not load .gitignore, skipping untracked cleanup: %v", mErr)
+		a.logErrf(logSync, "force pull: could not load .gitignore, skipping untracked cleanup: %v", mErr)
 	} else {
 		a.cleanUntrackedFiles(wTree, matcher)
 	}
 
 	a.clearPremergeHead() // any pending 3-way merge is now moot
 	a.clearMergeParent()
-	log.Printf("[sync] Force pull complete")
+	a.logInfof(logSync, "Force pull complete")
 	return nil
 }
 
@@ -1580,21 +1583,21 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 		}
 	}
 
-	log.Printf("[sync] Pushing to %s master (force=%v)", remoteName, force)
+	a.logInfof(logSync, "Pushing to %s master (force=%v)", remoteName, force)
 	err = repo.Push(&git.PushOptions{
 		RemoteName: remoteName,
 		Auth:       auth,
 		RefSpecs:   []gitconfig.RefSpec{"refs/heads/master:refs/heads/master"},
 		Force:      force,
-		Progress:   &syncProgressWriter{},
+		Progress:   &syncProgressWriter{app: a},
 	})
 	if err == git.NoErrAlreadyUpToDate {
-		log.Printf("[sync] push: remote %s already up to date", remoteName)
+		a.logInfof(logSync, "push: remote %s already up to date", remoteName)
 		return nil
 	}
 	if err != nil {
 		if !force && err == git.ErrNonFastForwardUpdate {
-			log.Printf("[sync] push: rejected as non-fast-forward, leaving local state untouched")
+			a.logErrf(logSync, "push: rejected as non-fast-forward, leaving local state untouched")
 			return ErrPushConflict
 		}
 		return fmt.Errorf("push failed: %v", err)
@@ -1670,18 +1673,18 @@ func (a *App) aheadOfRemote(repo *git.Repository, remoteName string, auth transp
 	head, err := repo.Head()
 	if err != nil {
 		// No commits yet: nothing to push, and nothing to check.
-		log.Printf("[sync] preview: no local HEAD (%v)", err)
+		a.logDebugf(logSync, "preview: no local HEAD (%v)", err)
 		return out
 	}
 
 	trackRef, tErr := repo.Reference(plumbing.NewRemoteReferenceName(remoteName, "master"), true)
 	if tErr != nil {
-		log.Printf("[sync] preview: %s has no known master yet - treating local HEAD as unpushed", remoteName)
+		a.logDebugf(logSync, "preview: %s has no known master yet - treating local HEAD as unpushed", remoteName)
 		out.Unpushed = true
 		return out
 	}
 	if trackRef.Hash() != head.Hash() {
-		log.Printf("[sync] preview: local HEAD %s differs from %s/master %s",
+		a.logDebugf(logSync, "preview: local HEAD %s differs from %s/master %s",
 			head.Hash().String()[:7], remoteName, trackRef.Hash().String()[:7])
 		out.Unpushed = true
 		return out
@@ -1700,7 +1703,7 @@ func (a *App) aheadOfRemote(repo *git.Repository, remoteName string, auth transp
 		// Unreachable. Report that rather than claiming to have checked: a
 		// push would fail with the same error, so offering one buys nothing,
 		// but silently implying the remote agreed would be a lie.
-		log.Printf("[sync] preview: could not list %s: %v", remoteName, lErr)
+		a.logErrf(logSync, "preview: could not list %s: %v", remoteName, lErr)
 		out.Error = lErr.Error()
 		return out
 	}
@@ -1710,7 +1713,7 @@ func (a *App) aheadOfRemote(repo *git.Repository, remoteName string, auth transp
 		if ref.Name() == plumbing.Master {
 			out.Unpushed = ref.Hash() != head.Hash()
 			if out.Unpushed {
-				log.Printf("[sync] preview: %s/master is at %s, local HEAD is %s",
+				a.logDebugf(logSync, "preview: %s/master is at %s, local HEAD is %s",
 					remoteName, ref.Hash().String()[:7], head.Hash().String()[:7])
 			}
 			return out
@@ -1718,7 +1721,7 @@ func (a *App) aheadOfRemote(repo *git.Repository, remoteName string, auth transp
 	}
 	// The remote has no master branch at all - an empty repository, or one
 	// this profile has never been pushed to. The first push creates it.
-	log.Printf("[sync] preview: %s has no master branch yet", remoteName)
+	a.logDebugf(logSync, "preview: %s has no master branch yet", remoteName)
 	out.Unpushed = true
 	return out
 }
@@ -2123,7 +2126,7 @@ func (a *App) protectGitDirs() {
 	for _, dir := range []string{"objects"} {
 		p := filepath.Join(a.StorageDir, ".git", dir)
 		if err := os.MkdirAll(p, 0755); err != nil {
-			log.Printf("[a.protectGitDirs] MkdirAll %s failed: %v", p, err)
+			a.logErrf(logSync, "MkdirAll %s failed: %v", p, err)
 			continue
 		}
 		keepFile := filepath.Join(p, ".gitkeep")

@@ -3,7 +3,6 @@ package backend
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -207,12 +206,12 @@ func (a *App) generateTagsPage() error {
 	// in the JS console; the user-visible indicator for the navigation
 	// itself is the Android ProgressBar (MainActivity.onPageStarted) and the
 	// delayed overlay in omn-go-core.js.
-	log.Printf("[tags] Rebuilding tags index")
+	a.logDebugf(logTags, "Rebuilding tags index")
 	started := time.Now()
 	index := a.buildTagIndex()
 	content := renderTagsMarkdown(index)
 	defer func() {
-		log.Printf("[tags] Tags index rebuilt: %d tags in %s",
+		a.logInfof(logTags, "Tags index rebuilt: %d tags in %s",
 			len(index), time.Since(started).Round(time.Millisecond))
 	}()
 
@@ -294,7 +293,7 @@ func (a *App) serveTagsPage(w http.ResponseWriter, r *http.Request) {
 	forceRefresh := r.URL.Query().Get("refresh") == "1" || r.URL.Query().Get("refresh") == "true"
 	if a.tagsPageStale(forceRefresh) {
 		if err := a.generateTagsPage(); err != nil {
-			log.Printf("serveTagsPage: %v", err)
+			a.logErrf(logTags, "serveTagsPage: %v", err)
 		}
 	}
 	htmlPath := a.pageHTMLPath("OMNGoTags")

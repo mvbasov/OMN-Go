@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,7 +28,7 @@ func (a *App) initStorage(overrideDir string) {
 
 	// 1. Create Isolated Storage
 	if err := os.MkdirAll(a.StorageDir, 0755); err != nil {
-		log.Printf("Failed to create storage: %v", err)
+		a.logErrf(logStorage, "Failed to create storage: %v", err)
 	}
 
 	mdDir := filepath.Join(a.StorageDir, "md")
@@ -150,7 +149,7 @@ Tags: Bookmarks
 	// first note arrives: on the desktop the receive box ON that page is how
 	// a note arrives at all.
 	if err := a.ensureIncomingIndex(time.Now()); err != nil {
-		log.Printf("initStorage: incoming index: %v", err)
+		a.logErrf(logStorage, "initStorage: incoming index: %v", err)
 	}
 
 	// Precompile all notes to data/html/ at startup in the background
@@ -166,7 +165,7 @@ func (a *App) precompileAllPages() {
 	// it finishes is compiled on demand by serveHTMLPage instead - the user
 	// waits, with no way to tell why. Logging the run makes that visible on
 	// the /api/logs stream rather than leaving it invisible.
-	log.Printf("[precompile] Compiling notes in background")
+	a.logDebugf(logPrecompile, "Compiling notes in background")
 	started := time.Now()
 	compiled := 0
 
@@ -178,7 +177,7 @@ func (a *App) precompileAllPages() {
 				name := strings.TrimSuffix(filepath.ToSlash(relPath), ".md")
 				// renderAndCache is the single cache writer (render_cache.go).
 				if _, err := a.renderAndCache(name, content); err != nil {
-					log.Printf("precompileAllPages: %v", err)
+					a.logErrf(logPrecompile, "precompileAllPages: %v", err)
 				} else {
 					compiled++
 				}
@@ -187,7 +186,7 @@ func (a *App) precompileAllPages() {
 		return nil
 	})
 
-	log.Printf("[precompile] Compiled %d notes in %s", compiled,
+	a.logInfof(logPrecompile, "Compiled %d notes in %s", compiled,
 		time.Since(started).Round(time.Millisecond))
 
 	// After every note is compiled, (re)generate the Tags index so
@@ -196,7 +195,7 @@ func (a *App) precompileAllPages() {
 	// end of the background startup precompile, so it never blocks server start.
 	// See tags.go.
 	if err := a.generateTagsPage(); err != nil {
-		log.Printf("precompileAllPages: tags: %v", err)
+		a.logErrf(logTags, "precompileAllPages: tags: %v", err)
 	}
 
 	// Warm the search index, if the user asked for one. Deliberately last and

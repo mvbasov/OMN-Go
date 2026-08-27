@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -73,7 +72,7 @@ func (a *App) openUserDB(name string) (*sql.DB, error) {
 		// A failed bootstrap must not take the database down: the note
 		// script simply sees (and creates) an empty database, and the
 		// backup file stays untouched for a later manual restore.
-		log.Printf("[db-bootstrap] %s: %v", name, err)
+		a.logErrf(logDBBootstrap, "%s: %v", name, err)
 	} else if reopened != nil {
 		// The bootstrap restore swapped the database file and evicted
 		// the handle opened above; hand out the fresh one.
@@ -151,11 +150,11 @@ type sqlResponse struct {
 	Results         []sqlResult `json:"results,omitempty"`
 }
 
-func writeSQLResponse(w http.ResponseWriter, httpStatus int, resp sqlResponse) {
+func (a *App) writeSQLResponse(w http.ResponseWriter, httpStatus int, resp sqlResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("handleSQL: failed to encode response: %v", err)
+		a.logErrf(logDB, "handleSQL: failed to encode response: %v", err)
 	}
 }
 
@@ -190,7 +189,7 @@ func (a *App) evictUserDB(name string) {
 	a.sqlMu.Unlock()
 	if ok {
 		if err := db.Close(); err != nil {
-			log.Printf("[db] close evicted handle for %q: %v", name, err)
+			a.logErrf(logDB, "close evicted handle for %q: %v", name, err)
 		}
 	}
 }
@@ -231,7 +230,7 @@ func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]
 		tx, err := db.Begin()
 		if err != nil {
 			if attempt == 1 && isStaleDBHandleError(err) {
-				log.Printf("[db] %s: stale handle on begin, reopening and retrying: %v", dbName, err)
+				a.logInfof(logDB, "%s: stale handle on begin, reopening and retrying: %v", dbName, err)
 				a.evictUserDB(dbName)
 				lastErr = err
 				continue
@@ -256,7 +255,7 @@ func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]
 		if stmtErr != nil {
 			tx.Rollback()
 			if attempt == 1 && isStaleDBHandleError(stmtErr) {
-				log.Printf("[db] %s: stale handle on statement #%d, reopening and retrying: %v", dbName, *failedIdx, stmtErr)
+				a.logInfof(logDB, "%s: stale handle on statement #%d, reopening and retrying: %v", dbName, *failedIdx, stmtErr)
 				a.evictUserDB(dbName)
 				lastErr = stmtErr
 				continue
@@ -266,7 +265,7 @@ func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]
 
 		if err := tx.Commit(); err != nil {
 			if attempt == 1 && isStaleDBHandleError(err) {
-				log.Printf("[db] %s: stale handle on commit, reopening and retrying: %v", dbName, err)
+				a.logInfof(logDB, "%s: stale handle on commit, reopening and retrying: %v", dbName, err)
 				a.evictUserDB(dbName)
 				lastErr = err
 				continue
@@ -283,36 +282,36 @@ func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]
 // user database. See the file-top comment for the wire protocol.
 func (a *App) handleSQL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeSQLResponse(w, http.StatusMethodNotAllowed, sqlResponse{Status: "error", Message: "POST only"})
+		a.writeSQLResponse(w, http.StatusMethodNotAllowed, sqlResponse{Status: "error", Message: "POST only"})
 		return
 	}
 
 	var req sqlRequest
 	r.Body = http.MaxBytesReader(w, r.Body, sqlMaxBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error", Message: "bad request: " + err.Error()})
+		a.writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error", Message: "bad request: " + err.Error()})
 		return
 	}
 	if len(req.Statements) == 0 {
-		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error", Message: "no statements"})
+		a.writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error", Message: "no statements"})
 		return
 	}
 	if len(req.Statements) > sqlMaxStatements {
-		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error",
+		a.writeSQLResponse(w, http.StatusBadRequest, sqlResponse{Status: "error",
 			Message: fmt.Sprintf("too many statements (%d > %d)", len(req.Statements), sqlMaxStatements)})
 		return
 	}
 
 	results, failedIdx, err := a.runSQLBatchWithRetry(req.DB, req.Statements)
 	if err != nil {
-		writeSQLResponse(w, http.StatusBadRequest, sqlResponse{
+		a.writeSQLResponse(w, http.StatusBadRequest, sqlResponse{
 			Status:          "error",
 			Message:         err.Error(),
 			FailedStatement: failedIdx,
 		})
 		return
 	}
-	writeSQLResponse(w, http.StatusOK, sqlResponse{Status: "success", Results: results})
+	a.writeSQLResponse(w, http.StatusOK, sqlResponse{Status: "success", Results: results})
 }
 
 func runStatement(tx *sql.Tx, stmt sqlStatement) (sqlResult, error) {

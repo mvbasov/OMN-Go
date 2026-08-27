@@ -35,7 +35,7 @@ if (window.location.protocol !== 'file:') {
         ['Adding remote',           'Configuring remote…'],
         ['Active server slot',      'Configuring remote…'],
         ['SSH',                     'Authenticating…'],
-        ['Error: No SSH key',       'No SSH key configured'],
+        ['No SSH key',              'No SSH key configured'],
         ['Checking worktree',       'Checking local changes…'],
         ['Nothing to commit',       'Nothing to commit'],
         ['No real changes',         'Nothing to commit'],
@@ -71,10 +71,17 @@ if (window.location.protocol !== 'file:') {
     // Feeds one server log line into the progress overlay. Only "[sync]"
     // lines are relevant; everything else on the stream is ignored so an
     // unrelated background log cannot hijack the display.
+    //
+    // A line reads "<stamp> [sync] (debug) Staging file: x". The level word
+    // sits between the tag and the message, so it is stripped here before
+    // any SYNC_STAGES prefix is tried - otherwise every prefix below stops
+    // matching. Sync progress is mostly (debug), and this overlay keeps
+    // working with (debug) switched off because the SSE stream always
+    // carries every line (see logger.go).
     function applySyncLogLine(msg) {
         const at = msg.indexOf('[sync]');
         if (at === -1) return;
-        const line = msg.slice(at + '[sync]'.length).trim();
+        const line = msg.slice(at + '[sync]'.length).trim().replace(/^\([a-z]+\)\s*/, '');
         if (!line) return;
         for (const [prefix, label] of SYNC_STAGES) {
             if (line.indexOf(prefix) === 0) {
