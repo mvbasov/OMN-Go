@@ -3,7 +3,7 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `b461e06`, version 26.08.59.
+Source: repository `https://github.com/mvbasov/OMN-Go` at commit `0787bab`, version 26.08.69, plus the three log-level patches of 26.08.70 to 26.08.72.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -120,11 +120,37 @@ Two statements in the tree are wrong. Do not trust them.
   with `http.Error(w, msg, code)`. `doc/API.md` section 1.4 fixes the response
   shapes. A response is plain-text status words, or JSON with
   `"status":"success"` or `"status":"error"`, or `text/event-stream` for `/api/logs`.
-* **Logging.** Use `log.Printf` from the standard library only. Start each message
-  with a subsystem name in brackets, for example `[sync]`, `[precompile]`,
-  `[assets]`, or `[db-bootstrap]`. `backend/logger.go` sends each line to stdout and
-  to the SSE subscribers on `/api/logs`. The project has no leveled logger and no
-  structured logger.
+* **Logging.** Do not call `log.Printf`. Write a step with
+  `a.logDebugf(tag, format, ...)`, an outcome with `a.logInfof(tag, format, ...)`
+  and a fault with `a.logErrf(tag, format, ...)`. `TestNoDirectLogPrintf` enforces
+  this.
+  * `tag` is a typed constant from `backend/log_levels.go`, for example `logSync`
+    or `logAssets`. That file is the only authority for the tag set. Add a new tag
+    to the constant block and to `allLogTags` together. The helper writes the
+    brackets and the parentheses, thus a format string never carries them.
+  * The emitted text is `[tag] (level) message`. Do not write `Error:`,
+    `Warning:` or `FATAL:` in the message. The level word says it.
+  * The Config page has two switches, `log_debug` and `log_info`, and one
+    checkbox for each tag. A debug or info line prints when its level is on and
+    its tag is ticked. **An error line ignores both.** A person who turns a level
+    off asks for less noise, and never for fewer faults.
+  * There are three levels and no more. The project has no leveled logger
+    library and no structured logger.
+  * `backend/logger.go` sends each line to stdout and to the SSE subscribers on
+    `/api/logs`. **The SSE stream always carries every line.** The switches
+    control stdout, and they control what `omn-go-sse.js` mirrors into the
+    browser console. The sync progress overlay reads `[sync] (debug)` lines off
+    the raw stream, and it must work when debug is off.
+  * `applySyncLogLine` in `omn-go-sse.js` removes the level word before it
+    matches a sync stage. Keep the two in agreement, or the progress overlay
+    loses a stage.
+  * A log line must never take the config lock. `loadConfig` holds the write
+    lock and writes a line, and a Go RWMutex is not reentrant. `applyLogFilter`
+    keeps an atomic copy of the three switches for that reason.
+  * Two call sites keep `log.Printf`, because no `*App` can reach them:
+    `loadTemplate` in `templates.go` runs at package init, and
+    `search_sections.go` logs from a `sync.Once` and from a method on
+    `searchDocument`. Both files write `[tag] (error) ` into the text by hand.
 * **Configuration.** Read the configuration with `a.GetConfig()`. It returns a copy
   under `RLock`. Change the configuration with `a.WithConfig(func(c *Config){...})`.
   It reads and writes under `Lock`. Never touch `App.Config` directly. The

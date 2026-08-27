@@ -538,7 +538,7 @@ you save, the choice applies immediately to every page.
 
 ## Configuration reference
 
-The [Config](Config) page edits `config.json`. The page puts the settings into six groups. This reference uses the same groups, in the same order.
+The [Config](Config) page edits `config.json`. The page puts the settings into seven groups. This reference uses the same groups, in the same order.
 
 ### General
 
@@ -587,6 +587,22 @@ Page search always operates and needs no setting. These settings control the glo
 | Also index OMN-Go's own scripts | Adds the scripts that come with the application to the index. Disabled by default. They are several times the size of a normal note collection. |
 | Search in | Where a search starts. *All notes* is the default. *The open page only* starts each search on the page that you read. |
 | Index status | Not a setting. It tells what the index holds now. |
+
+### Logging
+
+OMN-Go writes a message for each thing that it does. A message has a subsystem in brackets and a level in parentheses, for example `[sync] (debug) Staging file: Todo.md`. Open the browser console to read the messages.
+
+There are three levels. *Debug* is one step of an operation. *Info* is the result of an operation. *Error* is a fault.
+
+| Setting | Meaning |
+|---------|---------|
+| Debug | Shows each step of an operation. Disabled by default. |
+| Info | Shows the result of an operation. Disabled by default. |
+| Subsystems | One checkbox for each part of the application. A debug or info message appears when its level is on and its subsystem is ticked. |
+
+An error message has no setting. It always appears. When you ask for less noise, you do not ask for fewer faults.
+
+The change applies to the next message. No restart is necessary.
 
 ### Git Sync
 

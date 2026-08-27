@@ -1129,13 +1129,18 @@ failure to start the editor. It still returns the wait page with `200`.
 
 #### `GET /api/logs`
 
-Server-Sent Events stream of everything the backend writes through the
-standard `log` package. The progress overlay of the frontend
-(`omn-go-sse.js`) reads this stream, so the sync progress shows the real
-stages of the backend.
+Server-Sent Events stream of every log line the backend writes. The
+progress overlay of the frontend (`omn-go-sse.js`) reads this stream, so the
+sync progress shows the real stages of the backend.
 
 No parameters. **No authentication.** Any client that can reach the port can
 read every log line that the server writes.
+
+**The stream always carries every line.** The `log_debug`, `log_info` and
+`log_tags` settings of `config.json` control what the server prints to
+stdout, and what `omn-go-sse.js` prints to the browser console. They do not
+control this stream. The sync overlay is built on `[sync] (debug)` lines,
+and it must work when a reader asks for less noise.
 
 **Response headers**
 
@@ -1145,14 +1150,23 @@ Cache-Control: no-cache
 Connection: keep-alive
 ```
 
-**Event format** — unnamed events, one `data:` field per log write:
+**Event format** — unnamed events, one `data:` field per log write. A line
+is `<stamp> [tag] (level) message`. `tag` is the subsystem, from the
+constant block in `backend/log_levels.go`. `level` is `debug`, `info` or
+`error`.
 
 ```
-data: 2026/07/27 14:05:00 [sync] fetching from origin
+data: 2026/07/27 14:05:00 [sync] (info) Pull: fetching origin
 
-data: 2026/07/27 14:05:01 [sync] fast-forward complete
+data: 2026/07/27 14:05:01 [sync] (info) Pull: fast-forward complete
+
+data: 2026/07/27 14:05:02 [edit] (error) cannot run "subl": no such file
 
 ```
+
+Three call sites cannot reach an application object and thus write the
+level into the text by hand. Each one is an `(error)`. A reader that finds
+no level in a line must print it, because a fault always prints.
 
 Each subscriber gets a buffered channel with 10 slots. When that channel is
 full, the server **drops** further messages for that subscriber and never

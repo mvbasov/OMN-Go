@@ -17,6 +17,33 @@ if (window.location.protocol !== 'file:') {
         };
     };
 
+    // Decides whether one server log line reaches the browser console.
+    //
+    // The server sends EVERY line over /api/logs, whatever the Config page
+    // says (see logger.go). Two things need that. The sync progress overlay
+    // below is fed by "[sync]" lines, most of which are (debug). And a
+    // change on the Config page then applies to the next line, with no
+    // server restart and no page reload of the writer's side.
+    //
+    // So the filter lives here. OMN_LOG_DEBUG, OMN_LOG_INFO and
+    // OMN_LOG_TAGS arrive with the runtime variables the server injects
+    // into every page (see injectRuntimeVars in templates.go).
+    //
+    // A line reads "<stamp> [tag] (level) message". A line with no level -
+    // the three log.Printf call sites that cannot reach an application -
+    // always prints, because each one is a fault.
+    const LOG_LINE_RE = /\[([a-z0-9-]+)\]\s+\(([a-z]+)\)\s/;
+    function logLinePrints(msg) {
+        const m = LOG_LINE_RE.exec(msg);
+        if (!m) return true;
+        const tag = m[1], level = m[2];
+        if (level === 'error') return true;
+        if (level === 'debug' && !window.OMN_LOG_DEBUG) return false;
+        if (level === 'info' && !window.OMN_LOG_INFO) return false;
+        const tags = (window.OMN_LOG_TAGS || '').split(',');
+        return tags.indexOf(tag) !== -1;
+    }
+
     // Maps a backend "[sync] ..." log line to a human-readable stage. First
     // match wins, so more specific prefixes come first. Anything unmatched
     // leaves the current stage alone and only updates the detail line - that
@@ -909,11 +936,16 @@ if (window.location.protocol !== 'file:') {
 
     // GoOMN Log Interceptor - Bridges Go background logs to JS UI
     //
-    // Every log.Printf in the backend already reaches this stream (see
-    // logger.go), which is why the sync progress overlay needs no transport
-    // of its own: git_helper.go's "[sync] ..." lines are the progress feed.
-    // Subscribers registered through window.omnGoOnServerLog get each line in
-    // addition to the console mirroring that has always happened here.
+    // Every log line the backend writes reaches this stream (see logger.go),
+    // which is why the sync progress overlay needs no transport of its own:
+    // git_helper.go's "[sync] ..." lines are the progress feed. Subscribers
+    // registered through window.omnGoOnServerLog get each line in addition
+    // to the console mirroring that has always happened here.
+    //
+    // The stream carries every level. The console mirror does not: it asks
+    // logLinePrints above, which reads the switches of the Config page. A
+    // subscriber is never filtered, because the overlay is built on the
+    // (debug) lines a reader normally does not want to see.
     //
     // Caveat worth knowing: JSLogger drops a message rather than blocking
     // when a client's 10-slot channel is full, so this stream is a live
@@ -928,7 +960,10 @@ if (window.location.protocol !== 'file:') {
             logSource.onmessage = function(event) {
                 let msg = event.data.trim();
                 if(msg) {
-                    console.log("[GO] " + msg);
+                    // The console mirror is filtered. Every subscriber
+                    // below still gets the line, whatever its level: the
+                    // sync overlay needs the (debug) lines it is built on.
+                    if (logLinePrints(msg)) console.log("[GO] " + msg);
                     for (const fn of logSubscribers.slice()) {
                         try { fn(msg); } catch (e) { /* a bad subscriber must not kill the stream */ }
                     }
