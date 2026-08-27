@@ -155,6 +155,7 @@ var gitignorePatterns = []string{
 	"/html/css/highlight.default.min.css",
 	"/html/css/katex.min.css",
 	"/html/css/markdown.css",
+	"/html/js/omn-go-compat.js",
 	"/html/js/omn-go-core.js",
 	"/html/js/omn-go-sse.js",
 	"/html/js/omn-go-editor.js",

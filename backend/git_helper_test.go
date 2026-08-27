@@ -116,6 +116,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/css/highlight.default.min.css\n" +
 		"/html/css/katex.min.css\n" +
 		"/html/css/markdown.css\n" +
+		"/html/js/omn-go-compat.js\n" +
 		"/html/js/omn-go-core.js\n" +
 		"/html/js/omn-go-sse.js\n" +
 		"/html/js/omn-go-editor.js\n" +

@@ -479,6 +479,29 @@ a.taglink {
     opacity: 0.7;
 }
 
+/* The console dot of the footer. The header console button is hidden while
+   the header is folded, which is the default. This dot is always in view,
+   thus it reports that console messages exist without an unfold.
+
+   The rules were an inline style attribute of index.html until 26.08.73.
+   The attribute went into the compiled page of each note, and a note is
+   the one thing this application has many of.
+
+   #ff9800 is the orange of the console button, and it is a literal here
+   for the same reason it is one there. updateConsoleFooterDot in
+   omn-go-core.js writes display: inline-block when a message arrives, thus
+   the value below is the state before the first message only. */
+#omn-go-console-footer-dot {
+    display: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff9800;
+    cursor: pointer;
+    flex: 0 0 auto;
+    margin-left: 8px;
+}
+
 /* ==========================================================================
    5. Content area (preview / editor)
    ========================================================================== */

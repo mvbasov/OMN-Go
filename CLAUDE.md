@@ -3,7 +3,7 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `0787bab`, version 26.08.69, plus the three log-level patches of 26.08.70 to 26.08.72.
+Source: repository `https://github.com/mvbasov/OMN-Go` at commit `0787bab`, version 26.08.69, plus the four patches of 26.08.70 to 26.08.73.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -31,9 +31,15 @@ Do not remove a constraint without an instruction from the maintainer.
    `armeabi-v7a` and on `x86`. F-Droid publishes those builds. The test
    `TestNoBare64BitAtomics` in `backend/middleware_test.go` scans the source and
    enforces this rule.
-5. **The WebView floor is Chromium 85 and `minSdk 23`.** The inline `omn-go-compat`
-   block in `templates/index.html` holds the only ES5 code in the project. Keep that
-   block in ES5. Keep it inline. Other scripts can use `async`, arrow functions, and
+5. **The WebView floor is Chromium 85 and `minSdk 23`.** `html/js/omn-go-compat.js`
+   holds the only ES5 code in the project. Two rules keep it working, and
+   `TestCompatScriptIsFirstAndES5` enforces both. **Keep the file in ES5**, and
+   **keep it the first script in `templates/index.html`**, with no `defer` and no
+   `async`. A `<script src>` element is its own parse unit, thus a SyntaxError in a
+   modern script cannot stop it. Do not move this code into `omn-go-core.js`: that
+   file is modern, an old WebView drops all of it, and the notice would go with it.
+   It was inline until 26.08.73, and it moved out because the compiled page of each
+   note carried a copy. Other scripts can use `async`, arrow functions, and
    template literals.
 6. **Keep F-Droid compatibility.** `metadata/net.basov.omngo.fdroid.yml` is the
    F-Droid recipe. It builds from the committed Gradle configuration. The Docker
@@ -172,6 +178,11 @@ Two statements in the tree are wrong. Do not trust them.
 
 * **The frontend has no build step.** There is no `package.json`, no bundler, no
   PostCSS, and no `node_modules`.
+* **Keep `templates/index.html` small.** The server copies its shell into
+  `html/<name>.html` for each note. An inline script or an inline `style`
+  attribute there costs its bytes again for each note, on disk and in each git
+  sync. Put the code in an asset under `frontend/html/` and load it with a `src`
+  or a `link`. `TestCompiledPageShellStaysSmall` guards the size.
 * **Do not add Tailwind, React, or marked.js.** goldmark renders the markdown on the
   server. The word "Tailwind" stays only in the historical `doc/initial_prompt.md`.
 * Write CSS by hand. `css/omn-go-core.css` declares the design tokens as `:root`
@@ -187,6 +198,8 @@ Two statements in the tree are wrong. Do not trust them.
     the same globals with stubs, so an exported page degrades quietly.
   * `omn-go-editor.js` holds the standalone editor page. It uses `var` in an
     ES5 style. It reads `OMN_EDIT_NAME`, `OMN_EDIT_EXT`, and `OMN_EDIT_VIEW`.
+  * `omn-go-compat.js` holds the too-old-WebView notice, and nothing else. It is
+    the only ES5 file. See section 1, rule 5.
   * `omn-go-custom.js` and `omn-go-custom.css` are user files. They are empty on
     purpose.
 * **Load order is a feature.** The custom files load last. A user rule then wins

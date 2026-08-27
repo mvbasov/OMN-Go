@@ -85,6 +85,7 @@ var backupLabelSanitizer = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 // user-owned and only ever lazily created when absent; a version change
 // leaves it alone.
 var versionDependentAssets = []string{
+	"html/js/omn-go-compat.js",
 	"html/js/omn-go-core.js",
 	"html/js/omn-go-editor.js",
 	"html/js/omn-go-sse.js",

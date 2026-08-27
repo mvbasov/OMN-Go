@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -464,48 +465,104 @@ func TestNormalizeTheme(t *testing.T) {
 	}
 }
 
-// The compatibility notice is the one script in this application that a
-// WebView too old for the rest of it must still be able to run. Two things
-// make that true, and both are easy to undo by accident:
+// ---------------------------------------------------------------------
+// The compat script
 //
-//   - it is ES5. Every other script uses async/await and arrow functions,
-//     and a parser that cannot read those drops the WHOLE file - so a
-//     notice written in the same style as its neighbours would be the one
-//     thing that does not run when it is needed.
-//   - it comes FIRST. A SyntaxError later in the head must not stop it.
+// omn-go-compat.js tells a person with an old WebView why the page is
+// blank. Every other script uses async/await and arrow functions, and a
+// parser that cannot read those drops the WHOLE file. A notice written in
+// the style of its neighbors would be the one thing that does not run when
+// it is needed.
 //
-// See the block comment on it in index.html for the version number it uses
-// and where that number comes from.
-func TestIndexTemplateCompatNoticeIsES5AndFirst(t *testing.T) {
-	at := strings.Index(indexPageTmpl, "omn-go-compat")
-	if at < 0 {
-		t.Fatal("index.html carries no compatibility notice")
+// The notice was an inline block of index.html until 26.08.73. It moved to
+// its own file, because the inline copy went into the compiled page of
+// every note. A <script src> element is its own parse unit, thus a
+// SyntaxError in omn-go-core.js cannot stop it. That holds while two rules
+// hold, and this test is the whole guarantee of both:
+//
+//   - the file itself is ES5, thus the old parser accepts it.
+//   - index.html loads it FIRST, thus nothing throws before it runs.
+//
+// See the banner of omn-go-compat.js for the version number and where that
+// number comes from.
+// ---------------------------------------------------------------------
+
+// compatCommentRe removes a block comment and a line comment, so that the
+// prose of the banner, which names "async/await" and "arrow functions",
+// cannot look like code to the scan below.
+var compatCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/|//[^\n]*`)
+
+// compatBannedES6 are tokens that an ES5 parser rejects. Each one is
+// written so that it cannot match ordinary prose.
+var compatBannedES6 = []string{"=>", "`", "const ", "let ", "async ", "await ", "class ", "?.", "??", "..."}
+
+func TestCompatScriptIsFirstAndES5(t *testing.T) {
+	// 1. index.html loads it before every other script, and before the
+	//    stylesheet links, which would delay it for no reason.
+	scripts := regexp.MustCompile(`<script[^>]*>`).FindAllString(indexPageTmpl, -1)
+	if len(scripts) == 0 {
+		t.Fatal("index.html loads no script at all")
 	}
-	if src := strings.Index(indexPageTmpl, "<script src="); src >= 0 && at > src {
-		t.Error("the notice is after a <script src=>, so a parse error in that file could beat it")
+	if !strings.Contains(scripts[0], "js/omn-go-compat.js") {
+		t.Errorf("the first script of index.html is %q, want omn-go-compat.js. "+
+			"A script above it that a WebView cannot parse throws before the "+
+			"notice runs, and the reader sees a blank page with no reason.",
+			scripts[0])
 	}
-	if css := strings.Index(indexPageTmpl, "<link rel=\"stylesheet\""); css >= 0 && at > css {
-		t.Error("the notice is after the stylesheet link, which delays it for no reason")
+	if strings.Contains(scripts[0], "defer") || strings.Contains(scripts[0], " async") {
+		t.Errorf("the compat script carries defer or async: %q. Either one "+
+			"delays it past the modern scripts, which is the order this test "+
+			"exists to protect.", scripts[0])
+	}
+	at := strings.Index(indexPageTmpl, "omn-go-compat.js")
+	if css := strings.Index(indexPageTmpl, `<link rel="stylesheet"`); css >= 0 && at > css {
+		t.Error("the compat script is after the stylesheet link, which delays it for no reason")
 	}
 
-	end := strings.Index(indexPageTmpl[at:], "</script>")
-	if end < 0 {
-		t.Fatal("the notice's script block is not closed")
+	raw, err := staticFS.ReadFile("frontend/html/js/omn-go-compat.js")
+	if err != nil {
+		t.Fatalf("omn-go-compat.js is not embedded: %v", err)
 	}
-	block := indexPageTmpl[at : at+end]
+	code := compatCommentRe.ReplaceAllString(string(raw), "")
 
-	for _, es6 := range []string{"=>", "const ", "let ", "`", "async ", "await ", "class ", "..."} {
-		if strings.Contains(block, es6) {
-			t.Errorf("the compatibility notice uses %q, which an old WebView cannot parse - "+
+	// 2. The file parses on the oldest WebView this build supports.
+	for _, es6 := range compatBannedES6 {
+		if strings.Contains(code, es6) {
+			t.Errorf("omn-go-compat.js uses %q, which an old WebView cannot parse - "+
 				"it must stay ES5, or it is the one script that fails when it is needed", es6)
 		}
 	}
 
-	// The number it reports has to be a number, and one this application can
-	// justify: 85 is String.replaceAll, the highest requirement the frontend
-	// really has.
-	if !strings.Contains(block, "var MIN = 85;") {
+	// 3. The number it reports has to be a number, and one this application
+	//    can justify: 85 is String.replaceAll, the highest requirement the
+	//    frontend really has.
+	if !strings.Contains(code, "var MIN = 85;") {
 		t.Error("the notice no longer names 85 as the minimum; if that changed on purpose, " +
-			"change it here too and say why in the block comment")
+			"change it here too and say why in the banner")
+	}
+
+	// 4. Every byte stays ASCII. The server sends this file as
+	//    application/javascript with no charset, thus a literal multi-byte
+	//    character can arrive misdecoded.
+	for i, c := range raw {
+		if c > 127 {
+			t.Errorf("omn-go-compat.js byte %d is not ASCII. Write a \\uXXXX "+
+				"escape instead of the character.", i)
+			break
+		}
+	}
+}
+
+// TestCompiledPageShellStaysSmall exists because the shell of index.html is
+// copied into html/<name>.html for EVERY note. 26.08.73 moved 3.3 KB of
+// inline script and 133 bytes of inline style out of it for that reason.
+// A new inline block here costs the same bytes again, on disk and in every
+// git sync, multiplied by the note count.
+func TestCompiledPageShellStaysSmall(t *testing.T) {
+	const maxShellBytes = 5000
+	if n := len(indexPageTmpl); n > maxShellBytes {
+		t.Errorf("index.html is %d bytes, over the %d-byte guard. Put the new "+
+			"code in an asset under frontend/html/ and load it with a src, or "+
+			"raise this number on purpose.", n, maxShellBytes)
 	}
 }
