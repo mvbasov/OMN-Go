@@ -3,7 +3,7 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `0787bab`, version 26.08.69, plus the four patches of 26.08.70 to 26.08.73.
+Source: repository `https://github.com/mvbasov/OMN-Go` at commit `cb28336`, version 26.08.74.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -327,7 +327,7 @@ subject line, also when it has no list.
 
 * Tests live in `backend/`. Each production file has one `_test.go` file beside it.
   All tests use `package backend`, so they are white-box tests. The suite holds about
-  336 `Test*` functions. No tests exist outside `backend/`.
+  346 `Test*` functions. No tests exist outside `backend/`.
 * The tests use the standard library `testing` package, `net/http/httptest`, and
   `t.TempDir()`. The project uses no assertion library and no mock library.
 * Build the application under test with `newTestApp(t)` from `handlers_test.go`.

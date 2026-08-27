@@ -957,10 +957,20 @@ every git server slot, all in cleartext.**
   "git_servers": [
     { "name": "Server 1", "url": "", "ssh_key_data": "", "password": "" }
   ],
+  "search_enabled": false,
+  "search_kinds": ["md", "bookmarks"],
+  "search_bundled": false,
+  "search_scope": "all",
   "max_upload_size_mb": 3,
   "enable_intent_uri": false,
   "enable_termux_intent": false,
-  "android_fullscreen": "fullscreen"
+  "android_fullscreen": "fullscreen",
+  "log_debug": false,
+  "log_info": false,
+  "log_tags": ["404", "assets", "config", "db", "db-backup", "db-bootstrap",
+               "db-restore", "edit", "exchange", "note-files", "page",
+               "precompile", "restart", "search", "server", "status",
+               "storage", "sync", "tags", "templates", "upload"]
 }
 ```
 
@@ -1012,7 +1022,7 @@ unticked checkbox, so "unticked" and "not my business" arrive identically.
 A form therefore declares the fields it governs in one hidden field:
 
 ```
-config_fields=use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds
+config_fields=use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds,log_debug,log_info,log_tags
 ```
 
 A name in that list counts as carried even when the request holds no value
@@ -1041,7 +1051,10 @@ setting off and touches nothing else.
 | `search_enabled` | `"true"` | carried | |
 | `search_bundled` | `"true"` | carried | |
 | `search_scope` | string | carried | Through `normalizeSearchScope` |
-| `search_kinds` | string | carried | Repeated field; every value carried is the whole new set |
+| `search_kinds` | string | carried | Repeated field. Every value carried is the whole new set |
+| `log_debug` | `"true"` | carried | Any other value → `false` |
+| `log_info` | `"true"` | carried | Any other value → `false` |
+| `log_tags` | string | carried | Repeated field. Every value carried is the whole new set. Through `normalizeLogTags`. An unknown tag goes away |
 | `hostname` | string | carried | Sanitized; carried-but-empty resets to the OS-derived default |
 | `backup_prune_depth` | int | parses `> 0` | |
 | `active_git_index` | int | in range `[0, len(git_servers))` | |
@@ -1597,7 +1610,7 @@ and the Android WebView paints nothing else.
 | Section | Cost | Fields |
 | --- | --- | --- |
 | `server` | none | `app_version`, `started`, `uptime_s`, `bind_port`, `share_lan`, `lan_urls[]`, `active_conns`, `hostname`, `goos`, `goarch` |
-| `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author` |
+| `config` | none | `internal_editor`, `theme`, `max_upload_mb`, `search_enabled`, `search_kinds`, `search_scope`, `search_bundled`, `intent_uri`, `termux_intent`, `android_fullscreen`, `backup_prune_depth`, `hostname`, `author`, `log_debug`, `log_info`, `log_tags` |
 | `git` | two object reads | `repo_exists`, `configured`, `branch`, `head{hash,short,subject,author,date}`, `remote{name,url}`, `remote_ref`, `remote_head{…}` |
 | `search` | one pass over the index | `enabled`, `docs`, `lines`, `bytes`, `index_bytes_estimate`, `built`, `checked`, `dirty`, `kinds`, `scope` |
 | `runtime` | none | `go_version`, `goroutines`, `heap_alloc`, `sys`, `assets_version`, `assets_refreshed` |
