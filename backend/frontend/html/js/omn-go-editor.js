@@ -19,6 +19,9 @@
 
     var NAME = (typeof OMN_EDIT_NAME !== 'undefined') ? OMN_EDIT_NAME : 'Welcome';
     var VIEW = (typeof OMN_EDIT_VIEW !== 'undefined' && OMN_EDIT_VIEW) ? OMN_EDIT_VIEW : '/';
+    // The extension of the open file. The Markdown expansions read it, thus
+    // ".md" is no longer informational. See expandMarkdownAbbr.
+    var EXT = (typeof OMN_EDIT_EXT !== 'undefined' && OMN_EDIT_EXT) ? OMN_EDIT_EXT : '';
 
     // Optional jump target, set when arriving from a clicked console error
     // (see omn-go-core.js). "find" matches by line CONTENT - robust across
@@ -59,7 +62,7 @@
     //   id     - optional element id, for stateful (toggle) buttons
     // ------------------------------------------------------------------
     var TOOLS = [
-        { icon: 'code', title: 'Expand Emmet abbreviation (Tab)', action: function () { expandEmmetAtCursor(); } },
+        { icon: 'code', title: 'Expand an abbreviation, Markdown or Emmet (Tab)', action: function () { expandAtCursor(); } },
         { icon: 'format_line_spacing', title: 'Cycle selection (line, line end, line start, to file end, to header, body, whole note)', action: function () { cycleSelection(); } },
         { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
         { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } },
@@ -410,6 +413,110 @@
     if (typeof window !== 'undefined') window.OMN_expandEmmet = expandEmmet;
 
     // ==================================================================
+    // Markdown abbreviations
+    // ==================================================================
+    //
+    // Tab expands an HTML abbreviation (expandEmmet above). These four
+    // rules give Tab the same service for the four shapes that a note
+    // needs most, and that Markdown makes long to type.
+    //
+    // THE RULES RUN BEFORE THE HTML EXPANDER, and only in a note. Two
+    // reasons hold that order. Three of the four shapes hold a character
+    // that the HTML expander reads as an operator. The text "*[buy milk"
+    // would thus reach parseAbbr and give something no person asked for.
+    // And a stylesheet has no todo item and no table, thus a ".css" file
+    // keeps the behavior it had.
+    //
+    //   *[text      ->  * [ ] text          a todo item
+    //   [text(link  ->  [text](link)        a link
+    //   ---         ->  a divider and a date heading
+    //   !!!         ->  an empty table of three columns
+    //
+    // The todo rule answers to each Markdown list marker: "*", "-", "+"
+    // and a number with a period. The marker stays as the person wrote it,
+    // and the leading space stays too, thus a second-level item does not
+    // move.
+
+    // mdTodoRe matches a list marker with "[" against it, and no space
+    // between the two. "* [text" is a link inside a list item, and it must
+    // stay as it is.
+    var mdTodoRe = /^(\s*)([*+-]|\d+\.)\[(.*)$/;
+
+    // mdLinkRe matches the last "[text(link" of the line. A link is
+    // normally inside a sentence, thus this rule does not anchor to the
+    // start of the line. The character classes stop the match at a bracket
+    // or a parenthesis that is already closed.
+    var mdLinkRe = /\[([^\[\]]*)\(([^()\[\]]*)$/;
+
+    // mdTableRows is the table that "!!!" gives. Three columns, one header
+    // row and two rows of content.
+    var mdTableRows = [
+        '|   |   |   |',
+        '|---|---|---|',
+        '|   |   |   |',
+        '|   |   |   |'
+    ];
+
+    function mdTwoDigits(n) { return (n < 10 ? '0' : '') + n; }
+
+    // mdStamp gives the local date and time of the divider heading, as
+    // "YYYY-MM-DD HH:MM:SS". The date comes from the device, thus it
+    // agrees with the clock the person reads.
+    function mdStamp(now) {
+        var d = now || new Date();
+        return d.getFullYear() + '-' + mdTwoDigits(d.getMonth() + 1) + '-' +
+            mdTwoDigits(d.getDate()) + ' ' + mdTwoDigits(d.getHours()) + ':' +
+            mdTwoDigits(d.getMinutes()) + ':' + mdTwoDigits(d.getSeconds());
+    }
+
+    // expandMarkdownAbbr takes the text of the line up to the caret. It
+    // gives back the text that replaces that same span, and the offset of
+    // the caret in it. It gives null when no rule matches.
+    //
+    // The caret lands where the person types next. That is the end of the
+    // todo item, or the position after the closing parenthesis of the
+    // link. For the divider it is the empty line below the date heading.
+    // For the table it is the first cell.
+    function expandMarkdownAbbr(lineToCaret, now) {
+        var lead = lineToCaret.match(/^\s*/)[0];
+        var body = lineToCaret.slice(lead.length);
+        var m;
+
+        // 1. A todo item.
+        m = mdTodoRe.exec(lineToCaret);
+        if (m) {
+            var todo = m[1] + m[2] + ' [ ] ' + m[3];
+            return { text: todo, caret: todo.length };
+        }
+
+        // 2. An empty table.
+        if (body === '!!!') {
+            var rows = [];
+            for (var i = 0; i < mdTableRows.length; i++) rows.push(lead + mdTableRows[i]);
+            // Two characters into the first row is the first cell, after
+            // the pipe and one space of padding.
+            return { text: rows.join('\n'), caret: lead.length + 2 };
+        }
+
+        // 3. A divider with the date below it.
+        if (body === '---') {
+            var block = lead + '---\n' + lead + '##### ' + mdStamp(now) + '\n' + lead;
+            return { text: block, caret: block.length };
+        }
+
+        // 4. A link.
+        m = mdLinkRe.exec(lineToCaret);
+        if (m) {
+            var link = lineToCaret.slice(0, m.index) + '[' + m[1] + '](' + m[2] + ')';
+            return { text: link, caret: link.length };
+        }
+
+        return null;
+    }
+    // Exposed for a test in the browser and under Node, as expandEmmet is.
+    if (typeof window !== 'undefined') window.OMN_expandMarkdownAbbr = expandMarkdownAbbr;
+
+    // ==================================================================
     // Textarea helpers
     // ==================================================================
     function lineBounds(value, caret) {
@@ -508,6 +615,31 @@
         ta.setSelectionRange(start, end);
         selCycleAppliedStart = start;
         selCycleAppliedEnd = end;
+    }
+
+    // expandAtCursor is what Tab does, and what the toolbar button does.
+    // The Markdown rules come first. See the banner of expandMarkdownAbbr
+    // for the reason.
+    function expandAtCursor() {
+        return expandMarkdownAtCursor() || expandEmmetAtCursor();
+    }
+
+    // Expand a Markdown abbreviation on the current line. Returns true when
+    // it expanded one. It does nothing outside a note: the four shapes mean
+    // nothing in a stylesheet or in a script.
+    function expandMarkdownAtCursor() {
+        if (!ta || EXT !== '.md') return false;
+        var caret = ta.selectionStart;
+        if (caret !== ta.selectionEnd) return false; // not over a selection
+        var b = lineBounds(ta.value, caret);
+        var res = expandMarkdownAbbr(ta.value.substring(b.start, caret));
+        if (!res) return false;
+        ta.value = ta.value.substring(0, b.start) + res.text + ta.value.substring(caret);
+        var pos = b.start + res.caret;
+        ta.focus();
+        ta.setSelectionRange(pos, pos);
+        markDirty();
+        return true;
     }
 
     // Expand the abbreviation on the current line (from first non-space to
@@ -1306,10 +1438,10 @@
     }
 
     function onKeyDown(e) {
-        // Tab: expand an Emmet abbreviation if one precedes the caret,
-        // otherwise insert a real tab (never move focus away).
+        // Tab: expand an abbreviation when one is before the caret. Insert
+        // a real tab when none is. Tab never moves the focus away.
         if (e.key === 'Tab' && !e.shiftKey) {
-            if (expandEmmetAtCursor()) {
+            if (expandAtCursor()) {
                 e.preventDefault();
                 return;
             }

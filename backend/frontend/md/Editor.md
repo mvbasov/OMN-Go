@@ -16,7 +16,7 @@ The cursor starts directly after the `Title:`/`Date:`/… header block of the no
 
 Left to right:
 
-- <i class="material-icons">code</i> **Expand Emmet abbreviation** — expand the abbreviation on the current line into HTML. This button does the same as the **Tab** key. See below.
+- <i class="material-icons">code</i> **Expand an abbreviation** — expand the abbreviation on the current line. In a note the editor tries the Markdown rules first, and then Emmet. This button does the same as the **Tab** key. See below.
 - <i class="material-icons">format_line_spacing</i> **Cycle selection** — press this button again and again to select more of the note. The cycle has seven selections. An eighth press starts the cycle again:
   1. The current line.
   2. From the cursor to the end of the line.
@@ -90,10 +90,52 @@ The search panel in the page header is a different search. It searches your note
 
 ## Tab and Emmet
 
-The **Tab** key does one of two things:
+The **Tab** key does one of three things, in this order:
 
-- If the text on the current line, up to the cursor, is an Emmet abbreviation, Tab **expands** the abbreviation into HTML.
-- If it is not an Emmet abbreviation, Tab inserts a normal tab character.
+- In a note, if the text on the current line, up to the cursor, is a Markdown abbreviation, Tab **expands** it. See [Markdown abbreviations](#markdown-abbreviations).
+- If it is an Emmet abbreviation, Tab **expands** the abbreviation into HTML.
+- If it is neither, Tab inserts a normal tab character.
+
+The Markdown rules work in a note only. In a `.js`, `.css` or `.json` file, Tab goes directly to Emmet.
+
+## Markdown abbreviations
+
+Four shapes are long to type in Markdown. Type the short form, then press **Tab**.
+
+| You type | You get |
+|----------|---------|
+| `*[buy milk` | `* [ ] buy milk` |
+| `[OMN-Go(https://omn.basov.net` | `[OMN-Go](https://omn.basov.net)` |
+| `---` | a divider, and a heading with the date and time below it |
+| `!!!` | an empty table of three columns |
+
+**A todo item.** Write a list marker, then `[`, then the text. The marker can be `*`, `-`, `+` or a number with a period. The editor keeps the marker that you write. It also keeps the space in front of the marker, thus an item of the second level stays at its level.
+
+There must be no space between the marker and the `[`. A space makes `* [text` a link inside a list item, and the editor leaves it alone.
+
+**A link.** Write `[`, the text of the link, `(`, and the address. The editor closes both. The link can be at any position in the line, and not at the start only.
+
+**A divider.** A line with `---` and nothing else becomes three lines:
+
+```
+---
+##### 2026-08-22 10:37:31
+```
+
+The cursor goes to the empty line below the heading. The date and the time come from your device. This is the divider of a quick note.
+
+**A table.** A line with `!!!` and nothing else becomes an empty table:
+
+```
+|   |   |   |
+|---|---|---|
+|   |   |   |
+|   |   |   |
+```
+
+The cursor goes to the first cell of the header row.
+
+**Where the cursor goes.** After each of the four expansions the cursor is where you write next. That is the end of the todo item, or the position after the closing parenthesis of the link. For the divider it is the empty line below the date. For the table it is the first cell.
 
 You can type a compact abbreviation and press Tab to get the full markup. For example, type
 

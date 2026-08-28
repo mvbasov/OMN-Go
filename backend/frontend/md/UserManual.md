@@ -218,7 +218,7 @@ One name is different. The last dot decides. A name that ends with a file extens
 2. Make your changes.
 3. Press <i class="material-icons">save</i>.
 
-When you save, OMN-Go updates the `Modified:` header line and recompiles the page. The editor is a page of its own. It loads the Markdown source of the note when it opens. Its small toolbar has an Emmet-style HTML expander and a select-current-line button. See [The editor and Emmet](Editor) for the toolbar and the abbreviation syntax.
+When you save, OMN-Go updates the `Modified:` header line and recompiles the page. The editor is a page of its own. It loads the Markdown source of the note when it opens. Its small toolbar has an abbreviation expander and a select-current-line button. **Tab** expands four Markdown shapes in a note: `*[text` gives a todo item, `[text(link` gives a link, `---` gives a dated divider, and `!!!` gives an empty table. Tab also expands an Emmet abbreviation into HTML. See [The editor and Emmet](Editor) for the toolbar and each abbreviation.
 
 **Internal vs. external editor.** If you disable *Use Internal Editor* on the [Config](Config) page, the edit button sends the file to an external editor. On the desktop application, OMN-Go runs the command from *Desktop External Cmd*, for example `subl`. On the Android application, OMN-Go opens the system app-chooser. When you come back, the page reloads with your changes.
 
