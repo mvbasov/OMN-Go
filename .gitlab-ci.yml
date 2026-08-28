@@ -3,6 +3,22 @@ stages:
   - upload
   - release
 
+# The pipeline runs for a version tag and for nothing else.
+#
+# GitHub is the primary remote. .github/workflows/sync-gitlab.yml mirrors
+# each push here, and it pushes the branch heads and the tags in two steps.
+# A push to master thus reached GitLab and started a full Docker build of
+# the Android package and of both desktop binaries. That build gave no
+# artifact to a person. upload_job and release_job already run for a tag
+# only, thus the work went to the runner and then to nothing.
+#
+# A workflow rule stops the pipeline before GitLab makes it. A job rule
+# cannot do that. With a job rule alone, a mirrored branch push makes a
+# pipeline that holds no job, and GitLab reports that pipeline as a fault.
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+
 # Global variables must live outside the default block
 variables:
   DOCKER_TLS_CERTDIR: "/certs"
@@ -17,10 +33,10 @@ default:
 build_job:
   stage: build
   allow_failure: false
+  # The same rule as upload_job and release_job below. The workflow rule
+  # above already stops each other pipeline. This line keeps the three jobs
+  # in agreement, and it says the condition where a reader looks for it.
   rules:
-    - if: $CI_COMMIT_BRANCH == "master"
-    - if: $CI_COMMIT_BRANCH == "DS"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
     - if: $CI_COMMIT_TAG =~ /^v/
   # NOTE: the local `cache: .buildx-cache` block was removed. mode=max local
   # cache wrote several GB of toolchain layers to the small runner's disk and

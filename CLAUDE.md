@@ -3,7 +3,7 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `de432eb`, version 26.08.75.
+Source: repository `https://github.com/mvbasov/OMN-Go` at commit `66d7cd9`, version 26.08.77.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -387,6 +387,12 @@ subject line, also when it has no list.
   without a message.
 * CI reads the version from `backend/version.go`. It uses `grep` or `awk` anchored on
   `APP_VERSION =`. Do not change the shape of that line.
+* **The GitLab pipeline runs for a version tag and for nothing else.** The
+  `workflow:` rule at the top of `.gitlab-ci.yml` holds that condition, and each of
+  the three jobs repeats it. A workflow rule stops the pipeline before GitLab makes
+  it. A job rule alone leaves a pipeline that holds no job, and GitLab reports that
+  as a fault. `.github/workflows/sync-gitlab.yml` mirrors each branch push and each
+  tag, thus a branch push reaches GitLab and must make no pipeline.
 * The Android build tools stay pinned at 34.0.0. **The image follows the build. The
   build does not follow the image.** Never change the Gradle configuration to suit
   the Docker image.
