@@ -11,19 +11,25 @@ import (
 // page's source (.md) and compiled (.html) files live on disk.
 //
 // Three shapes of "name" are accepted, matching how the frontend and the
-// various handlers have historically referred to pages:
-//   - a bare page name with no extension at all, e.g. "Welcome"
+// various handlers refer to pages:
+//   - a bare page name, e.g. "Welcome" or "Report.2026"
 //   - a markdown filename, e.g. "Welcome.md"
 //   - a compiled HTML filename, e.g. "Welcome.html"
 //
-// All three are treated as the same page ("Welcome"), and both mdPath and
-// htmlPath are returned so a caller can read/write whichever one it needs
-// without re-deriving the other.
+// This function treats all three as the same page. It returns mdPath and
+// htmlPath together, thus a caller reads or writes the one it needs and
+// derives nothing a second time.
 //
-// Anything else - a name with a different extension such as ".js", ".css",
-// ".json", ".png" - is not a markdown page at all. It is a plain static
-// asset that only ever lives under html/, so isPage is false and only
-// htmlPath is meaningful; mdPath is left empty.
+// A name that ends in a known file extension, such as ".js", ".css",
+// ".json", ".png" or ".txt", is not a markdown page. It is a file that only
+// ever lives under html/, thus isPage is false, only htmlPath means
+// anything, and mdPath stays empty.
+//
+// hasKnownAssetExtension (serving.go) is the one authority for that
+// decision. Read its banner before you change this switch. In short: the
+// LAST extension decides, and an unknown extension is a page. Before
+// 26.08.76 this function asked whether the name held a dot, thus a note
+// named "Report.2026" was a file and /Report.2026.html gave 404.
 //
 // This replaces four independent (and previously slightly-diverged)
 // implementations of this same decision that used to live in
@@ -36,11 +42,12 @@ func (a *App) resolvePageName(name string) (mdPath, htmlPath, baseName string, i
 	case strings.HasSuffix(name, ".html"):
 		baseName = strings.TrimSuffix(name, ".html")
 		isPage = true
-	case !strings.Contains(name, "."):
+	case !a.hasKnownAssetExtension(name):
 		baseName = name
 		isPage = true
 	default:
-		// Has some other, non-page extension - treat as a static asset.
+		// The name ends in an extension that this install serves as a
+		// file. See hasKnownAssetExtension.
 		return "", filepath.Join(a.StorageDir, "html", filepath.Clean(name)), name, false
 	}
 

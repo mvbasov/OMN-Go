@@ -3,7 +3,7 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `cb28336`, version 26.08.74.
+Source: repository `https://github.com/mvbasov/OMN-Go` at commit `de432eb`, version 26.08.75.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -50,6 +50,7 @@ Do not remove a constraint without an instruction from the maintainer.
    `parseHeaderBlock` is the only header-block parser. `renderAndCache` is the only
    writer of `html/<name>.html`. `resolvePageName` is the only name resolver.
    `hasRole` is the only role check. `resolveContentType` is the only MIME resolver.
+   `hasKnownAssetExtension` is the only note-or-file test.
    Do not add a second implementation. Extend the first one.
 8. **An upgrade never overwrites a user-owned asset.** A version change replaces the
    files in `versionDependentAssets` (`backend/assets.go`). It first copies the old
@@ -223,6 +224,25 @@ Two statements in the tree are wrong. Do not trust them.
 
 * Call the metadata a **header block**. Do not call it front matter. See
   `doc/TERMINOLOGY.md`.
+* **A name is a note or a file, and the LAST extension decides.**
+  `hasKnownAssetExtension` in `backend/serving.go` is the only authority for
+  that question. It reads `Config.MimeTypes` and then `builtinMIME`. It must
+  never call `mime.TypeByExtension`. The stdlib reads `/etc/mime.types`, thus
+  the same name would mean one thing on a desktop and another on Android.
+  * `.md` is the source of a note. `.html` is a compiled note, and an
+    `.html` always has a `.md` source.
+  * A known extension, for example `.js` or `.txt`, is a file under `html/`.
+  * An unknown extension or no extension is a note. **A note name may hold a
+    dot.** `Report.2026` is a note with the source `md/Report.2026.md`.
+  * A note named `Draft.txt` has the source `md/Draft.txt.md` and compiles to
+    `html/Draft.txt.html`. The file `html/Draft.txt` is a different thing.
+    The two never collide, because each name carries each of its extensions.
+  * Send the `.md` form to `/api/note`, `/api/save`, `/api/export/note` and
+    `/api/search` for the note on screen. A bare name is ambiguous when it
+    ends in a real file extension. `renderInternalEditor` does this, and
+    `omnGoCurrentNoteName` in `omn-go-core.js` does it for the frontend.
+  * Before 26.08.76 the application asked whether a name held a dot, thus
+    `/Report.2026.html` gave 404.
 * `parseHeaderBlock` in `backend/header_block.go` is the only parser. A header block
   exists only if the first line holds a colon and does not start with a space, `#`,
   or `<`. The header block ends at the first empty line, which the parser drops. It

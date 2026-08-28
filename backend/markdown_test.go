@@ -66,6 +66,20 @@ func TestRewriteInternalLink(t *testing.T) {
 		{"Page#section", "Page.html#section"},
 		{"Page?x=1", "Page.html?x=1"},
 		{"Page.md#section", "Page.html#section"},
+		// 26.08.76: a note name may hold a dot. hasKnownAssetExtension
+		// decides, and ".2026" is not an extension this install serves,
+		// thus the link gets its ".html". A regular expression matched any
+		// extension-shaped tail here until then, thus a link to such a note
+		// went nowhere.
+		{"Report.2026", "Report.2026.html"},
+		{"a.b.c", "a.b.c.html"},
+		{"Report.2026#part", "Report.2026.html#part"},
+		{"dir/Report.2026", "dir/Report.2026.html"},
+		// A name that ends in an extension this install serves stays a
+		// file. The note of that name is "Draft.txt.md".
+		{"draft.txt", "draft.txt"},
+		{"js/app.min.js", "js/app.min.js"},
+		{"Draft.txt.md", "Draft.txt.html"},
 		// directory-only references untouched
 		{".", "."},
 		{"..", ".."},

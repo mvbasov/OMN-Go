@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -93,6 +92,48 @@ func (a *App) resolveContentType(path string) string {
 		return ct
 	}
 	return mime.TypeByExtension(ext)
+}
+
+// hasKnownAssetExtension reports whether the last extension of name is one
+// that this install serves as a file. It is the one authority for the
+// question "is this name a note, or a file under html/". resolvePageName
+// asks it, and so do compilePage, rewriteInternalLink and
+// notFoundSuggestion.
+//
+// THE LAST EXTENSION DECIDES. Before 26.08.76 the application asked whether
+// the name held a dot. A note named "Report.2026" answered yes and became a
+// file under html/, thus /Report.2026.html gave 404. A note name can hold a
+// dot, and this function is what makes that true.
+//
+// The rule reads:
+//
+//	.md                     the source of a note
+//	.html                   a compiled note. An .html always has a .md source
+//	a known extension       a file under html/, for example .js or .txt
+//	an unknown extension    a note, for example "Report.2026"
+//	no extension            a note
+//
+// A note named "Draft.txt" thus has the source md/Draft.txt.md and compiles
+// to html/Draft.txt.html. The file html/Draft.txt is a different thing with
+// a different name. The two never collide, because each name carries each
+// of its extensions.
+//
+// IT MUST NOT CALL mime.TypeByExtension. resolveContentType above keeps
+// that fallback, because a Content-Type header can differ between two
+// devices with no harm. This answer cannot. The stdlib reads
+// /etc/mime.types, thus a desktop with mime-support knows ".doc" and a
+// phone does not. A note named "Plan.doc" would then be a file on one
+// device and a note on the other. Git sync carries that name to both.
+func (a *App) hasKnownAssetExtension(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == "" {
+		return false
+	}
+	if ct, ok := a.GetConfig().MimeTypes[ext]; ok && ct != "" {
+		return true
+	}
+	_, ok := builtinMIME[ext]
+	return ok
 }
 
 // materializeAsset returns the on-disk path of the html/ asset for urlPath,
@@ -200,11 +241,15 @@ func wantsHTMLError(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Accept"), "text/html")
 }
 
-// notFoundSuggestion returns "<name>.html" when the failing path has no
-// extension but a note of that name exists - the [text](name) instead of
-// [text](name.html) mistake, which is the single most common way to reach a
-// 404 here (a missing .html is auto-created rather than 404ing, see
-// serveHTMLPage/recompileMarkdownPage).
+// notFoundSuggestion returns "<name>.html" when the failing path names a
+// note that exists. The reader wrote [text](name) and not
+// [text](name.html). That mistake is the most common way to reach a 404
+// here. A missing .html does not give a 404. serveHTMLPage rebuilds it,
+// see recompileMarkdownPage.
+//
+// The guard below asks hasKnownAssetExtension, and not whether the name has
+// an extension at all. A note may hold a dot in its name since 26.08.76,
+// thus /Report.2026 must still get its suggestion.
 //
 // Returns "" unless the lookup is provably safe and the note really exists:
 // the resolved path must stay inside StorageDir, so a crafted "/../../etc/
@@ -212,7 +257,7 @@ func wantsHTMLError(r *http.Request) bool {
 // the note tree.
 func (a *App) notFoundSuggestion(urlPath string) string {
 	name := strings.TrimPrefix(urlPath, "/")
-	if name == "" || strings.Contains(name, "..") || path.Ext(name) != "" {
+	if name == "" || strings.Contains(name, "..") || a.hasKnownAssetExtension(name) {
 		return ""
 	}
 	mdPath, htmlPath, baseName, isPage := a.resolvePageName(name)

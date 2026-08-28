@@ -1027,13 +1027,24 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string) {
-	name := strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".html")
-	// Defensive: page names should never carry a .md suffix of their own.
-	// A caller that mistakenly requests "Welcome.md.html" (extension baked
-	// into the name before ".html" was appended) would otherwise produce
-	// mdPath "md/Welcome.md.md" below. Stripping it here makes that whole
-	// class of double-extension bug impossible regardless of the caller.
-	name = strings.TrimSuffix(name, ".md")
+	// requested keeps the ".html", and name drops it. The two are not
+	// interchangeable, and each one has one job.
+	//
+	// name selects a page that the server builds and never compiles from a
+	// note, thus it must be the bare form.
+	//
+	// requested goes to resolvePageName below. That function reads the LAST
+	// extension (see hasKnownAssetExtension in serving.go), and ".html" is
+	// the evidence that this is a page. A note named "Draft.txt" arrives
+	// here as "Draft.txt.html". Stripped first, it reads as the file
+	// html/Draft.txt and answers 404. Unstripped, it resolves to
+	// md/Draft.txt.md, which is the note the reader asked for.
+	//
+	// A ".md" strip stood here until 26.08.76. It made "Welcome.md.html"
+	// into "Welcome". A note name can hold a dot now, thus "Welcome.md" is
+	// a name a person can choose, and the strip destroyed it.
+	requested := strings.TrimPrefix(path, "/")
+	name := strings.TrimSuffix(requested, ".html")
 
 	if name == "Config" {
 		a.serveConfigPage(w)
@@ -1055,7 +1066,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 		return
 	}
 
-	mdPath, htmlPath, name, _ := a.resolvePageName(name)
+	mdPath, htmlPath, name, _ := a.resolvePageName(requested)
 
 	htmlStat, errHtml := os.Stat(htmlPath)
 	mdStat, errMd := os.Stat(mdPath)
@@ -1162,14 +1173,22 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 func (a *App) renderInternalEditor(w http.ResponseWriter, relPath string) {
 	_, _, baseName, isPage := a.resolvePageName(relPath)
 
-	// name is what /api/note and /api/save expect; viewURL is where Save
-	// and Cancel return to.
+	// name goes to /api/note and /api/save. viewURL is where Save and
+	// Cancel return to. title is what the reader sees.
+	//
+	// A page sends baseName with ".md" on the end, and not the bare
+	// baseName. Both endpoints resolve a name by its LAST extension (see
+	// hasKnownAssetExtension in serving.go). A note named "Draft.txt" sent
+	// as "Draft.txt" thus reads as the file html/Draft.txt, and Save writes
+	// to the wrong tree while it reports success. The ".md" form removes
+	// the guess. resolvePageName accepts each of the three shapes, thus
+	// this breaks no other caller.
 	name := relPath
 	viewURL := "/" + relPath
 	pageExt := filepath.Ext(relPath)
 	title := relPath
 	if isPage {
-		name = baseName
+		name = baseName + ".md"
 		viewURL = "/" + baseName + ".html"
 		pageExt = ".md"
 		title = baseName

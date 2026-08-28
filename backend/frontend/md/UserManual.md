@@ -208,6 +208,10 @@ The name you confirm sets where OMN-Go creates the new page:
 
 OMN-Go adds a link to the new page at the top of the page you started from. The link goes directly below the header block, or at the start of a page that has no header block.
 
+**A dot in the name.** A page name can hold a dot. `Report.2026` and `v1.2 plan` are correct names.
+
+One name is different. The last dot decides. A name that ends with a file extension that OMN-Go knows is a file and not a page. Examples of such an extension are `.txt`, `.js`, `.png` and `.json`. To make a page with such a name, write the full file name. The source is then `Draft.txt.md`, and the page is `Draft.txt.html`. A link from another note goes to `Draft.txt.md` or to `Draft.txt.html`, and not to `Draft.txt`. The file `Draft.txt` is a different thing, and the two never mix.
+
 ## Editing pages
 
 1. Press <i class="material-icons">edit</i> to open the editor.

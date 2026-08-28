@@ -1251,6 +1251,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // omnGoExportURL is the one address both controls use, and the one
 // MainActivity fetches for the Android share sheet.
+// omnGoCurrentNoteName gives the name of the note on screen in the form
+// that the server resolves with no guess.
+//
+// The server reads the LAST extension of a name (hasKnownAssetExtension in
+// serving.go). A bare base name is thus ambiguous when it ends in a real
+// file extension. A note named "Draft.txt" sent as "Draft.txt" reads as the
+// file html/Draft.txt, and a save then writes to the wrong tree. The same
+// name sent as "Draft.txt.md" reads as the note, always.
+//
+// PageName carries the extension already when the page is a file, thus this
+// function adds ".md" only for a markdown page.
+//
+// Each caller that sends the note on screen to /api/note, /api/save,
+// /api/export/note or /api/search uses this function.
+function omnGoCurrentNoteName() {
+    var name = (typeof PageName !== 'undefined' && PageName) ? String(PageName) : '';
+    if (!name) return '';
+    var markdown = (typeof IS_MARKDOWN !== 'undefined') ? IS_MARKDOWN : false;
+    return markdown ? name + '.md' : name;
+}
+window.omnGoCurrentNoteName = omnGoCurrentNoteName;
+
 function omnGoExportURL(note) {
     return '/api/export/note?name=' + encodeURIComponent(note);
 }
@@ -1493,10 +1515,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         fileRow.appendChild(status);
         if (sendable) {
+            // omnGoCurrentNoteName and not noteName: the server needs the
+            // unambiguous form, and noteName is what the panel displays.
+            const apiName = omnGoCurrentNoteName();
             actions.appendChild(button('share', 'Send this note',
-                function () { omnGoSendNote(noteName); }));
+                function () { omnGoSendNote(apiName); }));
             actions.appendChild(button('content_copy', 'Copy this note as text',
-                function () { omnGoCopyNote(noteName, say); }));
+                function () { omnGoCopyNote(apiName, say); }));
         }
         actions.appendChild(button('link', 'Copy a link to this page',
             function () { omnGoCopyPageLink(say); }));

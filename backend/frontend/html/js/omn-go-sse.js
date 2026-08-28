@@ -1031,7 +1031,14 @@ if (window.location.protocol !== 'file:') {
 
         // The page to search. index.html defines currentNote for every
         // rendered note; without it there is nothing to scope to.
+        // The "on" parameter of a page-scope search. omnGoCurrentNoteName
+        // (omn-go-core.js) gives the form that the server resolves with no
+        // guess. See its banner: a bare name that ends in a real file
+        // extension reads as a file and not as the note.
         function pageName() {
+            if (typeof omnGoCurrentNoteName === 'function') {
+                return omnGoCurrentNoteName();
+            }
             return (typeof currentNote !== 'undefined' && currentNote) ? currentNote : '';
         }
 

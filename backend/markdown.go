@@ -19,11 +19,6 @@ import (
 // how (or whether) to rewrite it.
 var hrefRe = regexp.MustCompile(`href="([^"]*)"`)
 
-// extRe matches a trailing filename extension (e.g. ".html", ".png", ".js")
-// so we only append ".html" to links that do not already point at a
-// concrete file.
-var extRe = regexp.MustCompile(`\.[a-zA-Z0-9]+$`)
-
 // uriSchemeRe matches a URI scheme at the start of a link, as RFC 3986
 // defines one: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":". A link that
 // has one is not a page reference and must reach the browser exactly as the
@@ -253,12 +248,18 @@ func (a *App) rewriteInternalLink(href string) string {
 		return href
 	}
 
+	// hasKnownAssetExtension (serving.go) is the one authority for the
+	// question below. It reads the LAST extension. A link to a note named
+	// "Report.2026" thus becomes "Report.2026.html", and a link to the file
+	// "draft.txt" stays as it is. Until 26.08.76 a regular expression
+	// matched any extension-shaped tail here, thus a link to a note with a
+	// dot in its name went nowhere.
 	switch {
 	case strings.HasSuffix(base, ".md"):
 		base = strings.TrimSuffix(base, ".md") + ".html"
-	case extRe.MatchString(base):
-		// Already has a concrete extension (.html, .js, .css, .png, ...) -
-		// leave it alone.
+	case a.hasKnownAssetExtension(base):
+		// A file that this install serves, for example .html, .js, .css or
+		// .png. Leave it alone.
 	default:
 		base += ".html"
 	}
@@ -326,12 +327,23 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 	}
 	metaTags = append(metaTags, metaTagView{Name: "generator", Value: "OMN-Go " + APP_VERSION})
 
-	// Determine file extension (used by the view page's edit link).
+	// The file extension, which the view page gives to its edit link.
+	//
+	// An empty customBody means a note. renderAndCache is the only caller
+	// that reaches this function that way, and it only ever compiles a
+	// note. The asset prefix below reads customBody for the same reason.
+	//
+	// A NAME ALONE CANNOT ANSWER THIS. A note named "Draft.txt" and the
+	// file html/Draft.txt carry the same name here. Before 26.08.76 this
+	// block asked whether the name held a dot, thus a note named
+	// "Report.2026" got pageExt ".2026" and IsMarkdown false. The page then
+	// lost each control that belongs to a note.
 	pageExt := ""
 	if strings.HasSuffix(name, ".md") {
 		pageExt = ".md"
-	} else if strings.Contains(name, ".") {
-		// non-markdown file — keep its extension (e.g. .js, .css, .json)
+	} else if customBody != "" && a.hasKnownAssetExtension(name) {
+		// A server-built view of a file, for example the wait page of the
+		// external editor. Keep the extension of that file.
 		pageExt = filepath.Ext(name)
 	}
 	isMarkdown := pageExt == ".md" || pageExt == ""
