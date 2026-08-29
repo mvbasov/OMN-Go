@@ -100,9 +100,8 @@ if (window.location.protocol !== 'file:') {
     // unrelated background log cannot hijack the display.
     //
     // A line reads "<stamp> [sync] (debug) Staging file: x". The level word
-    // sits between the tag and the message, so it is stripped here before
-    // any SYNC_STAGES prefix is tried - otherwise every prefix below stops
-    // matching. Sync progress is mostly (debug), and this overlay keeps
+    // sits between the tag and the message. It is stripped here before any
+    // SYNC_STAGES prefix is tried, or every prefix below stops matching. Sync progress is mostly (debug), and this overlay keeps
     // working with (debug) switched off because the SSE stream always
     // carries every line (see logger.go).
     function applySyncLogLine(msg) {

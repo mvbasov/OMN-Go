@@ -1178,8 +1178,8 @@ read every log line that the server writes.
 
 **The stream always carries every line.** The `log_debug`, `log_info` and
 `log_tags` settings of `config.json` control what the server prints to
-stdout, and what `omn-go-sse.js` prints to the browser console. They do not
-control this stream. The sync overlay is built on `[sync] (debug)` lines,
+stdout. They also control what `omn-go-sse.js` prints to the browser
+console. They do not control this stream. The sync overlay is built on `[sync] (debug)` lines,
 and it must work when a reader asks for less noise.
 
 **Response headers**

@@ -16,19 +16,19 @@
  * WebView drops all of it, and this notice would go with it.
  *
  * It was inline in index.html until 26.08.73. It moved out because the
- * compiled page of each note carried a copy, which is 3.3 KB for each note
- * on disk and in every git sync.
+ * compiled page of each note carried a copy. That copy is 3.3 KB for each
+ * note, on disk and in every git sync.
  *
  * THE NUMBER. 85 is the highest requirement the frontend actually has:
  * String.replaceAll, in Bookmarker.js and the editor. Below that things
  * throw rather than degrade. Chromium 44 is what Android 6 ships, and
- * Chromium 106 is what its System WebView updates to, so on that release
- * of Android this notice is the difference between a blank page and a
+ * Chromium 106 is what its System WebView updates to. On that release of
+ * Android this notice is the difference between a blank page and a
  * sentence saying which update is missing.
  *
- * It says nothing on a browser with no Chrome token in its user agent -
- * Firefox and Safari are not measured by this number and do not need to
- * be warned about it.
+ * It says nothing on a browser with no Chrome token in its user agent.
+ * This number does not measure Firefox or Safari, thus neither one needs
+ * a warning about it.
  */
 (function () {
     var MIN = 85;

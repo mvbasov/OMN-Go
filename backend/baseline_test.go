@@ -1023,8 +1023,8 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 	// 26.08.47 added OMN_INCOMING_PAGE: the receive box lives in the modals
 	// block now, and omn-go-sse.js has to know which page it belongs on
 	// without keeping a second copy of the note's name.
-	// 26.08.71 added the three log switches: the console mirror in
-	// omn-go-sse.js reads them to decide what it prints, and a page compiled
+	// 26.08.71 added the three log switches. The console mirror in
+	// omn-go-sse.js reads them to decide what it prints. A page compiled
 	// before a switch changed must still get the new answer.
 	want := []string{
 		"APP_VERSION", "OMN_INCOMING_PAGE", "OMN_LOG_DEBUG", "OMN_LOG_INFO",

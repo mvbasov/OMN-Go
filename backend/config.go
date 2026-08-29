@@ -259,9 +259,9 @@ type Config struct {
 	// Android-client concern; the desktop/LAN server ignores it.
 	AndroidFullscreen string `json:"android_fullscreen"`
 	// LogDebug and LogInfo switch on the two quiet log levels. Both are
-	// false on a fresh install, because every open page mirrors the log
-	// into the browser console and the full detail of 21 subsystems is
-	// noise to a reader who did not ask for it. The error level has no
+	// false on a fresh install. Every open page mirrors the log into the
+	// browser console. The full detail of 21 subsystems is noise to a
+	// reader who did not ask for it. The error level has no
 	// switch: a person who asks for less noise never asks for fewer
 	// faults. See log_levels.go.
 	LogDebug bool `json:"log_debug"`

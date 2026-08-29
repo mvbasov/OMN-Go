@@ -283,8 +283,8 @@ type configPageView struct {
 }
 
 // logTagLabels gives each tag the words the Config page shows beside its
-// checkbox. A tag with no entry here falls back to its own text, so a new
-// tag reaches the page with no template edit and no missing box. The map is
+// checkbox. A tag with no entry here falls back to its own text. A new tag
+// thus reaches the page with no template edit and no missing box. The map is
 // a label table and never the tag set: allLogTags in log_levels.go is the
 // authority for that.
 var logTagLabels = map[logTag]string{
@@ -1153,10 +1153,10 @@ const modalsMarker = `<div id="omn-go-modals-slot"></div>`
 // EventSource that reads them. A page compiled before the switches changed
 // would otherwise keep the old answer forever.
 //
-// All values are server-controlled (APP_VERSION is a build constant,
-// UseInternalEd a bool, Theme whitelisted through normalizeTheme, the
-// search flag a bool, and the log tags whitelisted through
-// normalizeLogTags), never user input, so splicing them with fmt is safe.
+// The server controls every value, and none of them is user input, thus
+// fmt can splice them safely. APP_VERSION is a build constant. UseInternalEd
+// and the search flag are booleans. normalizeTheme whitelists Theme, and
+// normalizeLogTags whitelists the log tags.
 func (a *App) injectRuntimeVars(page []byte) []byte {
 	cfg := a.GetConfig()
 	script := fmt.Sprintf(

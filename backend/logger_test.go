@@ -4,9 +4,9 @@ package backend
 // The log transport and the level rule
 //
 // Two things are pinned here. The shape of a line, because the browser
-// parses it. And the ban on log.Printf, because a line that skips
-// a.logDebugf, a.logInfof or a.logErrf carries no level, and therefore
-// escapes every filter a person sets on the Config page.
+// parses it. And the ban on log.Printf. A line that skips a.logDebugf,
+// a.logInfof or a.logErrf carries no level. It therefore escapes every
+// filter a person sets on the Config page.
 // ---------------------------------------------------------------------
 
 import (
