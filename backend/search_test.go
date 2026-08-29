@@ -701,3 +701,139 @@ func TestPhraseTierIsLiteralAndAdjacent(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------
+// The snippet cut
+//
+// A long note answers a common query on hundreds of lines. The panel asks
+// for ten, and before 26.08.81 it got ten. The last rows thus carried the
+// lines that matched a one-letter term and nothing else. cutSnippets takes
+// those rows out of the answer.
+// ---------------------------------------------------------------------
+
+// cutDoc writes a note whose first lines carry the query and whose tail
+// carries one letter of it.
+func cutDoc(t *testing.T, a *App, name string, tail int) *searchDocument {
+	t.Helper()
+	body := "Title: A note\n\nBuild the project and run the tests.\n" +
+		"The project waits here.\nThe tests wait here.\n"
+	for i := 0; i < tail; i++ {
+		body += "A line about nothing at all.\n"
+	}
+	return phraseDoc(t, a, name, body)
+}
+
+func TestCutSnippetsDropsALoneLetterLine(t *testing.T) {
+	a := newTestApp(t)
+	doc := cutDoc(t, a, "cut", 12)
+	q := parseQuery("a project tests")
+	_, _, hits, ok := scoreDocument(q, doc)
+	if !ok {
+		t.Fatal("the note must match")
+	}
+	got := cutSnippets(q, hits, 10)
+	if len(got) >= 10 {
+		t.Errorf("kept %d lines of the ten. A line that matches the letter "+
+			"\"a\" alone carries no word of the query.", len(got))
+	}
+	for _, h := range got {
+		if strings.Contains(h.line.raw, "nothing at all") {
+			t.Errorf("a lone-letter line survived: %q", strings.TrimSpace(h.line.raw))
+		}
+	}
+	if len(got) == 0 {
+		t.Error("every line went, and the reader is told the note matched")
+	}
+}
+
+func TestCutSnippetsNeverPromotes(t *testing.T) {
+	// The window comes FIRST and the drop comes second. A drop before the
+	// window would let a line from a worse rung move up into the ten. This
+	// test fails the moment a line appears that the plain window would not
+	// have shown.
+	a := newTestApp(t)
+	doc := cutDoc(t, a, "cut", 12)
+	q := parseQuery("a project tests")
+	_, _, hits, _ := scoreDocument(q, doc)
+	window := map[int]bool{}
+	for i, h := range hits {
+		if i >= 10 {
+			break
+		}
+		window[h.line.no] = true
+	}
+	for _, h := range cutSnippets(q, hits, 10) {
+		if !window[h.line.no] {
+			t.Errorf("line %d reached the answer, and the first ten did not "+
+				"hold it: cutSnippets promoted a line", h.line.no)
+		}
+	}
+}
+
+func TestCutSnippetsKeepsAnHonestList(t *testing.T) {
+	a := newTestApp(t)
+	cases := []struct {
+		name  string
+		query string
+		limit int
+		want  int
+		why   string
+	}{
+		{"one term", "project", 10, 10, "one term cannot be a lone short term"},
+		{"the limit rules", "a project tests", 3, 3, "the caller asked for three"},
+	}
+	for _, c := range cases {
+		doc := cutDoc(t, a, c.name, 12)
+		q := parseQuery(c.query)
+		_, _, hits, ok := scoreDocument(q, doc)
+		if !ok {
+			t.Fatalf("%s: no match", c.name)
+		}
+		if got := len(cutSnippets(q, hits, c.limit)); got > c.want {
+			t.Errorf("%s: kept %d, want at most %d (%s)", c.name, got, c.want, c.why)
+		}
+	}
+}
+
+func TestShortTermKeepsAWholeWord(t *testing.T) {
+	// One Han rune is a word. A rule that calls it short takes the score of
+	// a real search: the query "猫" scored 390 in the laboratory, and 0 with
+	// such a rule.
+	for _, s := range []string{"猫", "犬", "の", "ア", "한"} {
+		if isShortTerm([]rune(s)) {
+			t.Errorf("%q reads as a short term, and it is a whole word", s)
+		}
+	}
+	for _, s := range []string{"a", "и", "1", "_"} {
+		if !isShortTerm([]rune(s)) {
+			t.Errorf("%q does not read as a short term", s)
+		}
+	}
+	if isShortTerm([]rune("ab")) || isShortTerm(nil) {
+		t.Error("only a term of exactly one rune can be short")
+	}
+}
+
+func TestCutSnippetsInTheResponse(t *testing.T) {
+	// End to end through the API. The note answers the query on many lines,
+	// and only the first few say anything.
+	a := newTestApp(t)
+	cutDoc(t, a, "cut", 12)
+
+	_, resp := searchReq(t, a, url.Values{
+		"q": {"a project tests"}, "on": {"cut.md"}, "snippets": {"10"},
+	})
+	if len(resp.Results) != 1 {
+		t.Fatalf("got %d results, want 1", len(resp.Results))
+	}
+	got := len(resp.Results[0].Matches)
+	if got == 0 || got >= 10 {
+		t.Errorf("the answer holds %d snippets. The lines that match the "+
+			"letter \"a\" alone must not fill the list.", got)
+	}
+	for _, m := range resp.Results[0].Matches {
+		if strings.Contains(m.Text, "nothing at all") {
+			t.Errorf("a line that matches one letter reached the answer: %q", m.Text)
+		}
+	}
+}

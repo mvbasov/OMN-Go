@@ -679,6 +679,15 @@ The rule is narrow on purpose. A comma between two words is not a space. A
 query of one term is not a phrase. A query that names a field is not a
 phrase, because `title:a b` has no natural reading as one.
 
+**A result can hold fewer snippets than `snippets` asks for.** A long note
+answers a common query on hundreds of lines. Few of those lines say anything.
+The server takes the first `snippets` lines and then removes each line whose
+only matching terms are one rune. Such a line carries no word of the query.
+A term of one Han, Hiragana, Katakana or Hangul rune is a whole word, and it
+never counts. The order of the two steps is the rule: the server never
+replaces a removed line from below, thus a line of a lower rung cannot reach
+the answer. A query of one term loses no line. New in 26.08.81.
+
 The reason is arithmetic. A document score is the sum over the terms, and a
 field carries a weight. Several query words loose in one title thus outscore
 a body line that holds the sentence. A bonus large enough to close that gap

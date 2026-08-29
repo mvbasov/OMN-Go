@@ -1045,9 +1045,7 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 	}
 
 	limit := clampInt(atoiOr(get("snippets"), searchDefaultSnippets), 1, searchMaxSnippets)
-	if len(hits) > limit {
-		hits = hits[:limit]
-	}
+	hits = cutSnippets(q, hits, limit)
 
 	res := searchResult{
 		Path: doc.Path, Kind: doc.Kind, Name: doc.Name, Title: doc.Title,
@@ -1060,6 +1058,64 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 	resp.Results = append(resp.Results, res)
 	resp.Total = 1
 	resp.Truncated = doc.truncated
+}
+
+// cutSnippets gives back the lines a result should show: the first limit
+// of them, less any line that says nothing about the query.
+//
+// A long note answers a common query on hundreds of lines, and about eight
+// of them say anything. The panel asks for ten, thus the last rows carried
+// the lines that matched the article "a" and nothing else. Measured on the
+// User Manual with the query "also makes a local connection": 564 lines
+// matched, ranks 1 to 8 carried two to five query words, and ranks 9 and 10
+// carried the letter "a" alone.
+//
+// THE ORDER OF THE TWO STEPS IS THE RULE. The window comes first, and the
+// drop comes second. A drop before the window would take a weak line away
+// and let a later line move UP. The line that moves up comes from a worse
+// rung. That arrangement put two subsequence lines of the User Manual into
+// the first ten, and each one matched the query as scattered letters.
+// With the window first, a line can only leave.
+//
+// A line leaves when the query has several terms and every term that hits
+// the line is one rune. Such a line carries no word of the query. A term of
+// one Han, Hiragana, Katakana or Hangul rune is a whole word, thus it never
+// counts as short. See labIdeographic in the laboratory notes.
+//
+// Two other shapes were measured and rejected. A score floor of the top
+// divided by four cut the reported query correctly. It did nothing for a
+// query of three terms, thus it answered one case and not the fault. A cut
+// at the first change of rung reduced a list to ONE row, because the phrase
+// rung above belongs to the first line alone.
+func cutSnippets(q parsedQuery, hits []lineHit, limit int) []lineHit {
+	if len(hits) > limit {
+		hits = hits[:limit] // the window first
+	}
+	if len(q.terms) < 2 || len(hits) == 0 {
+		return hits
+	}
+	kept := make([]lineHit, 0, len(hits))
+	for _, h := range hits {
+		carries := false
+		for _, term := range q.terms {
+			if isShortTerm(term.runes) {
+				continue
+			}
+			if _, _, _, ok := scoreTerm(term.runes, h.line.fold); ok {
+				carries = true
+				break
+			}
+		}
+		if carries {
+			kept = append(kept, h)
+		}
+	}
+	// A document that matched has something to say. When every line of the
+	// window carries short terms alone, the window is the answer.
+	if len(kept) == 0 {
+		return hits
+	}
+	return kept
 }
 
 // searchGlobal answers a scope=all query from the index.
@@ -1153,10 +1209,7 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 	}
 
 	for _, f := range found {
-		hits := f.hits
-		if len(hits) > snippets {
-			hits = hits[:snippets]
-		}
+		hits := cutSnippets(q, f.hits, snippets)
 		res := searchResult{
 			Path: f.doc.Path, Kind: f.doc.Kind, Name: f.doc.Name, Title: f.doc.Title,
 			Tags: f.doc.Tags, Score: f.score, URL: f.doc.URL, Truncated: f.doc.truncated,

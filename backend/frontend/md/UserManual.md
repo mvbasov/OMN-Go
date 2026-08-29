@@ -509,6 +509,8 @@ Type a whole sentence to find the note that says that sentence. A note holding e
 
 Each line shows where the match is, and highlights the match. A `‹/›` mark tells you that the line is in a note script or in a code block, and not in prose. OMN-Go does not rank such a line lower, because code in notes is a normal thing to look for.
 
+A note can show fewer lines than the others. When a query holds a one-letter word such as `a` or `и`, a long note matches that letter on almost every line. OMN-Go removes a line that matches the one-letter words alone, because such a line carries no word of your query. A one-letter word in Chinese, Japanese or Korean is a whole word, and OMN-Go keeps those lines.
+
 If a note has sections, the result names the section and not the line. A quick note shows its timestamp. A bookmark shows its title. A note with headings shows the heading. When you open the result, OMN-Go opens that section, and not the top of a long page.
 
 "Line 1842" does not answer the question *where*. "27 Jul, 07:23" answers it.

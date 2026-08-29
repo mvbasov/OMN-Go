@@ -178,6 +178,22 @@ func foldString(s string) string {
 	return string(fold(s))
 }
 
+// isShortTerm says whether a query term is too small to carry a line on its
+// own. One Latin or Cyrillic rune is an article or a conjunction, and it hits
+// nearly every line. One Han, Hiragana, Katakana or Hangul rune is a whole
+// word, thus it is never short: the query "猫" scored 390 in the laboratory,
+// and a rule without this guard took it to 0.
+func isShortTerm(runes []rune) bool {
+	if len(runes) > 1 || len(runes) == 0 {
+		return false
+	}
+	r := runes[0]
+	return !unicode.Is(unicode.Han, r) &&
+		!unicode.Is(unicode.Hiragana, r) &&
+		!unicode.Is(unicode.Katakana, r) &&
+		!unicode.Is(unicode.Hangul, r)
+}
+
 // isWordRune decides what counts as "inside a word" for the word-boundary
 // bonuses and for tokenisation. Letters and digits in any script, plus '_'
 // because it holds identifiers together in the code these notes contain.
