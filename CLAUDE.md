@@ -203,6 +203,15 @@ Two statements in the tree are wrong. Do not trust them.
     the only ES5 file. See section 1, rule 5.
   * `omn-go-custom.js` and `omn-go-custom.css` are user files. They are empty on
     purpose.
+* **The fold table has two implementations on purpose.** `foldTable` in
+  `backend/search_match.go` folds before the server matches. `OMN_FOLD_TABLE` in
+  `omn-go-core.js` folds again in the page. The server sends the term unfolded in
+  `?hl=`, because the reader has to see the word as typed, thus the page cannot
+  match on a lowercase alone. `TestFoldTableHasAFrontendCopy` compares the two
+  tables and checks that the three call sites use them. Each row maps one
+  character to one character. A row that changes the length moves every span
+  after it, and the marks land on the wrong words. Before 26.08.79 the page held
+  no table, thus a search for `елка` opened `Ёлка` with nothing marked.
 * **Load order is a feature.** The custom files load last. A user rule then wins
   against an app rule at equal specificity. The editor page loads neither custom
   file. A broken custom file can never lock the user out of the editor that repairs

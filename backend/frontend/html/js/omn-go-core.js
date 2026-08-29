@@ -161,6 +161,64 @@ window.OMNProgress = (function() {
 
 var OMN_HL_MIN = 2;   // 1 character marks half the page
 
+// OMN_FOLD_TABLE is a port of foldTable in backend/search_match.go. The two
+// must stay the same. TestFoldTableHasAFrontendCopy compares them.
+//
+// The server folds before it matches, thus a search for "elka" finds a note
+// titled "Elka" with the Cyrillic yo. The panel marks that word, because the
+// server sends the spans. This file marks the word again after the reader
+// opens the page. It found nothing until 26.08.79. A lowercase alone does
+// not make the yo into an e.
+//
+// Every entry is ONE character to ONE character, for the reason the Go
+// comment gives: a fold that changes the length moves every span after it.
+// The expanding folds are absent on purpose, not by an oversight.
+//
+// The keys are escapes, because the rest of this file is ASCII. The comment
+// after each row says what the row holds.
+var OMN_FOLD_TABLE = {
+    '\u00e0': 'a', '\u00e1': 'a', '\u00e2': 'a', '\u00e3': 'a',
+    '\u00e4': 'a', '\u00e5': 'a',                  // a with a mark
+    '\u00e8': 'e', '\u00e9': 'e', '\u00ea': 'e',
+    '\u00eb': 'e',                                 // e with a mark
+    '\u00ec': 'i', '\u00ed': 'i', '\u00ee': 'i',
+    '\u00ef': 'i',                                 // i with a mark
+    '\u00f2': 'o', '\u00f3': 'o', '\u00f4': 'o', '\u00f5': 'o',
+    '\u00f6': 'o', '\u00f8': 'o',                  // o with a mark
+    '\u00f9': 'u', '\u00fa': 'u', '\u00fb': 'u',
+    '\u00fc': 'u',                                 // u with a mark
+    '\u00fd': 'y', '\u00ff': 'y',                  // y with a mark
+    '\u00f1': 'n',                                 // n with a tilde
+    '\u00e7': 'c',                                 // c with a cedilla
+    '\u0451': '\u0435'                             // Cyrillic yo to e
+};
+
+// omnFoldChar lowercases one character and then applies the table above.
+// One character in, one character out.
+//
+// A lowercase of one character can give two, for example the Turkish dotted
+// capital I. This function keeps the original in that case, because a longer
+// result would move every span after it.
+function omnFoldChar(c) {
+    if (c < '\u0080') {
+        return (c >= 'A' && c <= 'Z') ? c.toLowerCase() : c;
+    }
+    var low = c.toLowerCase();
+    if (low.length !== 1) return c;
+    return OMN_FOLD_TABLE[low] || low;
+}
+
+// omnFold folds a whole string. The result holds one character for each
+// character of the input, thus an offset into it is an offset into the
+// original.
+function omnFold(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+        out += omnFoldChar(s.charAt(i));
+    }
+    return out;
+}
+
 // OMN_HL_SCROLLED records that arrival with ?hl= has scrolled the page to the
 // word that matched. The fragment scroll near the end of this file reads it
 // and does nothing, so that the coarser target does not cancel the exact one.
@@ -195,7 +253,7 @@ function omnHighlightTerms(terms) {
     if (!preview || !terms || !terms.length) return null;
 
     var needles = terms
-        .map(function (t) { return t.toLowerCase(); })
+        .map(function (t) { return omnFold(t); })
         .filter(function (t) { return t.length >= OMN_HL_MIN; });
     if (!needles.length) return null;
 
@@ -224,14 +282,16 @@ function omnHighlightTerms(terms) {
     var firstMark = null;
     nodes.forEach(function (textNode) {
         var value = textNode.nodeValue;
-        var lower = value.toLowerCase();
+        // The fold keeps one character for each character, thus an offset
+        // into folded is an offset into value.
+        var folded = omnFold(value);
         var pieces = null;
         var at = 0;
 
         while (at < value.length) {
             var bestAt = -1, bestLen = 0;
             for (var i = 0; i < needles.length; i++) {
-                var idx = lower.indexOf(needles[i], at);
+                var idx = folded.indexOf(needles[i], at);
                 if (idx !== -1 && (bestAt === -1 || idx < bestAt)) {
                     bestAt = idx;
                     bestLen = needles[i].length;
@@ -303,7 +363,7 @@ function omnFlatten(raw) {
             }
             continue;
         }
-        out += c.toLowerCase();
+        out += omnFoldChar(c);
         map.push(i);
         lastSpace = false;
     }

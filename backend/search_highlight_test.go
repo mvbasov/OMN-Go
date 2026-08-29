@@ -12,8 +12,11 @@ package backend
 
 import (
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func hlOf(t *testing.T, query string) []string {
@@ -306,4 +309,98 @@ func excerpt(page, needle string) string {
 		}
 	}
 	return "(" + needle + " not found)"
+}
+
+// ---------------------------------------------------------------------
+// The frontend copy of the fold table
+//
+// The server folds before it matches, and it sends the UNFOLDED term in
+// ?hl= (see TestHighlightTermsAreNotFolded above). omn-go-core.js thus has
+// to fold both sides itself, or a note titled "Ёлка" opens with nothing
+// marked after a search for "елка". It did exactly that until 26.08.79.
+//
+// The table therefore exists twice, in Go and in JavaScript. That is the
+// same arrangement as isHeaderFirstLine, and it needs the same guard: a
+// test that fails when one copy moves and the other does not.
+// ---------------------------------------------------------------------
+
+// jsFoldTableRe reads the body of OMN_FOLD_TABLE from omn-go-core.js.
+var jsFoldTableRe = regexp.MustCompile(`(?s)var OMN_FOLD_TABLE = \{(.*?)\n\};`)
+
+// jsFoldPairRe reads one row. Both sides are \u escapes or plain ASCII.
+var jsFoldPairRe = regexp.MustCompile(`'(\\u[0-9a-fA-F]{4}|[ -~])':\s*'(\\u[0-9a-fA-F]{4}|[ -~])'`)
+
+// jsFoldRune turns one side of a row into the rune it names.
+func jsFoldRune(t *testing.T, lit string) rune {
+	t.Helper()
+	if !strings.HasPrefix(lit, `\u`) {
+		return []rune(lit)[0]
+	}
+	n, err := strconv.ParseInt(lit[2:], 16, 32)
+	if err != nil {
+		t.Fatalf("bad escape %q in OMN_FOLD_TABLE: %v", lit, err)
+	}
+	return rune(n)
+}
+
+func TestFoldTableHasAFrontendCopy(t *testing.T) {
+	raw, err := staticFS.ReadFile("frontend/html/js/omn-go-core.js")
+	if err != nil {
+		t.Fatalf("omn-go-core.js is not embedded: %v", err)
+	}
+	body := jsFoldTableRe.FindStringSubmatch(string(raw))
+	if body == nil {
+		t.Fatal("omn-go-core.js holds no OMN_FOLD_TABLE. " +
+			"The page highlight then misses every folded character, and a " +
+			"search for \"елка\" opens \"Ёлка\" with nothing marked.")
+	}
+
+	js := map[rune]rune{}
+	for _, m := range jsFoldPairRe.FindAllStringSubmatch(body[1], -1) {
+		js[jsFoldRune(t, m[1])] = jsFoldRune(t, m[2])
+	}
+
+	// Same size, and the same entry for each key. A missing row is a
+	// character the reader sees marked in the panel and not in the page.
+	// An extra row marks a word that the server never matched.
+	for from, to := range foldTable {
+		got, ok := js[from]
+		switch {
+		case !ok:
+			t.Errorf("foldTable maps %q to %q, and OMN_FOLD_TABLE has no row "+
+				"for it. Add '\\u%04x': '\\u%04x' to omn-go-core.js.", from, to, from, to)
+		case got != to:
+			t.Errorf("foldTable maps %q to %q, OMN_FOLD_TABLE maps it to %q", from, to, got)
+		}
+	}
+	for from, to := range js {
+		if _, ok := foldTable[from]; !ok {
+			t.Errorf("OMN_FOLD_TABLE maps %q to %q, and foldTable has no row "+
+				"for it. The page then marks a word the server never matched.", from, to)
+		}
+	}
+
+	// Every row must keep the length, in both copies. A fold that grows
+	// moves every span after it, and the marks land on the wrong words.
+	for from, to := range foldTable {
+		if len(string(from)) != len(string(from)) || to == 0 {
+			t.Errorf("row %q is not one rune to one rune", from)
+		}
+		if utf8.RuneCountInString(string(to)) != 1 {
+			t.Errorf("foldTable maps %q to %d runes, want 1", from, utf8.RuneCountInString(string(to)))
+		}
+	}
+
+	// The two call sites must use the fold, or the table is dead code.
+	for _, want := range []string{
+		"omnFold(t)",      // the needles of omnHighlightTerms
+		"omnFold(value)",  // the text it searches
+		"omnFoldChar(c)",  // omnFlatten, which places the mark
+		"folded.indexOf(", // the search itself
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("omn-go-core.js does not hold %q. The fold table is "+
+				"then present and unused, which is worse than absent.", want)
+		}
+	}
 }
