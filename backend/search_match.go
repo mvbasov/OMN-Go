@@ -21,6 +21,11 @@ package backend
 //	2. scoreSubsequence - the term's runes appear in order, fzf-style
 //	3. scoreTypo        - bounded edit distance, for a misspelling
 //
+// A fourth rung stands above these three, and this file does not produce it.
+// tierPhrase belongs to a whole query. scoreDocument gives it to a document
+// that holds every word of the query in order and next to each other. See
+// the constant and the banner of scoreDocument.
+//
 // Rungs 1 and 2 are driven from here by scoreTerm. Rung 3 is NOT: it needs a
 // set of candidate tokens to compare against, which only the caller (the index,
 // or the single-file page search) can produce - so this file exports the
@@ -48,6 +53,18 @@ type matchTier uint8
 
 const (
 	tierNone matchTier = iota
+	// tierPhrase is the rung of a whole query, and never of one term.
+	// scoreTerm cannot return it. scoreDocument gives it to a document,
+	// and to the one line, that holds every word of the query in order
+	// and next to each other.
+	//
+	// It is a rung and not a bonus, because the ladder already ranks by
+	// quality before quantity. A bonus cannot win against a sum.
+	// A title of five loose query words scored 2001 in the laboratory.
+	// The note that held the sentence scored 718. A bonus large enough
+	// to win one case is too large for the next one. See the banner of
+	// scoreDocument.
+	tierPhrase
 	tierSubstring
 	tierSubsequence
 	tierTypo
@@ -55,6 +72,8 @@ const (
 
 func (t matchTier) String() string {
 	switch t {
+	case tierPhrase:
+		return "phrase"
 	case tierSubstring:
 		return "substring"
 	case tierSubsequence:

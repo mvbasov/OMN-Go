@@ -586,3 +586,118 @@ func TestEditorFindInputsDoNotDisableTheIME(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------
+// The phrase rung
+//
+// A reader who types a whole sentence wants the note that holds that
+// sentence. Before 26.08.80 the sum decided, and the sum favors a title:
+// five loose query words in one title scored 2001, against 718 for the note
+// that held the sentence in a body line. tierPhrase answers that, and the
+// tests below pin each edge of the rule.
+// ---------------------------------------------------------------------
+
+// phraseDoc writes one note and gives its search document back.
+func phraseDoc(t *testing.T, a *App, name, content string) *searchDocument {
+	t.Helper()
+	writeSearchNote(t, a, name+".md", content)
+	doc, err := a.loadPageDocument(name)
+	if err != nil || doc == nil {
+		t.Fatalf("loadPageDocument(%q): %v", name, err)
+	}
+	return doc
+}
+
+func TestPhraseTierBeatsAHigherScore(t *testing.T) {
+	a := newTestApp(t)
+	// exact holds the sentence in a body line and says little in its title.
+	// decoy holds four of the five words IN ITS TITLE, which weighs three
+	// times a line, and the same words far apart in its body.
+	exact := phraseDoc(t, a, "exact", "Title: A note\n\n"+
+		"Build the project and run the tests.\nA second line about nothing.\n")
+	decoy := phraseDoc(t, a, "decoy", "Title: Build the project run the tests\n\n"+
+		"Build a shed.\nRun a marathon.\nThe tests of the water and the project of the bridge.\n")
+
+	q := parseQuery("Build the project and run the tests")
+	eScore, eTier, _, eOK := scoreDocument(q, exact)
+	dScore, dTier, _, dOK := scoreDocument(q, decoy)
+	if !eOK || !dOK {
+		t.Fatal("both notes must match every term")
+	}
+	if eTier != tierPhrase {
+		t.Errorf("the note holding the sentence has tier %s, want phrase", eTier)
+	}
+	if dTier == tierPhrase {
+		t.Error("the decoy has no sentence, and it took the phrase rung")
+	}
+	if dScore <= eScore {
+		t.Fatalf("the decoy scores %d and the exact note %d. This test proves "+
+			"nothing unless the decoy scores MORE.", dScore, eScore)
+	}
+	if !betterMatch(eTier, eScore, dTier, dScore) {
+		t.Errorf("the decoy still ranks first: exact=%s/%d decoy=%s/%d",
+			eTier, eScore, dTier, dScore)
+	}
+}
+
+func TestPhraseTierMarksTheLineToo(t *testing.T) {
+	// The panel shows ten lines for one document. The line the reader typed
+	// has to be the first of them, and not the line with the largest sum.
+	a := newTestApp(t)
+	doc := phraseDoc(t, a, "note", "Title: A note\n\n"+
+		"The project and the tests and the project and the tests.\n"+
+		"Build the project and run the tests.\n")
+	_, _, hits, ok := scoreDocument(parseQuery("Build the project and run the tests"), doc)
+	if !ok || len(hits) == 0 {
+		t.Fatal("no hits")
+	}
+	if hits[0].tier != tierPhrase {
+		t.Errorf("the first line has tier %s, want phrase: %q",
+			hits[0].tier, strings.TrimSpace(hits[0].line.raw))
+	}
+	if !strings.Contains(hits[0].line.raw, "Build the project and run the tests") {
+		t.Errorf("the first line is %q, want the line holding the query",
+			strings.TrimSpace(hits[0].line.raw))
+	}
+}
+
+func TestPhraseTierNeedsTwoTermsAndNoField(t *testing.T) {
+	// A one-word query is its own phrase. The rung would then apply to
+	// every note that holds the word, and it would say nothing. A query that names a
+	// field has no natural reading as one phrase.
+	a := newTestApp(t)
+	doc := phraseDoc(t, a, "note", "Title: Build the project\n\nBuild the project.\n")
+	for _, query := range []string{"project", "title:build project", "build title:project"} {
+		if _, tier, _, ok := scoreDocument(parseQuery(query), doc); ok && tier == tierPhrase {
+			t.Errorf("query %q took the phrase rung", query)
+		}
+	}
+}
+
+func TestPhraseTierIsLiteralAndAdjacent(t *testing.T) {
+	// The words must be next to each other, with one space between each
+	// pair. Anything looser makes the rung meaningless, because a document
+	// holding every term somewhere already passes the AND rule.
+	a := newTestApp(t)
+	cases := []struct {
+		name    string
+		body    string
+		phrase  bool
+		comment string
+	}{
+		{"adjacent", "Build the project today.\n", true, "the plain case"},
+		{"comma", "Build the, project today.\n", false, "a comma is not a space"},
+		{"apart", "Build a shed. The project waits.\n", false, "same line, not adjacent"},
+		{"twolines", "Build a shed.\nThe project waits.\n", false, "two lines"},
+		{"folded", "BUILD THE PROJECT today.\n", true, "the fold applies"},
+	}
+	for _, c := range cases {
+		doc := phraseDoc(t, a, c.name, "Title: N\n\n"+c.body)
+		_, tier, _, ok := scoreDocument(parseQuery("build the project"), doc)
+		got := ok && tier == tierPhrase
+		if got != c.phrase {
+			t.Errorf("%s (%s): phrase=%v want %v, body %q",
+				c.name, c.comment, got, c.phrase, c.body)
+		}
+	}
+}

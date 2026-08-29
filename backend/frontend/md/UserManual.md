@@ -503,6 +503,8 @@ All terms must match. The query `fetch json` finds the notes that contain both t
 
 OMN-Go ignores case and accents in every script. The query `елка` finds `Ёлка`.
 
+Type a whole sentence to find the note that says that sentence. A note holding every word of the query, in order and next to each other, comes first. The line that holds it is the first result of that note. The words must be next to each other. A comma between two words breaks the sentence, and OMN-Go then ranks the note by its words alone.
+
 ### Reading the results
 
 Each line shows where the match is, and highlights the match. A `‹/›` mark tells you that the line is in a note script or in a code block, and not in prose. OMN-Go does not rank such a line lower, because code in notes is a normal thing to look for.

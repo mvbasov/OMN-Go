@@ -667,6 +667,24 @@ therefore ranks above a document that only suggests it:
 3. **bounded edit distance** (Damerau/OSA) for terms of 4+ runes — `fecth`
    finds `fetch`
 
+A fourth rung, **phrase**, stands above these three. It belongs to a whole
+query and never to one term, thus no term can reach it. A document takes it
+when one field or one line holds every word of the query in order. One space
+separates each pair, in the folded text. That document then ranks above
+every document that does not hold the query, whatever the scores say. The
+line that holds it takes the rung too, thus that line is the first snippet
+of its document.
+
+The rule is narrow on purpose. A comma between two words is not a space. A
+query of one term is not a phrase. A query that names a field is not a
+phrase, because `title:a b` has no natural reading as one.
+
+The reason is arithmetic. A document score is the sum over the terms, and a
+field carries a weight. Several query words loose in one title thus outscore
+a body line that holds the sentence. A bonus large enough to close that gap
+in one query is too large in the next one. See the banner of `scoreDocument`
+in `backend/search.go` for the measurements. New in 26.08.80.
+
 **Response** `200`
 
 ```json
