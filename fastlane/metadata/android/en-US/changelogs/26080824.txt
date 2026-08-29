@@ -1,0 +1,14 @@
+• Fix file index page
+• Fix code blocks theme
+• Fix display after add new page
+• Fix. Minimize default page template
+• Fix copy page content on Android 6
+• Fix. Note file name now can contain several '.'
+• Add more selection modes to internal editor
+• Add copy page link button ti metadata owerlay
+• Add force to push dialog and remove force from header
+• Add configure logs
+• Add useful internal JS function description to User Manual
+• Add new Markdown shortcuts to internal editor Emmet
+• Tune search engine
+
