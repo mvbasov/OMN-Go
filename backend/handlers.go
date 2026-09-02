@@ -901,7 +901,7 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(linkHref, "/") {
 				linkHref = "/" + target
 			}
-			linkStr := fmt.Sprintf("* [%s](%s)", title, linkHref)
+			linkStr := fmt.Sprintf("* [%s](%s.html)", title, linkHref)
 
 			// Same header decision as everywhere else (see header_block.go).
 			// The new link is inserted just below the header block when one
