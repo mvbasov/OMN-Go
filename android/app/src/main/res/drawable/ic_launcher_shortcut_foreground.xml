@@ -12,7 +12,7 @@
           android:fillColor="#ffffff"
           android:strokeColor="#a0a0a0"
           android:fillType="evenOdd"/>
-      <path android:fillColor="#00cbff" android:fillType="evenOdd"
+      <path android:fillColor="#0f0fc8" android:fillType="evenOdd"
           android:pathData="m156.7,211.101c0,0 -22.9,-8.5 8.5,-42.299l8.5,-8.5 25.4,27.199 0,-77.998 -67.7,0 18.6,23.799 -27.1,27.099c0,0 -10.5,13 8.5,33.799 15.5,17 25.3,16.9 25.3,16.9l0,0z"/>
     </group>
   </group>

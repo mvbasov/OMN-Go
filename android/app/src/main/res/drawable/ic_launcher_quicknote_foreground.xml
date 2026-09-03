@@ -13,7 +13,7 @@
           android:strokeColor="#a0a0a0"
           android:fillType="evenOdd"/>
       <group android:scaleX="4" android:scaleY="4" android:translateX="109.95" android:translateY="108.052">
-        <path android:fillColor="#00cbff"
+        <path android:fillColor="#0f0fc8"
             android:pathData="M21.99,4c0,-1.1 -0.89,-2 -1.99,-2L4,2c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h14l4,4 -0.01,-18zM18,14L6,14v-2h12v2zM18,11L6,11L6,9h12v2zM18,8L6,8L6,6h12v2z"/>
       </group>
     </group>
