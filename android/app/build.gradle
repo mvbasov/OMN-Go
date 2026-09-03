@@ -21,8 +21,8 @@ android {
         // and omn-go-compat in index.html says so on screen when it is not.
         minSdk 23
         targetSdk 34
-        versionCode 2609001
-        versionName "26.09.1"
+        versionCode 2609002
+        versionName "26.09.2"
     }
 
 
