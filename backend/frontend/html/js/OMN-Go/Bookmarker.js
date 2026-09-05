@@ -3,9 +3,37 @@ const duplicateTag = '!Duplicates';
 const noTagTag = '!NoTag';
 const config = {};
 const embedCont = document.querySelector('#preview');
+// The one key that holds the settings of this page in localStorage.
+//
+// A PREFIX OF THE APPLICATION ID STOOD HERE UNTIL 26.09.15, AND IT NEVER
+// RAN. The three lines held three faults:
+//
+//   * configKey was a const, thus the assignment threw a TypeError.
+//   * the test read packgeName and the body read packageName.
+//   * neither name existed anywhere in the frontend.
+//
+// The code was therefore dead. The test of an undefined name is always
+// false, thus the branch never started and nothing threw.
+//
+// THE PREFIX ALSO ANSWERED NO QUESTION. It was there to keep the settings
+// of the standard build apart from the settings of the F-Droid build. Two
+// rules already do that:
+//
+//   * localStorage belongs to one origin, and an origin holds the port.
+//     The standard build serves 8080 and the F-Droid build serves 8081.
+//     See DEFAULT_SERVER_PORT in android/app/build.gradle.
+//   * On Android each flavor is a separate application with a storage
+//     directory of its own, thus the WebView data is separate as well.
+//
+// The one name that the page could have used is PackageName, which
+// index.html injects. That value is the literal "net.basov.omngo" for
+// each build. See compilePageWithBody in backend/markdown.go. A prefix
+// from it would therefore be the same text on both flavors.
+//
+// The name below is therefore the whole rule. It does not change, and a
+// change of it makes each reader lose the settings of this page. See
+// TestBookmarkerConfigKeyIsWellFormed.
 const configKey = 'OMNBookmarkerConfigG';
-if (typeof packgeName !== 'undefined' && packgeName)
-  configKey = packageName.replace('\.','-') + '_' + configKey;
 let index = {};
 let durls = [];
 // Remove si= reference from YouTube url
