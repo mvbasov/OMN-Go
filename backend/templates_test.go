@@ -201,13 +201,11 @@ func TestRenderEditorPage(t *testing.T) {
 func TestRenderConfigPage(t *testing.T) {
 	v := configPageView{
 		ServerPort:    8080,
-		AdminPassword: `p"w<d`,
-		GuestPassword: "guest",
 		Author:        "A & B",
 		UseInternalEd: true,
 		DesktopExtCmd: "subl",
 		GitServers: []gitServerView{
-			{Index: 0, Slot: 1, Active: true, Name: `srv "one"`, URL: "git@host:repo.git", SSHKeyData: "-----KEY-----", Password: "s3cret"},
+			{Index: 0, Slot: 1, Active: true, Name: `srv "one"`, URL: "git@host:repo.git"},
 			{Index: 1, Slot: 2, Active: false, Name: "srv two"},
 		},
 	}
@@ -217,9 +215,8 @@ func TestRenderConfigPage(t *testing.T) {
 		t.Fatalf("unfilled placeholder left in output:\n%s", out)
 	}
 	// Stored-XSS regression: attacker-ish values must arrive escaped.
-	if !strings.Contains(out, `value="p&quot;w&lt;d"`) {
-		t.Error("admin password not HTML-escaped in attribute")
-	}
+	// The view holds no password since 26.09.7, thus the git server name
+	// carries this check now. See TestConfigPageCarriesNoSecret.
 	if !strings.Contains(out, "srv &quot;one&quot;") {
 		t.Error("git server name not HTML-escaped")
 	}

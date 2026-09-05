@@ -994,6 +994,11 @@ Return the whole live configuration as JSON. **The response includes
 `admin_password`, `guest_password`, and the SSH private key and password of
 every git server slot, all in cleartext.**
 
+The Config page reads this endpoint for that reason. Since 26.09.7 the page
+renders each password box and each SSH key box empty, thus the HTML of the
+page holds no secret. The **Show passwords** button calls this endpoint and
+fills the boxes. See `omnGoRevealSecrets` in `omn-go-sse.js`.
+
 **Response** `200`, `application/json`:
 
 ```json
@@ -1064,9 +1069,15 @@ Update the configuration and save it to `config.json`.
 Content type: `application/x-www-form-urlencoded` (or query string).
 
 **A field the request does not carry is left as it is.** Send one field to
-change one setting; the rest of the configuration is not touched. A field
+change one setting. The rest of the configuration is not touched. A field
 that IS carried is applied even when its value is empty, which is how the
 Config page clears a text box.
+
+> **Changed in 26.09.7.** The four git-server fields of one slot now follow
+> that rule one field at a time. Until that version the handler wrote each
+> of the four when a minimum of one was not empty. A request that named
+> `git_name_0` alone therefore wrote an empty SSH key and an empty key
+> password over the stored ones.
 
 > **Changed in 26.08.43.** Before that version this endpoint rebuilt the
 > whole configuration from the request, so a request that named one field

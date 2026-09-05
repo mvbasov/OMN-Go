@@ -315,10 +315,114 @@ if (window.location.protocol !== 'file:') {
         }
         // Export to global scope to preserve HTML onclick attributes
 
+    // --- The secrets of the Config page ---
+    //
+    // The Config page renders each password box and each SSH key box
+    // EMPTY. The compiled HTML thus holds no secret, and a reader of the
+    // storage directory finds none there. See the banner of gitServerView
+    // in backend/templates.go.
+    //
+    // An empty box must therefore mean "keep the stored value", and not
+    // "clear the stored value". The two rules below give that meaning:
+    //
+    //   1. A box that carries data-secret gets data-dirty="1" when the
+    //      reader types in it.
+    //   2. saveConfig removes each data-secret box that is not dirty from
+    //      the FormData. handleConfig then sees no such field and keeps
+    //      the stored value. See configFieldSent.
+    //
+    // A reader who empties a box by hand makes it dirty, thus an empty
+    // value reaches the server and clears the stored value. That is the
+    // behavior that a person expects, and it is the behavior of each
+    // version before 26.09.7.
+    //
+    // revealSecrets fills each box from GET /api/config, which is admin
+    // only. It sets no dirty flag, thus a reveal alone changes nothing.
+
+    function secretFields(form) {
+        return form.querySelectorAll('[data-secret]');
+    }
+
+    // secretValue finds one secret in the answer of GET /api/config.
+    // The name of the box is the key, and a git field carries its slot
+    // number, for example git_key_2.
+    function secretValue(cfg, name) {
+        if (name === 'admin_password') return cfg.admin_password || '';
+        if (name === 'guest_password') return cfg.guest_password || '';
+        const git = /^git_(key|pass)_(\d+)$/.exec(name);
+        if (git) {
+            const slot = (cfg.git_servers || [])[Number(git[2])];
+            if (!slot) return '';
+            return (git[1] === 'key' ? slot.ssh_key_data : slot.password) || '';
+        }
+        return '';
+    }
+
+    window.omnGoRevealSecrets = async function (btn) {
+        const form = document.getElementById('configForm');
+        if (!form || !btn) return;
+        const label = btn.querySelector('[data-reveal-label]');
+        const icon = btn.querySelector('.material-icons');
+        const boxes = secretFields(form);
+
+        if (btn.dataset.shown === '1') {
+            boxes.forEach(function (el) {
+                if (el.dataset.dirty === '1') return;
+                el.value = '';
+                if (el.tagName === 'INPUT') el.type = 'password';
+            });
+            btn.dataset.shown = '';
+            if (icon) icon.textContent = 'visibility';
+            if (label) label.textContent = btn.dataset.showLabel || label.textContent;
+            return;
+        }
+
+        let cfg;
+        try {
+            const res = await fetch('/api/config');
+            if (res.status === 401 || res.status === 403) {
+                alert('Log in as admin on a note page to read the passwords.');
+                return;
+            }
+            if (!res.ok) { alert('Failed to read the configuration: ' + res.status); return; }
+            cfg = await res.json();
+        } catch (e) {
+            alert('Network error: ' + e);
+            return;
+        }
+
+        // Filling a box with JavaScript raises no input event, thus this
+        // marks nothing dirty and saveConfig still sends nothing.
+        boxes.forEach(function (el) {
+            if (el.dataset.dirty === '1') return;
+            el.value = secretValue(cfg, el.dataset.secret);
+            if (el.tagName === 'INPUT') el.type = 'text';
+        });
+        btn.dataset.shown = '1';
+        if (icon) icon.textContent = 'visibility_off';
+        if (label) {
+            btn.dataset.showLabel = label.textContent;
+            label.textContent = 'Hide';
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('configForm');
+        if (!form) return;
+        secretFields(form).forEach(function (el) {
+            el.addEventListener('input', function () { el.dataset.dirty = '1'; });
+        });
+    });
+
     window.saveConfig = async function() {
         const form = document.getElementById('configForm');
         if (!form) { alert('Config form not found'); return; }
         const fd = new FormData(form);
+        // A secret box that the reader did not touch carries no meaning,
+        // thus it must not reach the server at all. See the note above.
+        secretFields(form).forEach(function (el) {
+            if (el.dataset.dirty !== '1' && el.name) fd.delete(el.name);
+        });
         try {
             const res = await fetch('/api/config', { method: 'POST', body: fd });
             if (res.ok) {

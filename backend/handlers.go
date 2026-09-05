@@ -26,10 +26,10 @@ func (a *App) getConfigPageBody() string {
 		cfg.GitServers = append(cfg.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(cfg.GitServers)+1)})
 	}
 
+	// The view carries no password and no SSH key. See the banner of
+	// gitServerView in templates.go.
 	view := configPageView{
 		ServerPort:         cfg.ServerPort,
-		AdminPassword:      cfg.AdminPassword,
-		GuestPassword:      cfg.GuestPassword,
 		Author:             cfg.Author,
 		UseInternalEd:      cfg.UseInternalEd,
 		DesktopExtCmd:      cfg.DesktopExtCmd,
@@ -52,13 +52,11 @@ func (a *App) getConfigPageBody() string {
 	}
 	for i, gs := range cfg.GitServers {
 		view.GitServers = append(view.GitServers, gitServerView{
-			Index:      i,
-			Slot:       i + 1,
-			Active:     cfg.ActiveGitIndex == i,
-			Name:       gs.Name,
-			URL:        gs.URL,
-			SSHKeyData: gs.SSHKeyData,
-			Password:   gs.Password,
+			Index:  i,
+			Slot:   i + 1,
+			Active: cfg.ActiveGitIndex == i,
+			Name:   gs.Name,
+			URL:    gs.URL,
 		})
 	}
 
@@ -264,18 +262,28 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 					c.ActiveGitIndex = idx
 				}
 			}
-			// Update all git server slots
+			// Each git-server field follows the same sent() rule as each
+			// field above. A field that the request does not carry keeps
+			// the value that the configuration holds.
+			//
+			// The old rule read the four fields of a slot and wrote each
+			// one when a minimum of one was not empty. That rule needed a
+			// page that carries the SSH key and the key password. The
+			// Config page carries neither since 26.09.7. A save that
+			// changed the name alone would then write an empty key and
+			// an empty password over the real ones.
 			for i := 0; i < maxGitServers; i++ {
-				name := r.FormValue(fmt.Sprintf("git_name_%d", i))
-				url := r.FormValue(fmt.Sprintf("git_url_%d", i))
-				keyData := r.FormValue(fmt.Sprintf("git_key_%d", i))
-				pass := r.FormValue(fmt.Sprintf("git_pass_%d", i))
-				// update fields if any non‑empty value is supplied (allows clearing)
-				if name != "" || url != "" || keyData != "" || pass != "" {
-					c.GitServers[i].Name = name
-					c.GitServers[i].URL = url
-					c.GitServers[i].SSHKeyData = keyData
-					c.GitServers[i].Password = pass
+				if f := fmt.Sprintf("git_name_%d", i); sent(f) {
+					c.GitServers[i].Name = r.FormValue(f)
+				}
+				if f := fmt.Sprintf("git_url_%d", i); sent(f) {
+					c.GitServers[i].URL = r.FormValue(f)
+				}
+				if f := fmt.Sprintf("git_key_%d", i); sent(f) {
+					c.GitServers[i].SSHKeyData = r.FormValue(f)
+				}
+				if f := fmt.Sprintf("git_pass_%d", i); sent(f) {
+					c.GitServers[i].Password = r.FormValue(f)
 				}
 			}
 			snapshot = *c

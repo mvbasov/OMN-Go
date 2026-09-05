@@ -146,13 +146,25 @@
                 <label class="config-label">Server Port</label>
                 <input type="number" id="cfgPort" name="server_port" value="%%SERVER_PORT%%" class="config-input" required />
             </div>
+            <!-- The two password boxes are EMPTY on purpose, and they carry
+                 no value attribute. The page source thus holds no password.
+                 data-secret marks the box for omn-go-sse.js: an empty box
+                 that the reader did not touch leaves the stored password as
+                 it is. See revealSecrets and saveConfig. -->
             <div class="config-field">
                 <label class="config-label">Admin Password</label>
-                <input type="password" id="cfgAdminPwd" name="admin_password" value="%%ADMIN_PWD%%" class="config-input" required />
+                <input type="password" id="cfgAdminPwd" name="admin_password" value="" data-secret="admin_password" autocomplete="new-password" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679; unchanged" class="config-input" />
             </div>
             <div class="config-field">
                 <label class="config-label">Guest Password</label>
-                <input type="password" id="cfgGuestPwd" name="guest_password" value="%%GUEST_PWD%%" class="config-input" required />
+                <input type="password" id="cfgGuestPwd" name="guest_password" value="" data-secret="guest_password" autocomplete="new-password" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679; unchanged" class="config-input" />
+            </div>
+            <div class="config-field">
+                <button type="button" class="config-link-btn" data-reveal onclick="omnGoRevealSecrets(this)">
+                    <i class="material-icons">visibility</i>
+                    <span data-reveal-label>Show passwords</span>
+                </button>
+                <span class="config-hint">A box that stays empty keeps the password that this device already holds. Type in a box to change that password. Empty a revealed box to remove that password.</span>
             </div>
             <div class="config-field">
                 <div class="config-checkbox-row">
@@ -363,6 +375,16 @@
             <div class="config-subhead">
                 <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
                 <h2 class="config-subtitle">Git Sync</h2>
+            </div>
+            <!-- The SSH key box and the key password box of each slot are
+                 empty for the same reason as the two password boxes of the
+                 Network screen. See the note there. -->
+            <div class="config-field">
+                <button type="button" class="config-link-btn" data-reveal onclick="omnGoRevealSecrets(this)">
+                    <i class="material-icons">visibility</i>
+                    <span data-reveal-label>Show keys and passwords</span>
+                </button>
+                <span class="config-hint">A box that stays empty keeps the key, or the password, that this device already holds.</span>
             </div>
 %%GIT_SERVERS%%
             <div class="config-field config-save-row">

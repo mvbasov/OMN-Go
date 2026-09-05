@@ -246,20 +246,24 @@ func renderEditorPage(v editorPageView) string {
 
 // --- Configuration Dashboard ---
 
+// gitServerView is one git-server slot as the Config page shows it.
+//
+// It carries NO SSH key and NO key password, and configPageView carries no
+// admin password and no guest password. A secret in a view reaches the HTML
+// of the page. The page is a file on disk, and each reader of the device
+// can open it. Since 26.09.7 the boxes are empty, and the reader
+// presses "Show passwords" to read the values from GET /api/config. See
+// revealSecrets in omn-go-sse.js.
 type gitServerView struct {
-	Index      int
-	Slot       int
-	Active     bool
-	Name       string
-	URL        string
-	SSHKeyData string
-	Password   string
+	Index  int
+	Slot   int
+	Active bool
+	Name   string
+	URL    string
 }
 
 type configPageView struct {
 	ServerPort         int
-	AdminPassword      string
-	GuestPassword      string
 	Author             string
 	UseInternalEd      bool
 	DesktopExtCmd      string
@@ -339,14 +343,13 @@ func renderConfigPage(v configPageView) string {
 		if gs.Active {
 			checked = "checked"
 		}
+		// No SSH_KEY and no PASSWORD. See the banner of gitServerView.
 		cards.WriteString(fill(gitServerCardTmpl, map[string]string{
 			"INDEX":          fmt.Sprintf("%d", gs.Index),
 			"SLOT":           fmt.Sprintf("%d", gs.Slot),
 			"ACTIVE_CHECKED": checked,
 			"NAME":           escapeHTML(gs.Name),
 			"URL":            escapeHTML(gs.URL),
-			"SSH_KEY":        escapeHTML(gs.SSHKeyData),
-			"PASSWORD":       escapeHTML(gs.Password),
 		}))
 	}
 
@@ -431,10 +434,9 @@ func renderConfigPage(v configPageView) string {
 		fsSel["FS_ON_SEL"] = "selected"
 	}
 
+	// No ADMIN_PWD and no GUEST_PWD. See the banner of gitServerView.
 	return fill(configPageTmpl, map[string]string{
 		"SERVER_PORT":            fmt.Sprintf("%d", v.ServerPort),
-		"ADMIN_PWD":              escapeHTML(v.AdminPassword),
-		"GUEST_PWD":              escapeHTML(v.GuestPassword),
 		"AUTHOR":                 escapeHTML(v.Author),
 		"INTERNAL_ED_CHECKED":    internalEdChecked,
 		"SHARE_LAN_CHECKED":      shareLanChecked,
