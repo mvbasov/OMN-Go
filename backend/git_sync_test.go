@@ -36,6 +36,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -420,5 +421,360 @@ func TestSyncHarnessSeesALocalChange(t *testing.T) {
 	}
 	if !dirty {
 		t.Error("the tracked change of the step above was lost")
+	}
+}
+
+// ----------------------------------------------------------------------
+// The six sync paths
+// ----------------------------------------------------------------------
+//
+// One test for each action of the SyncRepo switch. Two more tests hold a
+// rule that a banner of git_helper.go names and that no test held. A pull
+// must not touch a database file. A pull must also remake the html/ copy
+// of a text file that lives beside a note.
+
+// A note that another device deleted must go away here as well. The rule
+// is narrow on purpose. syncPull removes a path that WAS tracked and is
+// no longer in the remote tree, and it removes nothing else. A wider rule
+// would delete config.json and each database file.
+func TestSyncPullRemovesAFileTheRemoteDropped(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "two notes", map[string]string{
+		"md/Keep.md": "keep me\n",
+		"md/Drop.md": "drop me\n",
+	})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	if !gsExists(a, "md/Drop.md") {
+		t.Fatal("the first pull did not bring md/Drop.md")
+	}
+
+	// A file that git never tracked must survive the pull below.
+	gsWrite(t, a, "html/user_json/local-notes.json", "{}\n")
+
+	gsSeedRemote(t, remote, "drop one note", map[string]string{"md/Drop.md": ""})
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the second pull: %v", err)
+	}
+
+	if gsExists(a, "md/Drop.md") {
+		t.Error("md/Drop.md is still here after the remote dropped it")
+	}
+	if !gsExists(a, "md/Keep.md") {
+		t.Error("md/Keep.md went away with the dropped note")
+	}
+	if !gsExists(a, "html/user_json/local-notes.json") {
+		t.Error("the pull deleted a file that git never tracked")
+	}
+}
+
+// A pull must refuse while a tracked file holds a change that no commit
+// carries. The alternative is a silent loss of the work of the reader.
+// The answer is ErrSyncConflict, which handleSync turns into the modal
+// that offers an abort and a 3-way merge.
+func TestSyncPullRefusesOverALocalChange(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "the first text\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+
+	gsWrite(t, a, "md/One.md", "the text of this device\n")
+	gsSeedRemote(t, remote, "second", map[string]string{"md/One.md": "the text of the other device\n"})
+
+	err := a.SyncRepo("pull", "")
+	if !errors.Is(err, ErrSyncConflict) {
+		t.Fatalf("the pull answered %v, want ErrSyncConflict", err)
+	}
+	if got := gsRead(t, a, "md/One.md"); got != "the text of this device\n" {
+		t.Errorf("the pull changed the local file to %q", got)
+	}
+
+	// The conflict carries the files in contention, and the modal lists
+	// them. A conflict with no list leaves the reader with no information.
+	var conflict *syncConflictError
+	if errors.As(err, &conflict) {
+		if len(conflict.Files) != 1 || conflict.Files[0] != "md/One.md" {
+			t.Errorf("the conflict names %v, want md/One.md alone", conflict.Files)
+		}
+	} else {
+		t.Error("the conflict carries no file list")
+	}
+}
+
+// pull_mark writes diff3 markers into each file in contention. The reader
+// then resolves them by hand and pushes. The local branch stays where it
+// is. The remote tip is saved as a pending second parent, thus the next
+// commit is a real merge commit. See the banner of syncPullMerge.
+func TestSyncPullMergeWritesMarkers(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "the first text\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	base := gsLocalHead(t, a)
+
+	gsWrite(t, a, "md/One.md", "the text of this device\n")
+	gsSeedRemote(t, remote, "second", map[string]string{"md/One.md": "the text of the other device\n"})
+
+	if err := a.SyncRepo("pull_mark", ""); err != nil {
+		t.Fatalf("SyncRepo(pull_mark): %v", err)
+	}
+
+	got := gsRead(t, a, "md/One.md")
+	for _, want := range []string{
+		"<<<<<<< LOCAL",
+		"the text of this device",
+		"||||||| BASE",
+		"the first text",
+		"=======",
+		"the text of the other device",
+		">>>>>>> REMOTE",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the marked file has no %q. It holds:\n%s", want, got)
+		}
+	}
+
+	if head := gsLocalHead(t, a); head != base {
+		t.Errorf("pull_mark moved the local branch to %s, want %s", head, base)
+	}
+	if _, ok := a.loadMergeParent(); !ok {
+		t.Error("pull_mark saved no merge parent, thus the next commit is not a merge")
+	}
+	if _, ok := a.loadPremergeHead(); !ok {
+		t.Error("pull_mark saved no pre-merge head, thus pull_abort has nothing to restore")
+	}
+}
+
+// pull_abort undoes a pull_mark. The file goes back to the content of the
+// last commit, and the two saved hashes go away. A reader who opens the
+// markers and changes their mind needs this to work.
+func TestSyncPullAbortRestoresTheHead(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "the first text\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	base := gsLocalHead(t, a)
+
+	gsWrite(t, a, "md/One.md", "the text of this device\n")
+	gsSeedRemote(t, remote, "second", map[string]string{"md/One.md": "the text of the other device\n"})
+	if err := a.SyncRepo("pull_mark", ""); err != nil {
+		t.Fatalf("SyncRepo(pull_mark): %v", err)
+	}
+
+	if err := a.SyncRepo("pull_abort", ""); err != nil {
+		t.Fatalf("SyncRepo(pull_abort): %v", err)
+	}
+
+	if got := gsRead(t, a, "md/One.md"); got != "the first text\n" {
+		t.Errorf("the file holds %q after the abort, want the committed text", got)
+	}
+	if head := gsLocalHead(t, a); head != base {
+		t.Errorf("the head is %s after the abort, want %s", head, base)
+	}
+	if _, ok := a.loadPremergeHead(); ok {
+		t.Error("the abort left the pre-merge head on disk")
+	}
+	if _, ok := a.loadMergeParent(); ok {
+		t.Error("the abort left the merge parent on disk")
+	}
+
+	// A second abort has nothing to undo and must answer without a fault.
+	if err := a.SyncRepo("pull_abort", ""); err != nil {
+		t.Errorf("the second abort: %v", err)
+	}
+}
+
+// A push commits each local change and sends the branch. This is the one
+// path that writes to the remote, thus it is the one path that another
+// device sees.
+func TestSyncPush(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "the first text\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	before := gsRemoteHead(t, remote)
+
+	gsWrite(t, a, "md/Two.md", "a note of this device\n")
+	if err := a.SyncRepo("push", "add a note"); err != nil {
+		t.Fatalf("SyncRepo(push): %v", err)
+	}
+
+	after := gsRemoteHead(t, remote)
+	if after == before {
+		t.Fatal("the push moved the remote head nowhere")
+	}
+	if local := gsLocalHead(t, a); local != after {
+		t.Errorf("the local head is %s and the remote head is %s", local, after)
+	}
+
+	// A third device must see the note. A clone of the bare repository
+	// stands for that device.
+	clone := filepath.Join(t.TempDir(), "third")
+	if _, err := git.PlainClone(clone, false, &git.CloneOptions{URL: remote}); err != nil {
+		t.Fatalf("cloning the remote: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(clone, "md", "Two.md"))
+	if err != nil {
+		t.Fatalf("md/Two.md did not reach the remote: %v", err)
+	}
+	if string(data) != "a note of this device\n" {
+		t.Errorf("the remote holds %q", string(data))
+	}
+}
+
+// A push with changes and no message must refuse. The frontend then asks
+// the reader for one. A commit with an empty message is a commit that
+// nobody can read later.
+func TestSyncPushNeedsAMessage(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	before := gsRemoteHead(t, remote)
+
+	gsWrite(t, a, "md/Two.md", "a new note\n")
+	if err := a.SyncRepo("push", "   "); !errors.Is(err, ErrCommitMessageRequired) {
+		t.Fatalf("the push answered %v, want ErrCommitMessageRequired", err)
+	}
+	if got := gsRemoteHead(t, remote); got != before {
+		t.Error("the refused push still moved the remote head")
+	}
+}
+
+// A force push writes over the remote. The reader asks for this after a
+// conflict that a merge cannot answer.
+func TestSyncPushForceOverwritesTheRemote(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	gsSeedRemote(t, remote, "from the other device", map[string]string{"md/Other.md": "other\n"})
+
+	gsWrite(t, a, "md/Two.md", "a note of this device\n")
+	if err := a.SyncRepo("push_force", "take my copy"); err != nil {
+		t.Fatalf("SyncRepo(push_force): %v", err)
+	}
+
+	if local, want := gsLocalHead(t, a), gsRemoteHead(t, remote); local != want {
+		t.Errorf("the local head is %s and the remote head is %s", local, want)
+	}
+	clone := filepath.Join(t.TempDir(), "third")
+	if _, err := git.PlainClone(clone, false, &git.CloneOptions{URL: remote}); err != nil {
+		t.Fatalf("cloning the remote: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(clone, "md", "Other.md")); err == nil {
+		t.Error("the force push kept the commit of the other device")
+	}
+}
+
+// THIS IS THE RULE THAT THE BANNER OF syncPull DESCRIBES AND THAT NO TEST
+// HELD. A database file is untracked and .gitignore covers it. A pull
+// must not remove it and must not write it again.
+//
+// The identity of the file on disk is what matters, and not the content
+// alone. SQLite holds an open handle. A file that goes away and comes
+// back with the same bytes is a different file to that handle. The next
+// write then answers "attempt to write a readonly database (1032)".
+// os.SameFile compares the identity.
+func TestSyncPullKeepsTheDatabaseFile(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+
+	gsWrite(t, a, "db/notes.sqlite", "not a real database, and that is enough\n")
+	before, err := os.Stat(filepath.Join(a.StorageDir, "db", "notes.sqlite"))
+	if err != nil {
+		t.Fatalf("the database file is absent: %v", err)
+	}
+
+	gsSeedRemote(t, remote, "second", map[string]string{"md/Two.md": "two\n"})
+	for _, action := range []string{"pull", "pull_force"} {
+		if err := a.SyncRepo(action, ""); err != nil {
+			t.Fatalf("SyncRepo(%s): %v", action, err)
+		}
+		after, err := os.Stat(filepath.Join(a.StorageDir, "db", "notes.sqlite"))
+		if err != nil {
+			t.Fatalf("%s removed the database file: %v", action, err)
+		}
+		if !os.SameFile(before, after) {
+			t.Errorf("%s replaced the database file with another file of the same name", action)
+		}
+	}
+}
+
+// A text file beside a note lives in md/ and the URL of that file reads
+// from html/. Git carries the md/ copy alone, thus a pull that brings a
+// new md/log.txt must remake the html/ copy. pullDone in SyncRepo does
+// that, and nothing tested it.
+func TestSyncPullBringsTheHTMLCopyOfANoteFile(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "a note and its text file", map[string]string{
+		"md/One.md":  "one\n",
+		"md/log.txt": "the first line\n",
+	})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("SyncRepo(pull): %v", err)
+	}
+
+	if !gsExists(a, "html/log.txt") {
+		t.Fatal("the pull left html/log.txt absent, thus the URL of that file answers 404")
+	}
+	if got := gsRead(t, a, "html/log.txt"); got != "the first line\n" {
+		t.Errorf("html/log.txt holds %q", got)
+	}
+}
+
+// A force pull writes the remote copy over a local change. That is what
+// the reader asks for, and it is the difference against a plain pull,
+// which refuses. See TestSyncPullRefusesOverALocalChange.
+func TestSyncPullForceDiscardsALocalChange(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "the first text\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+
+	gsWrite(t, a, "md/One.md", "the text of this device\n")
+	gsSeedRemote(t, remote, "second", map[string]string{"md/One.md": "the text of the other device\n"})
+
+	if err := a.SyncRepo("pull_force", ""); err != nil {
+		t.Fatalf("SyncRepo(pull_force): %v", err)
+	}
+	if got := gsRead(t, a, "md/One.md"); got != "the text of the other device\n" {
+		t.Errorf("the force pull left %q", got)
+	}
+	if local, want := gsLocalHead(t, a), gsRemoteHead(t, remote); local != want {
+		t.Errorf("the local head is %s, want the remote head %s", local, want)
+	}
+}
+
+// SyncRepo answers a name it does not know with a fault, and it does no
+// work. A typing fault in the frontend must never read as a success.
+func TestSyncRepoRefusesAnUnknownAction(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+
+	if err := a.SyncRepo("pulll", ""); err == nil {
+		t.Error("SyncRepo accepted an action that does not exist")
 	}
 }
