@@ -388,3 +388,116 @@ func TestEveryHandKeptCopyHasAGuard(t *testing.T) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
+// 1b. Where the body of a note starts
+// ----------------------------------------------------------------------
+
+// jsFirstLineAfterHeader is a transcription of firstLineAfterHeader in
+// omn-go-editor.js. It is the second half of the header pair, and it
+// decides where the caret of the editor lands.
+//
+// A transcription is not the JavaScript itself. This test can therefore
+// not find a fault of the transcription. It CAN find the fault that it
+// was written for: the two rules moved apart, and nothing said so.
+//
+// TestHeaderPortShapeIsUnchanged below reads the real file. It fails when
+// the shape of the function changes, which is the signal to bring this
+// copy up to it.
+func jsFirstLineAfterHeader(text string) int {
+	nl := strings.Index(text, "\n")
+	firstLine := text
+	if nl != -1 {
+		firstLine = text[:nl]
+	}
+	if !isHeaderFirstLine(firstLine) {
+		return 0
+	}
+
+	lines := strings.Split(text, "\n")
+	offset := len(lines[0]) + 1
+	clamp := func(n int) int {
+		if n > len(text) {
+			return len(text)
+		}
+		return n
+	}
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "" {
+			offset += len(lines[i]) + 1
+			return clamp(offset)
+		}
+		if !isHeaderFirstLine(lines[i]) {
+			return clamp(offset)
+		}
+		offset += len(lines[i]) + 1
+	}
+	return len(text)
+}
+
+// THIS IS THE TEST FOR THE FAULT THAT 26.09.14 REPAIRS. Until that
+// version firstLineAfterHeader looked for a truly empty line and nothing
+// else. parseHeaderBlock ends a header at a line of spaces as well, and
+// at the first line that is not a metadata key line.
+//
+// Four of the eight notes below read differently in the two. The worst
+// put the caret at the END of the file for a note whose header a <style>
+// block follows.
+func TestHeaderBodyStartHasAFrontendCopy(t *testing.T) {
+	cases := []struct{ name, content string }{
+		{"a header and a body", "Title: X\nDate: 1\n\nbody\n"},
+		{"no header", "# Heading\n\nbody\n"},
+		{"a style block after the header", "Title: X\n<style>\nbody{}\n</style>\n"},
+		{"prose after the header", "Title: X\nthis is prose\n"},
+		{"a separator of spaces", "Title: X\n   \nbody\n"},
+		{"a header and no body", "Title: X\nDate: 1\n"},
+		{"CRLF line ends", "Title: X\r\n\r\nbody\r\n"},
+		{"a blank line inside the body", "Title: X\nprose\n\nmore\n"},
+		{"one line and no newline", "Title: X"},
+		{"an empty note", ""},
+	}
+	for _, c := range cases {
+		want := parseHeaderBlock(c.content).BodyOffset
+		got := jsFirstLineAfterHeader(c.content)
+		if got != want {
+			t.Errorf("%s: the body starts at %d in Go and at %d in the editor.\n"+
+				"  the server reads the body as %q\n"+
+				"  the editor puts the caret at  %q",
+				c.name, want, got, c.content[want:], c.content[got:])
+		}
+	}
+}
+
+// The transcription above must keep up with the real file. This test
+// reads omn-go-editor.js and fails when firstLineAfterHeader no longer
+// has the shape that the transcription copies.
+func TestHeaderPortShapeIsUnchanged(t *testing.T) {
+	js := portsJS(t, "omn-go-editor.js")
+
+	at := strings.Index(js, "function firstLineAfterHeader(text)")
+	if at == -1 {
+		t.Fatal("omn-go-editor.js holds no firstLineAfterHeader")
+	}
+	end := strings.Index(js[at:], "\n    }")
+	if end == -1 {
+		t.Fatal("firstLineAfterHeader has no end that this test can find")
+	}
+	body := js[at : at+end]
+
+	// The two endings of the rule, and the walk that finds them.
+	for _, want := range []struct{ code, why string }{
+		{"text.split('\\n')", "the function must walk the lines, and not look for one blank line"},
+		{"lines[i].trim() === ''", "a separator of spaces must end the header, the same as parseHeaderBlock"},
+		{"!isHeaderFirstLine(lines[i])", "a line that is not a key line must end the header and start the body"},
+	} {
+		if !strings.Contains(body, want.code) {
+			t.Errorf("firstLineAfterHeader no longer holds %q. %s. "+
+				"Bring jsFirstLineAfterHeader in ports_test.go up to the new shape "+
+				"and check it against parseHeaderBlock.", want.code, want.why)
+		}
+	}
+	if strings.Contains(body, `/\r?\n\r?\n/`) {
+		t.Error("firstLineAfterHeader looks for a blank line again. That rule " +
+			"misses a header that a <style> block or a paragraph follows.")
+	}
+}

@@ -759,21 +759,54 @@
         return c !== ' ' && c !== '#' && c !== '<';
     }
 
-    // Returns the character offset of the first line after the note's
-    // Pelican-style metadata header. This mirrors the backend's
-    // parseHeaderBlock (backend/header_block.go) so the editor caret and the
-    // server agree on where the header ends: a header exists only when the
-    // first line is a metadata key line (isHeaderFirstLine); the body then
-    // begins right after the header's terminating blank line. With no
-    // header, the body is the whole file, so the caret starts at offset 0.
-    // A header with no terminating blank line (a metadata-only note) puts
-    // the caret at the end of the file.
+    // Returns the character offset of the first line after the metadata
+    // header of the note. It is a port of parseHeaderBlock in
+    // backend/header_block.go. The caret of the editor and the server thus
+    // agree about where a header block ends.
+    //
+    // THE RULE HAS TWO ENDINGS, AND THIS FUNCTION HELD ONE UNTIL 26.09.14.
+    // A header exists only when the first line is a metadata key line. It
+    // then ends at the FIRST of:
+    //
+    //   * a blank line. A line of spaces or tabs alone counts. The line is
+    //     the separator, thus the body starts on the line after it.
+    //   * a line that is not a metadata key line. That line IS the first
+    //     line of the body, thus the body starts on it.
+    //
+    // The old code looked for /\r?\n\r?\n/ and nothing else. Three notes
+    // read wrong:
+    //
+    //   "Title: X\n<style>..."
+    //       The caret went to the END of the file.
+    //   "Title: X\nprose\n\nmore"
+    //       The caret went past the first paragraph of the body.
+    //   "Title: X\n   \nbody"
+    //       A separator of spaces went unread.
+    //
+    // TestHeaderBodyStartHasAFrontendCopy compares the two sides against a
+    // table of notes. Change this function and header_block.go together.
     function firstLineAfterHeader(text) {
         var nl = text.indexOf('\n');
         var firstLine = nl === -1 ? text : text.slice(0, nl);
         if (!isHeaderFirstLine(firstLine)) return 0;
-        var m = /\r?\n\r?\n/.exec(text);
-        return m ? m.index + m[0].length : text.length;
+
+        var lines = text.split('\n');
+        var offset = lines[0].length + 1;
+        for (var i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '') {
+                // The blank separator goes away, thus the body starts on
+                // the next line.
+                offset += lines[i].length + 1;
+                return offset > text.length ? text.length : offset;
+            }
+            if (!isHeaderFirstLine(lines[i])) {
+                // This line is the first line of the body.
+                return offset > text.length ? text.length : offset;
+            }
+            offset += lines[i].length + 1;
+        }
+        // Each line was a header line, thus the note has no body.
+        return text.length;
     }
 
     async function save(thenView) {
