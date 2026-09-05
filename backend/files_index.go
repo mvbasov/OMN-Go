@@ -914,7 +914,7 @@ func (a *App) writeFilesPage(w http.ResponseWriter, view filesPageView) {
 	body := renderFilesPage(view)
 	compiled := a.compilePageWithBody(title,
 		[]byte("Title: "+title+"\nCategory: System\n\n"), body)
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	w.Write(a.injectRuntimeVars(compiled))
 }
 

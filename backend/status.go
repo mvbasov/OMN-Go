@@ -318,7 +318,7 @@ func (a *App) serveStatusPage(w http.ResponseWriter, r *http.Request) {
 	}
 	compiled := a.compilePageWithBody("Status",
 		[]byte("Title: Status\nCategory: System\n\n"), body)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	writeHTMLHeader(w)
 	w.Write(a.injectRuntimeVars(compiled))
 }
 

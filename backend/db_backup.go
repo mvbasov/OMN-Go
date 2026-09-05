@@ -746,7 +746,7 @@ var dbBackupsPageTmpl = loadTemplate("db_backups.html")
 // from the button at the top of the Config page. All dynamic data comes
 // from GET /api/db/backups client-side, so the template needs no fill().
 func (a *App) serveDBBackupsPage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	compiled := a.compilePageWithBody("DB_Backups", []byte("Title: Database Backups\nCategory: Settings\n\n"), dbBackupsPageTmpl)
 	w.Write(a.injectRuntimeVars(compiled))
 }

@@ -102,6 +102,28 @@ func (a *App) resolveContentType(path string) string {
 	return mime.TypeByExtension(ext)
 }
 
+// writeHTMLHeader sets the content type of a page. It is the ONE place
+// that names that type, the same as resolveContentType is the one place
+// that names each other type. See rule 7 of CLAUDE.md section 1.
+//
+// The charset is part of it. Nine handlers wrote "text/html" with no
+// charset until 26.09.17, and three wrote the charset. The <meta charset>
+// element of index.html covered the difference for a compiled page. A
+// page that the server renders on its own carries no such element. The
+// browser therefore guessed the encoding of the file index and of the
+// tags page.
+//
+// pageCacheWriter in middleware.go reads the prefix "text/html" of this
+// header to change no-cache into no-store. The value below still starts
+// with that prefix, and TestConnectionMiddlewareUsesNoStoreForAPage
+// holds it.
+func writeHTMLHeader(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", htmlContentType)
+}
+
+// htmlContentType is the value that writeHTMLHeader writes.
+const htmlContentType = "text/html; charset=utf-8"
+
 // hasKnownAssetExtension reports whether the last extension of name is one
 // that this install serves as a file. It is the one authority for the
 // question "is this name a note, or a file under html/". resolvePageName
@@ -402,7 +424,7 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 	body := renderNotFoundPage(view)
 	compiled := a.compilePageWithBody("Not found",
 		[]byte("Title: Not found\nCategory: Error\n\n"), body)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	writeHTMLHeader(w)
 	w.WriteHeader(http.StatusNotFound)
 	w.Write(a.injectRuntimeVars(compiled))
 }
@@ -436,7 +458,7 @@ func (a *App) serveNotEditable(w http.ResponseWriter, r *http.Request, relPath s
 	body := renderNotEditablePage(notEditableView{Path: urlPath, Type: ct})
 	compiled := a.compilePageWithBody("Not a text file",
 		[]byte("Title: Not a text file\nCategory: Error\n\n"), body)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	writeHTMLHeader(w)
 	w.WriteHeader(http.StatusUnsupportedMediaType)
 	w.Write(a.injectRuntimeVars(compiled))
 }

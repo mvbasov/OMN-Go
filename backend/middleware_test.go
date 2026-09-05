@@ -38,7 +38,10 @@ func TestConnectionMiddlewareSetsCacheControl(t *testing.T) {
 // while that page waited in the history. The + button showed this: the
 // link it writes into the page you started from was absent after Back.
 func TestConnectionMiddlewareUsesNoStoreForAPage(t *testing.T) {
-	for _, contentType := range []string{"text/html", "text/html; charset=utf-8"} {
+	// htmlContentType is the value that writeHTMLHeader writes for each
+	// page. A change of it that loses the prefix "text/html" makes each
+	// page cacheable again, and Back then shows an old copy.
+	for _, contentType := range []string{"text/html", "text/html; charset=utf-8", htmlContentType} {
 		a := &App{}
 		h := a.connectionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", contentType)

@@ -216,3 +216,56 @@ func writeConfigWithMime(t *testing.T, path string, mime map[string]string) {
 		t.Fatal(err)
 	}
 }
+
+// ----------------------------------------------------------------------
+// The content type of a page
+// ----------------------------------------------------------------------
+
+// writeHTMLHeader is the one place that names the content type of a page.
+// A handler that writes the header by hand loses the charset, which is
+// the fault that 26.09.17 repaired in nine places.
+//
+// This test scans the source, the same as TestNoDirectLogPrintf.
+func TestNoBareHTMLContentType(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		// A test file ships to no device, and this file names the banned
+		// text as a string.
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		// serving.go declares the value, thus it holds the text once.
+		if name == "serving.go" {
+			continue
+		}
+		src, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			if !strings.Contains(line, `Set("Content-Type", "text/html`) {
+				continue
+			}
+			t.Errorf("%s:%d writes the HTML content type by hand. Call "+
+				"writeHTMLHeader(w) instead. A header with no charset lets the "+
+				"browser guess the encoding of a page that the server renders.",
+				name, i+1)
+		}
+	}
+}
+
+// The one value that writeHTMLHeader writes. It carries the charset, and
+// it keeps the prefix that pageCacheWriter reads.
+func TestPageContentTypeCarriesTheCharset(t *testing.T) {
+	if htmlContentType != "text/html; charset=utf-8" {
+		t.Fatalf("the page content type is %q", htmlContentType)
+	}
+	// The value must start with the prefix that pageCacheWriter reads.
+	if !strings.HasPrefix(htmlContentType, "text/html") {
+		t.Error("pageCacheWriter reads the prefix text/html to make a page no-store")
+	}
+}

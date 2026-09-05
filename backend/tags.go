@@ -297,7 +297,7 @@ func (a *App) serveTagsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	htmlPath := a.pageHTMLPath("OMNGoTags")
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	data, err := os.ReadFile(htmlPath)
 	if err == nil {
 		w.Write(a.injectRuntimeVars(data))

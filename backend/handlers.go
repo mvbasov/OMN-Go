@@ -473,7 +473,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 		a.logErrf(logEdit, "Failed to run external editor: no command configured")
 	}
 
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	// Compute the correct view URL (.html for a page, raw name for a plain
 	// asset) using the same isPage/baseName decision made above.
 	viewURL := name
@@ -1127,7 +1127,7 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 		a.recompileMarkdownPage(name, mdPath, errMd)
 	}
 
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	data, err := os.ReadFile(htmlPath)
 	if err == nil {
 		w.Write(a.injectRuntimeVars(data))
@@ -1173,7 +1173,7 @@ func (a *App) recompileMarkdownPage(name, mdPath string, errMd error) {
 }
 
 func (a *App) serveConfigPage(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	body := a.getConfigPageBody()
 	compiled := a.compilePageWithBody("Config", []byte("Title: Config\nCategory: Settings\n\n"), body)
 	w.Write(a.injectRuntimeVars(compiled))
@@ -1252,7 +1252,7 @@ func (a *App) renderInternalEditor(w http.ResponseWriter, relPath string) {
 		ViewURL: viewURL,
 	})
 
-	w.Header().Set("Content-Type", "text/html")
+	writeHTMLHeader(w)
 	w.Write(a.injectRuntimeVars([]byte(page)))
 }
 
