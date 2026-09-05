@@ -16,8 +16,8 @@ func (a *App) isLocalConnection(r *http.Request) bool {
 
 func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// a.ActiveConns is read/written from every request's goroutine
-		// concurrently; a bare ++/-- here was a data race. Use atomics.
+		// Each request goroutine reads and writes a.ActiveConns at the
+		// same time. A bare ++ or -- here was a data race. Use an atomic.
 		a.ActiveConns.Add(1)
 		defer a.ActiveConns.Add(-1)
 
@@ -29,7 +29,7 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 		// applies its own rule and keeps the file for a part of its age.
 		// The Android WebView does the same. After an update of the
 		// application the new pages used the old omn-go-core.js for
-		// days, and a user had to clear the cache by hand.
+		// days. A user had to clear the cache by hand.
 		//
 		// "no-cache" does not stop the cache. The client keeps the file,
 		// but it asks the server each time. The server answers 304 Not
@@ -51,9 +51,9 @@ func (a *App) connectionMiddleware(next http.Handler) http.Handler {
 // the server, and gets the new page. A BACK or FORWARD load is different:
 // Chromium reads the copy and does not ask the server at all. The page
 // that OMN-Go changed while the page waited in the history thus comes
-// back in its old form. The + button shows this: it writes a link into
-// the page you started from, and Back then showed that page with no link
-// until a second Back or a refresh.
+// back in its old form. The + button shows this. It writes a link into
+// the page that you started from. Back then showed that page with no
+// link. A second Back or a refresh was necessary.
 //
 // "no-store" is the only word that stops it. Chromium keeps no copy, thus
 // Back has nothing to read and must ask the server.
@@ -103,8 +103,8 @@ func (w *pageCacheWriter) Write(b []byte) (int, error) {
 }
 
 // Flush keeps the log stream alive. logger.go asks the writer for
-// http.Flusher, and a wrapper with no Flush would fail that question and
-// hold each line until the response ends.
+// http.Flusher. A wrapper with no Flush fails that question. It then
+// holds each line until the response ends.
 func (w *pageCacheWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
@@ -116,16 +116,18 @@ func (a *App) ActiveConnCount() int64 {
 	return a.ActiveConns.Load()
 }
 
-// hasRole answers "may this request do a thing that needs this role", and is
-// the ONE definition of that. A connection from the device itself is always
-// the owner - the Android WebView and the desktop browser both arrive that way
-// - so the check only ever bites another machine on the network.
+// hasRole answers the question "may this request do a thing that needs
+// this role". It is the ONE definition of that answer.
 //
-// It exists as a function because authMiddleware is not the only caller any
-// more: the file index is a PAGE that needs authorization, and a page must
-// answer a refusal with a page rather than the line of plain text below (see
-// serveFilesPage). Two responses, one rule; the alternative was two copies of
-// this condition drifting apart.
+// A connection from the device itself is always the owner. The Android
+// WebView and the desktop browser both arrive that way. The rule thus
+// applies to another machine on the network alone.
+//
+// It is a function because authMiddleware is not the only caller any
+// more. The file index is a PAGE that needs authorization. A page must
+// answer a refusal with a page, and not with the line of plain text
+// below. See serveFilesPage. Two responses obey one rule. The
+// alternative was two copies of this condition that move apart.
 func (a *App) hasRole(r *http.Request, requireAdmin bool) bool {
 	if a.isLocalConnection(r) {
 		return true
