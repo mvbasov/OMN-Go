@@ -101,27 +101,56 @@ A handler that writes `Cache-Control` later replaces this value.
    `127.0.0.1`, `::1` or `localhost`, the endpoint runs with no further
    check. This lets the WebView of the Android application and the desktop
    browser work without a login.
-2. For every other connection, the request must carry a `session_role`
-   cookie with an accepted role. The server registers every protected route
-   with `requireAdmin = true`, so a remote caller needs `session_role=admin`.
-   `authMiddleware` accepts the `guest` role only for a route registered
-   with `requireAdmin = false`. No such route exists today.
-3. A missing or insufficient cookie gives `401 Unauthorized` with the body
-   `Unauthorized`.
+2. For every other connection, the request must carry a **signed**
+   `session_role` cookie with an accepted role. `readSessionRole`
+   (`backend/session.go`) is the one reader of that cookie. The server
+   registers every protected route with `requireAdmin = true`, so a remote
+   caller needs the `admin` role. `authMiddleware` accepts the `guest` role
+   only for a route registered with `requireAdmin = false`. No such route
+   exists today.
+3. A missing, changed or expired cookie gives `401 Unauthorized` with the
+   body `Unauthorized`.
 
-There is no CSRF token, no bearer token, and no rate limiting. Passwords
-are stored in `config.json` in cleartext and compared with `==`.
+**Before 26.09.6 the cookie carried the bare word `admin` and the server
+trusted it.** A caller on the network could set that cookie itself and get
+the admin role with no password. The signature closes that hole. A cookie
+in the old form is refused.
+
+There is no CSRF token, no bearer token, and no rate limiting. Passwords are
+stored in `config.json` in cleartext. `handleLogin` compares them with
+`subtle.ConstantTimeCompare`, and an empty configured password matches
+nothing.
 
 ### 2.2 Obtaining the cookie
 
-`POST /login` with the correct password sets:
+`POST /login` with the correct password sets **two** cookies:
 
 ```
-Set-Cookie: session_role=admin; Path=/
+Set-Cookie: session_role=admin.1793404800.9Xr3...; Path=/; Expires=...; HttpOnly; SameSite=Lax
+Set-Cookie: session_role_hint=admin; Path=/; Expires=...; SameSite=Lax
 ```
 
-This is a session cookie. It has no `Max-Age` and no `Expires`. It is not
-`HttpOnly`, it is not `Secure`, and it has no `SameSite` attribute.
+`session_role` is the only cookie the server reads. Its value has three
+parts, separated by a dot:
+
+| Part | Contents |
+| --- | --- |
+| 1 | The role, `admin` or `guest` |
+| 2 | The Unix time at which the cookie stops, as a decimal number |
+| 3 | `HMAC-SHA256("role.expiry", key)`, in base64url with no padding |
+
+The key is 32 random bytes at `<StorageDir>/session_secret`. The application
+makes the file at the first login and gives it mode 0600. The file is in
+`.gitignore`, thus a sync never carries the key of one device to another.
+A cookie is therefore valid on the device that made it and on no other.
+
+The cookie lasts **30 days**. It is `HttpOnly` and `SameSite=Lax`. It is not
+`Secure`, because this server speaks HTTP.
+
+`session_role_hint` carries the plain role for the page alone. `checkRole`
+in `omn-go-sse.js` reads it to disable the `.admin-only` controls for a
+guest. **The server never reads it.** A client that changes the hint changes
+what its own page shows and gets no permission.
 
 ### 2.3 Protection map
 
@@ -187,14 +216,15 @@ endpoint.
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| `password` | string | yes | Compared against `admin_password`, then `guest_password` from `config.json` |
+| `password` | string | yes | Compared against `admin_password`, then `guest_password` from `config.json`. The comparison is constant-time. An empty configured password matches nothing. |
 
 **Responses**
 
 | Status | Content-Type | Body | Notes |
 | --- | --- | --- | --- |
-| `200` | `text/plain` | `OK` | Sets `session_role=admin` or `session_role=guest` |
+| `200` | `text/plain` | `OK` | Sets the signed `session_role` cookie and the `session_role_hint` cookie, for the `admin` or the `guest` role. See §2.2. |
 | `401` | `text/plain` | `Invalid` | No cookie set |
+| `500` | `text/plain` | `Login unavailable` | This install has no session key and could not make one. See `sessionSecret` in `backend/session.go`. |
 
 ```bash
 curl -i -c jar.txt -d 'password=admin_secret_changeme' http://host:8080/login
@@ -1007,8 +1037,8 @@ every git server slot, all in cleartext.**
 | --- | --- | --- | --- |
 | `force_pull_one_time` | bool | `false` | One-shot force-pull flag |
 | `server_port` | int | `8080` | Listen port; applied at next start |
-| `admin_password` | string | `admin_secret_changeme` | Grants `session_role=admin` |
-| `guest_password` | string | `guest_secret_changeme` | Grants `session_role=guest` |
+| `admin_password` | string | `admin_secret_changeme` | Grants the `admin` role at `/login`. An empty value grants nothing. |
+| `guest_password` | string | `guest_secret_changeme` | Grants the `guest` role at `/login`. An empty value grants nothing. |
 | `author` | string | `Anonymous` | `Author:` line on newly created pages, git commit author |
 | `use_internal_editor` | bool | `true` | `false` routes `?edit=true` to `/api/edit-external` |
 | `desktop_ext_cmd` | string | `subl` | External editor command line |
@@ -2008,7 +2038,7 @@ stream:
 | `415 Unsupported Media Type` | `?edit=true`, `/api/edit-external`, `/api/note` or `/api/save` on a file that is not text (picture, font, audio, video) |
 | `400 Bad Request` | `/api/status` with an unknown `sections` name |
 | `400 Bad Request` | Missing/invalid parameters, rejected uploads, SQL errors |
-| `401 Unauthorized` | `/login` with a wrong password; `authMiddleware` for a remote caller without an admin cookie |
+| `401 Unauthorized` | `/login` with a wrong password. `authMiddleware` for a remote caller with no valid admin cookie, which covers a missing, a changed and an expired one. |
 | `404 Not Found` | Missing static asset or `/api/note` for a missing non-page file |
 | `405 Method Not Allowed` | `/api/config`, `/api/restart`, `/api/sql`, `/api/db/*`, `/api/sync/preview` |
 | `500 Internal Server Error` | Disk/permission failures, git repo errors, restore failures |

@@ -103,6 +103,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 	want := "# OMN-Go sync ignore\n" +
 		"config.json\n" +
 		"assets_version\n" +
+		"session_secret\n" +
 		"/asset_backups/\n" +
 		"*.html\n" +
 		"*.woff2\n" +

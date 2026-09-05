@@ -844,8 +844,10 @@ func remoteFilesRequest(t *testing.T, a *App, cookie string) *httptest.ResponseR
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/OMNGoFiles.html?tree=served&dir=js%2F", nil)
 	req.RemoteAddr = "192.168.1.50:41234"
+	// A signed cookie, and not the bare word: the server refuses an
+	// unsigned value since 26.09.6. See session.go.
 	if cookie != "" {
-		req.AddCookie(&http.Cookie{Name: "session_role", Value: cookie})
+		req.AddCookie(sessionCookie(t, a, cookie))
 	}
 	rec := httptest.NewRecorder()
 	a.serveFilesPage(rec, req)
@@ -906,8 +908,9 @@ func TestAuthMiddlewareStillRefusesAfterExtraction(t *testing.T) {
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, "/x", nil)
 		req.RemoteAddr = c.remote
+		// A signed cookie, and not the bare word. See session.go.
 		if c.cookie != "" {
-			req.AddCookie(&http.Cookie{Name: "session_role", Value: c.cookie})
+			req.AddCookie(sessionCookie(t, a, c.cookie))
 		}
 		rec := httptest.NewRecorder()
 		h(rec, req)

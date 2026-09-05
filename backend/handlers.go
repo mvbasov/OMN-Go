@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -515,22 +516,64 @@ func (a *App) resolveNewPageTarget(source, target string) string {
 	return dir + "/" + target
 }
 
+// handleLogin exchanges a password for the two session cookies. Only a
+// caller on the network needs it, because a local connection is always
+// the owner (see hasRole).
+//
+// Two rules of this function are not obvious.
+//
+// The comparison is constant-time. A "==" on two strings stops at the
+// first byte that differs, thus the time it takes reports how much of
+// the password is correct. The measurement is hard over a network and
+// it is not hard on a fast local one, and subtle.ConstantTimeCompare
+// costs nothing.
+//
+// An EMPTY configured password grants nothing. A person who clears
+// admin_password on the Config page asks for no admin password. The old
+// code read the empty value as a match for an empty submission. Each
+// caller on the network could then log in. The empty value now refuses
+// each attempt, and the log carries the reason.
 func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 	cfg := a.GetConfig()
 	pwd := r.FormValue("password")
+
 	role := ""
-	if pwd == cfg.AdminPassword {
-		role = "admin"
-	} else if pwd == cfg.GuestPassword {
-		role = "guest"
+	switch {
+	case passwordMatches(pwd, cfg.AdminPassword):
+		role = roleAdmin
+	case passwordMatches(pwd, cfg.GuestPassword):
+		role = roleGuest
+	}
+	if role == "" {
+		if cfg.AdminPassword == "" && cfg.GuestPassword == "" {
+			a.logErrf(logSession, "login refused: config.json holds no password, thus no caller on the network can log in")
+		}
+		http.Error(w, "Invalid", http.StatusUnauthorized)
+		return
 	}
 
-	if role != "" {
-		http.SetCookie(w, &http.Cookie{Name: "session_role", Value: role, Path: "/"})
-		w.Write([]byte("OK"))
-	} else {
-		http.Error(w, "Invalid", http.StatusUnauthorized)
+	signed, hint := a.newSessionCookies(role)
+	if signed == nil {
+		// The install has no key and could not make one. See
+		// sessionSecret. A cookie with no signature is what this change
+		// removed, thus the answer is a fault and not a cookie.
+		a.logErrf(logSession, "login refused: this install has no session key")
+		http.Error(w, "Login unavailable", http.StatusInternalServerError)
+		return
 	}
+	http.SetCookie(w, signed)
+	http.SetCookie(w, hint)
+	w.Write([]byte("OK"))
+}
+
+// passwordMatches compares a submitted password against a configured one
+// in constant time. An empty configured password matches nothing. See
+// the banner of handleLogin.
+func passwordMatches(submitted, configured string) bool {
+	if configured == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(submitted), []byte(configured)) == 1
 }
 
 func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {

@@ -303,6 +303,7 @@ var logTagLabels = map[logTag]string{
 	logRestart:     "Restarting the server process",
 	logSearch:      "The global search index",
 	logServer:      "Startup, the listener and crashes",
+	logSession:     "The login and the session key",
 	logStatus:      "The Status page",
 	logStorage:     "The storage directory",
 	logSync:        "Git sync, the loudest subsystem",

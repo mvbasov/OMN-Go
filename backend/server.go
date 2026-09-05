@@ -71,6 +71,13 @@ type App struct {
 	// See applyLogFilter for why a log line reads this cache and never
 	// the configuration itself.
 	logFilter atomic.Value
+
+	// sessionOnce and sessionKey hold the HMAC key that signs the session
+	// cookie. sessionSecret reads the key file one time and keeps the
+	// bytes here. The key is NOT a field of Config, because GET
+	// /api/config marshals that whole struct. See session.go.
+	sessionOnce sync.Once
+	sessionKey  []byte
 }
 
 // boundAddress reports the address the HTTP listener is actually on, as

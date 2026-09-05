@@ -898,8 +898,29 @@ if (window.location.protocol !== 'file:') {
         return db;
     };
 
+    // roleHint reads the role out of the session_role_hint cookie.
+    //
+    // THIS VALUE DECIDES NOTHING ON THE SERVER. The server reads the
+    // signed session_role cookie, which is HttpOnly and thus invisible
+    // here. See the banner of backend/session.go. A reader who changes
+    // this cookie changes what this page shows and gets no permission.
+    //
+    // The old code asked document.cookie.includes('session_role=guest').
+    // The signed cookie is HttpOnly since 26.09.6, thus that test found
+    // nothing and each guest saw the controls of an admin.
+    function roleHint() {
+        var parts = document.cookie.split(';');
+        for (var i = 0; i < parts.length; i++) {
+            var pair = parts[i].trim();
+            if (pair.indexOf('session_role_hint=') === 0) {
+                return pair.slice('session_role_hint='.length);
+            }
+        }
+        return '';
+    }
+
     function checkRole() {
-        if(document.cookie.includes('session_role=guest')) {
+        if (roleHint() === 'guest') {
             document.querySelectorAll('.admin-only').forEach(el => {
                 if(el.tagName === 'BUTTON' || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') el.disabled = true;
                 if(el.id === 'toggleBtn' || el.id === 'editor' || el.id === 'saveBtn') el.style.display = 'none';
@@ -908,15 +929,17 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.checkSession = async function() {
-        // #loginOverlay is a server-injected modal (see injectRuntimeVars); an
-        // exported/offline page has no login gate, so if it isn't present just
-        // leave the already-visible content alone rather than dereferencing
-        // null. #mainUI stays in the page, but guard it too for safety.
+        // #loginOverlay is a server-injected modal. See injectRuntimeVars.
+        // An exported page and an offline page have no login gate. When
+        // the element is absent, leave the visible content alone rather
+        // than read a property of null. #mainUI stays in the page, and
+        // the guard covers it for the same reason.
         const overlay = document.getElementById('loginOverlay');
         const main = document.getElementById('mainUI');
         if (!overlay || !main) return;
-        // Unhide UI if role cookies exist
-        if (document.cookie.includes('session_role=')) {
+        // A hint cookie means that this browser logged in. The server
+        // still tests the signed cookie on each request.
+        if (roleHint() !== '') {
             overlay.style.display = 'none';
             main.style.display = 'flex';
             checkRole();

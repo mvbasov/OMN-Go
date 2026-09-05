@@ -142,6 +142,10 @@ func (fi *stableFileInfo) ModTime() time.Time {
 var gitignorePatterns = []string{
 	"config.json",
 	"assets_version",
+	// The HMAC key of the session cookie. It belongs to one device, and a
+	// device that holds the key of another device can make a valid cookie
+	// for it. See session.go.
+	"session_secret",
 	"/asset_backups/",
 	"*.html",
 	"*.woff2",

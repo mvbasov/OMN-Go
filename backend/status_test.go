@@ -527,7 +527,9 @@ func TestStatusPageAnswersAGuestWithAPage(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/OMNGoStatus.html", nil)
 	req.RemoteAddr = "192.168.1.44:51000" // another machine on the network
-	req.AddCookie(&http.Cookie{Name: "session_role", Value: "guest"})
+	// A signed cookie, and not the bare word "guest": the server refuses
+	// an unsigned value since 26.09.6. See session.go.
+	req.AddCookie(sessionCookie(t, a, roleGuest))
 
 	rec := httptest.NewRecorder()
 	a.serveStatusPage(rec, req)

@@ -60,6 +60,7 @@ const (
 	logRestart     logTag = "restart"
 	logSearch      logTag = "search"
 	logServer      logTag = "server"
+	logSession     logTag = "session"
 	logStatus      logTag = "status"
 	logStorage     logTag = "storage"
 	logSync        logTag = "sync"
@@ -87,6 +88,7 @@ var allLogTags = []logTag{
 	logRestart,
 	logSearch,
 	logServer,
+	logSession,
 	logStatus,
 	logStorage,
 	logSync,

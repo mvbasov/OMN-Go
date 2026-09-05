@@ -130,14 +130,16 @@ func (a *App) hasRole(r *http.Request, requireAdmin bool) bool {
 	if a.isLocalConnection(r) {
 		return true
 	}
-	cookie, err := r.Cookie("session_role")
-	if err != nil {
-		return false
-	}
+	// readSessionRole verifies the signature of the cookie and its expiry
+	// time. It answers "" for a cookie that this install did not write.
+	// Until 26.09.6 this function read the raw cookie value and trusted
+	// it, thus a client on the network could name its own role. See the
+	// banner of session.go.
+	role := a.readSessionRole(r)
 	if requireAdmin {
-		return cookie.Value == "admin"
+		return role == roleAdmin
 	}
-	return cookie.Value == "admin" || cookie.Value == "guest"
+	return role == roleAdmin || role == roleGuest
 }
 
 func (a *App) authMiddleware(next http.HandlerFunc, requireAdmin bool) http.HandlerFunc {
