@@ -154,19 +154,18 @@ var gitignorePatterns = []string{
 	"!/html/images/*.svg",
 	"/html/images/icons/*",
 	"!/html/images/icons/*.svg",
-	"/html/css/omn-go-core.css",
-	"/html/css/Bookmarker.css",
-	"/html/css/highlight.default.min.css",
-	"/html/css/katex.min.css",
-	"/html/css/markdown.css",
-	"/html/js/omn-go-compat.js",
-	"/html/js/omn-go-core.js",
-	"/html/js/omn-go-sse.js",
-	"/html/js/omn-go-editor.js",
-	"/html/js/auto-render.min.js",
-	"/html/js/katex.min.js",
-	"/html/js/highlight.min.js",
-	"/html/js/Bookmarker.js",
+	"/html/css/OMN-Go/omn-go-core.css",
+	"/html/css/OMN-Go/Bookmarker.css",
+	"/html/css/OMN-Go/highlight.default.min.css",
+	"/html/css/OMN-Go/katex.min.css",
+	"/html/js/OMN-Go/omn-go-compat.js",
+	"/html/js/OMN-Go/omn-go-core.js",
+	"/html/js/OMN-Go/omn-go-sse.js",
+	"/html/js/OMN-Go/omn-go-editor.js",
+	"/html/js/OMN-Go/auto-render.min.js",
+	"/html/js/OMN-Go/katex.min.js",
+	"/html/js/OMN-Go/highlight.min.js",
+	"/html/js/OMN-Go/Bookmarker.js",
 	// A .txt beside a note is written in md/ and COPIED into html/, which is
 	// where its URL resolves (note_files.go, 26.08.31). Only the md/ copy is
 	// the file; the html/ one is made from it at every start. Two copies of
@@ -248,6 +247,24 @@ var obsoleteGitignoreLines = map[string]bool{
 	// The general "local-*" rule replaced this line. The result for a
 	// database backup is the same, and each other file now gets it too.
 	"/html/db_backup/local-*/": true,
+	// 26.09.12 moved each app asset below html/js/OMN-Go/ and
+	// html/css/OMN-Go/, and it dropped html/css/markdown.css. The old
+	// lines must go, or .gitignore grows a line for a file that no
+	// longer exists at each version. removeRetiredAssets in assets.go
+	// deletes the files themselves. See retiredAssets.
+	"/html/css/omn-go-core.css":           true,
+	"/html/css/Bookmarker.css":            true,
+	"/html/css/highlight.default.min.css": true,
+	"/html/css/katex.min.css":             true,
+	"/html/css/markdown.css":              true,
+	"/html/js/omn-go-compat.js":           true,
+	"/html/js/omn-go-core.js":             true,
+	"/html/js/omn-go-sse.js":              true,
+	"/html/js/omn-go-editor.js":           true,
+	"/html/js/auto-render.min.js":         true,
+	"/html/js/katex.min.js":               true,
+	"/html/js/highlight.min.js":           true,
+	"/html/js/Bookmarker.js":              true,
 }
 
 func (a *App) ensureGitignore() {

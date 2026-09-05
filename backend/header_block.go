@@ -29,7 +29,7 @@ import "strings"
 // "# Head: subtitle" was swallowed as metadata instead of rendering as a
 // heading. parseHeaderBlock is now the ONE authority; every Go caller goes
 // through it, and the editor's firstLineAfterHeader mirrors isHeaderFirstLine
-// exactly (see backend/frontend/html/js/omn-go-editor.js). See CODE_REVIEW.md
+// exactly (see backend/frontend/html/js/OMN-Go/omn-go-editor.js). See CODE_REVIEW.md
 // Phase 1.
 
 // headerBlock is the parsed split of note content into its optional header

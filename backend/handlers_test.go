@@ -257,8 +257,8 @@ func TestEditorRoutesRefuseBinaryFiles(t *testing.T) {
 
 	// A refused editor request must not extract a shipped binary either.
 	rec = httptest.NewRecorder()
-	a.serveEditor(rec, httptest.NewRequest(http.MethodGet, "/css/fonts/material-icons.woff2?edit=true", nil),
-		"/css/fonts/material-icons.woff2")
+	a.serveEditor(rec, httptest.NewRequest(http.MethodGet, "/css/OMN-Go/fonts/material-icons.woff2?edit=true", nil),
+		"/css/OMN-Go/fonts/material-icons.woff2")
 	if rec.Code != http.StatusUnsupportedMediaType {
 		t.Errorf("serveEditor on a font: status %d, want 415", rec.Code)
 	}
@@ -637,7 +637,7 @@ func TestResolveAndroidEditName(t *testing.T) {
 		{"page already given as .md", "Welcome.md", "Welcome", true, "Welcome.md"},
 		{"nested page via view URL", "dir/Note.html", "dir/Note", true, "dir/Note.md"},
 		{"non-page asset is left untouched", "omn-go-editor.js", "omn-go-editor.js", false, "omn-go-editor.js"},
-		{"non-page asset in a subdirectory", "css/omn-go-core.css", "css/omn-go-core.css", false, "css/omn-go-core.css"},
+		{"non-page asset in a subdirectory", "css/OMN-Go/omn-go-core.css", "css/OMN-Go/omn-go-core.css", false, "css/OMN-Go/omn-go-core.css"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

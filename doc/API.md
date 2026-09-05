@@ -253,7 +253,7 @@ The internal editor reads this endpoint when it loads.
 | `Welcome.md` | markdown page | `md/Welcome.md` |
 | `Welcome.html` | markdown page | `md/Welcome.md` |
 | `notes/Trip` | markdown page in a subdirectory | `md/notes/Trip.md` |
-| `js/omn-go-core.js`, `css/x.css`, any other extension | static asset | `html/js/omn-go-core.js` |
+| `js/OMN-Go/omn-go-core.js`, `css/x.css`, any other extension | static asset | `html/js/OMN-Go/omn-go-core.js` |
 
 **Behavior when a page does not exist yet**
 
@@ -1832,6 +1832,16 @@ document.documentElement.setAttribute('data-theme', OMN_THEME);</script>
 | Prefix | Source | Extraction |
 | --- | --- | --- |
 | `/js/`, `/css/`, `/json/` | `html/js`, `html/css`, `html/json` | Lazily extracted from the embedded frontend on first request, then user-editable via `?edit=true` (text files only: a picture, a font, an audio file or a video file answers `415`) |
+
+**The app-owned assets live one directory down.** Since 26.09.12 each file
+that OMN-Go owns sits at `/js/OMN-Go/…` or `/css/OMN-Go/…`, and the web
+fonts sit at `/css/OMN-Go/fonts/…`. The two user files stay at
+`/js/omn-go-custom.js` and `/css/omn-go-custom.css`.
+
+A request for the OLD URL of a moved file answers with the file at its new
+place. See `legacyAssetURL` in `backend/serving.go`. That rule keeps a note
+working when it names `/js/Bookmarker.js`, which `md/Bookmarks.md` does. The
+rule covers the moved files alone, thus `/js/mine.js` still answers `404`.
 | root catch-all (`/favicon.ico`, `/robots.txt`, …) | `html/` | Same lazy extraction |
 | `/images/` | `html/images/` | Pure user content, never embedded |
 | `/user_json/` | `html/user_json/` | Pure user content, never embedded |

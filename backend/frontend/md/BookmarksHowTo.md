@@ -221,8 +221,8 @@ These lines must stand at the end of the note.
 
 <!-- end of bookmarks definition -->
 
-<link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
-<script type="text/javascript" src="/js/Bookmarker.js"></script>
+<link rel="stylesheet" type="text/css" href="/css/OMN-Go/Bookmarker.css" />
+<script type="text/javascript" src="/js/OMN-Go/Bookmarker.js"></script>
 ```
 
 The two paths point to the files of the application. Change them when you export the note to a different directory.

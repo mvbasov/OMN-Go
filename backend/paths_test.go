@@ -29,7 +29,7 @@ func TestResolvePageName(t *testing.T) {
 		{"compiled html filename", "Welcome.html", md("Welcome.md"), html("Welcome.html"), "Welcome", true},
 		{"nested page", "dir/Note.md", md(filepath.Join("dir", "Note.md")), html(filepath.Join("dir", "Note.html")), "dir/Note", true},
 		{"static js asset", "app.js", "", html("app.js"), "app.js", false},
-		{"static css asset", "css/omn-go-core.css", "", html(filepath.Join("css", "omn-go-core.css")), "css/omn-go-core.css", false},
+		{"static css asset", "css/OMN-Go/omn-go-core.css", "", html(filepath.Join("css", "OMN-Go", "omn-go-core.css")), "css/OMN-Go/omn-go-core.css", false},
 		{"static image", "images/pic.png", "", html(filepath.Join("images", "pic.png")), "images/pic.png", false},
 		{"asset with extra dots", "js/app.min.js", "", html(filepath.Join("js", "app.min.js")), "js/app.min.js", false},
 

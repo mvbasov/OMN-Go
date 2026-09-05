@@ -499,7 +499,7 @@ func safeLocalPath(s string) bool {
 // notEditableView holds what the "not a text file" page shows. Path and
 // Type are raw values that renderNotEditablePage escapes itself.
 type notEditableView struct {
-	Path string // "/css/fonts/x.woff2"
+	Path string // "/css/OMN-Go/fonts/x.woff2"
 	Type string // the resolved content type, "unknown" when there is none
 }
 

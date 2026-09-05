@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -136,6 +137,53 @@ func (a *App) hasKnownAssetExtension(name string) bool {
 	return ok
 }
 
+// legacyAssetPaths maps the OLD URL of each app asset to its place under
+// OMN-Go/. The table is built from versionDependentAssets and from
+// retiredFonts, thus it can never disagree with the move.
+//
+// The key and the value both start with a slash, because that is the
+// shape that materializeAsset holds.
+var legacyAssetPaths = func() map[string]string {
+	out := map[string]string{}
+	add := func(rel string) {
+		// rel is "html/js/OMN-Go/x.js". The URL drops the "html" part.
+		urlNew := strings.TrimPrefix(rel, "html")
+		dir, name := path.Split(urlNew)
+		// dir is "/js/OMN-Go/". The old URL has no OMN-Go segment.
+		oldDir := strings.TrimSuffix(dir, "OMN-Go/")
+		out[oldDir+name] = urlNew
+	}
+	for _, rel := range versionDependentAssets {
+		if strings.HasPrefix(rel, "html/") {
+			add(rel)
+		}
+	}
+	for _, rel := range retiredFonts {
+		// retiredFonts holds the OLD path, for example
+		// "html/css/fonts/KaTeX_Main-Regular.woff2".
+		name := path.Base(rel)
+		out["/css/fonts/"+name] = "/css/OMN-Go/fonts/" + name
+	}
+	return out
+}()
+
+// legacyAssetURL answers the question "did this URL name an app asset
+// before 26.09.12". It gives the new URL when the answer is yes.
+//
+// WHY THIS EXISTS. md/Bookmarks.md loads /js/Bookmarker.js and
+// /css/Bookmarker.css by an absolute path. That note is USER-OWNED, thus
+// an upgrade never rewrites it, thus the Bookmarks page of each existing
+// install would stop working. The same holds for a note that a person
+// wrote with a link to /js/omn-go-core.js.
+//
+// The table covers the moved files alone. A user file such as
+// /js/mine.js is absent from it and still answers 404, thus this rule
+// hides no fault of a name.
+func legacyAssetURL(urlPath string) (string, bool) {
+	moved, ok := legacyAssetPaths[urlPath]
+	return moved, ok
+}
+
 // materializeAsset returns the on-disk path of the html/ asset for urlPath,
 // extracting it from the embedded frontend on first request if it is not on
 // disk yet. ok is false for a genuine 404 (present neither on disk nor
@@ -145,6 +193,17 @@ func (a *App) hasKnownAssetExtension(name string) bool {
 // (serveStaticAsset).
 func (a *App) materializeAsset(urlPath string) (physPath string, ok bool) {
 	clean := filepath.Clean(urlPath)
+
+	// A request for the OLD place of an app asset resolves to the new
+	// one. See legacyAssetURL.
+	//
+	// This runs FIRST, and not after the two lookups below. An install
+	// that upgraded still holds the old file for the short time before
+	// removeRetiredAssets runs. The reader must get the file of this
+	// build in that window.
+	if moved, isLegacy := legacyAssetURL(filepath.ToSlash(clean)); isLegacy {
+		clean = filepath.FromSlash(moved)
+	}
 	physPath = filepath.Join(a.StorageDir, "html", clean)
 
 	if stat, err := os.Stat(physPath); err == nil {

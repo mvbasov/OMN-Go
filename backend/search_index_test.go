@@ -85,8 +85,8 @@ func TestIndexExclusions(t *testing.T) {
 	writeSearchNote(t, a, "Keep.md", "Title: Keep\n\nkeep me\n")
 	writeSearchNote(t, a, "OMNGoTags.md", "Title: Tags\n\ngenerated from the notes\n")
 	writeSearchNote(t, a, "local/Scratch.md", "Title: Scratch\n\ngitignored scratch\n")
-	writeAsset(t, a, "js/omn-go-core.js", "// the app's own code\n")
-	writeAsset(t, a, "js/katex.min.js", "// a bundled library\n")
+	writeAsset(t, a, "js/OMN-Go/omn-go-core.js", "// the app's own code\n")
+	writeAsset(t, a, "js/OMN-Go/katex.min.js", "// a bundled library\n")
 	writeAsset(t, a, "js/mine.js", "// my own script\n")
 
 	a.rebuildSearchIndex()
@@ -95,8 +95,8 @@ func TestIndexExclusions(t *testing.T) {
 	for _, unwanted := range []string{
 		"md/OMNGoTags.md",        // derived from the notes; indexing it duplicates them
 		"md/local/Scratch.md",    // the gitignored scratch tree
-		"html/js/omn-go-core.js", // shipped with the app
-		"html/js/katex.min.js",   // ... and a bundled library
+		"html/js/OMN-Go/omn-go-core.js", // shipped with the app
+		"html/js/OMN-Go/katex.min.js",   // ... and a bundled library
 	} {
 		if containsPath(got, unwanted) {
 			t.Errorf("%s should not be indexed by default; got %v", unwanted, got)
@@ -111,7 +111,7 @@ func TestIndexExclusions(t *testing.T) {
 	// The opt-in brings the app's own code, which is the whole point of it.
 	a.WithConfig(func(c *Config) { c.SearchBundled = true })
 	a.rebuildSearchIndex()
-	if got := indexedPaths(a); !containsPath(got, "html/js/omn-go-core.js") {
+	if got := indexedPaths(a); !containsPath(got, "html/js/OMN-Go/omn-go-core.js") {
 		t.Errorf("SearchBundled did not include the shipped scripts: %v", got)
 	}
 }

@@ -183,7 +183,7 @@ func TestConfigPostPasswordFollowsTheSentRule(t *testing.T) {
 // agree on the attribute name. This test reads both files and compares
 // them, the same as TestFoldTableHasAFrontendCopy.
 func TestSecretAttributeHasAFrontendReader(t *testing.T) {
-	raw, err := staticFS.ReadFile("frontend/html/js/omn-go-sse.js")
+	raw, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-sse.js")
 	if err != nil {
 		t.Fatalf("omn-go-sse.js is not embedded: %v", err)
 	}

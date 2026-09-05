@@ -2,10 +2,11 @@
 # android/fdroid_fetch_assets.sh
 #
 # Fetches and sha256-verifies the vendored, offline-first third-party
-# frontend assets (highlight.js, KaTeX + its fonts, Material Icons font,
-# github-markdown-css) into backend/frontend/html/{js,css,css/fonts}/,
-# instead of relying on the copies normally committed to the repo for
-# local/Docker builds.
+# frontend assets. Those are highlight.js, KaTeX with its fonts, and the
+# Material Icons font. They go into
+# backend/frontend/html/{js/OMN-Go,css/OMN-Go,css/OMN-Go/fonts}/, and the
+# script does not use the copies that the repository holds for a local
+# build and for a Docker build.
 #
 # WHY THIS EXISTS: these files are committed to the repo so the app is
 # fully offline out of the box (see UserManual.md) and so
@@ -27,20 +28,24 @@
 #                                                       # normal internet access, to populate the
 #                                                       # SHA256 map below, then commit the result.
 #
-# STATUS: every entry in the SHA256 map below is a REPLACE_WITH_SHA256
-# placeholder. This script fails closed (refuses to proceed) as long as
-# any placeholder remains, the same way the fdroiddata recipe's Go
-# toolchain checksum TODO does - see the recipe file for the matching
-# note. Run this script with --print-hashes on a normal machine, then
-# replace the placeholders below with the printed values before this can
-# be used in an actual F-Droid build.
+# STATUS: the SHA256 map below is complete. Each entry holds a real hash,
+# and the script refuses to proceed for a hash that does not match.
+#
+# The text here said until 26.09.12 that each entry was a
+# REPLACE_WITH_SHA256 placeholder and that the script refused to run. That
+# was wrong, and it made a reader think that the F-Droid build could not
+# work.
+#
+# A version change of one asset needs a new hash. Run this script with
+# --print-hashes on a machine with normal internet access, then put the
+# printed values into the map.
 
 set -eu
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
-JS_DIR="$REPO_ROOT/backend/frontend/html/js"
-CSS_DIR="$REPO_ROOT/backend/frontend/html/css"
-FONT_DIR="$REPO_ROOT/backend/frontend/html/css/fonts"
+JS_DIR="$REPO_ROOT/backend/frontend/html/js/OMN-Go"
+CSS_DIR="$REPO_ROOT/backend/frontend/html/css/OMN-Go"
+FONT_DIR="$REPO_ROOT/backend/frontend/html/css/OMN-Go/fonts"
 
 PRINT_HASHES=0
 if [ "${1:-}" = "--print-hashes" ]; then
@@ -52,7 +57,6 @@ mkdir -p "$JS_DIR" "$CSS_DIR" "$FONT_DIR"
 # name|url|dest|sha256 (one asset per line; sha256 is a placeholder until
 # populated via --print-hashes - see STATUS above)
 ASSETS='
-github-markdown.min.css|https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css|CSS_DIR/markdown.css|a7a15c52ec7512eb6c15c593fb289616c6987dd0e33e8e072d9be3fe79eedb18
 highlight.min.js|https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js|JS_DIR/highlight.min.js|837a6fa5b0c736b52bbde2b2b6190f305da3fc9ed41681db5321507057b5c846
 highlight.default.min.css|https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css|CSS_DIR/highlight.default.min.css|fbde0ac0921d86c356c41532e7319c887a23bd1b8ff00060cab447249f03c7cf
 katex.min.js|https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js|JS_DIR/katex.min.js|dc84b296ec3e884de093158f760fd9d45b6c7abe58b5381557f4e138f46a58ae

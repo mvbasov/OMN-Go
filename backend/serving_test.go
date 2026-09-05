@@ -59,11 +59,11 @@ func TestResolveContentTypeConfigOverride(t *testing.T) {
 func TestMaterializeAssetFromEmbed(t *testing.T) {
 	a := newTestApp(t)
 
-	phys, ok := a.materializeAsset("/js/omn-go-core.js")
+	phys, ok := a.materializeAsset("/js/OMN-Go/omn-go-core.js")
 	if !ok {
 		t.Fatal("embedded asset was not materialized")
 	}
-	want := filepath.Join(a.StorageDir, "html", "js", "omn-go-core.js")
+	want := filepath.Join(a.StorageDir, "html", "js", "OMN-Go", "omn-go-core.js")
 	if phys != want {
 		t.Errorf("physical path = %q, want %q", phys, want)
 	}

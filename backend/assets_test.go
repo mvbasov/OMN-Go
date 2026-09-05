@@ -28,7 +28,7 @@ func TestRefreshEmbeddedAssets(t *testing.T) {
 	a := &App{StorageDir: dir}
 
 	// A version-dependent html/ asset, seeded with a stale copy on disk.
-	const rel = "html/js/omn-go-core.js"
+	const rel = "html/js/OMN-Go/omn-go-core.js"
 	embedData, err := staticFS.ReadFile("frontend/" + rel)
 	if err != nil {
 		t.Fatalf("embedded %s missing from staticFS: %v", rel, err)
@@ -138,7 +138,7 @@ func TestAssetsRefreshedReportsOnlyAStartThatWroteAFile(t *testing.T) {
 
 	// A version change that finds a different copy on disk writes the
 	// file again, thus the flag must be true.
-	target := filepath.Join(dir, filepath.FromSlash("html/js/omn-go-core.js"))
+	target := filepath.Join(dir, filepath.FromSlash("html/js/OMN-Go/omn-go-core.js"))
 	if err := os.WriteFile(target, []byte("// older extract\n"), 0644); err != nil {
 		t.Fatal(err)
 	}

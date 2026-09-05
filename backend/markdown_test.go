@@ -347,7 +347,7 @@ func TestCompilePageAssetPrefix(t *testing.T) {
 
 	// Root markdown page -> bare relative paths, no leading slash.
 	root := string(a.compilePage("Welcome", []byte("Title: W\n\nBody")))
-	for _, want := range []string{`href="css/omn-go-core.css"`, `src="js/omn-go-core.js"`, `href="Welcome.html"`} {
+	for _, want := range []string{`href="css/OMN-Go/omn-go-core.css"`, `src="js/OMN-Go/omn-go-core.js"`, `href="Welcome.html"`} {
 		if !strings.Contains(root, want) {
 			t.Errorf("root page missing %q", want)
 		}
@@ -358,7 +358,7 @@ func TestCompilePageAssetPrefix(t *testing.T) {
 
 	// Two-deep markdown page -> "../../" prefix.
 	nested := string(a.compilePage("a/b/Note", []byte("Title: N\n\nBody")))
-	for _, want := range []string{`href="../../css/omn-go-core.css"`, `src="../../js/omn-go-core.js"`, `href="../../Welcome.html"`} {
+	for _, want := range []string{`href="../../css/OMN-Go/omn-go-core.css"`, `src="../../js/OMN-Go/omn-go-core.js"`, `href="../../Welcome.html"`} {
 		if !strings.Contains(nested, want) {
 			t.Errorf("nested page missing %q", want)
 		}
@@ -366,7 +366,7 @@ func TestCompilePageAssetPrefix(t *testing.T) {
 
 	// Dynamic custom-body page -> absolute paths.
 	dyn := string(a.compilePageWithBody("Config", []byte("Title: Config\n\n"), "<p>dashboard</p>"))
-	for _, want := range []string{`href="/css/omn-go-core.css"`, `src="/js/omn-go-core.js"`, `href="/Welcome.html"`} {
+	for _, want := range []string{`href="/css/OMN-Go/omn-go-core.css"`, `src="/js/OMN-Go/omn-go-core.js"`, `href="/Welcome.html"`} {
 		if !strings.Contains(dyn, want) {
 			t.Errorf("custom-body page missing absolute %q:\n%s", want, dyn)
 		}

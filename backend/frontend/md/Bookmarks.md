@@ -23,5 +23,5 @@ Tags: Bookmarks, OMN-Go, OMN-Go user
 
 <!-- end of bookmarks definition -->
 
-<link rel="stylesheet" type="text/css" href="/css/Bookmarker.css" />
-<script type="text/javascript" src="/js/Bookmarker.js"></script>
+<link rel="stylesheet" type="text/css" href="/css/OMN-Go/Bookmarker.css" />
+<script type="text/javascript" src="/js/OMN-Go/Bookmarker.js"></script>

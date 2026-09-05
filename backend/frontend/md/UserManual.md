@@ -452,7 +452,7 @@ Press a tag pill in the header of such a page to see the full list. The [Tags](O
 
 Before you write in a page with the tag `OMN-Go app`, copy the text into a page of your own. Your notes are safe: OMN-Go touches only the pages that come with it.
 
-The other files use the same two words. The [file index](OMNGoFiles) marks each file *app-owned* or *user-owned*. `css/omn-go-custom.css` and `js/omn-go-custom.js` are user-owned, like a page with the tag `OMN-Go user`.
+The other files use the same two words. The [file index](OMNGoFiles) marks each file *app-owned* or *user-owned*. `css/omn-go-custom.css` and `js/omn-go-custom.js` are user-owned, like a page with the tag `OMN-Go user`. Each app-owned file of `js/` and `css/` sits in an `OMN-Go/` subdirectory since 26.09.12. A link to an old path still works.
 
 ## Searching
 
@@ -931,7 +931,7 @@ The application scripts give your note script a set of ready functions. See [Use
 
 ## Useful functions of the application scripts
 
-Each page loads `js/omn-go-core.js` and `js/omn-go-sse.js`. The functions below are ready before your note script starts. Call them from a note, from a button, or from `js/omn-go-custom.js`. Obey the four rules of [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
+Each page loads `js/OMN-Go/omn-go-core.js` and `js/OMN-Go/omn-go-sse.js`. The functions below are ready before your note script starts. Call them from a note, from a button, or from `js/omn-go-custom.js`. Obey the four rules of [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages).
 
 ### From `omn-go-core.js`
 
@@ -1003,7 +1003,7 @@ To open a file, use its edit link. Example: `[My styles](/css/omn-go-custom.css?
 
 OMN-Go writes the two files one time. Each file gets a comment that says what the file is for. After that the files are yours. An update keeps your version. Git synchronization copies the files to your other devices.
 
-To change one color everywhere, set the design token in your stylesheet. The tokens are at the top of `css/omn-go-core.css`:
+To change one color everywhere, set the design token in your stylesheet. The tokens are at the top of `css/OMN-Go/omn-go-core.css`:
 
 ```
 :root { --accent: #8e44ad; }
@@ -1011,7 +1011,7 @@ To change one color everywhere, set the design token in your stylesheet. The tok
 
 Put your code in a block scope, as in a note script (see [Scripting Rules](ScriptRules)). A `var` at the top level of the file becomes a global name on each page.
 
-One page is different. The [Bookmarks](Bookmarks) page loads `css/Bookmarker.css` from the note. The browser reads that stylesheet after the head. To change that page, give your rule a higher specificity.
+One page is different. The [Bookmarks](Bookmarks) page loads `css/OMN-Go/Bookmarker.css` from the note. The browser reads that stylesheet after the head. To change that page, give your rule a higher specificity.
 
 **The editor page does not load the two files.** This is deliberate. A rule that hides a control cannot keep you out of the editor. An error in your code cannot keep you out of the editor. The editor always opens, and you repair the file there.
 

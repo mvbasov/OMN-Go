@@ -344,7 +344,7 @@ func jsFoldRune(t *testing.T, lit string) rune {
 }
 
 func TestFoldTableHasAFrontendCopy(t *testing.T) {
-	raw, err := staticFS.ReadFile("frontend/html/js/omn-go-core.js")
+	raw, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-core.js")
 	if err != nil {
 		t.Fatalf("omn-go-core.js is not embedded: %v", err)
 	}

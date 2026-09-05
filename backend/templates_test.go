@@ -140,7 +140,7 @@ func TestRenderIndexPageLoadsCustomAssetsLast(t *testing.T) {
 	if customCSS < 0 {
 		t.Fatal("page does not load css/omn-go-custom.css")
 	}
-	for _, sheet := range []string{"css/omn-go-core.css", "css/highlight.default.min.css", "css/katex.min.css"} {
+	for _, sheet := range []string{"css/OMN-Go/omn-go-core.css", "css/OMN-Go/highlight.default.min.css", "css/OMN-Go/katex.min.css"} {
 		if i := strings.Index(out, sheet); i < 0 || i > customCSS {
 			t.Errorf("%s must load BEFORE css/omn-go-custom.css", sheet)
 		}
@@ -151,8 +151,8 @@ func TestRenderIndexPageLoadsCustomAssetsLast(t *testing.T) {
 		t.Fatal("page does not load js/omn-go-custom.js")
 	}
 	for _, script := range []string{
-		"js/omn-go-core.js", "js/omn-go-sse.js", "js/highlight.min.js",
-		"js/katex.min.js", "js/auto-render.min.js",
+		"js/OMN-Go/omn-go-core.js", "js/OMN-Go/omn-go-sse.js", "js/OMN-Go/highlight.min.js",
+		"js/OMN-Go/katex.min.js", "js/OMN-Go/auto-render.min.js",
 	} {
 		if i := strings.Index(out, script); i < 0 || i > customJS {
 			t.Errorf("%s must load BEFORE js/omn-go-custom.js", script)
@@ -181,7 +181,7 @@ func TestRenderEditorPage(t *testing.T) {
 		t.Error("editor page must not embed note source")
 	}
 	// The editor fetches from /api/note and loads its own script.
-	if !strings.Contains(out, "/js/omn-go-editor.js") {
+	if !strings.Contains(out, "/js/OMN-Go/omn-go-editor.js") {
 		t.Error("editor page does not load omn-go-editor.js")
 	}
 	// Name is JS-escaped in the OMN_EDIT_NAME string literal.
@@ -501,7 +501,7 @@ func TestCompatScriptIsFirstAndES5(t *testing.T) {
 	if len(scripts) == 0 {
 		t.Fatal("index.html loads no script at all")
 	}
-	if !strings.Contains(scripts[0], "js/omn-go-compat.js") {
+	if !strings.Contains(scripts[0], "js/OMN-Go/omn-go-compat.js") {
 		t.Errorf("the first script of index.html is %q, want omn-go-compat.js. "+
 			"A script above it that a WebView cannot parse throws before the "+
 			"notice runs, and the reader sees a blank page with no reason.",
@@ -517,7 +517,7 @@ func TestCompatScriptIsFirstAndES5(t *testing.T) {
 		t.Error("the compat script is after the stylesheet link, which delays it for no reason")
 	}
 
-	raw, err := staticFS.ReadFile("frontend/html/js/omn-go-compat.js")
+	raw, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-compat.js")
 	if err != nil {
 		t.Fatalf("omn-go-compat.js is not embedded: %v", err)
 	}
@@ -582,7 +582,7 @@ func TestCompiledPageShellStaysSmall(t *testing.T) {
 // in a textarea, and the focus must stay there for the typing that
 // follows.
 func TestClipboardHasOneAuthority(t *testing.T) {
-	const authority = "frontend/html/js/omn-go-core.js"
+	const authority = "frontend/html/js/OMN-Go/omn-go-core.js"
 	for _, tree := range []struct {
 		name string
 		fs   fs.FS
@@ -644,8 +644,8 @@ var documentedCoreAPI = []string{
 func TestDocumentedCoreAPIIsExported(t *testing.T) {
 	var all strings.Builder
 	for _, f := range []string{
-		"frontend/html/js/omn-go-core.js",
-		"frontend/html/js/omn-go-sse.js",
+		"frontend/html/js/OMN-Go/omn-go-core.js",
+		"frontend/html/js/OMN-Go/omn-go-sse.js",
 	} {
 		src, err := staticFS.ReadFile(f)
 		if err != nil {

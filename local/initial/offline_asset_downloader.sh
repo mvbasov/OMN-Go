@@ -12,9 +12,9 @@ echo -e "${YELLOW}  GoOMN Offline Asset Downloader${NC}"
 echo -e "${BLUE}=======================================${NC}"
 
 # Define target directories (aligning with backend restructuring)
-JS_DIR="backend/frontend/html/js"
-CSS_DIR="backend/frontend/html/css"
-FONT_DIR="backend/frontend/html/css/fonts"
+JS_DIR="backend/frontend/html/js/OMN-Go"
+CSS_DIR="backend/frontend/html/css/OMN-Go"
+FONT_DIR="backend/frontend/html/css/OMN-Go/fonts"
 
 # Create directories if they don't exist
 mkdir -p "$JS_DIR"
@@ -42,9 +42,6 @@ download_file() {
 
 # 2. Download DOMPurify (Crucial for sanitizing marked.js output securely)
 #download_file "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" "$JS_DIR/purify.min.js" "DOMPurify"
-
-# 3. Download a minimal Markdown CSS styling (e.g., Github Markdown CSS)
-download_file "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown.min.css" "$CSS_DIR/markdown.css" "Markdown CSS"
 
 # 4. Download Highlight.js (Code Syntax Highlighting)
 download_file "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" "$JS_DIR/highlight.min.js" "Highlight.js"

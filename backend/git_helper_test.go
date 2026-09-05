@@ -112,19 +112,18 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"!/html/images/*.svg\n" +
 		"/html/images/icons/*\n" +
 		"!/html/images/icons/*.svg\n" +
-		"/html/css/omn-go-core.css\n" +
-		"/html/css/Bookmarker.css\n" +
-		"/html/css/highlight.default.min.css\n" +
-		"/html/css/katex.min.css\n" +
-		"/html/css/markdown.css\n" +
-		"/html/js/omn-go-compat.js\n" +
-		"/html/js/omn-go-core.js\n" +
-		"/html/js/omn-go-sse.js\n" +
-		"/html/js/omn-go-editor.js\n" +
-		"/html/js/auto-render.min.js\n" +
-		"/html/js/katex.min.js\n" +
-		"/html/js/highlight.min.js\n" +
-		"/html/js/Bookmarker.js\n" +
+		"/html/css/OMN-Go/omn-go-core.css\n" +
+		"/html/css/OMN-Go/Bookmarker.css\n" +
+		"/html/css/OMN-Go/highlight.default.min.css\n" +
+		"/html/css/OMN-Go/katex.min.css\n" +
+		"/html/js/OMN-Go/omn-go-compat.js\n" +
+		"/html/js/OMN-Go/omn-go-core.js\n" +
+		"/html/js/OMN-Go/omn-go-sse.js\n" +
+		"/html/js/OMN-Go/omn-go-editor.js\n" +
+		"/html/js/OMN-Go/auto-render.min.js\n" +
+		"/html/js/OMN-Go/katex.min.js\n" +
+		"/html/js/OMN-Go/highlight.min.js\n" +
+		"/html/js/OMN-Go/Bookmarker.js\n" +
 		"/html/**/*.txt\n" +
 		"/md/AndroidIntents.md\n" +
 		"/md/BookmarksHowTo.md\n" +

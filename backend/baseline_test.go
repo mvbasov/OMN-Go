@@ -277,7 +277,7 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 	})
 
 	t.Run("non-page asset falls through to the asset path", func(t *testing.T) {
-		rec := getPage(t, a, "/js/omn-go-core.js")
+		rec := getPage(t, a, "/js/OMN-Go/omn-go-core.js")
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status %d", rec.Code)
 		}

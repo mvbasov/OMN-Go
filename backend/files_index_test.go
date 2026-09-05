@@ -237,9 +237,9 @@ func TestFilesPage_DirectoryTotalsAreRecursive(t *testing.T) {
 // one row that states the relation, not two rows in two sections.
 func TestFilesPage_OneNameOneRow(t *testing.T) {
 	a := newTestApp(t)
-	writeDiskFile(t, a, "js/omn-go-core.js", "// changed by hand")
+	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// changed by hand")
 
-	body := served(t, a, "js%2F")
+	body := served(t, a, "js%2FOMN-Go%2F")
 	if n := strings.Count(body, ">omn-go-core.js<"); n != 1 {
 		t.Errorf("omn-go-core.js has %d rows, want 1", n)
 	}
@@ -259,7 +259,7 @@ func TestFilesPage_StatesAndColours(t *testing.T) {
 	a := newTestApp(t)
 	// Shipped, extracted, and edited: the size differs, so no byte read is
 	// needed to know. It is app-owned, thus the change is the one that is lost.
-	writeDiskFile(t, a, "js/omn-go-core.js", "// a hand edit")
+	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// a hand edit")
 	// Shipped, extracted, untouched: written from the embed itself. This row
 	// must say NOTHING.
 	sameBody, err := staticFS.ReadFile("frontend/html/js/local_counter.js")
@@ -270,16 +270,22 @@ func TestFilesPage_StatesAndColours(t *testing.T) {
 	// Never shipped: also silent.
 	writeDiskFile(t, a, "js/mine.js", "// mine")
 
-	body := served(t, a, "js%2F")
+	// 26.09.12 moved each app-owned file into js/OMN-Go/, thus one
+	// listing no longer holds each of the three colours. The app states
+	// are in the OMN-Go directory, and the plain state is above it.
+	body := served(t, a, "js%2FOMN-Go%2F")
 	for _, want := range []string{
 		"changed here", "not extracted",
-		filesColorAlert, filesColorApp, filesColorPlain,
+		filesColorAlert, filesColorApp,
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("the listing never says %q", want)
+			t.Errorf("the OMN-Go listing never says %q", want)
 		}
 	}
-	// The word is the fact; the colour is a hint. app-owned is spelled out.
+	if plain := served(t, a, "js%2F"); !strings.Contains(plain, filesColorPlain) {
+		t.Errorf("the js listing never says %q", filesColorPlain)
+	}
+	// The word is the fact, and the colour is a hint. app-owned is a word.
 	if !strings.Contains(body, ">app-owned<") {
 		t.Error("no row spells out app-owned")
 	}
@@ -501,7 +507,7 @@ func TestFilesPage_TreesHoldTheRightThings(t *testing.T) {
 // not see it.
 func TestFilesPage_BundledSpellsOutAppOwned(t *testing.T) {
 	a := newTestApp(t)
-	body := getFilesPage(t, a, "tree=bundled&dir=js%2F").Body.String()
+	body := getFilesPage(t, a, "tree=bundled&dir=js%2FOMN-Go%2F").Body.String()
 	if !strings.Contains(body, `<span class="files-facts">`) {
 		t.Fatal("no facts line in the Bundled tree")
 	}
@@ -543,7 +549,7 @@ func TestFilesDirNote_MarksOnlyAppFiles(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "Journal/2026-08-01.html", "<html></html>")
 	writeDiskFile(t, a, "images/photo.png", "x")
-	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// extracted")
 
 	dirs, _, _, _ := foldToDir(a.treeEntries(filesTreeServed), "")
 	for _, d := range dirs {
@@ -593,7 +599,7 @@ func TestFilesEditable(t *testing.T) {
 	}
 
 	for _, p := range []string{
-		"css/fonts/material-icons.woff2",
+		"css/OMN-Go/fonts/material-icons.woff2",
 		"favicon.ico",
 		"images/drawing.svg", // text, but an image - the rule is about images
 		"weird.qqq",          // unknown extension: not assumed to be text
@@ -617,7 +623,7 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	// A file that ships and is not extracted yet keeps its edit link: pressing
 	// it goes through handleGetNote, which extracts the file and then opens the
 	// editor on it.
-	if !strings.Contains(body, `href="/js/katex.min.js?edit=true"`) {
+	if !strings.Contains(body, `href="/js/local_counter.js?edit=true"`) {
 		t.Error("a file that is not extracted yet lost its edit link")
 	}
 
@@ -662,9 +668,9 @@ func TestFilesStoragePathAndOwnership(t *testing.T) {
 	cases := []struct {
 		tree, logical, want string
 	}{
-		{filesTreeServed, "js/omn-go-core.js", "html/js/omn-go-core.js"},
+		{filesTreeServed, "js/OMN-Go/omn-go-core.js", "html/js/OMN-Go/omn-go-core.js"},
 		{filesTreeSource, "UserManual.md", "md/UserManual.md"},
-		{filesTreeBundled, "js/omn-go-core.js", "html/js/omn-go-core.js"},
+		{filesTreeBundled, "js/OMN-Go/omn-go-core.js", "html/js/OMN-Go/omn-go-core.js"},
 		{filesTreeBundled, "md/UserManual.md", "md/UserManual.md"},
 	}
 	for _, c := range cases {
@@ -679,7 +685,7 @@ func TestFilesStoragePathAndOwnership(t *testing.T) {
 	if isVersionDependent("html/js/mine.js") {
 		t.Error("a file that the application does not ship was reported as app-owned")
 	}
-	if isVersionDependent("js/omn-go-core.js") {
+	if isVersionDependent("js/OMN-Go/omn-go-core.js") {
 		t.Error("a logical path must not match; the list holds storage paths")
 	}
 }
@@ -698,7 +704,7 @@ func TestFilesEmbeddedPath(t *testing.T) {
 	}
 	// The path has to be readable, or every comparison silently falls back to
 	// "same size" and the page stops answering its main question.
-	if _, err := staticFS.ReadFile(filesEmbeddedPath(filesTreeServed, "js/omn-go-core.js")); err != nil {
+	if _, err := staticFS.ReadFile(filesEmbeddedPath(filesTreeServed, "js/OMN-Go/omn-go-core.js")); err != nil {
 		t.Errorf("the embedded path does not resolve: %v", err)
 	}
 }
@@ -712,9 +718,9 @@ func TestFilesEmbeddedPath(t *testing.T) {
 // on a phone.
 func TestFilesPage_RowIsTwoLines(t *testing.T) {
 	a := newTestApp(t)
-	writeDiskFile(t, a, "js/omn-go-core.js", "// extracted")
+	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// extracted")
 
-	body := served(t, a, "js%2F")
+	body := served(t, a, "js%2FOMN-Go%2F")
 	if !strings.Contains(body, `<span class="files-name">`) {
 		t.Error("a row has no name element")
 	}
@@ -789,7 +795,7 @@ func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
 	}
 
 	// One that does uses a folded <details>, and it must not be open.
-	writeDiskFile(t, a, "js/omn-go-core.js", "// edited")
+	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// edited")
 	loud := served(t, a, "js%2F")
 	if !strings.Contains(loud, `<details class="files-legend"><summary>What the words mean</summary>`) {
 		t.Error("the key is not a folded details element")

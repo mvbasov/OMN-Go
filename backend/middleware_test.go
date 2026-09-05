@@ -26,7 +26,7 @@ func TestConnectionMiddlewareSetsCacheControl(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/js/omn-go-core.js", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/js/OMN-Go/omn-go-core.js", nil))
 
 	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
 		t.Errorf("Cache-Control = %q, want %q", got, "no-cache")
