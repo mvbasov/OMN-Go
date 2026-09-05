@@ -76,14 +76,21 @@ var builtinMIME = map[string]string{
 	".ttf":   "font/ttf",
 }
 
-// resolveContentType is the single MIME resolver. Precedence:
-//  1. Config.MimeTypes  - the per-install override (config.json).
-//  2. builtinMIME       - OMN-Go's canonical table (also covers what the old
-//     startup mime.AddExtensionType calls registered, plus .jsonl).
-//  3. mime.TypeByExtension - the Go stdlib fallback.
+// resolveContentType is the single MIME resolver. It reads three sources
+// in this order:
 //
-// Returns "" when nothing knows the extension, in which case the caller
-// leaves the header unset and lets net/http sniff the content.
+//  1. Config.MimeTypes, the per-install override of config.json.
+//  2. builtinMIME, the canonical table of OMN-Go. It also covers what the
+//     old startup mime.AddExtensionType calls registered, and .jsonl.
+//  3. mime.TypeByExtension, the fallback of the Go standard library.
+//
+// THE OVERRIDE IS EMPTY ON A NEW INSTALL SINCE 26.09.16, thus the table
+// above answers in practice. An older version wrote a map of ten rows
+// into config.json, and each row shadowed this table and carried no
+// charset. See legacyMimeSeeds in config.go.
+//
+// The answer is "" when no source knows the extension. The caller then
+// leaves the header unset and lets net/http read the content.
 func (a *App) resolveContentType(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ct, ok := a.GetConfig().MimeTypes[ext]; ok && ct != "" {

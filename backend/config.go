@@ -171,6 +171,93 @@ func normalizeSearchScope(s string) string {
 	return SearchScopeAll
 }
 
+// ----------------------------------------------------------------------
+// The mime_types map of config.json
+// ----------------------------------------------------------------------
+//
+// Config.MimeTypes is an OVERRIDE of builtinMIME in serving.go, and
+// resolveContentType reads it first. See rule 7 of CLAUDE.md section 1:
+// builtinMIME is the one authority for a content type.
+//
+// UNTIL 26.09.16 A FRESH INSTALL WROTE A MAP OF TEN ROWS INTO
+// config.json, AND THAT MAP SHADOWED THE TABLE ON EACH INSTALL. The rows
+// carried no charset, thus each install answered:
+//
+//	.css    text/css               and not text/css; charset=utf-8
+//	.js     application/javascript and not text/javascript; charset=utf-8
+//	.html   text/html              and not text/html; charset=utf-8
+//	.md     text/markdown          and not text/markdown; charset=utf-8
+//
+// No test saw it, because newTestApp built a Config with an empty map.
+// The table therefore answered in each test and the seed answered on
+// each device.
+//
+// One rule of the project already carries the cost of this. Point 4 of
+// TestCompatScriptIsFirstAndES5 asks each byte of omn-go-compat.js to be
+// ASCII, because the server sends that file with no charset. The rule
+// stays as a second defense, and the first defense is here.
+//
+// legacyMimeSeeds holds the two maps that an older version wrote. The
+// repair below drops a map that equals one of them EXACTLY. A person who
+// changed one row keeps each row, because such a map is a choice and not
+// a leftover.
+var legacyMimeSeeds = []map[string]string{
+	{
+		".css":   "text/css",
+		".js":    "application/javascript",
+		".json":  "application/json",
+		".html":  "text/html",
+		".md":    "text/markdown",
+		".svg":   "image/svg+xml",
+		".png":   "image/png",
+		".jpg":   "image/jpeg",
+		".jpeg":  "image/jpeg",
+		".woff2": "font/woff2",
+	},
+	{
+		".css":   "text/css",
+		".js":    "application/javascript",
+		".json":  "application/json",
+		".woff2": "font/woff2",
+	},
+}
+
+// dropLegacyMimeSeed removes a mime_types map that an older version
+// wrote, and it reports whether it changed anything. The caller then
+// writes config.json.
+//
+// A nil map is the state of a fresh install after 26.09.16, thus the
+// function answers false and writes no file.
+func (a *App) dropLegacyMimeSeed() bool {
+	if a.Config.MimeTypes == nil {
+		return false
+	}
+	for _, seed := range legacyMimeSeeds {
+		if !sameStringMap(a.Config.MimeTypes, seed) {
+			continue
+		}
+		a.Config.MimeTypes = nil
+		a.logInfof(logConfig, "removed the mime_types map that an older version wrote, "+
+			"thus the content types of this build answer again")
+		return true
+	}
+	return false
+}
+
+// sameStringMap answers whether two maps hold the same keys and the same
+// values.
+func sameStringMap(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 type GitServerConfig struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -314,18 +401,9 @@ func (a *App) loadConfig(storageDir string) {
 			Hostname:         defaultHostname(),
 			BackupPruneDepth: 3,
 
-			MimeTypes: map[string]string{
-				".css":   "text/css",
-				".js":    "application/javascript",
-				".json":  "application/json",
-				".html":  "text/html",
-				".md":    "text/markdown",
-				".svg":   "image/svg+xml",
-				".png":   "image/png",
-				".jpg":   "image/jpeg",
-				".jpeg":  "image/jpeg",
-				".woff2": "font/woff2",
-			},
+			// NO MimeTypes MAP. The field is an override of
+			// builtinMIME, and a fresh install overrides nothing. See
+			// legacyMimeSeeds below for what a seed cost.
 		}
 		data, err := json.MarshalIndent(a.Config, "", "  ")
 		if err != nil {
@@ -386,18 +464,14 @@ func (a *App) loadConfig(storageDir string) {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
 	}
 
-	if a.Config.MimeTypes == nil {
-		a.Config.MimeTypes = map[string]string{
-			".css":   "text/css",
-			".js":    "application/javascript",
-			".json":  "application/json",
-			".woff2": "font/woff2",
-		}
+	// A map that an older version seeded goes away, and the canonical
+	// table below it answers again. See dropLegacyMimeSeed.
+	if a.dropLegacyMimeSeed() {
 		data, err := json.MarshalIndent(a.Config, "", "  ")
 		if err != nil {
-			a.logErrf(logConfig, "loadConfig: failed to marshal config after mime-type fixup: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to marshal config after the mime-type repair: %v", err)
 		} else if err := os.WriteFile(configPath, data, 0644); err != nil {
-			a.logErrf(logConfig, "loadConfig: failed to write config.json after mime-type fixup: %v", err)
+			a.logErrf(logConfig, "loadConfig: failed to write config.json after the mime-type repair: %v", err)
 		}
 	}
 
