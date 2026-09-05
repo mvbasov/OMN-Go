@@ -13,10 +13,15 @@ import (
 	"testing"
 )
 
-// newTestApp returns an App rooted in a fresh temp dir with the md/ and
-// html/ layout initStorage would create, without running initStorage (no
-// embedded-file extraction, no config file - tests control all inputs).
-func newTestApp(t *testing.T) *App {
+// newUnconfiguredApp returns an App rooted in a fresh temp dir with the
+// md/ and html/ layout that initStorage makes. It does not run
+// initStorage, thus it extracts no embedded file. It loads NO
+// configuration, thus a.Config keeps each zero value.
+//
+// Use it for a test of loadConfig itself, and for a test that asks what
+// the application does with no configuration. Each other test wants
+// newTestApp below.
+func newUnconfiguredApp(t *testing.T) *App {
 	t.Helper()
 	a := &App{StorageDir: t.TempDir()}
 	for _, d := range []string{"md", "html"} {
@@ -25,6 +30,80 @@ func newTestApp(t *testing.T) *App {
 		}
 	}
 	return a
+}
+
+// newTestApp returns the App of a fresh install. It makes the storage
+// layout and then loads the configuration, thus a.Config holds the
+// defaults that loadConfig writes and config.json exists on disk.
+//
+// WHY IT LOADS THE CONFIGURATION. Until 26.09.18 this helper built an
+// App with a zero Config. No user ever runs that App. A zero Config
+// makes each boolean false and each string empty, and a test then read a
+// default that the loader never writes.
+//
+// TestBaseline_ServeHTMLPageDispatch showed the cost. Its comment said
+// that UseInternalEd defaults to false. loadConfig sets that field to
+// true on a fresh install. The subtest for the external editor therefore
+// passed on a zero value and not on the default it named.
+//
+// A test that wants the zero Config asks for it by name with
+// newUnconfiguredApp. The two helpers make the choice visible in the
+// test, which is where a reader looks for it.
+func newTestApp(t *testing.T) *App {
+	t.Helper()
+	a := newUnconfiguredApp(t)
+	a.loadConfig(a.StorageDir)
+	return a
+}
+
+// The state of the test application must be the state of a fresh
+// install. A change of loadConfig that makes a different default is a
+// change that each test above must see.
+//
+// The fields below are the ones that a handler branches on. A zero
+// Config makes each of them false or empty, which is what hid the wrong
+// UseInternalEd comment in baseline_test.go until 26.09.18.
+func TestTestAppHoldsTheFreshInstallDefaults(t *testing.T) {
+	a := newTestApp(t)
+	cfg := a.GetConfig()
+
+	if !cfg.UseInternalEd {
+		t.Error("UseInternalEd is false, but a fresh install turns the internal editor on")
+	}
+	if cfg.ServerPort != 8080 {
+		t.Errorf("ServerPort is %d, want 8080", cfg.ServerPort)
+	}
+	if cfg.Theme != ThemeAuto {
+		t.Errorf("Theme is %q, want %q", cfg.Theme, ThemeAuto)
+	}
+	if cfg.SearchEnabled {
+		t.Error("SearchEnabled is true, but global search is off on a fresh install")
+	}
+	if len(cfg.GitServers) != maxGitServers {
+		t.Errorf("GitServers holds %d slots, want %d", len(cfg.GitServers), maxGitServers)
+	}
+	if len(cfg.LogTags) == 0 {
+		t.Error("LogTags is empty, but a fresh install ticks each tag")
+	}
+
+	// The loader also writes the file. A test of an upgrade path needs
+	// that file to exist.
+	if _, err := os.Stat(filepath.Join(a.StorageDir, "config.json")); err != nil {
+		t.Errorf("newTestApp wrote no config.json: %v", err)
+	}
+}
+
+// The other half of the pair. A test that asks for the unconfigured App
+// must get one, because that is the state it makes a claim about.
+func TestUnconfiguredAppLoadsNoConfig(t *testing.T) {
+	a := newUnconfiguredApp(t)
+
+	if cfg := a.GetConfig(); cfg.ServerPort != 0 || cfg.UseInternalEd {
+		t.Errorf("newUnconfiguredApp loaded a configuration: %+v", cfg)
+	}
+	if _, err := os.Stat(filepath.Join(a.StorageDir, "config.json")); err == nil {
+		t.Error("newUnconfiguredApp wrote a config.json")
+	}
 }
 
 func TestResolveNewPageTarget(t *testing.T) {

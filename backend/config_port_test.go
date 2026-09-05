@@ -20,6 +20,10 @@ import (
 	"testing"
 )
 
+// Each test below calls loadConfig itself, thus each one starts from an
+// App that loaded no configuration. newTestApp loads one since 26.09.18,
+// and a second load would then read the file that the first load wrote.
+
 func portOfConfigFile(t *testing.T, a *App) int {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
@@ -37,7 +41,7 @@ func portOfConfigFile(t *testing.T, a *App) int {
 
 // The case that was broken: a fresh install of a flavor that asked for 8081.
 func TestFreshInstallUsesTheCallerSuppliedPort(t *testing.T) {
-	a := newTestApp(t)
+	a := newUnconfiguredApp(t)
 	a.defaultPort = 8081
 	a.loadConfig(a.StorageDir)
 
@@ -54,7 +58,7 @@ func TestFreshInstallUsesTheCallerSuppliedPort(t *testing.T) {
 
 // Desktop passes 0 and must keep the historical default.
 func TestFreshInstallWithNoCallerDefaultStaysOn8080(t *testing.T) {
-	a := newTestApp(t)
+	a := newUnconfiguredApp(t)
 	a.loadConfig(a.StorageDir)
 
 	if a.Config.ServerPort != 8080 {
@@ -69,7 +73,7 @@ func TestFreshInstallWithNoCallerDefaultStaysOn8080(t *testing.T) {
 // the build.gradle comment states, and the reason the default is only a
 // default.
 func TestConfiguredPortBeatsTheFlavorDefault(t *testing.T) {
-	a := newTestApp(t)
+	a := newUnconfiguredApp(t)
 	writeConfigJSON(t, a, `{"server_port":9000}`)
 	a.defaultPort = 8081
 	a.loadConfig(a.StorageDir)
@@ -83,7 +87,7 @@ func TestConfiguredPortBeatsTheFlavorDefault(t *testing.T) {
 // same way a fresh install does - to the FLAVOR default, not to 8080.
 func TestConfigWithoutAPortFallsBackToTheFlavorDefault(t *testing.T) {
 	for _, src := range []string{`{}`, `{"server_port":0}`, `{"server_port":-1}`} {
-		a := newTestApp(t)
+		a := newUnconfiguredApp(t)
 		writeConfigJSON(t, a, src)
 		a.defaultPort = 8081
 		a.loadConfig(a.StorageDir)

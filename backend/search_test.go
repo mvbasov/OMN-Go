@@ -134,7 +134,10 @@ func TestPageSearch_E4EndToEnd(t *testing.T) {
 // Page search must work with nothing set up: no config, no index, no state
 // left behind. This is the property that lets it be always-on.
 func TestPageSearch_NeedsNothing(t *testing.T) {
-	a := newTestApp(t)
+	// newUnconfiguredApp and not newTestApp. The property under test is
+	// that page search needs no configuration, thus this test must load
+	// none. newTestApp loads the defaults since 26.09.18.
+	a := newUnconfiguredApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: A Note\n\nthe quick brown fox\n")
 
 	// A zero App: no config loaded, no search settings, nothing warmed.

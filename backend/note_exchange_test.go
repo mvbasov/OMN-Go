@@ -239,6 +239,15 @@ func TestImportNoteNameFallbacks(t *testing.T) {
 func TestImportNoteCannotEscape(t *testing.T) {
 	a := newTestApp(t)
 
+	// The list of files that the setup made. The test asks what the
+	// IMPORT wrote, thus it compares against this list and not against
+	// an empty tree. newTestApp writes config.json since 26.09.18, and
+	// a later change of the setup can add another file.
+	before := map[string]bool{}
+	for _, rel := range filesUnder(t, a.StorageDir) {
+		before[rel] = true
+	}
+
 	for _, name := range []string{
 		"../../../../etc/pwned",
 		"/etc/pwned",
@@ -251,19 +260,40 @@ func TestImportNoteCannotEscape(t *testing.T) {
 	}
 
 	var strays []string
-	filepath.Walk(a.StorageDir, func(p string, fi os.FileInfo, e error) error {
-		if e != nil || fi.IsDir() {
-			return nil
+	for _, rel := range filesUnder(t, a.StorageDir) {
+		if before[rel] || strings.HasPrefix(rel, "md/incoming/") {
+			continue
 		}
-		rel, _ := filepath.Rel(a.StorageDir, p)
-		if rel = filepath.ToSlash(rel); !strings.HasPrefix(rel, "md/incoming/") {
-			strays = append(strays, rel)
-		}
-		return nil
-	})
+		strays = append(strays, rel)
+	}
 	if len(strays) > 0 {
 		t.Errorf("an import wrote outside md/incoming/: %v", strays)
 	}
+}
+
+// filesUnder lists each file below dir as a slash-separated path that is
+// relative to dir. It lists no directory.
+func filesUnder(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	err := filepath.Walk(dir, func(p string, fi os.FileInfo, e error) error {
+		if e != nil {
+			return e
+		}
+		if fi.IsDir() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(dir, p)
+		if relErr != nil {
+			return relErr
+		}
+		out = append(out, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func TestImportNoteNormalizesNewlines(t *testing.T) {

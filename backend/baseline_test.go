@@ -246,8 +246,17 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 	})
 
 	t.Run("edit intent, external editor", func(t *testing.T) {
-		// UseInternalEd defaults false on a fresh config: hand off to the
-		// external-editor flow rather than rendering the editor page.
+		// A person who turns the internal editor off gets the
+		// external-editor flow and not the editor page.
+		//
+		// This subtest set no value until 26.09.18. It read the zero
+		// value of the field, and the comment here called that value the
+		// default. loadConfig sets UseInternalEd to true on a fresh
+		// install, thus the comment was wrong and the subtest tested the
+		// state of no user.
+		a.WithConfig(func(c *Config) { c.UseInternalEd = false })
+		defer a.WithConfig(func(c *Config) { c.UseInternalEd = true })
+
 		rec := getPage(t, a, "/Note.html?edit=true")
 		if rec.Code != http.StatusSeeOther {
 			t.Fatalf("status %d, want 303", rec.Code)
@@ -258,8 +267,11 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 	})
 
 	t.Run("edit intent, internal editor", func(t *testing.T) {
+		// The value that loadConfig writes on a fresh install. The set
+		// call stays, because a subtest must not depend on the order of
+		// the subtests above it.
 		a.WithConfig(func(c *Config) { c.UseInternalEd = true })
-		defer a.WithConfig(func(c *Config) { c.UseInternalEd = false })
+		defer a.WithConfig(func(c *Config) { c.UseInternalEd = true })
 
 		rec := getPage(t, a, "/Note.html?edit=true")
 		if rec.Code != http.StatusOK {
