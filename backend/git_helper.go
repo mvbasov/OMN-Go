@@ -1601,13 +1601,47 @@ func (a *App) syncPush(repo *git.Repository, wTree *git.Worktree, auth transport
 		return nil
 	}
 	if err != nil {
-		if !force && err == git.ErrNonFastForwardUpdate {
+		if !force && isNonFastForward(err) {
 			a.logErrf(logSync, "push: rejected as non-fast-forward, leaving local state untouched")
 			return ErrPushConflict
 		}
 		return fmt.Errorf("push failed: %v", err)
 	}
 	return nil
+}
+
+// nonFastForwardText is the message that go-git writes when a remote
+// refuses a push. See isNonFastForward.
+const nonFastForwardText = "non-fast-forward update"
+
+// isNonFastForward tells whether a push failed because the remote holds a
+// commit that this device does not have.
+//
+// THE TEST OF THE MESSAGE IS NOT A CHOICE. go-git builds this error with
+// fmt.Errorf at three places in remote.go, and it wraps no sentinel. See
+// go-git v5.13.1, remote.go lines 828, 1106 and 1115.
+//
+// The value git.ErrNonFastForwardUpdate lives in worktree.go and belongs
+// to Pull alone. A test of that value against the answer of Push is
+// therefore never true.
+//
+// Until 26.09.11 syncPush made exactly that test. Each rejected push
+// therefore left this function as a general fault. syncErrorStatus then
+// gave the status "error" in place of "push_conflict". The frontend shows
+// a plain alert for the first word and the push-conflict modal for the
+// second. The reader thus lost the one control that offers a force push.
+// See showPushConflictModal in omn-go-sse.js.
+//
+// The value test stays first. A later go-git that wraps the sentinel then
+// matches without a change here.
+func isNonFastForward(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, git.ErrNonFastForwardUpdate) {
+		return true
+	}
+	return strings.HasPrefix(err.Error(), nonFastForwardText)
 }
 
 // ---------------------------------------------------------------

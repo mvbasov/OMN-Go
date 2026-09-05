@@ -37,6 +37,7 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -653,6 +654,34 @@ func TestSyncPushNeedsAMessage(t *testing.T) {
 	}
 }
 
+// A push that the remote refuses must leave the local state as it is. The
+// reader pulls first, and no automatic merge happens. See the banner of
+// syncPush.
+func TestSyncPushRefusesANonFastForward(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+
+	// Another device pushes while this one holds an older commit.
+	gsSeedRemote(t, remote, "from the other device", map[string]string{"md/Other.md": "other\n"})
+	remoteHead := gsRemoteHead(t, remote)
+
+	gsWrite(t, a, "md/Two.md", "a note of this device\n")
+	err := a.SyncRepo("push", "add a note")
+	if !errors.Is(err, ErrPushConflict) {
+		t.Fatalf("the push answered %v, want ErrPushConflict", err)
+	}
+	if got := gsRemoteHead(t, remote); got != remoteHead {
+		t.Error("the refused push changed the remote")
+	}
+	if !gsExists(a, "md/Two.md") {
+		t.Error("the refused push removed the local note")
+	}
+}
+
 // A force push writes over the remote. The reader asks for this after a
 // conflict that a merge cannot answer.
 func TestSyncPushForceOverwritesTheRemote(t *testing.T) {
@@ -776,5 +805,56 @@ func TestSyncRepoRefusesAnUnknownAction(t *testing.T) {
 
 	if err := a.SyncRepo("pulll", ""); err == nil {
 		t.Error("SyncRepo accepted an action that does not exist")
+	}
+}
+
+// isNonFastForward reads the MESSAGE of the answer of go-git, because
+// go-git wraps no sentinel there. A string test is easy to break, thus it
+// has a test of its own.
+//
+// The first row is the exact text of go-git v5.13.1. An upgrade of go-git
+// that changes that text breaks this test, which is the point: the
+// push-conflict modal would otherwise go away without a sound.
+func TestIsNonFastForward(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"the message of go-git for a push", errors.New("non-fast-forward update: refs/heads/master"), true},
+		{"the sentinel that Pull uses", git.ErrNonFastForwardUpdate, true},
+		{"a wrapped sentinel", fmt.Errorf("push: %w", git.ErrNonFastForwardUpdate), true},
+		{"another fault of the transport", errors.New("dial tcp: connection refused"), false},
+		{"a message that names the words later", errors.New("the remote refused a non-fast-forward update"), false},
+		{"no fault", nil, false},
+	}
+	for _, c := range cases {
+		if got := isNonFastForward(c.err); got != c.want {
+			t.Errorf("%s: isNonFastForward(%v) = %v, want %v", c.name, c.err, got, c.want)
+		}
+	}
+}
+
+// The whole chain must end at the word that the frontend reads. syncPush
+// answers ErrPushConflict, syncErrorStatus turns that into
+// "push_conflict", and omn-go-sse.js opens the modal on that word.
+func TestNonFastForwardReachesThePushConflictStatus(t *testing.T) {
+	remote := gsRemote(t)
+	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
+	a := gsApp(t, remote)
+	if err := a.SyncRepo("pull", ""); err != nil {
+		t.Fatalf("the first pull: %v", err)
+	}
+	gsSeedRemote(t, remote, "from the other device", map[string]string{"md/Other.md": "other\n"})
+	gsWrite(t, a, "md/Two.md", "a note of this device\n")
+
+	err := a.SyncRepo("push", "add a note")
+	status, message, ok := syncErrorStatus(err)
+	if !ok || status != "push_conflict" {
+		t.Errorf("the status is %q (known=%v), want push_conflict. The reader then "+
+			"gets a plain alert and never sees the force-push control.", status, ok)
+	}
+	if !strings.Contains(message, "Pull before pushing") {
+		t.Errorf("the message is %q, and it does not say what to do", message)
 	}
 }
