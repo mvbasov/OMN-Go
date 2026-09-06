@@ -1093,6 +1093,10 @@ A form therefore declares the fields it governs in one hidden field:
 config_fields=use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds,log_debug,log_info,log_tags
 ```
 
+Since 26.09.19 the Config page fills that value from the table of settings
+in `backend/config_fields.go`, so it names every checkbox of the page and
+nothing else. The list above is what that table gives today.
+
 A name in that list counts as carried even when the request holds no value
 for it, which is what an unticked box means. A caller that sends no
 `config_fields` governs only the fields it actually names. A caller with no
@@ -1131,11 +1135,16 @@ setting off and touches nothing else.
 | `git_key_<i>` | string | | SSH private key text |
 | `git_pass_<i>` | string | | |
 
-The endpoint rewrites git server slot `i` **only if at least one** of
-`git_name_<i>`, `git_url_<i>`, `git_key_<i>` or `git_pass_<i>` is non-empty.
-It then replaces all four fields of the slot with the submitted values. You
-can therefore clear one field, but you cannot clear all four at the same
-time.
+Each of `git_name_<i>`, `git_url_<i>`, `git_key_<i>` and `git_pass_<i>`
+follows the same **carried** rule as every field above, one field at a
+time. A request that carries one of them writes that one and leaves the
+other three as they are. A carried empty value clears that field alone.
+
+> **Before 26.09.7** the endpoint read all four fields of a slot and
+> rewrote all four when a minimum of one was non-empty. That rule needed a
+> page that carries the SSH key and the key password. The Config page
+> carries neither since 26.09.7, so a save that changed the slot name
+> alone wrote an empty key over the real one.
 
 **Responses**
 

@@ -436,29 +436,15 @@ func (a *App) loadConfig(storageDir string) {
 	if a.Config.ServerPort <= 0 {
 		a.Config.ServerPort = a.fallbackPort()
 	}
-	// Configs written before max_upload_size_mb existed (or one explicitly
-	// saved as 0/negative, which is not a sane limit) fall back to the
-	// default here - same reasoning as the ServerPort fixup just above.
-	// Not persisted immediately: it will be written out next time config.json
-	// is saved for any other reason, same as the theme normalization below.
-	if a.Config.MaxUploadSizeMB <= 0 {
-		a.Config.MaxUploadSizeMB = defaultMaxUploadSizeMB
-	}
-	// Configs written before the theme field existed carry "" here;
-	// normalize once at load so the rest of the code never sees an
-	// invalid value.
-	a.Config.Theme = normalizeTheme(a.Config.Theme)
-	// Same story for android_fullscreen: configs written before the field
-	// existed carry "", which normalizes to FullscreenOn - i.e. exactly the
-	// status-bar-hidden behaviour those installs already had.
-	a.Config.AndroidFullscreen = normalizeFullscreen(a.Config.AndroidFullscreen)
-	// And the search settings: a config predating them has no search_kinds
-	// key at all (nil -> the default) and an empty search_scope (-> "all").
-	a.Config.SearchKinds = normalizeSearchKinds(a.Config.SearchKinds)
-	a.Config.SearchScope = normalizeSearchScope(a.Config.SearchScope)
-	// And the log switches: a config predating them has no log_tags key,
-	// which normalizeLogTags turns into every tag.
-	a.Config.LogTags = normalizeLogTags(a.Config.LogTags)
+	// Each other repair comes from the table in config_fields.go. A
+	// configuration that an older version wrote carries an empty theme and
+	// no log_tags key. Each one of those needs a value before any other
+	// code reads it. Six lines stood here until 26.09.19, and each new
+	// setting needed a seventh.
+	//
+	// The repair is not written back at once. The next save of config.json
+	// carries it, whatever started that save.
+	normalizeConfig(&a.Config)
 	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})

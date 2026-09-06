@@ -436,6 +436,10 @@ func renderConfigPage(v configPageView) string {
 
 	// No ADMIN_PWD and no GUEST_PWD. See the banner of gitServerView.
 	return fill(configPageTmpl, map[string]string{
+		// The names of the checkboxes of this page, from the table in
+		// config_fields.go. See configCheckboxFields for why the page
+		// must declare them.
+		"CONFIG_FIELDS":          configCheckboxFields(),
 		"SERVER_PORT":            fmt.Sprintf("%d", v.ServerPort),
 		"AUTHOR":                 escapeHTML(v.Author),
 		"INTERNAL_ED_CHECKED":    internalEdChecked,
@@ -443,8 +447,8 @@ func renderConfigPage(v configPageView) string {
 		"INTENT_URI_CHECKED":     intentUriChecked,
 		"TERMUX_INTENT_CHECKED":  termuxIntentChecked,
 		"DESKTOP_EXT_CMD":        escapeHTML(v.DesktopExtCmd),
-		"HOSTNAME":               escapeHTML(displayHostname(v.Hostname)),
-		"BACKUP_PRUNE_DEPTH":     fmt.Sprintf("%d", displayPruneDepth(v.PruneDepth)),
+		"HOSTNAME":               escapeHTML(normalizeHostname(v.Hostname)),
+		"BACKUP_PRUNE_DEPTH":     fmt.Sprintf("%d", normalizePruneDepth(v.PruneDepth)),
 		"THEME_AUTO_SEL":         themeSel["THEME_AUTO_SEL"],
 		"THEME_LIGHT_SEL":        themeSel["THEME_LIGHT_SEL"],
 		"THEME_DARK_SEL":         themeSel["THEME_DARK_SEL"],

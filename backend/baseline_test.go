@@ -659,11 +659,12 @@ func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
 // ---------------------------------------------------------------------
 
 // configFormFields is what the Config page's hidden config_fields input
-// carries. Kept here as one string so a test posts the same declaration the
-// real form does.
-const configFormFields = "use_internal_editor,share_lan,enable_intent_uri," +
-	"enable_termux_intent,search_enabled,search_bundled,search_kinds," +
-	"log_debug,log_info,log_tags"
+// carries. A test posts the same declaration that the real form sends.
+//
+// It is not a copy any more. configCheckboxFields reads the table in
+// config_fields.go, and the page fills the input from the same call since
+// 26.09.19. A test therefore cannot drift from the page.
+var configFormFields = configCheckboxFields()
 
 // assertConfigOnDisk decodes config.json and hands it to check. Separate from
 // the in-memory assertions because "saved" in this app means both, and a
@@ -771,7 +772,7 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 // empty the author name, both passwords, the external-editor command and the
 // device label, and to untick every checkbox on the Config page.
 //
-// Through handleConfigExt, not handleConfig, because the device label is the
+// The device label is the
 // wrapper's field and it had the same fault in a worse form: an absent
 // "hostname" was rewritten to the OS-derived default, which then renamed
 // every database backup the device wrote next.
@@ -797,7 +798,7 @@ func TestConfigPost_PartialRequestKeepsTheRest(t *testing.T) {
 	})
 
 	// Exactly what the Theme Customizer note sends.
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+	postForm(t, a.handleConfig, "/api/config", url.Values{
 		"theme":               {"custom"},
 		"custom_theme_bg":     {"#101010"},
 		"custom_theme_accent": {"#4488ff"},
@@ -861,7 +862,7 @@ func TestConfigPost_DeclaredCheckboxesStillClear(t *testing.T) {
 		c.GitServers = make([]GitServerConfig, maxGitServers)
 	})
 
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+	postForm(t, a.handleConfig, "/api/config", url.Values{
 		"config_fields": {configFormFields},
 		"theme":         {"light"},
 	})
@@ -881,7 +882,7 @@ func TestConfigPost_DeclaredCheckboxesStillClear(t *testing.T) {
 	// A caller with no form behind it can do the same thing one field at a
 	// time, by value, without declaring anything.
 	a.WithConfig(func(c *Config) { c.SearchEnabled = true; c.ShareLAN = true })
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{"search_enabled": {"false"}})
+	postForm(t, a.handleConfig, "/api/config", url.Values{"search_enabled": {"false"}})
 	cfg = a.GetConfig()
 	if cfg.SearchEnabled {
 		t.Error("search_enabled=false did not clear it")
@@ -891,35 +892,58 @@ func TestConfigPost_DeclaredCheckboxesStillClear(t *testing.T) {
 	}
 }
 
-// A checkbox the Config page forgets to declare can never be unticked again:
-// the browser sends nothing for it and the server leaves it as it was. That
-// failure is silent - the box appears to save and then comes back ticked - so
-// the form's declaration is checked against the form's own checkboxes here.
+// Every checkbox of the Config page must be in the config_fields value of
+// that page. A checkbox that the list does not name cannot be cleared. A
+// browser sends nothing at all for an unticked box. The server reads that
+// absence as "not my business" and keeps the old value.
+//
+// THE TEST READS THE RENDERED PAGE. The list was a hand-written attribute
+// of config_page.html until 26.09.19, and a test of the template caught a
+// forgotten name. The page now fills the attribute from
+// configCheckboxFields. This test therefore proves the whole path. It
+// reads the table, the fill, and the markup that the browser gets.
 func TestConfigPost_EveryCheckboxIsDeclared(t *testing.T) {
+	// The template must hold the placeholder and no list of its own. A
+	// hand-written list here would answer this test and still go out of
+	// step with the table.
+	if !strings.Contains(configPageTmpl, `name="config_fields" value="%%CONFIG_FIELDS%%"`) {
+		t.Fatal("config_page.html does not fill config_fields from the table")
+	}
+
+	page := renderConfigPage(configPageView{})
+
+	m := regexp.MustCompile(`name="config_fields" value="([^"]*)"`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatal("the rendered page carries no config_fields declaration")
+	}
 	declared := map[string]bool{}
-	value := ""
-	if m := regexp.MustCompile(`name="config_fields" value="([^"]*)"`).
-		FindStringSubmatch(configPageTmpl); m != nil {
-		value = m[1]
-		for _, f := range strings.Split(m[1], ",") {
-			declared[strings.TrimSpace(f)] = true
+	for _, f := range strings.Split(m[1], ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			declared[f] = true
 		}
 	}
 	if len(declared) == 0 {
-		t.Fatal("config_page.html carries no config_fields declaration")
+		t.Fatal("the rendered config_fields value is empty")
 	}
 
-	// The tests in this file post this same string, so they exercise what the
-	// page really sends rather than a copy that has drifted from it.
-	if value != configFormFields {
-		t.Errorf("configFormFields is out of step with the page:\n page %q\n test %q", value, configFormFields)
-	}
-
-	for _, m := range regexp.MustCompile(`<input type="checkbox"[^>]*name="([^"]+)"`).
-		FindAllStringSubmatch(configPageTmpl, -1) {
-		if !declared[m[1]] {
+	for _, box := range regexp.MustCompile(`<input type="checkbox"[^>]*name="([^"]+)"`).
+		FindAllStringSubmatch(page, -1) {
+		if !declared[box[1]] {
 			t.Errorf("checkbox %q is on the Config page but not in config_fields, "+
-				"so unticking it cannot be saved", m[1])
+				"so unticking it cannot be saved", box[1])
+		}
+	}
+
+	// And the other way. A name in the list that no checkbox carries is
+	// dead text, and it makes a request govern a field it cannot send.
+	boxes := map[string]bool{}
+	for _, box := range regexp.MustCompile(`<input type="checkbox"[^>]*name="([^"]+)"`).
+		FindAllStringSubmatch(page, -1) {
+		boxes[box[1]] = true
+	}
+	for name := range declared {
+		if !boxes[name] {
+			t.Errorf("config_fields names %q, but the page carries no checkbox of that name", name)
 		}
 	}
 }
@@ -933,7 +957,7 @@ func TestConfigPost_HostnameClearedFallsBack(t *testing.T) {
 		c.Hostname = "pixel7"
 		c.GitServers = make([]GitServerConfig, maxGitServers)
 	})
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{"hostname": {""}})
+	postForm(t, a.handleConfig, "/api/config", url.Values{"hostname": {""}})
 	if got := a.GetConfig().Hostname; got == "" || got == "pixel7" {
 		t.Errorf("hostname = %q, want the OS-derived default", got)
 	}

@@ -244,7 +244,7 @@ func StartServer(storageDir string, defaultPort int) *App {
 		a.Router.HandleFunc("/api/search", a.handleSearch)
 		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
 		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
-		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfigExt, true))
+		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
 		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
 		a.Router.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
 		a.Router.HandleFunc("/api/db/backup", a.authMiddleware(a.handleDBBackupCreate, true))

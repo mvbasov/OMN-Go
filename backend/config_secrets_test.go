@@ -104,7 +104,7 @@ func TestConfigPostKeepsAnUnsentGitSecret(t *testing.T) {
 		"git_name_0": {"renamed"},
 		"git_url_0":  {"git@host:notes.git"},
 	}
-	postForm(t, a.handleConfigExt, "/api/config", form)
+	postForm(t, a.handleConfig, "/api/config", form)
 
 	cfg := a.GetConfig()
 	if cfg.GitServers[0].Name != "renamed" {
@@ -123,7 +123,7 @@ func TestConfigPostKeepsAnUnsentGitSecret(t *testing.T) {
 func TestConfigPostClearsASentGitSecret(t *testing.T) {
 	a := secretsApp(t)
 
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+	postForm(t, a.handleConfig, "/api/config", url.Values{
 		"git_key_0":  {""},
 		"git_pass_0": {""},
 	})
@@ -146,7 +146,7 @@ func TestConfigPostWritesANewGitKey(t *testing.T) {
 	a := secretsApp(t)
 	a.WithConfig(func(c *Config) { c.GitServers[1].SSHKeyData = "SLOT-ONE-KEY" })
 
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{
+	postForm(t, a.handleConfig, "/api/config", url.Values{
 		"git_key_0": {"A-NEW-KEY"},
 	})
 
@@ -164,12 +164,12 @@ func TestConfigPostWritesANewGitKey(t *testing.T) {
 // clears it. The second half is what a person does to remove a password.
 func TestConfigPostPasswordFollowsTheSentRule(t *testing.T) {
 	a := secretsApp(t)
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{"author": {"Ann"}})
+	postForm(t, a.handleConfig, "/api/config", url.Values{"author": {"Ann"}})
 	if got := a.GetConfig().AdminPassword; got != secretValues["admin"] {
 		t.Errorf("an omitted admin_password changed to %q", got)
 	}
 
-	postForm(t, a.handleConfigExt, "/api/config", url.Values{"admin_password": {""}})
+	postForm(t, a.handleConfig, "/api/config", url.Values{"admin_password": {""}})
 	if got := a.GetConfig().AdminPassword; got != "" {
 		t.Errorf("a sent and empty admin_password did not clear it: %q", got)
 	}

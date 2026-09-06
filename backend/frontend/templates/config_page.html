@@ -101,11 +101,12 @@
           and "not my business" would look the same to the server and no
           box on this page could ever be cleared.
 
-          Every checkbox name on this form belongs here, and a new
-          checkbox must be added to it. A text field or a select does not:
-          the browser always sends those, empty or not.
+          The value comes from configCheckboxFields in config_fields.go,
+          which reads the table of settings. Every checkbox name reaches
+          this list with no edit here. A text field or a select needs no
+          entry: the browser always sends those, empty or not.
         -->
-        <input type="hidden" name="config_fields" value="use_internal_editor,share_lan,enable_intent_uri,enable_termux_intent,search_enabled,search_bundled,search_kinds,log_debug,log_info,log_tags" />
+        <input type="hidden" name="config_fields" value="%%CONFIG_FIELDS%%" />
         <div class="config-screen" data-screen="general">
             <div class="config-subhead">
                 <button type="button" class="config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
