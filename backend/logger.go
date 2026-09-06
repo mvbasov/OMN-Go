@@ -138,9 +138,19 @@ func (a *App) logLineEnabled(lvl logLevel, tag logTag) bool {
 	return f.tags[tag]
 }
 
-func (a *App) InitLoggerAndRoute() {
+// initLogger sends the standard logger into the stream of /api/logs.
+//
+// It registered that route as well until 26.09.32, and it was the one
+// route outside the block of server.go. registerRoutes holds each route
+// now, thus a test reads the whole set from one place. Section 3 of
+// CLAUDE.md asks for that one block.
+//
+// It is unexported since 26.09.32. Nothing outside this package ever
+// called it: main_desktop.go and the Android layer use StartServer,
+// AssetsRefreshed, GetServerPort, WaitUntilReady, SetLANAddresses and
+// SetAndroidPackage. See section 3 of CLAUDE.md on the exported surface.
+func (a *App) initLogger() {
 	log.SetOutput(&JSLogger{})
-	a.Router.HandleFunc("/api/logs", a.HandleLogsSSE)
 }
 
 func (a *App) HandleLogsSSE(w http.ResponseWriter, r *http.Request) {

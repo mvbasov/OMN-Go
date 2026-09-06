@@ -94,7 +94,7 @@ func TestConnectionMiddlewareWriterIsAFlusher(t *testing.T) {
 
 // The middleware sets the header before the handler operates, thus a
 // handler that needs other words can write them. The log stream does
-// this (see InitLoggerAndRoute in logger.go).
+// this (see registerRoutes in server.go).
 func TestConnectionMiddlewareLetsAHandlerReplaceCacheControl(t *testing.T) {
 	a := &App{}
 	h := a.connectionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

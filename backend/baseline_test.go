@@ -302,34 +302,48 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 // ---------------------------------------------------------------------
 // 2. The route set
 //
-// http.ServeMux exposes no way to enumerate its patterns, and StartServer binds
-// a socket, so the route table cannot be probed without standing up a server.
-// Reading the registrations out of server.go is the cheap, reliable
-// alternative: it fails when a route is added, removed or renamed without a
-// deliberate update here - which is precisely what should happen when
-// /api/search arrives.
+// IT RECORDS THE REAL REGISTRATIONS SINCE 26.09.32. http.ServeMux exposes
+// no way to enumerate its patterns. The block also sat inside the goroutine
+// that binds the socket. This test therefore read the SOURCE of server.go
+// with a regular expression, and it proved what the file says and not what
+// the mux holds. A route that a helper registered, or a pattern that the
+// expression did not match, was invisible to it.
+//
+// registerRoutes takes a routeTable now. The recorder below satisfies that
+// interface, thus this test calls the real function and reads the pattern
+// of each route that it really registers.
 // ---------------------------------------------------------------------
 
-var routeRe = regexp.MustCompile(`a\.Router\.(?:Handle|HandleFunc)\("([^"]+)"`)
+// routeRecorder is a routeTable that stores each pattern and calls no
+// handler. It answers the question "what did registerRoutes register".
+type routeRecorder struct{ patterns []string }
+
+func (r *routeRecorder) Handle(pattern string, _ http.Handler) {
+	r.patterns = append(r.patterns, pattern)
+}
+
+func (r *routeRecorder) HandleFunc(pattern string, _ func(http.ResponseWriter, *http.Request)) {
+	r.patterns = append(r.patterns, pattern)
+}
 
 func TestBaseline_RouteSet(t *testing.T) {
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatalf("cannot read server.go: %v", err)
-	}
-	got := []string{}
-	for _, m := range routeRe.FindAllStringSubmatch(string(src), -1) {
-		got = append(got, m[1])
-	}
-	// /api/logs is registered in logger.go (InitLoggerAndRoute), not server.go.
-	logSrc, err := os.ReadFile("logger.go")
-	if err != nil {
-		t.Fatalf("cannot read logger.go: %v", err)
-	}
-	for _, m := range routeRe.FindAllStringSubmatch(string(logSrc), -1) {
-		got = append(got, m[1])
-	}
+	a := newTestApp(t)
+	rec := &routeRecorder{}
+	a.registerRoutes(rec)
+
+	got := append([]string(nil), rec.patterns...)
 	sort.Strings(got)
+
+	// A pattern registered two times panics inside a real ServeMux at the
+	// first start. The recorder does not panic, thus this test says so.
+	seen := map[string]bool{}
+	for _, p := range got {
+		if seen[p] {
+			t.Errorf("the pattern %q is registered two times. A real ServeMux "+
+				"panics on that at the first start of the application.", p)
+		}
+		seen[p] = true
+	}
 
 	want := []string{
 		"/",
@@ -344,6 +358,8 @@ func TestBaseline_RouteSet(t *testing.T) {
 		// is a new way out of the note tree.
 		"/api/export/note",
 		"/api/import/note",
+		// 26.09.32: registered by registerRoutes and no longer by
+		// logger.go, thus one block holds every route.
 		"/api/logs",
 		"/api/newpage",
 		"/api/note",
@@ -386,6 +402,22 @@ func TestBaseline_RouteSet(t *testing.T) {
 			"existing prefix (ServeMux matches longest-prefix, and a trailing "+
 			"slash makes a pattern a subtree).", got, want)
 	}
+}
+
+// Each recorded pattern must be one that http.ServeMux accepts.
+//
+// ServeMux panics on an empty pattern and on a duplicate. The recorder
+// above catches neither, because it is a slice. This test feeds the real
+// registrations to a real mux, thus a pattern that would kill the
+// application at its first start fails here instead.
+func TestBaseline_RouteSetLoadsIntoARealMux(t *testing.T) {
+	a := newTestApp(t)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("registerRoutes panics against a real ServeMux: %v", r)
+		}
+	}()
+	a.registerRoutes(http.NewServeMux())
 }
 
 // ---------------------------------------------------------------------

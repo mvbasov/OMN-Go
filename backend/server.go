@@ -207,78 +207,10 @@ func StartServer(storageDir string, defaultPort int) *App {
 			}
 		}()
 
-		// Initialize logger to stream Go logs to the frontend via SSE
-		a.InitLoggerAndRoute()
-		a.Router.HandleFunc("/", a.serveFrontend)
-
-		// The /js, /css and /json trees hold embedded assets. One shared
-		// handler in serving.go extracts each file at its first request
-		// and serves it, and ?edit=true opens it. The root catch-all
-		// reaches the same serveEmbeddableAsset through serveFrontend
-		// and serveStaticAsset.
-		assetTree := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			a.serveEmbeddableAsset(w, r, r.URL.Path)
-		})
-		a.Router.Handle("/js/", assetTree)
-		a.Router.Handle("/css/", assetTree)
-		a.Router.Handle("/json/", assetTree)
-
-		// /images and /user_json are pure user content (never embedded),
-		// served straight from their storage subdirectory. Both resolve the
-		// content-type per file so /user_json serves .json as application/json
-		// and .jsonl as text/plain (see resolveContentType).
-		a.Router.Handle("/images/", a.serveStorageSubdir("images", ""))
-		a.Router.Handle("/user_json/", a.serveStorageSubdir("user_json", ""))
-
-		a.Router.HandleFunc("/login", a.handleLogin)
-		a.Router.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
-		a.Router.HandleFunc("/api/bookmark", a.authMiddleware(a.handleBookmark, true))
-		a.Router.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
-		a.Router.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
-		a.Router.HandleFunc("/api/note", a.handleGetNote)
-		// Registered WITHOUT authMiddleware, the same as /api/note above
-		// and the same as each page and each static route. Search
-		// collects nothing that a guest on the LAN cannot already read
-		// file by file. A gate here would add no confidentiality and
-		// would break the guest.
-		a.Router.HandleFunc("/api/search", a.handleSearch)
-		a.Router.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
-		a.Router.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
-		a.Router.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
-		a.Router.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
-		a.Router.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
-		a.Router.HandleFunc("/api/db/backup", a.authMiddleware(a.handleDBBackupCreate, true))
-		a.Router.HandleFunc("/api/db/backups", a.authMiddleware(a.handleDBBackupList, true))
-		a.Router.HandleFunc("/api/db/restore", a.authMiddleware(a.handleDBRestore, true))
-		a.Router.HandleFunc("/db_backups", a.authMiddleware(a.serveDBBackupsPage, true))
-		// A PAGE with its own route, and not an arm of serveHTMLPage.
-		// That switch sits behind the catch-all, which needs no
-		// authentication, and this listing is admin only.
-		//
-		// Registered WITHOUT authMiddleware on purpose. The handler asks
-		// hasRole itself. It can therefore answer a refusal with a page,
-		// and not with a line of plain text. An exact pattern wins
-		// against "/".
-		a.Router.HandleFunc("/OMNGoFiles.html", a.serveFilesPage)
-		a.Router.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
-		a.Router.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
-		a.Router.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
-		// Note exchange. See note_exchange.go. Both routes are admin
-		// only. Import writes files, which is reason enough. Export is
-		// locked by decision, because it is a new way out of the note
-		// tree and a guest on the LAN needs none. A local connection
-		// passes authMiddleware, thus the device itself keeps both
-		// routes. On Android, where a person uses this feature, the
-		// caller IS the device.
-		a.Router.HandleFunc("/api/export/note", a.authMiddleware(a.handleExportNote, true))
-		a.Router.HandleFunc("/api/import/note", a.authMiddleware(a.handleImportNote, true))
-		// Admin only: the answer carries LAN addresses, absolute paths and
-		// a commit subject (see status.go).
-		a.Router.HandleFunc("/api/status", a.authMiddleware(a.handleStatus, true))
-		// The Status page. Registered WITHOUT authMiddleware for the same
-		// reason as /OMNGoFiles.html above. The handler asks hasRole
-		// itself, thus a guest gets a page and not a line of plain text.
-		a.Router.HandleFunc("/OMNGoStatus.html", a.serveStatusPage)
+		// Every route of the application, in one block. See
+		// registerRoutes below.
+		a.initLogger()
+		a.registerRoutes(a.Router)
 
 		// Unlocked access here is safe: this runs before net.Listen/close(a.ready),
 		// i.e. before any HTTP handler can possibly be invoked concurrently.
@@ -351,4 +283,100 @@ func StartServer(storageDir string, defaultPort int) *App {
 // a.GetServerPort safely exposes the configured port for frontend wrappers
 func (a *App) GetServerPort() int {
 	return a.GetConfig().ServerPort
+}
+
+// registerRoutes writes each route of the application into mux.
+//
+// IT TAKES AN INTERFACE AND NOT A *http.ServeMux. A ServeMux satisfies
+// routeTable, thus StartServer passes a.Router below and nothing changes
+// for the application. A test passes a recorder instead, and it then reads
+// the pattern of each route that this function really registers.
+//
+// WHY THAT MATTERS. TestBaseline_RouteSet read the SOURCE of server.go
+// with a regular expression until 26.09.32. It proved what the file says
+// and not what the mux holds. This block also sat inside the goroutine
+// that binds the socket, thus no test could reach it without a real port.
+//
+// EVERY ROUTE IS HERE, /api/logs included. Section 3 of CLAUDE.md asks for
+// one block, and that route was in logger.go alone until 26.09.32. The
+// baseline test needed a second file for that one line.
+type routeTable interface {
+	Handle(pattern string, handler http.Handler)
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+
+func (a *App) registerRoutes(mux routeTable) {
+	// The log stream of /api/logs. logger.go holds the handler, and
+	// initLogger there sends the standard logger into it.
+	mux.HandleFunc("/api/logs", a.HandleLogsSSE)
+	mux.HandleFunc("/", a.serveFrontend)
+
+	// The /js, /css and /json trees hold embedded assets. One shared
+	// handler in serving.go extracts each file at its first request
+	// and serves it, and ?edit=true opens it. The root catch-all
+	// reaches the same serveEmbeddableAsset through serveFrontend
+	// and serveStaticAsset.
+	assetTree := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.serveEmbeddableAsset(w, r, r.URL.Path)
+	})
+	mux.Handle("/js/", assetTree)
+	mux.Handle("/css/", assetTree)
+	mux.Handle("/json/", assetTree)
+
+	// /images and /user_json are pure user content (never embedded),
+	// served straight from their storage subdirectory. Both resolve the
+	// content-type per file so /user_json serves .json as application/json
+	// and .jsonl as text/plain (see resolveContentType).
+	mux.Handle("/images/", a.serveStorageSubdir("images", ""))
+	mux.Handle("/user_json/", a.serveStorageSubdir("user_json", ""))
+
+	mux.HandleFunc("/login", a.handleLogin)
+	mux.HandleFunc("/api/quick", a.authMiddleware(a.handleQuickNote, true))
+	mux.HandleFunc("/api/bookmark", a.authMiddleware(a.handleBookmark, true))
+	mux.HandleFunc("/api/upload", a.authMiddleware(a.handleUpload, true))
+	mux.HandleFunc("/api/upload_json", a.authMiddleware(a.handleUploadJSON, true))
+	mux.HandleFunc("/api/note", a.handleGetNote)
+	// Registered WITHOUT authMiddleware, the same as /api/note above
+	// and the same as each page and each static route. Search
+	// collects nothing that a guest on the LAN cannot already read
+	// file by file. A gate here would add no confidentiality and
+	// would break the guest.
+	mux.HandleFunc("/api/search", a.handleSearch)
+	mux.HandleFunc("/api/save", a.authMiddleware(a.handleSaveNote, true))
+	mux.HandleFunc("/api/newpage", a.authMiddleware(a.handleNewPage, true))
+	mux.HandleFunc("/api/config", a.authMiddleware(a.handleConfig, true))
+	mux.HandleFunc("/api/restart", a.authMiddleware(a.handleRestart, true))
+	mux.HandleFunc("/api/sql", a.authMiddleware(a.handleSQL, true))
+	mux.HandleFunc("/api/db/backup", a.authMiddleware(a.handleDBBackupCreate, true))
+	mux.HandleFunc("/api/db/backups", a.authMiddleware(a.handleDBBackupList, true))
+	mux.HandleFunc("/api/db/restore", a.authMiddleware(a.handleDBRestore, true))
+	mux.HandleFunc("/db_backups", a.authMiddleware(a.serveDBBackupsPage, true))
+	// A PAGE with its own route, and not an arm of serveHTMLPage.
+	// That switch sits behind the catch-all, which needs no
+	// authentication, and this listing is admin only.
+	//
+	// Registered WITHOUT authMiddleware on purpose. The handler asks
+	// hasRole itself. It can therefore answer a refusal with a page,
+	// and not with a line of plain text. An exact pattern wins
+	// against "/".
+	mux.HandleFunc("/OMNGoFiles.html", a.serveFilesPage)
+	mux.HandleFunc("/api/sync", a.authMiddleware(a.handleSync, true))
+	mux.HandleFunc("/api/sync/preview", a.authMiddleware(a.handleSyncPreview, true))
+	mux.HandleFunc("/api/edit-external", a.authMiddleware(a.handleEditExternal, true))
+	// Note exchange. See note_exchange.go. Both routes are admin
+	// only. Import writes files, which is reason enough. Export is
+	// locked by decision, because it is a new way out of the note
+	// tree and a guest on the LAN needs none. A local connection
+	// passes authMiddleware, thus the device itself keeps both
+	// routes. On Android, where a person uses this feature, the
+	// caller IS the device.
+	mux.HandleFunc("/api/export/note", a.authMiddleware(a.handleExportNote, true))
+	mux.HandleFunc("/api/import/note", a.authMiddleware(a.handleImportNote, true))
+	// Admin only: the answer carries LAN addresses, absolute paths and
+	// a commit subject (see status.go).
+	mux.HandleFunc("/api/status", a.authMiddleware(a.handleStatus, true))
+	// The Status page. Registered WITHOUT authMiddleware for the same
+	// reason as /OMNGoFiles.html above. The handler asks hasRole
+	// itself, thus a guest gets a page and not a line of plain text.
+	mux.HandleFunc("/OMNGoStatus.html", a.serveStatusPage)
 }
