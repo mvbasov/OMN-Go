@@ -32,6 +32,7 @@ package backend
 // ---------------------------------------------------------------------
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -259,4 +260,32 @@ func (a *App) HandleLogsSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// handleLogHistory answers the ring of the last logHistoryCap lines,
+// oldest first.
+//
+// WHY THIS IS A SEPARATE ENDPOINT AND NOT A REPLAY ON /api/logs. See the
+// banner of the ring above. A replay on the stream breaks the sync
+// progress overlay.
+//
+// IT IS ADMIN ONLY, and /api/logs is not. That looks inconsistent, and
+// it is the right pair. The stream carries what happens while a person
+// watches. The ring carries what happened before the person arrived,
+// which is the shape that a reader of another device would want. A LAN
+// share therefore hands out no transcript.
+//
+// The answer follows section 1.4 of doc/API.md: JSON with a status word.
+func (a *App) handleLogHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET only", http.StatusMethodNotAllowed)
+		return
+	}
+	lines := logHistorySnapshot()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": "success",
+		"cap":    logHistoryCap,
+		"lines":  lines,
+	})
 }

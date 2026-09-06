@@ -1269,6 +1269,48 @@ const es = new EventSource('/api/logs');
 es.onmessage = e => console.log(e.data);
 ```
 
+#### `GET /api/logs/history`
+
+The last 500 log lines, oldest first. **Admin only.**
+
+The stream above is a live sample. A page that opens after an event never
+sees the lines of it. This endpoint answers a ring that `broadcastLogLine`
+fills, so a person can read what happened before the page was open.
+
+**It carries every line**, the same as the stream. The `log_debug`,
+`log_info` and `log_tags` settings control what reaches stdout, and they
+control nothing here. A person who turned debug off and then met a fault
+needs the debug lines of that moment.
+
+**Why it is admin only and `/api/logs` is not.** The stream carries what
+happens while a person watches. The ring carries what happened before that
+person arrived, which is the shape a reader on the LAN would want. See
+`handleLogHistory` in `backend/logger.go`.
+
+**The ring never replays on the stream.** `applySyncLogLine` in
+`omn-go-sse.js` reads `[sync] (debug)` lines off the raw stream to drive
+the sync progress overlay. A replay on connect would show a sync that is
+not running.
+
+No parameters. Any method but `GET` answers `405`.
+
+**Response** `200`, `application/json`:
+
+```json
+{
+  "status": "success",
+  "cap": 500,
+  "lines": [
+    "2026/07/27 14:05:00 [sync] (info) Pull: fetching origin\n",
+    "2026/07/27 14:05:01 [sync] (info) Pull: fast-forward complete\n"
+  ]
+}
+```
+
+`lines` is always an array, never `null`. Each entry ends with a newline,
+exactly as the stream sends it. `cap` is the size of the ring, so a reader
+can tell a full ring from a short session.
+
 ---
 
 ### 4.9 SQLite

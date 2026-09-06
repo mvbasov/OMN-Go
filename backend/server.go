@@ -309,6 +309,10 @@ func (a *App) registerRoutes(mux routeTable) {
 	// The log stream of /api/logs. logger.go holds the handler, and
 	// initLogger there sends the standard logger into it.
 	mux.HandleFunc("/api/logs", a.HandleLogsSSE)
+
+	// The history ring of /api/logs/history. It is admin only, and the
+	// stream above is not. See the banner of handleLogHistory.
+	mux.HandleFunc("/api/logs/history", a.authMiddleware(a.handleLogHistory, true))
 	mux.HandleFunc("/", a.serveFrontend)
 
 	// The /js, /css and /json trees hold embedded assets. One shared

@@ -10,7 +10,10 @@ package backend
 // ---------------------------------------------------------------------
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
@@ -347,5 +350,141 @@ func TestLogHistoryUnderConcurrentWriters(t *testing.T) {
 			t.Errorf("the line %q is in the ring two times", line)
 		}
 		seen[line] = true
+	}
+}
+
+// ----------------------------------------------------------------------
+// GET /api/logs/history
+// ----------------------------------------------------------------------
+
+// The endpoint answers the ring, oldest line first, as JSON.
+func TestLogHistoryEndpointAnswersTheRing(t *testing.T) {
+	lgClearHistory(t)
+	a := newTestApp(t)
+	for _, line := range []string{"first\n", "second\n", "third\n"} {
+		broadcastLogLine(line, false)
+	}
+
+	rec := httptest.NewRecorder()
+	a.handleLogHistory(rec, httptest.NewRequest(http.MethodGet, "/api/logs/history", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("the endpoint answered %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("the content type is %q, want application/json", got)
+	}
+	var body struct {
+		Status string   `json:"status"`
+		Cap    int      `json:"cap"`
+		Lines  []string `json:"lines"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the answer is not JSON: %v\n%s", err, rec.Body.String())
+	}
+	if body.Status != "success" {
+		t.Errorf("the status is %q, want success. See section 1.4 of doc/API.md.", body.Status)
+	}
+	if body.Cap != logHistoryCap {
+		t.Errorf("the answer names a cap of %d, want %d", body.Cap, logHistoryCap)
+	}
+	want := []string{"first\n", "second\n", "third\n"}
+	if len(body.Lines) != len(want) {
+		t.Fatalf("the answer holds %d lines, want %d: %q", len(body.Lines), len(want), body.Lines)
+	}
+	for i := range want {
+		if body.Lines[i] != want[i] {
+			t.Errorf("line %d is %q, want %q", i, body.Lines[i], want[i])
+		}
+	}
+}
+
+// An empty ring answers an array, and never null.
+//
+// A reader of the answer maps over lines without a guard, the same as
+// the sync answers do. See writeSyncConflictJSON.
+func TestLogHistoryEndpointAnswersAnArrayWhenEmpty(t *testing.T) {
+	lgClearHistory(t)
+	a := newTestApp(t)
+
+	rec := httptest.NewRecorder()
+	a.handleLogHistory(rec, httptest.NewRequest(http.MethodGet, "/api/logs/history", nil))
+	if strings.Contains(rec.Body.String(), `"lines":null`) {
+		t.Errorf("an empty ring answered %s, want an empty array", rec.Body.String())
+	}
+}
+
+// The endpoint reads and changes nothing, thus it takes GET alone.
+func TestLogHistoryEndpointRefusesAnotherMethod(t *testing.T) {
+	a := newTestApp(t)
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+		rec := httptest.NewRecorder()
+		a.handleLogHistory(rec, httptest.NewRequest(method, "/api/logs/history", nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s answered %d, want 405", method, rec.Code)
+		}
+	}
+}
+
+// The endpoint is ADMIN ONLY, and the stream beside it is not.
+//
+// The stream carries what happens while a person watches. The ring
+// carries what happened before that person arrived, and a LAN share
+// hands out no transcript of it.
+//
+// This test drives the REAL registration through a real mux. A guard
+// that registerRoutes forgets to wrap is then a failure here, and a test
+// of the handler alone can never see that.
+func TestLogHistoryEndpointIsAdminOnly(t *testing.T) {
+	a := newTestApp(t)
+	mux := http.NewServeMux()
+	a.registerRoutes(mux)
+
+	cases := []struct {
+		remote, cookie string
+		want           int
+	}{
+		{"127.0.0.1:1", "", http.StatusOK},        // the local bypass
+		{"192.168.1.9:1", "admin", http.StatusOK}, // an admin of the LAN
+		{"192.168.1.9:1", "guest", http.StatusUnauthorized},
+		{"192.168.1.9:1", "", http.StatusUnauthorized},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/api/logs/history", nil)
+		req.RemoteAddr = c.remote
+		if c.cookie != "" {
+			req.AddCookie(sessionCookie(t, a, c.cookie))
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != c.want {
+			t.Errorf("%s with the cookie %q answered %d, want %d",
+				c.remote, c.cookie, rec.Code, c.want)
+		}
+	}
+}
+
+// The stream keeps its own address, and the history pattern shadows it
+// not at all.
+//
+// Both are exact patterns of a ServeMux. A trailing slash on either one
+// would make it a subtree and take the other address with it.
+func TestLogStreamKeepsItsOwnAddress(t *testing.T) {
+	a := newTestApp(t)
+	rec := &routeRecorder{}
+	a.registerRoutes(rec)
+
+	var found int
+	for _, p := range rec.patterns {
+		switch p {
+		case "/api/logs", "/api/logs/history":
+			found++
+		case "/api/logs/":
+			t.Error("the stream is registered as a subtree, thus it takes " +
+				"/api/logs/history with it")
+		}
+	}
+	if found != 2 {
+		t.Errorf("the two log patterns are not both registered: %d of 2", found)
 	}
 }

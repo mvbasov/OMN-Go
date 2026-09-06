@@ -47,6 +47,11 @@ package backend
 //     the browser console, and omn-go-sse.js reads these three to decide
 //     what it prints. They must reach a page compiled before the switches
 //     changed, which is what this mechanism is for.
+//   - 26.09.39 adds /api/logs/history to TestBaseline_RouteSet (done). The
+//     ring of the last 500 log lines. An exact pattern beside /api/logs,
+//     which stays an exact pattern as well. A trailing slash on either one
+//     would make it a subtree and take the other address. The history is
+//     admin only and the stream is not, and handleLogHistory says why.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -361,6 +366,10 @@ func TestBaseline_RouteSet(t *testing.T) {
 		// 26.09.32: registered by registerRoutes and no longer by
 		// logger.go, thus one block holds every route.
 		"/api/logs",
+		// 26.09.39: the history ring. An exact pattern, thus it shadows
+		// nothing and /api/logs still matches its own address alone. Admin
+		// only, and the stream beside it is not. See handleLogHistory.
+		"/api/logs/history",
 		"/api/newpage",
 		"/api/note",
 		"/api/quick",
