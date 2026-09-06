@@ -10,9 +10,11 @@ package backend
 // ---------------------------------------------------------------------
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -200,5 +202,150 @@ func TestLogLineEnabled(t *testing.T) {
 	}
 	if fresh.logLineEnabled(levelInfo, logServer) {
 		t.Error("an info line printed before the config loaded")
+	}
+}
+
+// ----------------------------------------------------------------------
+// The history ring
+// ----------------------------------------------------------------------
+//
+// The ring is package state, the same as logClients. Each test of this
+// package writes lines into it, thus a test of the ring clears it first.
+// lgClearHistory does that under the same lock that a writer takes.
+
+// lgClearHistory empties the ring. It is a test helper, and no line of
+// the application clears the ring.
+func lgClearHistory(t *testing.T) {
+	t.Helper()
+	logMutex.Lock()
+	defer logMutex.Unlock()
+	logHistory = [logHistoryCap]string{}
+	logHistoryNext = 0
+	logHistoryCount = 0
+}
+
+// The ring keeps the lines in the order that they arrived.
+func TestLogHistoryKeepsTheOrder(t *testing.T) {
+	lgClearHistory(t)
+	for _, line := range []string{"first\n", "second\n", "third\n"} {
+		broadcastLogLine(line, false)
+	}
+
+	got := logHistorySnapshot()
+	want := []string{"first\n", "second\n", "third\n"}
+	if len(got) != len(want) {
+		t.Fatalf("the ring holds %d lines, want %d: %q", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d is %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// The ring writes over the oldest line, and it keeps the newest.
+//
+// A log that stops at its cap keeps the start of the session and loses
+// the fault. The fault is the half that a person needs.
+func TestLogHistoryKeepsTheNewestLines(t *testing.T) {
+	lgClearHistory(t)
+	for i := 0; i < logHistoryCap+25; i++ {
+		broadcastLogLine(fmt.Sprintf("line %d\n", i), false)
+	}
+
+	got := logHistorySnapshot()
+	if len(got) != logHistoryCap {
+		t.Fatalf("the ring holds %d lines, want the cap of %d", len(got), logHistoryCap)
+	}
+	if want := fmt.Sprintf("line %d\n", 25); got[0] != want {
+		t.Errorf("the oldest line is %q, want %q", got[0], want)
+	}
+	if want := fmt.Sprintf("line %d\n", logHistoryCap+24); got[len(got)-1] != want {
+		t.Errorf("the newest line is %q, want %q", got[len(got)-1], want)
+	}
+}
+
+// The ring holds a line that the stdout switches suppressed.
+//
+// A person who turned debug off and then met a fault needs the debug
+// lines of that moment more than anybody. The switches say what a reader
+// wants to SEE, and never what the application keeps.
+func TestLogHistoryHoldsASuppressedLine(t *testing.T) {
+	lgClearHistory(t)
+	a := newTestApp(t)
+	a.applyLogFilter(Config{LogDebug: false, LogInfo: false, LogTags: []string{}})
+
+	if a.logLineEnabled(levelDebug, logSync) {
+		t.Fatal("the filter lets a debug line through, thus this test proves nothing")
+	}
+	a.logDebugf(logSync, "a step that stdout never shows")
+
+	for _, line := range logHistorySnapshot() {
+		if strings.Contains(line, "a step that stdout never shows") {
+			return
+		}
+	}
+	t.Error("the ring lost a line that the stdout filter suppressed")
+}
+
+// The snapshot is a copy. A caller that changes it changes no line of
+// the ring.
+func TestLogHistorySnapshotIsACopy(t *testing.T) {
+	lgClearHistory(t)
+	broadcastLogLine("the real line\n", false)
+
+	first := logHistorySnapshot()
+	if len(first) != 1 {
+		t.Fatalf("the ring holds %d lines, want 1", len(first))
+	}
+	first[0] = "a line that a caller wrote"
+
+	second := logHistorySnapshot()
+	if second[0] != "the real line\n" {
+		t.Errorf("the ring now holds %q, thus the snapshot shares its memory", second[0])
+	}
+}
+
+// Two goroutines writing at once must not race, and no line may be lost.
+//
+// Run this one with -race. broadcastLogLine takes logMutex, and
+// recordLogLine runs under it. A ring outside that lock is a data race
+// that a test without -race never reports.
+func TestLogHistoryUnderConcurrentWriters(t *testing.T) {
+	lgClearHistory(t)
+	const writers, each = 8, 20
+
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < each; i++ {
+				broadcastLogLine(fmt.Sprintf("writer %d line %d\n", w, i), false)
+			}
+		}(w)
+	}
+	// A reader at the same time, so the snapshot path is under the race
+	// detector as well.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			_ = logHistorySnapshot()
+		}
+	}()
+	wg.Wait()
+
+	got := logHistorySnapshot()
+	if len(got) != writers*each {
+		t.Fatalf("the ring holds %d lines, want %d. A line was lost.",
+			len(got), writers*each)
+	}
+	seen := map[string]bool{}
+	for _, line := range got {
+		if seen[line] {
+			t.Errorf("the line %q is in the ring two times", line)
+		}
+		seen[line] = true
 	}
 }

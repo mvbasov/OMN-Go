@@ -9,7 +9,9 @@ package backend
 // console, and the sync progress overlay reads the same stream for its
 // stage text.
 //
-// broadcastLogLine is the only fan-out. Two callers reach it:
+// broadcastLogLine is the only fan-out. It has THREE destinations since
+// 26.09.38: stdout, the SSE stream, and the history ring below. Two
+// callers reach it:
 //
 //	JSLogger.Write  the standard log package, for the two call sites that
 //	                cannot reach an *App. See TestNoDirectLogPrintf.
@@ -42,6 +44,74 @@ var (
 	logClients []chan string
 )
 
+// ---------------------------------------------------------------------
+// The history ring
+// ---------------------------------------------------------------------
+//
+// The SSE stream is a live sample. A page that opens after an event
+// never sees the lines of it. A person who reads a fault report must
+// then make the fault happen again, with a page open.
+//
+// The ring holds the last logHistoryCap lines, and /api/logs/history
+// answers with them.
+//
+// IT DOES NOT REPLAY ON THE STREAM. That was the first design, and it
+// breaks the sync progress overlay. applySyncLogLine in omn-go-sse.js
+// reads "[sync] (debug)" lines off the raw stream to drive the stages.
+// A replay on connect feeds it the lines of a sync that ended an hour
+// ago. Each page load would then show a sync that is not running. The
+// ring therefore answers its own endpoint, and the stream carries live
+// lines alone, exactly as before.
+//
+// IT HOLDS EVERY LINE, the same as the stream. The stdout switches say
+// what a reader wants to SEE, and never what the application must keep.
+// A person who turned debug off and then met a fault needs the debug
+// lines of that moment more than anybody.
+//
+// THE SIZE. 500 lines, and a line is about 120 bytes, thus about 60
+// kilobytes for the life of the process. That is the right order for a
+// phone. It is a constant and not a setting: a person who needs another
+// number is a person who is already reading this file.
+
+// logHistoryCap is the number of lines that the ring holds.
+const logHistoryCap = 500
+
+var (
+	logHistory      [logHistoryCap]string
+	logHistoryNext  int
+	logHistoryCount int
+)
+
+// recordLogLine writes one line into the ring. The caller holds
+// logMutex.
+//
+// The ring writes over the oldest line when it is full. A log that stops
+// at a cap keeps the start of the session and loses the fault, which is
+// the wrong half.
+func recordLogLine(msg string) {
+	logHistory[logHistoryNext] = msg
+	logHistoryNext = (logHistoryNext + 1) % logHistoryCap
+	if logHistoryCount < logHistoryCap {
+		logHistoryCount++
+	}
+}
+
+// logHistorySnapshot answers a copy of the ring, oldest line first.
+//
+// It is a COPY. The caller reads it with no lock, and a writer can add a
+// line while the caller still reads.
+func logHistorySnapshot() []string {
+	logMutex.Lock()
+	defer logMutex.Unlock()
+
+	out := make([]string, 0, logHistoryCount)
+	start := (logHistoryNext - logHistoryCount + logHistoryCap) % logHistoryCap
+	for i := 0; i < logHistoryCount; i++ {
+		out = append(out, logHistory[(start+i)%logHistoryCap])
+	}
+	return out
+}
+
 // logTimeLayout is the prefix format of the standard log package with
 // log.LstdFlags. emitLog writes the stamp itself, because it does not go
 // through the log package. The two sources must look the same on stdout and
@@ -53,6 +123,7 @@ const logTimeLayout = "2006/01/02 15:04:05 "
 // goroutines cannot interleave one line into another.
 func broadcastLogLine(msg string, toStdout bool) {
 	logMutex.Lock()
+	recordLogLine(msg)
 	for _, c := range logClients {
 		select {
 		case c <- msg:
