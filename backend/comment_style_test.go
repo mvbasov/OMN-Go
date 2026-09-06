@@ -84,22 +84,22 @@ import (
 //
 // The path is relative to the root of the repository.
 var commentStyleDebt = map[string]int{
-	"android/app/src/main/java/net/basov/omngo/MainActivity.java": 114,
-	"backend/frontend/html/js/OMN-Go/omn-go-core.js":              72,
-	"backend/git_sync.go":                                          63,
-	"backend/templates.go":                                         50,
-	"backend/handlers.go":                                          45,
+	"android/app/src/main/java/net/basov/omngo/MainActivity.java": 113,
+	"backend/frontend/html/js/OMN-Go/omn-go-core.js":              71,
+	"backend/git_sync.go":                                          61,
+	"backend/templates.go":                                         49,
+	"backend/handlers.go":                                          44,
 	"backend/note_exchange.go":                                     45,
 	"backend/frontend/html/js/OMN-Go/omn-go-search.js":             43,
 	"backend/frontend/html/js/OMN-Go/omn-go-editor.js":             41,
-	"backend/baseline_test.go":                                     37,
+	"backend/baseline_test.go":                                     35,
 	"backend/search.go":                                            37,
 	"backend/search_sections.go":                                   30,
 	"backend/files_index.go":                                       29,
 	"backend/search_match.go":                                      28,
 	"backend/frontend/html/js/OMN-Go/omn-go-sse.js":                23,
-	"backend/markdown.go":                                          22,
-	"backend/files_index_test.go":                                  21,
+	"backend/markdown.go":                                          21,
+	"backend/files_index_test.go":                                  20,
 	"backend/config.go":                                            20,
 	"backend/db_backup.go":                                         20,
 	"backend/git_repo.go":                                          20,
@@ -171,6 +171,10 @@ var styleCommentLineRe = regexp.MustCompile(`^\s*//\s?(.*)$`)
 var styleSpaceRunRe = regexp.MustCompile(`\s+`)
 var styleLetterRe = regexp.MustCompile(`[A-Za-z]`)
 
+// The start of a list item inside a comment. A banner of this project
+// often carries a list, and each item is its own statement.
+var styleBulletRe = regexp.MustCompile(`^([-*\x{2022}]|\(?\d+[.)])\s+`)
+
 // A paragraph that holds one of these characters is code text. The
 // semicolon rule steps over it.
 var styleCodeCharRe = regexp.MustCompile(`[{}()=<>]`)
@@ -199,18 +203,62 @@ func (c styleCount) total() int {
 	return c.long + c.semicolon + c.banned + c.contraction
 }
 
+// A comment paragraph, and the units inside it.
+//
+// Text is the whole paragraph. The semicolon rule, the banned word rule
+// and the contraction rule each read it, and each counts one time for
+// the paragraph.
+//
+// Units are the parts that the SENTENCE rule reads. A paragraph with no
+// list holds one unit, which is the whole text. A paragraph that holds a
+// list holds one unit for the text above the list, and one unit for each
+// item of it.
+type commentParagraph struct {
+	Text  string
+	Units []string
+}
+
 // commentParagraphs answers each comment paragraph of one source file.
 //
 // A paragraph ends at a line that is not a whole line comment. It also
 // ends at an empty comment line, and at a rule line of dashes, equal
 // signs or stars. A banner of dashes never joins two paragraphs.
-func commentParagraphs(src string) []string {
-	var out, cur []string
+//
+// WHY A LIST ITEM IS ITS OWN UNIT. A banner of this project often ends
+// with a list, and an item of a list often ends with a comma and not a
+// period. The scan of 26.09.33 joined the whole list into one string,
+// found no period, and reported one sentence of fifty five words.
+//
+// That is a false report. The rule of CLAUDE.md section 10 is about one
+// idea in one sentence, and each item of a list is one idea. A writer
+// who obeys the false report writes worse text, not better.
+//
+// 26.09.36 met the fault in a new file, and the writer changed a comma
+// to a period to pass the gate. The gate must not ask for that.
+func commentParagraphs(src string) []commentParagraph {
+	var out []commentParagraph
+	var cur []string
 	flush := func() {
-		if len(cur) > 0 {
-			out = append(out, strings.Join(cur, " "))
-			cur = nil
+		if len(cur) == 0 {
+			return
 		}
+		para := commentParagraph{Text: strings.Join(cur, " ")}
+		var unit []string
+		endUnit := func() {
+			if len(unit) > 0 {
+				para.Units = append(para.Units, strings.Join(unit, " "))
+				unit = nil
+			}
+		}
+		for _, line := range cur {
+			if styleBulletRe.MatchString(strings.TrimSpace(line)) {
+				endUnit()
+			}
+			unit = append(unit, line)
+		}
+		endUnit()
+		out = append(out, para)
+		cur = nil
 	}
 	for _, line := range strings.Split(src, "\n") {
 		m := styleCommentLineRe.FindStringSubmatch(line)
@@ -261,10 +309,13 @@ func styleWordCount(sentence string) int {
 func countCommentStyle(src string) styleCount {
 	var c styleCount
 	for _, para := range commentParagraphs(src) {
-		text := strings.TrimSpace(styleSpaceRunRe.ReplaceAllString(para, " "))
-		for _, s := range styleSentences(text) {
-			if styleWordCount(s) > styleMaxWordsInSentence {
-				c.long++
+		text := strings.TrimSpace(styleSpaceRunRe.ReplaceAllString(para.Text, " "))
+		for _, unit := range para.Units {
+			flat := strings.TrimSpace(styleSpaceRunRe.ReplaceAllString(unit, " "))
+			for _, s := range styleSentences(flat) {
+				if styleWordCount(s) > styleMaxWordsInSentence {
+					c.long++
+				}
 			}
 		}
 		if strings.Contains(text, ";") && !styleCodeCharRe.MatchString(text) {
@@ -448,6 +499,42 @@ func TestCommentStyleScannerFindsEachRule(t *testing.T) {
 		{
 			name: "a comment at the end of a code line is not read",
 			src:  "x := 1 // the parser can leverage the table\n",
+		},
+		{
+			name: "a list of short items counts no long sentence",
+			src: "// The handler holds three faults:\n" +
+				"//   - the force checkbox, which becomes an action,\n" +
+				"//   - the default action, which the request can omit,\n" +
+				"//   - the map from an error to a status word.\n",
+		},
+		{
+			name: "a list item over the limit counts one",
+			src: "// The handler holds one fault:\n" +
+				"//   - " + strings.Repeat("word ", 26) + "end.\n",
+			want: styleCount{long: 1},
+		},
+		{
+			name: "a numbered list splits the same way",
+			src: "// Two steps:\n" +
+				"// 1. read the file and keep each line that holds a colon,\n" +
+				"// 2. write the lines back in the order that they arrived.\n",
+		},
+		{
+			name: "the text above a list is its own unit",
+			src: "// " + strings.Repeat("word ", 26) + "end.\n" +
+				"//   - a short item.\n",
+			want: styleCount{long: 1},
+		},
+		{
+			name: "a dash inside a line starts no unit",
+			src:  "// The count - and the limit - stay in one sentence here.\n",
+		},
+		{
+			name: "a banned word in a list still counts one for the paragraph",
+			src: "// Two notes:\n" +
+				"//   - the parser can leverage the table,\n" +
+				"//   - the reader can leverage it too.\n",
+			want: styleCount{banned: 1},
 		},
 		{
 			name: "two lines of one paragraph make one sentence",
