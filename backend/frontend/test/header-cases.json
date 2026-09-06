@@ -1,0 +1,40 @@
+{
+  "comment": [
+    "The shared cases of the header-block rule. THREE readers use this file.",
+    "backend/ports_test.go runs each case through parseHeaderBlock, the Go",
+    "authority. header.test.js runs each case through the REAL JavaScript of",
+    "omn-go-editor.js. The two must answer the same offset.",
+    "",
+    "bodyOffset is the byte index where the body starts. The editor puts the",
+    "caret there, and the server reads content[bodyOffset:] as the body.",
+    "It is a BYTE offset, because the Go side counts bytes. Each case below",
+    "is ASCII, thus a JavaScript string index answers the same number. A case",
+    "with a non-ASCII character in the header would need a byte count on the",
+    "JavaScript side, and none of these has one.",
+    "",
+    "26.09.14 repaired a pair that had already moved apart, and four of eight",
+    "shapes disagreed. Add a case here when you find another shape."
+  ],
+  "cases": [
+    { "name": "a header and a body",            "content": "Title: X\nDate: 1\n\nbody\n" },
+    { "name": "no header",                      "content": "# Heading\n\nbody\n" },
+    { "name": "a style block after the header", "content": "Title: X\n<style>\nbody{}\n</style>\n" },
+    { "name": "prose after the header",         "content": "Title: X\nthis is prose\n" },
+    { "name": "a separator of spaces",          "content": "Title: X\n   \nbody\n" },
+    { "name": "a header and no body",           "content": "Title: X\nDate: 1\n" },
+    { "name": "CRLF line ends",                 "content": "Title: X\r\n\r\nbody\r\n" },
+    { "name": "a blank line inside the body",   "content": "Title: X\nprose\n\nmore\n" },
+    { "name": "one line and no newline",        "content": "Title: X" },
+    { "name": "an empty note",                  "content": "" },
+    { "name": "a first line that starts with a space", "content": " Title: X\n\nbody\n" },
+    { "name": "a first line that starts with a hash",  "content": "#Title: X\n\nbody\n" },
+    { "name": "a first line that starts with a tag",   "content": "<p>Title: X</p>\n\nbody\n" },
+    { "name": "a first line with no colon",     "content": "Title X\n\nbody\n" },
+    { "name": "a colon in a heading",           "content": "# Head: x\n\nbody\n" },
+    { "name": "many header lines",              "content": "Title: X\nDate: 1\nTags: a, b\nAuthor: A\n\nbody\n" },
+    { "name": "a body with no trailing newline","content": "Title: X\n\nbody" },
+    { "name": "a blank line and nothing after", "content": "Title: X\n\n" },
+    { "name": "only a blank line",              "content": "\n" },
+    { "name": "a value that holds a colon",     "content": "URL: http://example.org/a\n\nbody\n" }
+  ]
+}

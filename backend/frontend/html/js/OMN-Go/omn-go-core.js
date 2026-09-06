@@ -1518,3 +1518,20 @@ window.addEventListener('pageshow', function(event) {
         window.location.reload();
     }
 });
+
+// A test outside a browser reads this file with a Node require. The check
+// of module keeps the export out of a page, where module does not exist.
+// See backend/frontend/test/, which no build ships.
+//
+// omnFold and omnFoldChar are the page half of the fold table. The server
+// folds before it matches, and the page folds again before it marks. A
+// difference between the two makes the marks land on the wrong words, or
+// on nothing. TestFoldTableHasAFrontendCopy compares the two TABLES, and
+// fold.test.js runs this code against them.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        omnFold: omnFold,
+        omnFoldChar: omnFoldChar,
+        omnFlatten: omnFlatten,
+    };
+}

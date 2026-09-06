@@ -1621,4 +1621,26 @@
     } else {
         init();
     }
+
+    // A test outside a browser reads this file with a Node require. The
+    // check of module keeps the export out of a page, where module does
+    // not exist. See backend/frontend/test/, which no build ships.
+    //
+    // THE EXPORT IS INSIDE THE IIFE, because each function below is. A
+    // tail after the closing brace would see none of them.
+    //
+    // isHeaderFirstLine and firstLineAfterHeader are a port of the Go
+    // code, and CLAUDE.md section 5 asks a person to keep the two the
+    // same. A person could not, and 26.09.14 repaired a pair that had
+    // already moved apart. header.test.js runs THIS code against the
+    // same cases that the Go test uses.
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            isHeaderFirstLine: isHeaderFirstLine,
+            firstLineAfterHeader: firstLineAfterHeader,
+            parseAbbr: parseAbbr,
+            expandEmmet: expandEmmet,
+            expandMarkdownAbbr: expandMarkdownAbbr,
+        };
+    }
 })();

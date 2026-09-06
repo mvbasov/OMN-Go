@@ -26,7 +26,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y \
-    openjdk-17-jdk wget unzip cmake ninja-build
+    openjdk-17-jdk nodejs wget unzip cmake ninja-build
 
 RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
     wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O /tmp/dl/cmd.zip && \
