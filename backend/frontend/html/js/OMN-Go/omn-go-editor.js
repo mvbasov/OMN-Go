@@ -2,9 +2,9 @@
 //
 // This file powers the dedicated editor page (served for any ?edit=true
 // request when the internal editor is enabled). Unlike the old in-page
-// toggle, the note SOURCE is never baked into the rendered view page - it
-// is fetched here, once, at editing start time, via /api/note. Saving
-// posts to /api/save and returns to the rendered view.
+// toggle, the note SOURCE is never baked into the rendered view page. It
+// is fetched here, one time, at the start of the edit, with /api/note.
+// Saving posts to /api/save and returns to the rendered view.
 //
 // The server template defines three globals before loading this file:
 //   OMN_EDIT_NAME  - the name passed to /api/note and /api/save
@@ -24,10 +24,10 @@
     var EXT = (typeof OMN_EDIT_EXT !== 'undefined' && OMN_EDIT_EXT) ? OMN_EDIT_EXT : '';
 
     // Optional jump target, set when arriving from a clicked console error
-    // (see omn-go-core.js). "find" matches by line CONTENT - robust across
-    // the markdown -> compiled-HTML line shift, since a note's <script> body
-    // is passed through verbatim - while "line" is a direct 1-based number,
-    // used for verbatim assets (.js/.css/.json) where lines map 1:1.
+    // (see omn-go-core.js). "find" matches by line CONTENT. That form holds
+    // across the markdown to compiled-HTML line shift, because the <script>
+    // body of a note is passed through verbatim. "line" is a direct 1-based
+    // number, used for verbatim assets (.js/.css/.json) where lines map 1:1.
     var JUMP_FIND = null, JUMP_LINE = 0;
     try {
         var _q = new URLSearchParams(window.location.search);
@@ -55,11 +55,11 @@
 
     // ------------------------------------------------------------------
     // Toolbar tool registry. Each entry becomes a button, left to right.
-    // To add a tool later: append one { icon, title, action } object
-    //   icon   - a Material Icons ligature name
-    //   title  - tooltip / accessibility label
-    //   action - function(textarea) invoked on click
-    //   id     - optional element id, for stateful (toggle) buttons
+    // To add a tool later, append one { icon, title, action } object:
+    //   - icon   is a Material Icons ligature name
+    //   - title  is the tooltip and the accessibility label
+    //   - action is function(textarea), called on a click
+    //   - id     is an optional element id, for a toggle button
     // ------------------------------------------------------------------
     var TOOLS = [
         { icon: 'code', title: 'Expand an abbreviation, Markdown or Emmet (Tab)', action: function () { expandAtCursor(); } },
@@ -74,13 +74,13 @@
     // ==================================================================
     // Emmet-style abbreviation expander (self-contained, offline).
     //
-    // Supported subset (covers everyday use; anything not recognized -
-    // including the climb-up "^" operator - simply yields no expansion, so
-    // Tab falls back to inserting a literal tab rather than throwing):
-    //   nesting  >     siblings  +     grouping ( )
-    //   multiply *N    id  #id    class .cls     attrs [a=b c="d"]
-    //   text     {..}  numbering $ / $$ (zero-padded) inside a repeat
-    //   implicit tags: children of ul/ol -> li, tr -> td, table -> tr, ...
+    // Supported subset. It covers everyday use. Anything not recognized
+    // gives no expansion, and the climb-up "^" operator is one of those.
+    // Tab then inserts a literal tab, and it throws nothing.
+    //   - nesting  >     siblings  +     grouping ( )
+    //   - multiply *N    id  #id    class .cls     attrs [a=b c="d"]
+    //   - text     {..}  numbering $ / $$ (zero-padded) inside a repeat
+    //   - implicit tags: children of ul/ol -> li, tr -> td, table -> tr, ...
     // ==================================================================
     var VOID_TAGS = {
         area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1,
@@ -116,9 +116,9 @@
                 var ch = str[pos];
                 if (ch === ')') break;
                 if (ch === '^') {
-                    // Climb-up: handled by the caller stack. We signal it by
-                    // returning; a '^' at this level ends the current group
-                    // of siblings and the parent resumes. Support multiple.
+                    // Climb-up: handled by the caller stack. A return is the
+                    // signal. A '^' at this level ends the current group of
+                    // siblings, and the parent resumes. Support multiple.
                     break;
                 }
                 var node = parseSingle();
@@ -218,8 +218,8 @@
                 node = parseElement();
                 if (!node) return null;
             }
-            // Multiplier. Clamped to a sane maximum so a stray "*999999"
-            // can't lock the tab up building a giant string.
+            // Multiplier. Clamped to a sane maximum, thus a stray "*999999"
+            // cannot lock the tab up while it builds a giant string.
             if (str[pos] === '*') {
                 pos++;
                 var num = '';
@@ -548,9 +548,9 @@
     // textarea with the selection that it applied last. If the two agree, the
     // user pressed the button again and did not change the selection between
     // the two presses. The function then goes to the next stage. All other
-    // conditions (a different line, a manual selection, a press after a move
-    // of the cursor) start a new cycle at stage 1, at the cursor of that
-    // moment.
+    // conditions start a new cycle at stage 1, at the cursor of that moment.
+    // Those conditions are a different line, a manual selection, and a press
+    // after a move of the cursor.
     function cycleSelection() {
         if (!ta) return;
         var selStart = ta.selectionStart, selEnd = ta.selectionEnd;
@@ -585,13 +585,14 @@
             case 5:
                 // line -> after the header block. This stage always holds the
                 // full current line. Below the header block, the selection
-                // goes from the boundary of the header block to the END of the
-                // current line, as stage 4 goes to the end of the file. In the
-                // header block, the selection goes from the START of the
-                // current line to that same boundary. Math.min and Math.max on
-                // the two raw offsets would remove the text of the current line
-                // on the side below the header block (b.start to b.end would
-                // not enter the range at all). This branch prevents that.
+                // goes from the boundary of the header block to the END of
+                // the current line. Stage 4 goes to the end of the file in
+                // the same way. In the header block, the selection goes from
+                // the START of the current line to that same boundary.
+                // Math.min and Math.max on the two raw offsets would remove
+                // the text of the current line on the side below the header
+                // block. The range b.start to b.end would not enter the
+                // selection at all. This branch prevents that.
                 headerEnd = firstLineAfterHeader(ta.value);
                 if (b.start >= headerEnd) {
                     start = headerEnd; end = b.end;
@@ -702,10 +703,11 @@
 
     // A load that failed is NOT the same as a file that does not exist.
     // 404 is the documented "open a path that does not exist yet and save
-    // to create it" case, so an empty buffer is correct there. Any other
-    // failure means the file may hold content this editor never received,
-    // and saving would replace that content with an empty buffer - so the
-    // editor keeps the error on screen and refuses to save (see save()).
+    // to create it" case, thus an empty buffer is correct there. Any other
+    // failure means the file may hold content that this editor never
+    // received. A save would replace that content with an empty buffer.
+    // The editor thus keeps the error on screen and refuses to save, see
+    // save().
     async function loadContent() {
         setStatus('Loading…');
         setDot('loading');
@@ -734,12 +736,12 @@
             setDot('clean');
         }
         renderGutter();
-        // Land on the error line if we arrived from a console error,
-        // otherwise put the caret right after the Pelican-style header
-        // (Title:/Date:/... - see ensureHeaderModified in
-        // backend/markdown.go, which every note gets) so opening a note
-        // drops you straight into its body instead of scrolled all the
-        // way down to the end of the file.
+        // Land on the error line if we arrived from a console error.
+        // Otherwise put the caret right after the Pelican-style header
+        // (Title:/Date:/...), which every note gets. See
+        // ensureHeaderModified in backend/markdown.go. A note then opens on
+        // its body, and not scrolled all the way down to the end of the
+        // file.
         if (!jumpToTarget()) {
             ta.focus();
             var pos = firstLineAfterHeader(ta.value);
@@ -748,8 +750,8 @@
         }
     }
 
-    // isHeaderFirstLine is a direct port of the Go isHeaderFirstLine
-    // (backend/header_block.go): the FIRST line of a note is a metadata key
+    // isHeaderFirstLine is a direct port of the Go isHeaderFirstLine, in
+    // backend/header_block.go. The FIRST line of a note is a metadata key
     // line only when it contains ':' and does not start with a space, '#',
     // or '<'. Keep the two in sync.
     function isHeaderFirstLine(line) {
@@ -825,13 +827,14 @@
             dirty = false;
             setDot('clean');
             if (thenView) {
-                // .replace(), not .href = - swaps the editor's own history
-                // entry for VIEW instead of pushing a new one on top of it.
-                // With .href, the editor page stayed in the back-stack: on
-                // Android especially, pressing Back after a save landed you
-                // right back in the editor instead of wherever you were
-                // before opening it. .replace() drops the editor entry
-                // entirely, so Back skips over it.
+                // Use .replace(), and not an assignment to .href. It swaps
+                // the own history entry of the editor for VIEW, and it
+                // pushes no new entry on top of it. With .href, the editor
+                // page stayed in the back-stack. On Android above all, a
+                // press on Back after a save landed the reader in the editor
+                // again. That is not where the reader was before.
+                // .replace() drops the editor entry entirely, thus Back
+                // skips over it.
                 window.location.replace(VIEW);
             } else {
                 setStatus(NAME);
@@ -843,8 +846,8 @@
 
     function cancel() {
         if (dirty && !window.confirm('Discard unsaved changes?')) return;
-        // Same reasoning as the save(true) branch above - leaving the
-        // editor (without saving) shouldn't leave it in the back-stack
+        // Same reasoning as the save(true) branch above. A departure from
+        // the editor without a save must not leave it in the back-stack
         // either.
         window.location.replace(VIEW);
     }
@@ -981,19 +984,20 @@
     // Find / replace
     // ==================================================================
     //
-    // Exact matching, deliberately - this is nothing to do with the fuzzy
+    // Exact matching, deliberately. This has nothing to do with the fuzzy
     // search in omn-go-sse.js. That one answers "where did I write about
-    // this"; this one has to answer "which characters am I about to
+    // this". This one has to answer "which characters am I about to
     // overwrite", and a fuzzy match has no defensible replacement.
     //
-    // A <textarea> cannot colour its own contents, and setting its selection is
-    // not enough on its own: Chromium draws no selection at all in a textarea
-    // that is not focused, and it never is while you are typing in the find
-    // field. So the matches are painted by a mirror layer underneath it
-    // (renderMirror) - same text, same metrics, invisible ink, a <mark> behind
-    // each hit showing through the transparent textarea. The selection is still
-    // set, because that is what puts the caret in the right place when you
-    // click back into the text and what Replace checks against.
+    // A <textarea> cannot color its own contents, and a set of its selection
+    // is not enough on its own. Chromium draws no selection at all in a
+    // textarea that is not focused. The textarea is never focused while you
+    // type in the find field. A mirror layer underneath it paints the
+    // matches (renderMirror). It holds the same text and the same metrics in
+    // invisible ink, with a <mark> behind each hit. The mark shows through
+    // the transparent textarea. The selection is still set. It puts the
+    // caret in the right place when you click back into the text, and
+    // Replace checks against it.
 
     var findEl = null, findInput = null, replaceInput = null,
         findCountEl = null, findReplaceRow = null, findChevron = null,
@@ -1011,12 +1015,12 @@
     // a memory question. Nothing is hidden: the count says "1000+".
     var FIND_MAX = 1000;
 
-    // Unicode-aware word boundaries. JavaScript's \b is defined on
-    // [A-Za-z0-9_], so on Cyrillic text it fires in all the wrong places -
+    // Unicode-aware word boundaries. JavaScript defines \b on
+    // [A-Za-z0-9_], thus it fires in all the wrong places on Cyrillic text.
     // "\bприв\b" would match inside "привет". Property escapes need the "u"
-    // flag, which is only added when whole-word is actually on: under "u"
-    // some otherwise-legal patterns become errors, and a mode the user did
-    // not ask for must not break their regex.
+    // flag, and the code adds that flag only when whole-word is on. Under
+    // "u" some otherwise-legal patterns become errors. A mode that the user
+    // did not ask for must not break the regex of that user.
     var UNICODE_BOUNDARY = (function () {
         try {
             new RegExp('(?<![\\p{L}\\p{N}_])x(?![\\p{L}\\p{N}_])', 'u');
@@ -1055,9 +1059,9 @@
     }
 
     // collectMatches rebuilds the match list against the text as it is NOW.
-    // Called before every navigation and every replace rather than cached,
-    // because the document underneath can change between them - the user can
-    // type in the textarea with the bar still open.
+    // It is called before every navigation and every replace, and it is not
+    // cached. The document underneath can change between them, because the
+    // user can type in the textarea with the bar still open.
     function collectMatches() {
         findMatches = [];
         findInvalid = false;
@@ -1088,13 +1092,13 @@
 
     // renderMirror repaints the highlight layer.
     //
-    // Built from text nodes and <mark> elements rather than an HTML string:
-    // the content is the user's note, and innerHTML would make every "<" in it
-    // a tag. Nothing here needs escaping precisely because nothing here is
-    // parsed as markup.
+    // Built from text nodes and <mark> elements, and not from an HTML
+    // string. The content is the note of the user, and innerHTML would make
+    // every "<" in it a tag. Nothing here needs escaping precisely because
+    // nothing here is parsed as markup.
     //
-    // Only called while the bar is open; closing it empties the layer, so a
-    // note being edited normally carries no cost at all.
+    // This runs only while the bar is open. A close empties the layer, thus
+    // a note in normal edit carries no cost at all.
     function renderMirror() {
         if (!mirrorEl) return;
         mirrorEl.textContent = '';
@@ -1112,9 +1116,9 @@
             frag.appendChild(mark);
             at = m.end;
         }
-        // The tail, plus a newline: a textarea shows a final empty line that a
-        // div would collapse, and without it every mark after the last
-        // wrapped line drifts up by one row.
+        // The tail, plus a newline. A textarea shows a final empty line
+        // that a div would collapse. Without the newline, every mark after
+        // the last wrapped line drifts up by one row.
         frag.appendChild(document.createTextNode(value.slice(at) + '\n'));
         mirrorEl.appendChild(frag);
         syncMirror();
@@ -1148,9 +1152,9 @@
     }
 
     // selectMatch puts the caret on a match and scrolls it into view. The
-    // textarea keeps focus on the find field, so the selection is drawn in the
-    // browser's "inactive" colour - which is the right signal: that text is
-    // marked, not being typed into.
+    // textarea keeps focus on the find field, thus the browser draws the
+    // selection in its "inactive" color. That is the right signal, because
+    // the text is marked and not in edit.
     function selectMatch(i) {
         if (i < 0 || i >= findMatches.length) return;
         findIndex = i;
@@ -1161,9 +1165,10 @@
         renderFindCount();
     }
 
-    // findStep moves to the next/previous match, wrapping around, starting
-    // from wherever the caret is rather than from the last index - so editing
-    // in the middle of the document and pressing Enter continues from there.
+    // findStep moves to the next or the previous match, and it wraps around.
+    // It starts from the caret, and not from the last index. A person can
+    // thus edit in the middle of the document, press Enter, and continue
+    // from there.
     function findStep(dir) {
         collectMatches();
         if (!findMatches.length) {
@@ -1195,13 +1200,13 @@
     // only. In literal mode the replacement is literal: someone replacing a
     // price with "$5" is not writing a back-reference.
     //
-    // Written out rather than handed to String.replace's own expansion,
-    // because the single-match Replace has to reuse the exact same rules as
-    // Replace all, and only a function replacer can pick out one match.
+    // Written out rather than handed to the own expansion of
+    // String.replace. The single-match Replace has to reuse the same rules
+    // as Replace all, and only a function replacer can pick out one match.
     function expandReplacement(rep, args) {
         if (!useRegex || rep.indexOf('$') === -1) return rep;
         var last = args.length - 1;
-        // Named groups append an object; drop it before counting.
+        // Named groups append an object. Drop it before the count.
         if (typeof args[last] === 'object' && args[last] !== null) last--;
         var groups = last - 2;  // args: match, p1..pN, offset, string
         return rep.replace(/\$(\$|&|\d{1,2})/g, function (whole, tok) {
@@ -1213,9 +1218,10 @@
         });
     }
 
-    // applyReplace rewrites value. onlyIndex >= 0 replaces just that match
-    // (counting the same non-empty matches collectMatches counts, so the two
-    // agree on what "the third match" means); -1 replaces all.
+    // applyReplace rewrites value. onlyIndex >= 0 replaces that one match.
+    // It counts the same non-empty matches that collectMatches counts, thus
+    // the two agree on what "the third match" means. onlyIndex -1 replaces
+    // all.
     function applyReplace(value, re, rep, onlyIndex) {
         var seen = 0, count = 0;
         var out = value.replace(re, function () {
@@ -1229,9 +1235,9 @@
         return { text: out, count: count };
     }
 
-    // setTextRange writes through execCommand where it exists, so the change
-    // joins the textarea's native undo stack instead of wiping it - assigning
-    // .value clears undo entirely, and losing the whole history to one
+    // setTextRange writes through execCommand where it exists, thus the
+    // change joins the native undo stack of the textarea. An assignment to
+    // .value clears undo entirely, and a loss of the whole history to one
     // Replace all is a bad trade. The assignment is the fallback.
     function setTextRange(start, end, text) {
         ta.focus();
@@ -1277,9 +1283,9 @@
         if (!res.count) return;
 
         setTextRange(0, before.length, res.text);
-        // Land the caret AFTER what was just written, then advance. Otherwise
-        // replacing "a" with "ab" would find its own output and Replace would
-        // never move on.
+        // Land the caret AFTER the new text, then advance. Otherwise a
+        // replacement of "a" with "ab" would find its own output, and
+        // Replace would never move on.
         var caret = findMatches[i].end + (res.text.length - before.length);
         ta.setSelectionRange(caret, caret);
         setStatus('Replaced 1 match', 'ok');
@@ -1383,8 +1389,9 @@
         findMatches = [];
         findIndex = -1;
         renderMirror();   // empties the layer: no cost while not searching
-        // Focus goes back to the text with the caret where the last match was,
-        // so Esc leaves you where you were reading rather than at the top.
+        // Focus goes back to the text, with the caret where the last match
+        // was. Esc thus leaves the reader at the same place, and not at the
+        // top.
         ta.focus();
     }
 
@@ -1490,13 +1497,14 @@
         }
     }
 
-    // Find shortcuts live on the document, not on the textarea: Ctrl+F has to
-    // work while the caret is in the find field too, and Escape has to close
-    // the bar from wherever focus happens to be.
+    // Find shortcuts live on the document, and not on the textarea. Ctrl+F
+    // has to work while the caret is in the find field too. Escape has to
+    // close the bar from any focus.
     //
-    // Ctrl+F is taken from the browser deliberately. Inside a text editor the
-    // browser's own find is the wrong tool - it searches the rendered page,
-    // cannot see past the textarea's scroll, and cannot replace anything.
+    // Ctrl+F is taken from the browser deliberately. Inside a text editor
+    // the own find of the browser is the wrong tool. It searches the
+    // rendered page, it cannot see past the scroll of the textarea, and it
+    // cannot replace anything.
     function onDocKeyDown(e) {
         if (e.defaultPrevented) return;
         var ctrl = e.ctrlKey || e.metaKey;
@@ -1538,24 +1546,25 @@
             if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
             e.preventDefault();
             var file = e.dataTransfer.files[0];
-            // .json files go through the dedicated JSON upload endpoint,
-            // which lands them in user_json/ (not images/) and returns a
-            // plain "[name](/user_json/name)" link, not an image embed.
-            // Checked by extension as well as MIME type since some OS
-            // file managers hand the browser an empty/generic type for a
+            // .json files go through the dedicated JSON upload endpoint. It
+            // lands them in user_json/ and not in images/, and it returns a
+            // plain "[name](/user_json/name)" link and not an image embed.
+            // The test reads the extension and the MIME type. Some OS file
+            // managers hand the browser an empty or generic type for a
             // dragged file.
             var isJSON = /\.json$/i.test(file.name) || file.type === 'application/json';
             var uploadURL = isJSON ? '/api/upload_json' : '/api/upload';
             var fieldName = isJSON ? 'file' : 'image';
             var fd = new FormData();
             fd.append(fieldName, file);
-            // Uploads can take a while on a phone (up to Max Upload Size,
-            // 3 MB by default) and used to give no sign at all that anything
-            // was happening - and a failure was swallowed entirely, so a
-            // rejected file looked identical to a dropped one. Report both
-            // through the status bar this page already has, rather than an
-            // overlay: the upload runs while the user is mid-edit, so
-            // covering the textarea would interrupt the actual task.
+            // Uploads can take a while on a phone, up to Max Upload Size,
+            // which is 3 MB by default. They used to give no sign at all
+            // that anything was happening. A failure was swallowed entirely,
+            // thus a rejected file looked the same as a dropped one. Report
+            // both through the status bar that this page already has, and
+            // not through an overlay. The upload runs while the user is
+            // mid-edit, thus a cover over the textarea would interrupt the
+            // real task.
             setStatus('Uploading ' + file.name + '…');
             setDot('loading');
             try {
@@ -1571,8 +1580,9 @@
             } catch (e) {
                 setStatus('Upload failed: ' + e.message, 'error');
             }
-            // insertAtCaret marks the buffer dirty on success; on failure the
-            // previous state stands. Either way the dot must leave 'loading'.
+            // insertAtCaret marks the buffer dirty on success. On a failure
+            // the previous state stands. Either way the dot must leave
+            // 'loading'.
             setDot(dirty ? 'dirty' : 'clean');
         });
     }
@@ -1591,9 +1601,9 @@
         ta.addEventListener('input', function () {
             markDirty();
             renderGutter();
-            // The match list is rebuilt before every navigation anyway, but
-            // the COUNT is on screen while you type - leaving it stale would
-            // be the bar quietly lying about the document underneath it.
+            // The match list is rebuilt before every navigation anyway.
+            // The COUNT is on screen while you type. A stale count would
+            // make the bar lie about the document underneath it.
             if (findOpen) scheduleFind();
         });
         ta.addEventListener('scroll', function () { syncGutter(); syncMirror(); });

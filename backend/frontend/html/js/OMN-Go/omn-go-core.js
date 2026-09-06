@@ -1,19 +1,23 @@
 // --- OMN-Go Core Architecture ---
 // These modules are strictly for offline viewing, Markdown rendering, and UI manipulation.
 
-// Single source of truth for KaTeX auto-render config, used by the one
-// call site in this file (see window.onload below). There used to be a
-// SECOND call inside a MutationObserver watching #preview for any DOM
-// change - including the very DOM changes KaTeX's own render produces
-// (replacing "$...$" text with <span class="katex">...</span> markup).
-// That mutation re-triggered the observer, which re-ran renderMathInElement
-// over content that now included KaTeX's own freshly-injected output -
-// re-scanning already-rendered math markup with the same delimiter regex,
-// which is what corrupted unrelated nearby plain text. #preview's content
-// is set once by the server and nothing in this file mutates it
-// afterward, so the observer wasn't needed for anything - it's removed
-// below rather than "fixed", since a feedback-prone mechanism with no job
-// to do is just risk with no benefit.
+// The one authority for the KaTeX auto-render configuration. One call
+// site in this file reads it. See window.onload below.
+//
+// A SECOND call stood inside a MutationObserver. That observer watched
+// #preview for a change of the DOM, and the render of KaTeX itself makes
+// such a change. It replaces the text "$...$" with the markup
+// <span class="katex">...</span>.
+//
+// That change started the observer again. renderMathInElement then ran
+// over content that held the fresh output of KaTeX, and it read already
+// rendered math with the same delimiter pattern. That is what damaged
+// the plain text nearby.
+//
+// The server sets the content of #preview one time, and no code of this
+// file changes it after that. The observer therefore had no work at all.
+// It is REMOVED below and not repaired. A mechanism that feeds itself
+// and has no work to do is a risk with no gain.
 function omnGoRenderMath(container) {
     if (typeof OMN_GO_KATEX === 'undefined' || !OMN_GO_KATEX || !window.renderMathInElement) return;
     renderMathInElement(container, {
@@ -50,20 +54,22 @@ const UI = (function() {
 })();
 
 // --- Progress overlay ---
-// One shared "the server is busy" indicator, used by git sync
-// (omn-go-sse.js), the database backup/restore page and the slow-navigation
-// guard further down this file. Styling lives in omn-go-core.css
-// (.omn-progress-*).
+// One shared indicator that says that the server is busy. Three parts
+// use it: the git sync of omn-go-sse.js, the database backup page, and
+// the slow-navigation guard further down this file. The style lives in
+// omn-go-core.css, under the .omn-progress- names.
 //
 // This file is parsed in <head>, so the markup CANNOT be built here - there
 // is no document.body yet (see the note below). build() therefore runs on
 // first show(), and show() defers itself to DOMContentLoaded if it is called
 // before the body exists.
 //
-// The overlay is intentionally non-blocking: it does not trap clicks, and
-// its close button dismisses the indicator WITHOUT cancelling the work
-// (go-git offers no safe mid-operation abort). A user who hits a hung sync
-// can therefore still reach the rest of the UI.
+// The overlay blocks nothing on purpose. It traps no click, and its
+// close button hides the indicator WITHOUT stopping the work. go-git
+// offers no safe way to abort in the middle.
+//
+// A person who meets a sync that hangs can therefore still reach the
+// rest of the interface.
 window.OMNProgress = (function() {
     var el = null, titleEl = null, stageEl = null, detailEl = null,
         trackEl = null, fillEl = null;
@@ -122,7 +128,7 @@ window.OMNProgress = (function() {
         detail: function(text) {
             if (detailEl) detailEl.textContent = text || '';
         },
-        // percent(null) -> indeterminate sweep; percent(0..100) -> real bar.
+        // percent(null) -> indeterminate sweep. percent(0..100) -> real bar.
         percent: function(n) {
             if (!trackEl) return;
             if (n === null || n === undefined || isNaN(n)) {
@@ -150,10 +156,10 @@ window.OMNProgress = (function() {
 // Marking query terms inside the rendered page. Two callers, and they are why
 // this lives here rather than beside the search dialog:
 //
-//   - the dialog (omn-go-sse.js), when a page-scope result is chosen;
-//   - arriving at a page with ?hl=<term> on the URL, which a search result
-//     links to - and which has to work on any page, including one opened from
-//     disk where the server half of the app never loads.
+//   - the dialog (omn-go-sse.js), when a page-scope result is chosen,
+//   - a page opened with ?hl=<term> on the URL, which a search result
+//     links to. It has to work on any page, including one opened from
+//     disk, where the server half of the application never loads.
 //
 // Literal matching only, deliberately: a fuzzy or misspelled term does not
 // appear in the text as typed, so there is nothing to wrap. In that case
@@ -170,9 +176,9 @@ var OMN_HL_MIN = 2;   // 1 character marks half the page
 // opens the page. It found nothing until 26.08.79. A lowercase alone does
 // not make the yo into an e.
 //
-// Every entry is ONE character to ONE character, for the reason the Go
-// comment gives: a fold that changes the length moves every span after it.
-// The expanding folds are absent on purpose, not by an oversight.
+// Every entry maps ONE character to ONE character. The Go comment gives
+// the reason. A fold that changes the length moves every span after it.
+// The expanding folds are absent on purpose, and not by an oversight.
 //
 // The keys are escapes, because the rest of this file is ASCII. The comment
 // after each row says what the row holds.
@@ -224,9 +230,9 @@ function omnFold(s) {
 // and does nothing, so that the coarser target does not cancel the exact one.
 var OMN_HL_SCROLLED = false;
 
-// omnClearHighlights puts the DOM back exactly as it was: each
-// <mark> is replaced by its own text and the parent normalised, so
-// repeated searches cannot leave the page progressively more nested.
+// omnClearHighlights puts the DOM back exactly as it was. Each <mark>
+// becomes its own text again, and the parent is normalized. A run of
+// searches therefore leaves the page no deeper than it found it.
 function omnClearHighlights() {
     var preview = document.getElementById('preview');
     if (!preview) return;
@@ -324,33 +330,38 @@ function omnHighlightTerms(terms) {
 window.omnClearHighlights = omnClearHighlights;
 window.omnHighlightTerms = omnHighlightTerms;
 
-// omnMarkNear finds the highlighted occurrence belonging to one SOURCE line,
-// so choosing the third row in the search panel goes to the third match in the
-// page rather than back to the first.
+// omnMarkNear finds the marked occurrence that belongs to one SOURCE
+// line. A press on the third row of the search panel therefore goes to
+// the third match in the page, and not back to the first.
 //
-// It cannot do this by counting, which is the obvious implementation and a
-// wrong one. The panel's rows are source lines; the page is compiled HTML, and
-// the two do not have the same occurrences in the same order:
+// IT CANNOT COUNT. That is the obvious implementation and a wrong one.
+// The rows of the panel are source lines, and the page is compiled HTML.
+// The two do not hold the same occurrences in the same order.
 //
-//   - a note's <script> block is indexed but never rendered as text;
-//   - a link's URL is text in the source and absent from the page;
+//   - the <script> block of a note is indexed and never rendered as text.
+//   - the URL of a link is text in the source and absent from the page.
 //   - one rendered paragraph can be several source lines.
 //
-// Any of those makes "the Nth row is the Nth mark" wrong, and wrong by an
-// amount that varies silently per note. So the line is located by its TEXT.
-// Both sides are flattened the same way and the first mark at or after the
-// line's position wins. When the line cannot be found the caller is told so,
-// rather than handed a confident wrong answer.
+// Each of those makes "the Nth row is the Nth mark" wrong, by an amount
+// that changes from note to note and says nothing.
+//
+// The line is therefore found by its TEXT. Both sides are flattened the
+// same way, and the first mark at or after the position of the line
+// wins. A line that cannot be found is reported to the caller, who then
+// gets no confident wrong answer.
 
-// Markdown syntax that leaves no trace in the rendered page. Flattened to a
-// space on BOTH sides, so a character that survives rendering (a literal
-// parenthesis in prose, say) is treated identically in the needle and in the
-// haystack and cannot cause a miss on its own.
+// The markdown syntax that leaves no trace in the rendered page.
+//
+// It flattens to a space on BOTH sides. A character that survives the
+// render, for example a parenthesis in prose, therefore reads the same
+// in the needle and in the haystack. It can cause no miss on its own.
 var OMN_HL_SYNTAX = /[*_`~#\[\]()!>|\\\u2026]/;
 
-// omnFlatten lowercases, drops that syntax, and collapses whitespace, while
-// recording where every surviving character came from - the map is what turns
-// a position in the flattened text back into a position among the marks.
+// omnFlatten lowercases the text, drops that syntax and collapses the
+// whitespace. It records where each surviving character came from.
+//
+// That map is what turns a position in the flattened text back into a
+// position among the marks.
 function omnFlatten(raw) {
     var out = '', map = [], lastSpace = true;
     for (var i = 0; i < raw.length; i++) {
@@ -370,9 +381,12 @@ function omnFlatten(raw) {
     return { text: out, map: map };
 }
 
-// omnPreviewText concatenates the page's visible text and notes where each
-// mark starts within it. Same skip rules as the highlighter, minus MARK: here
-// the marks' own text is wanted, it is just not to be marked again.
+// omnPreviewText joins the visible text of the page and records where
+// each mark starts inside it.
+//
+// It skips the same elements as the highlighter, and it keeps MARK. The
+// text of a mark belongs in the answer. It only must not be marked a
+// second time.
 function omnPreviewText() {
     var preview = document.getElementById('preview');
     if (!preview) return null;
@@ -410,9 +424,9 @@ function omnMarkNear(snippet) {
     var needle = omnFlatten(snippet).text.trim();
     if (needle.length < 8) return null;   // too short to identify a line
 
-    // Shorten from the right on a miss: the tail of a line is the part most
-    // likely to carry a link or an entity that rendered differently, and the
-    // head is enough to place it.
+    // Shorten from the RIGHT on a miss. The tail of a line is the part
+    // most likely to hold a link or an entity that rendered another way.
+    // The head alone is enough to place the line.
     var at = flat.text.indexOf(needle);
     while (at < 0 && needle.length > 12) {
         var cut = needle.lastIndexOf(' ');
@@ -424,10 +438,12 @@ function omnMarkNear(snippet) {
 
     var rawAt = flat.map[at];
     for (var i = 0; i < page.marks.length; i++) {
-        // The END of the mark, not its start. A snippet is a WINDOW on its
-        // line, so it can begin part way through a word - and when that word
-        // is the marked one, a test on the start alone steps over the mark
-        // the snippet is about and answers with the next one.
+        // The END of the mark, and not its start.
+        //
+        // A snippet is a WINDOW on its line, thus it can begin part way
+        // through a word. When that word is the marked one, a test on the
+        // start alone steps over the mark that the snippet is about. It
+        // answers with the next one.
         var m = page.marks[i];
         if (m.at + m.el.textContent.length > rawAt) return m.el;
     }
@@ -440,10 +456,12 @@ window.omnMarkNear = omnMarkNear;
 // omnAnchorElement returns the element that the URL fragment names, or null
 // when there is no fragment or no such element.
 //
-// The fragment comes back from location.hash percent-encoded when the id holds
-// a character outside ASCII - a Cyrillic heading gives "#%D0%9A%D0%BE%D1%82" -
-// and getElementById wants the decoded id. The raw form is tried as well,
-// because an id may itself contain a percent sign.
+// location.hash answers the fragment percent-encoded when the id holds a
+// character outside ASCII. A Cyrillic heading gives "#%D0%9A%D0%BE%D1%82",
+// and getElementById wants the decoded id.
+//
+// The raw form is tried as well, because an id can itself hold a percent
+// sign.
 function omnAnchorElement() {
     var hash = window.location.hash;
     if (!hash || hash.length < 2) return null;
@@ -458,14 +476,16 @@ window.omnAnchorElement = omnAnchorElement;
 
 // omnMarkFrom returns the first highlighted word at or after an anchor.
 //
-// DOCUMENT_POSITION_FOLLOWING is true for a mark that comes after the anchor
-// AND for a mark inside it, which is what a bookmark entry needs: the entry is
-// one <li id="..."> and the hit is in it. A heading anchor gets the other case,
-// because the section text is the heading's next sibling, not its child.
+// DOCUMENT_POSITION_FOLLOWING is true for a mark that comes after the
+// anchor, AND for a mark inside it. A bookmark entry needs the second
+// case, because the entry is one <li id="..."> and the hit sits in it.
 //
-// It returns null when no mark is at or after the anchor. The caller must not
-// read that as "go to the first mark in the page": the hits above belong to a
-// section that the reader did not choose.
+// A heading anchor gets the first case. The text of a section is the
+// next sibling of the heading, and not its child.
+//
+// It answers null when no mark is at or after the anchor. The caller
+// must NOT read that as "go to the first mark in the page". The hits
+// above belong to a section that the reader did not choose.
 function omnMarkFrom(anchor) {
     var marks = document.querySelectorAll('#preview mark.omn-search-hit');
     for (var i = 0; i < marks.length; i++) {
@@ -480,10 +500,12 @@ function omnMarkFrom(anchor) {
 
 // --- ?hl= : highlight on arrival ---
 //
-// A search result links to /Note.html?hl=fetch&hl=json. On load, mark those
-// terms, scroll to the first, and strip the parameters from the address bar so
-// the URL is clean to copy, bookmark or reload - the highlight has already
-// been applied, and leaving the query on would re-apply it on every refresh.
+// A search result links to /Note.html?hl=fetch&hl=json.
+//
+// At load this code marks those terms, scrolls to the first, and takes
+// the parameters out of the address bar. The URL is then clean to copy,
+// to bookmark and to reload. The marks are already there, and a query
+// left in place would apply them again at each refresh.
 //
 // history.replaceState rather than a redirect: no navigation, no extra request,
 // and the back button behaves as though the parameters were never there.
@@ -491,18 +513,20 @@ function omnMarkFrom(anchor) {
 // Deliberately NOT the #:~:text= scroll-to-text fragment, which browsers
 // implement inconsistently and the Android WebView largely does not.
 //
-// WHEN THIS RUNS MATTERS. It is called at the END of the load listener
-// further down this file, after highlight.js and KaTeX have rewritten
-// #preview - not from a load listener of its own, which is what it used to
-// be and which put it FIRST.
+// WHEN THIS RUNS MATTERS. The load listener further down this file calls
+// it at the END, after highlight.js and KaTeX have rewritten #preview.
 //
-// hljs.highlightElement replaces the innerHTML of every "#preview pre code"
-// with its own tokenised markup, built from the block's text. A <mark> put
-// inside a fenced block before that ran was therefore deleted a moment
-// later: a hit in a ```code``` block was listed in the search panel, and
-// then could not be found in the page. Prose and an inline `code` span were
-// never touched by hljs, so they highlighted correctly - which made it look
-// as though code blocks were simply not searched.
+// It had a load listener of its own before, and that put it FIRST.
+//
+// hljs.highlightElement replaces the innerHTML of every
+// "#preview pre code" with its own markup, built from the text of the
+// block. A <mark> written inside a fenced block before that ran was
+// therefore deleted a moment later.
+//
+// A hit in a ```code``` block was listed in the search panel and then
+// could not be found in the page. hljs touches neither prose nor an
+// inline `code` span, thus those two marked correctly. The whole fault
+// read as though a code block was never searched at all.
 //
 // Running last also means the scroll is computed against the final layout,
 // instead of one that math and syntax highlighting were still about to
@@ -525,15 +549,15 @@ function omnApplyArrivalHighlight() {
     // 1. ?hlt= is the text of the ONE line the reader clicked. A result lists
     //    each matching line separately, so "the first match in the note" is
     //    the wrong answer for every row but the first. omnMarkNear finds the
-    //    mark that belongs to this line - by text, because the line number in
-    //    the result indexes the markdown SOURCE and this page is compiled
-    //    HTML (see the note above omnMarkNear).
+    //    mark that belongs to this line, and it finds it by text. The line
+    //    number in the result indexes the markdown SOURCE, and this page is
+    //    compiled HTML. See the note above omnMarkNear.
     //
     // 2. The fragment says WHICH SECTION. It is the answer for a link that
     //    names a section instead of a line, and the fallback when the text
-    //    cannot be found. The anchor alone is not enough for a line: a section
+    //    cannot be found. The anchor alone is not enough for a line. A section
     //    runs to the next heading, and the line that matched can be a screen
-    //    or more below it - the reader then gets a page with a highlight that
+    //    or more below it. The reader then gets a page with a highlight that
     //    is not on it.
     //
     // 3. The first mark in the page. Used when there is no fragment, or when
@@ -555,9 +579,9 @@ function omnApplyArrivalHighlight() {
     }
     if (!target) target = anchor ? omnMarkFrom(anchor) : first;
 
-    // target is null when the anchor is good but no mark is at or after it:
-    // the note matched on its title or a tag, or every hit is above the chosen
-    // section. The anchor scroll stands in that case.
+    // target is null when the anchor is good but no mark is at or after it.
+    // The note matched on its title or a tag, or every hit is above the
+    // chosen section. The anchor scroll stands in that case.
     if (target && target.scrollIntoView) {
         target.scrollIntoView({ block: 'center' });
         target.classList.add('omn-search-hit-current');
@@ -574,14 +598,15 @@ function omnApplyArrivalHighlight() {
 }
 
 // --- Global Listeners & State ---
+//
 // This file is loaded synchronously in <head>, BEFORE the body (and any
-// classic <script> embedded in a note) is parsed. That is deliberate and
-// mirrors classic OMN's functions.js: everything defined here - the
-// console interceptor, the uncaught-error handlers and the helper
-// globals - must already exist when a note's classic script executes
-// during parsing. Nothing at the top level of this file may touch
-// document.body or any element: the body does not exist yet. DOM work
-// belongs inside a DOMContentLoaded/load listener.
+// classic <script> embedded in a note) is parsed. That is deliberate, and
+// it mirrors the functions.js of classic OMN. The console interceptor,
+// the uncaught-error handlers and the helper globals must already exist
+// when the classic script of a note runs during parsing. Nothing at the
+// top level of this file may touch document.body or any element, because
+// the body does not exist yet. DOM work belongs inside a
+// DOMContentLoaded or load listener.
 if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
@@ -655,20 +680,14 @@ if (typeof currentNote === 'undefined') {
                     return text.includes('metadata') || id.includes('metadata') || cls.includes('metadata');
                 });
 
-                //if (metadataEl && metadataEl.parentNode) {
-                //    metadataEl.parentNode.insertBefore(consoleBtn, metadataEl.nextSibling);
-                //} else {
-                //    consoleBtn.classList.add('btn-console-main-fixed');
-                //    document.body.appendChild(consoleBtn);
-                //}
                 var target = document.querySelector('.header-actions'); if (target) { target.appendChild(consoleBtn); } else if (document.body) { consoleBtn.classList.add('btn-console-main-fixed'); document.body.appendChild(consoleBtn); }
             }
 
             // computeJump decides whether an uncaught error can be opened in
             // the editor, and how. Only same-origin editable sources qualify:
-            //   - the current note itself: the reported line is a line in the
-            //     COMPILED html, so we later map it back to the markdown by
-            //     content (kind 'note').
+            //   - the current note itself. The reported line is a line in
+            //     the COMPILED html, so we later map it back to the
+            //     markdown by content (kind 'note').
             //   - a served asset under /js /css /json (a verbatim file): its
             //     lines map 1:1, so we jump by number (kind 'asset').
             // Errors from OMN-Go's own bundled scripts, or cross-origin, get
@@ -692,10 +711,10 @@ if (typeof currentNote === 'undefined') {
             }
 
             // jumpToEditor opens the editor positioned on the error's line.
-            // For a note it fetches the served page, reads the exact source
-            // line text at the error line, and hands it to the editor to
-            // locate by CONTENT - avoiding the markdown<->HTML line-number
-            // arithmetic entirely.
+            // For a note it fetches the served page, and it reads the exact
+            // source line text at the error line. It then hands that text to
+            // the editor, which locates the line by CONTENT. The markdown to
+            // HTML line-number arithmetic is not necessary.
             async function jumpToEditor(jump) {
                 if (jump.kind === 'asset') {
                     window.location.href = jump.path + '?edit=true&line=' + jump.line;
@@ -708,15 +727,15 @@ if (typeof currentNote === 'undefined') {
                     const lineText = (lines[jump.line - 1] || '').trim();
                     if (lineText) url += '&find=' + encodeURIComponent(lineText.slice(0, 300));
                     else url += '&line=' + jump.line;
-                } catch (e) { /* fall back to just opening the editor */ }
+                } catch (e) { /* fall back to the plain editor address */ }
                 window.location.href = url;
             }
 
             // The header console button is hidden while the header is folded
             // (the default). This footer dot is always visible, so it tells
-            // the user that console messages exist without unfolding. It's the
-            // same orange as the console button (#ff9800) and lives in the
-            // page footer (#status), added by the template.
+            // the user that console messages exist without unfolding. It is
+            // the same orange as the console button (#ff9800) and lives in
+            // the page footer (#status), added by the template.
             function updateConsoleFooterDot() {
                 var fd = document.getElementById('omn-go-console-footer-dot');
                 if (!fd) return;
@@ -796,18 +815,18 @@ if (typeof currentNote === 'undefined') {
             wrapConsole('dir', originalDir, 'dir');
             wrapConsole('time', originalTime, 'time');
             wrapConsole('timeEnd', originalTimeEnd, 'timeEnd');
-            // Installed at <head> time, before the body parses, so this
-            // catches errors from EVERY note script - including syntax
-            // errors in classic inline <script> blocks, which the browser
-            // reports while parsing the body (long before DOMContentLoaded).
+            // Installed at <head> time, before the body parses. This catches
+            // errors from EVERY note script, and a syntax error in a classic
+            // inline <script> block counts. The browser reports that error
+            // while it parses the body, long before DOMContentLoaded.
             window.addEventListener('error', function(e) {
                 var where = e.filename ? ' at ' + e.filename + ':' + e.lineno + (e.colno ? ':' + e.colno : '') : '';
                 var msg = 'Uncaught Error: ' + e.message + where;
-                // Print to the real console and add a clickable, jump-enabled
-                // entry to the in-app console (when the error points at an
-                // editable source on this page). We call originalError +
-                // appendLog directly rather than the wrapped console.error so
-                // the jump metadata survives.
+                // Print to the real console and add a clickable entry to the
+                // in-app console. The entry carries a jump when the error
+                // points at an editable source on this page. We call
+                // originalError and appendLog directly rather than the
+                // wrapped console.error, so the jump metadata survives.
                 try { originalError.call(console, msg); } catch (_) { }
                 appendLog('error', [msg], computeJump(e.filename, e.lineno));
                 return;
@@ -846,31 +865,30 @@ if (typeof currentNote === 'undefined') {
                     }
 
                     // Any other URI scheme (tel:, mailto:, geo:, sms:,
-                    // market:, intent://, whatsapp:, ...) isn't a page
-                    // reference at all - leave it untouched so the
-                    // browser/WebView's own link handling can launch the
+                    // market:, intent://, whatsapp:, ...) is not a page
+                    // reference at all. Leave it untouched, and the link
+                    // handling of the browser or the WebView launches the
                     // matching app. This used to fall through to the
-                    // "internal page" rewrite below, which appended a
-                    // bogus ".html" onto anything without a literal "."
-                    // in it - turning e.g. "tel:5551234" into
-                    // "tel:5551234.html" and breaking it outright.
+                    // "internal page" rewrite below. That rewrite appended
+                    // a bogus ".html" onto anything with no literal "." in
+                    // it, thus "tel:5551234" became "tel:5551234.html" and
+                    // stopped working.
                     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) {
                         return;
                     }
 
                     // Everything else is an internal page reference. The
                     // server already normalized this exact href when it
-                    // rendered the page (rewriteInternalLink in
-                    // markdown.go converts ".md" to ".html", appends
-                    // ".html" to bare page names, and leaves any
-                    // "?query"/"#fragment" suffix untouched) - there's
-                    // nothing left to redo here. The old naive re-check
-                    // below used to re-break already-correct hrefs, e.g.
-                    // "Page?x=1" became "Page?x=1.html", and
-                    // "Page.md#section" was left with a literal ".md"
-                    // (which 404s) because it matched neither of its two
-                    // branches. Just navigate to exactly what was
-                    // rendered.
+                    // rendered the page. rewriteInternalLink in
+                    // markdown.go converts ".md" to ".html". It appends
+                    // ".html" to a bare page name, and it leaves a
+                    // "?query" or a "#fragment" suffix untouched. Nothing
+                    // is left to redo here. The old naive re-check below
+                    // used to re-break a correct href. "Page?x=1" became
+                    // "Page?x=1.html", and "Page.md#section" kept a
+                    // literal ".md" that gives 404, because it matched
+                    // neither of the two branches. Navigate to exactly
+                    // what the server rendered.
                     e.preventDefault();
                     window.location.href = href;
                 }
@@ -884,16 +902,17 @@ if (typeof currentNote === 'undefined') {
         // Reveals .android-only controls (hidden by default in CSS - see
         // omn-go-core.css) when the page was served with IS_ANDROID set
         // (COND_SCRIPTS in templates.go, mirroring the IS_MARKDOWN
-        // precedent). Runs unconditionally on load, not gated on
-        // login/session state like checkRole(), since there's no
-        // guest/admin distinction for "can this device pin a shortcut".
+        // precedent). It runs on load, and it is not gated on login or
+        // session state like checkRole(). There is no guest or admin
+        // distinction for "can this device pin a shortcut".
         //
-        // An explicit "flex", not "" (which only drops the inline style and
-        // hands the decision back to the cascade): the CSS now hides these
-        // controls with a selector that wins inside .header-actions, so ""
-        // would leave the button hidden on Android as well. "flex" is what
-        // ".header-actions a, .header-actions button" gives every other
-        // control in that bar, so the revealed button matches its neighbours.
+        // An explicit "flex", and not "". An empty value drops the inline
+        // style and hands the decision back to the cascade. The CSS now
+        // hides these controls with a selector that wins inside
+        // .header-actions, thus "" would leave the button hidden on Android
+        // as well. "flex" is what ".header-actions a, .header-actions
+        // button" gives every other control in that bar, thus the revealed
+        // button matches its neighbors.
         function applyPlatformUI() {
             if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
                 document.querySelectorAll('.android-only').forEach(el => {
@@ -902,13 +921,14 @@ if (typeof currentNote === 'undefined') {
             }
         }
 
-        // Standalone/offline mode: when the compiled page is opened directly
-        // from disk (file://) there is no server, so hide the header controls
-        // that can only work against the backend (create / quick-note /
-        // bookmark, sync, settings, edit - all marked .server-only in
-        // index.html). Home, the metadata toggle and Refresh stay: they work
-        // offline (Refresh falls back to a plain reload - see refreshPage).
-        // Runs on load; the header is collapsed by default so nothing flashes.
+        // Standalone or offline mode. When the compiled page is opened
+        // directly from disk (file://) there is no server. Hide the header
+        // controls that work only against the backend: create, quick-note,
+        // bookmark, sync, settings and edit, all marked .server-only in
+        // index.html. Home, the metadata toggle and Refresh stay, because
+        // they work offline. Refresh falls back to a plain reload, see
+        // refreshPage. This runs on load, and the header is collapsed by
+        // default, thus nothing flashes.
         function applyOfflineUI() {
             if (window.location.protocol === 'file:') {
                 document.querySelectorAll('.server-only').forEach(function (el) {
@@ -917,9 +937,9 @@ if (typeof currentNote === 'undefined') {
             }
         }
 
-        // Refresh: online, ask the server to recompile the page via
-        // ?refresh=1; offline there is no server to recompile, so just reload
-        // the file. Wired to the header's refresh button (onclick).
+        // Refresh. Online, ask the server to recompile the page with
+        // ?refresh=1. Offline there is no server to recompile, thus reload
+        // the file. Wired to the refresh button of the header (onclick).
         window.refreshPage = function () {
             if (window.location.protocol === 'file:') {
                 window.location.reload();
@@ -937,16 +957,17 @@ if (typeof currentNote === 'undefined') {
             if (p) p.classList.toggle('hidden');
         };
 
-        // Copies the Quick Note text to the clipboard WITHOUT saving it, so a
-        // captured snippet - typed, shared in from another Android app, or
-        // pushed in by a barcode scan (see showQuickCapture in omn-go-sse.js) -
-        // can be pasted somewhere else. Wired to the panel's Copy button, which
-        // passes itself as btn so the label can report the outcome.
+        // Copies the Quick Note text to the clipboard WITHOUT saving it. The
+        // captured snippet can then be pasted somewhere else. A person types
+        // that snippet, or shares it in from another Android app, or pushes
+        // it in with a barcode scan. See showQuickCapture in omn-go-sse.js.
+        // Wired to the Copy button of the panel, which passes itself as btn,
+        // thus the label can report the outcome.
         //
-        // It lives here rather than beside submitQuickNote in omn-go-sse.js
-        // because it never talks to the backend: that file's no-server branch
-        // replaces every handler with a printDebug stub, which is right for
-        // /api/quick and wrong for a pure clipboard action.
+        // It lives here rather than beside submitQuickNote in omn-go-sse.js,
+        // because it never talks to the backend. The no-server branch of that
+        // file replaces every handler with a printDebug stub. That is right
+        // for /api/quick and wrong for a pure clipboard action.
         //
         // This function uses select and execCommand('copy') on purpose. It
         // does not use the Clipboard API. The Clipboard API is the modern
@@ -972,10 +993,10 @@ if (typeof currentNote === 'undefined') {
             var q = document.getElementById('quickText');
             if (!q) return;
 
-            // Restores the button's own label after a moment. The original is
-            // stashed on first use so repeated clicks (which land while the
-            // label still reads "Copied!") can't capture the feedback text as
-            // the label to go back to.
+            // Restores the button's own label after a moment. The original
+            // is stashed on the first use. A repeated click lands while the
+            // label still reads "Copied!". It must not capture the feedback
+            // text as the label to go back to.
             function feedback(msg) {
                 if (!btn) return;
                 if (typeof btn.dataset.omnLabel === 'undefined') {
@@ -1002,11 +1023,11 @@ if (typeof currentNote === 'undefined') {
                 ok = false;
             }
 
-            // Drop the selection once the copy has been taken. The panel stays
-            // open afterwards, so leaving the whole note highlighted would both
-            // look like it is still "in progress" and let the next keystroke
-            // replace the entire text. Collapsing to the end keeps the caret
-            // somewhere sensible for continued typing.
+            // Drop the selection once the copy has been taken. The panel
+            // stays open afterwards. A whole note that stays highlighted
+            // looks like work in progress, and the next keystroke would
+            // replace the entire text. A collapse to the end keeps the
+            // caret in a sensible place for more typing.
             try {
                 q.setSelectionRange(q.value.length, q.value.length);
             } catch (e) { /* element does not support selection ranges */ }
@@ -1016,13 +1037,13 @@ if (typeof currentNote === 'undefined') {
 
         // Asks the native shell (MainActivity.shouldOverrideUrlLoading, see
         // the omngo://edit precedent) to pin a home-screen shortcut to the
-        // current note. Only reachable via the .android-only button, which
-        // applyPlatformUI() only reveals when running inside the Android
-        // app - there is no equivalent on desktop. "name" (the on-disk page
-        // name) is what MainActivity needs to reopen the right note; "title"
-        // (the note's Title: header, already exposed as the global `Title`
-        // var - see index.html) is only for the shortcut's on-screen label,
-        // so a shortcut reads e.g. "Grocery List" instead of "note-42".
+        // current note. The .android-only button is the only way in, and
+        // applyPlatformUI() reveals it inside the Android app only. There
+        // is no equivalent on desktop. "name" is the on-disk page name, and
+        // MainActivity needs it to reopen the right note. "title" is the
+        // Title: header of the note, already exposed as the global `Title`
+        // var, see index.html. The label uses "title" alone, thus a
+        // shortcut reads "Grocery List" and not "note-42".
         window.createNoteShortcut = function() {
             if (typeof currentNote === 'undefined' || !currentNote) return;
             var label = (typeof Title !== 'undefined' && Title) ? Title : currentNote;
@@ -1051,11 +1072,12 @@ window.updateArrow = function() {
     }
 };
 
-// addEventListener, NOT "window.onload = ...": classic OMN notes routinely
-// assign window.onload themselves (e.g. "window.onload=createTOC();").
-// When this file used the assignment form it silently overwrote (or was
-// overwritten by) the note's handler depending on load order; with a
-// listener both this handler and any note-assigned window.onload run.
+// addEventListener, and NOT "window.onload = ...". A classic OMN note
+// often assigns window.onload itself, for example
+// "window.onload=createTOC()". When this file used the assignment form,
+// the two assignments overwrote each other, and the load order decided
+// which one won. With a listener both this handler and a note-assigned
+// window.onload run.
 window.addEventListener('load', () => {
             checkSession();
             applyPlatformUI();
@@ -1086,22 +1108,23 @@ window.addEventListener('load', () => {
             if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
                 omnGoRenderMath(document.getElementById('preview') || document.body);
             }
-            // AFTER hljs and KaTeX, never before: highlightElement rebuilds
-            // the innerHTML of each "pre code", which used to delete every
-            // <mark> a search had just put inside a fenced block. See the
-            // note above omnApplyArrivalHighlight.
+            // AFTER hljs and KaTeX, and never before. highlightElement
+            // rebuilds the innerHTML of each "pre code". That used to
+            // delete every <mark> that a search put inside a fenced block.
+            // See the note above omnApplyArrivalHighlight.
             omnApplyArrivalHighlight();
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
                 const tb = document.getElementById('toggleBtn');
                 if (tb) tb.style.display = 'none';
             }
-            // Note: ?edit=true is now handled entirely server-side (it serves
-            // the standalone editor page), so a rendered view page never
-            // carries that query and there is no in-page edit toggle to fire.
-            // This listener is registered after the ?hl= one above, so it runs
-            // after it. When that handler scrolled to the word that matched,
-            // the fragment must not pull the page back to the top of the
-            // section and put the highlight off screen again.
+            // Note: ?edit=true is now handled entirely on the server, which
+            // serves the standalone editor page. A rendered view page never
+            // carries that query, thus there is no in-page edit toggle to
+            // fire. This listener is registered after the ?hl= one above,
+            // thus it runs after it. The ?hl= handler can scroll to the word
+            // that matched. The fragment must then not pull the page back to
+            // the top of the section, because the highlight would go off
+            // screen again.
             if (!OMN_HL_SCROLLED) {
                 let el = omnAnchorElement();
                 if (el) el.scrollIntoView();
@@ -1117,17 +1140,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // --- Slow-navigation guard ---
-// Some pages are generated by the server AT NAVIGATION TIME, so the wait
-// happens after the browser has left this document and no in-page spinner
-// can cover it: OMNGoTags rebuilds by scanning every note (tags.go), and any
-// note whose .md is newer than its cached .html is recompiled on first view
-// (serveHTMLPage) - which is every changed note after a pull.
 //
-// Nothing here can shorten that wait; what it can do is stop the UI looking
-// dead while it happens. On a link click we arm a short timer and only show
-// the overlay if the new document still has not taken over by then, so quick
-// navigations never flash. The overlay dies with the document, so there is
-// nothing to clean up on the way out.
+// Some pages are generated by the server AT NAVIGATION TIME. The wait then
+// happens after the browser has left this document, and no in-page spinner
+// can cover it. OMNGoTags rebuilds when it scans every note, see tags.go.
+// A note whose .md is newer than its cached .html is recompiled on the
+// first view, see serveHTMLPage. That is every changed note after a pull.
+//
+// Nothing here can shorten that wait. It can stop the UI from looking dead
+// while the wait happens. On a link click we arm a short timer. The overlay
+// comes up only when the new document has not taken over by then, thus a
+// quick navigation never flashes. The overlay dies with the document, thus
+// there is nothing to clean up on the way out.
 //
 // On Android the native ProgressBar in MainActivity covers the same gap
 // (onPageStarted/onPageFinished) including back/forward and direct URL
@@ -1169,22 +1193,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }, DELAY_MS);
     }, true);
 
-    // The results page's own form is a navigation too, and the wait behind it
-    // is the largest one this guard covers: submitting the query reads every
-    // note the index holds and renders the answer server-side. The click
-    // handler above cannot see it, because a submit is not an <a>.
+    // The form of the results page is a navigation too, and the wait behind
+    // it is the largest one that this guard covers. A submit of the query
+    // reads every note that the index holds, and the server renders the
+    // answer. The click handler above cannot see it, because a submit is
+    // not an <a>.
     //
     // NO debounce here, unlike the search dialog. A submit IS the "go" that
     // the dialog has to wait for a typist to mean. The DELAY_MS below is not
-    // a delay before searching - the request is already on its way while it
-    // runs - it is the same anti-flash arming the click handler uses, so a
-    // fast answer arrives without an overlay having appeared at all.
+    // a delay before the search. The request is already on its way while
+    // DELAY_MS runs. It is the same anti-flash arming that the click handler
+    // uses, thus a fast answer arrives and no overlay appears at all.
     //
     // Matched by class rather than by "any GET form". A note may contain a
-    // form of its own (raw HTML is allowed, see ScriptRules), and the word
-    // "Searching" would be a lie over someone else's. This is the one form
-    // the app ships that navigates; search_page.html and the .search-page-*
-    // rules in omn-go-core.css already name it the same way.
+    // form of its own, because raw HTML is allowed, see ScriptRules. The
+    // word "Searching" would be a lie over the form of someone else. This
+    // is the one form that the app ships and that navigates.
+    // search_page.html and the .search-page-* rules in omn-go-core.css
+    // already name it the same way.
     //
     // Bubble phase, not capture, so a handler that cancels the submit has
     // already run and set defaultPrevented.
@@ -1210,10 +1236,11 @@ document.addEventListener("DOMContentLoaded", () => {
 // The controls live on the metadata panel's "File:" line and not in the
 // header actions, which is full. See claude/note-exchange-plan.md.
 //
-// Both fetch the SAME URL, /api/export/note, which answers the note's source
-// with a "FileName:" line added to its header block - the only place the
-// note's path survives a transport that delivers a flat file name. The
-// stored note does not change; an export is a read.
+// Both fetch the SAME URL, /api/export/note. That endpoint answers the
+// source of the note, and it adds a "FileName:" line to the header block.
+// That line is the only place where the path of the note survives a
+// transport that delivers a flat file name. The stored note does not
+// change, because an export is a read.
 
 // omnGoExportURL is the one address both controls use, and the one
 // MainActivity fetches for the Android share sheet.
@@ -1246,10 +1273,10 @@ function omnGoExportURL(note) {
 // omnGoSendNote hands the note to whatever can carry it.
 //
 // On Android that is the share sheet, which reaches Telegram, e-mail,
-// LocalSend and everything else installed; MainActivity answers the
+// LocalSend and everything else installed. MainActivity answers the
 // omngo:// scheme, as it already does for omngo://edit and
-// omngo://shortcut. Elsewhere there is no share sheet, so the browser
-// downloads the file and the user attaches it to whatever they want -
+// omngo://shortcut. There is no share sheet elsewhere. The browser
+// downloads the file, and the user attaches it where they want.
 // Content-Disposition on the endpoint is what makes it a download.
 function omnGoSendNote(note) {
     if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
@@ -1353,16 +1380,16 @@ function omnGoPageTitle() {
 // omnGoPageLink builds a Markdown link to the page on screen, for pasting into
 // another note.
 //
-// The target is the address of this page WITHOUT the scheme and the host: the
-// absolute path, the query string and the fragment, as the address bar holds
-// them. A path keeps its meaning on each device that opens the same notes. A
-// host does not: the Android application and the desktop application both
-// serve the pages at 127.0.0.1, so a link that carries the host works on the
-// one device that made it and nowhere else.
+// The target is the address of this page WITHOUT the scheme and the host.
+// It is the absolute path, the query string and the fragment, as the
+// address bar holds them. A path keeps its meaning on each device that
+// opens the same notes. A host does not. The Android application and the
+// desktop application both serve the pages at 127.0.0.1. A link that
+// carries the host works on the one device that made it and nowhere else.
 //
 // The browser encodes the path, so a space is already %20. The two
-// parentheses are the characters that the browser leaves alone and that
-// Markdown reads as the end of a link, so this function encodes them. In the
+// parentheses are the characters that the browser leaves alone. Markdown
+// reads them as the end of a link, thus this function encodes them. In the
 // link text, a backslash and the two brackets get a backslash in front of
 // them.
 //
@@ -1394,12 +1421,13 @@ async function omnGoCopyPageLink(say) {
 //
 // Built from ELEMENTS, not from a string of HTML.
 //
-// Every value here comes from the note's own meta tags, which come from its
-// header block - so the old "metaHtml += `<strong>${name}</strong> ${content}`"
-// let a note write markup into its own metadata panel. textContent cannot.
-// The inline "color:#0056b3" and "border-bottom:#ccc" went the same way: they
-// are theme tokens now, so the panel is legible on the dark theme, which is
-// the fault the database backup dialog had before 26.08.29.
+// Every value here comes from the meta tags of the note, which come from
+// its header block. The old "metaHtml += `<strong>${name}</strong>
+// ${content}`" thus let a note write markup into its own metadata panel.
+// textContent cannot. The inline "color:#0056b3" and "border-bottom:#ccc"
+// went the same way. They are theme tokens now, thus the panel is legible
+// on the dark theme. The database backup dialog had that fault before
+// 26.08.29.
 document.addEventListener("DOMContentLoaded", () => {
     const panel = document.getElementById('metadataPanel');
     if (!panel) return;
@@ -1450,10 +1478,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // that another note can point at. Such a page gets no controls.
     const online = window.location.protocol !== 'file:';
 
-    // The two note controls need a note: IS_MARKDOWN is off for the Config
+    // The two note controls need a note. IS_MARKDOWN is off for the Config
     // dashboard, the search page and the other views that borrow this page
-    // shell, and those have no Markdown source to send. The link control has
-    // no such condition, because each of those views has an address.
+    // shell. Those views have no Markdown source to send. The link control
+    // has no such condition, because each of those views has an address.
     const sendable = noteName &&
         (typeof IS_MARKDOWN !== 'undefined' && IS_MARKDOWN) && online;
 
