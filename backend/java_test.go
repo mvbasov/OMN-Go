@@ -183,8 +183,17 @@ func TestJavaUnitTests(t *testing.T) {
 		}
 	}
 
+	// -encoding UTF-8, because a raw javac reads a source file in the
+	// encoding of the PLATFORM. The build image of the gate has no UTF-8
+	// locale, thus its javac read the file as US-ASCII and refused each
+	// byte above 127. Version 26.09.28 failed the build that way.
+	//
+	// The Gradle build never had that fault. The Android Gradle Plugin
+	// sets options.encoding to UTF-8 for each JavaCompile task, thus
+	// MainActivity.java has carried a character above 127 in a comment
+	// for a long time. This line makes the two compilers agree.
 	out := t.TempDir()
-	build := exec.Command(javac, "-d", out,
+	build := exec.Command(javac, "-encoding", "UTF-8", "-d", out,
 		filepath.Join("..", filepath.FromSlash(mainSrc)),
 		filepath.Join("..", filepath.FromSlash(testSrc)))
 	if compiled, cErr := build.CombinedOutput(); cErr != nil {
@@ -200,4 +209,40 @@ func TestJavaUnitTests(t *testing.T) {
 		return
 	}
 	t.Logf("%s", strings.TrimSpace(string(result)))
+}
+
+// The two files that a raw javac reads must hold no byte above 127.
+//
+// TestJavaUnitTests passes -encoding UTF-8, thus a byte above 127 would
+// compile today. This test is the second lock, and it exists because the
+// first one already failed once.
+//
+// Each other Java file of this project is compiled by Gradle alone, and
+// the Android Gradle Plugin fixes the encoding for those. MainActivity
+// holds an ellipsis in a comment for that reason. The two files below are
+// compiled by BOTH, thus they must satisfy the stricter of the two.
+//
+// A character above 127 has a plain replacement in Java source: the
+// escape \uXXXX. OmnConfigTest uses it for the value it expects, which is
+// also the shape that json.MarshalIndent writes.
+func TestCompiledJavaSourcesAreASCII(t *testing.T) {
+	for _, rel := range []string{
+		"android/app/src/main/java/net/basov/omngo/OmnConfig.java",
+		"android/test/java/net/basov/omngo/OmnConfigTest.java",
+	} {
+		src, err := readRepoFile(rel)
+		if err != nil {
+			t.Skipf("%s is not in this tree: %v", rel, err)
+		}
+		for i, line := range strings.Split(src, "\n") {
+			for _, r := range line {
+				if r > 127 {
+					t.Errorf("%s:%d holds the character %q. A javac with no UTF-8 "+
+						"locale refuses it. Write it as the escape \\u%04X.",
+						rel, i+1, r, r)
+					break
+				}
+			}
+		}
+	}
 }

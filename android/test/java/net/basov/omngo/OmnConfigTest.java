@@ -179,7 +179,10 @@ public final class OmnConfigTest {
         Map<String, Object> m = OmnConfig.parseFlat(
             "{\"hostname\":\"\\u041f\\u0438\\u043a\\u0441\\u0435\\u043b\"," +
             "\"a\":\"line\\nbreak\",\"b\":\"say \\\"hi\\\"\",\"c\":\"back\\\\slash\"}");
-        eq("escape: \\u", "Пиксел", m.get("hostname"));
+        // The expected value is written with the SAME escapes, thus this
+        // file holds no byte above 127. A javac with no UTF-8 locale
+        // refuses such a byte, and version 26.09.28 failed a build on it.
+        eq("escape: \\u", "\u041f\u0438\u043a\u0441\u0435\u043b", m.get("hostname"));
         eq("escape: newline", "line\nbreak", m.get("a"));
         eq("escape: quote", "say \"hi\"", m.get("b"));
         eq("escape: backslash", "back\\slash", m.get("c"));
