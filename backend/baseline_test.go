@@ -967,7 +967,7 @@ func TestConfigPost_HostnameClearedFallsBack(t *testing.T) {
 // 7. versionDependentAssets and gitignorePatterns agree
 //
 // versionDependentAssets (assets.go) is the list of files that ship with the
-// build and are refreshed on upgrade; gitignorePatterns (git_helper.go) is what
+// build and are refreshed on upgrade; gitignorePatterns (git_repo.go) is what
 // keeps those same files out of the user's sync repo. They are two hand-kept
 // lists that must not drift - and the search feature makes the first one the
 // single source of truth for "OMN-Go's own code", so its integrity matters more

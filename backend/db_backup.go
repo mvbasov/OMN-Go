@@ -52,7 +52,7 @@ import (
 // any real browser) and staged for git like every other tracked file;
 // databases named local-* are kept out of git by the general local-only
 // name rule. That rule started here and now applies to each path, not
-// only to a database backup (see localOnlyPrefix in git_helper.go).
+// only to a database backup (see localOnlyPrefix in git_repo.go).
 //
 // File format (version 2), one JSON object per line:
 //

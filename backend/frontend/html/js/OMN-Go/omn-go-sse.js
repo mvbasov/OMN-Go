@@ -47,7 +47,7 @@ if (window.location.protocol !== 'file:') {
     // Maps a backend "[sync] ..." log line to a human-readable stage. First
     // match wins, so more specific prefixes come first. Anything unmatched
     // leaves the current stage alone and only updates the detail line - that
-    // way a log message added to git_helper.go later degrades to "still
+    // way a log message added to git_sync.go later degrades to "still
     // working" rather than blanking the stage.
     const SYNC_STAGES = [
         ['Opening repo',            'Opening repository…'],
@@ -86,7 +86,7 @@ if (window.location.protocol !== 'file:') {
         ['Pushing to',              'Uploading to remote…'],
         ['push:',                   'Finishing upload…'],
         // go-git sideband text relayed from the remote (see
-        // syncProgressWriter in git_helper.go).
+        // syncProgressWriter in git_sync.go).
         ['remote:',                 'Transferring…'],
         ['Counting objects',        'Transferring…'],
         ['Compressing objects',     'Transferring…'],
@@ -1064,7 +1064,7 @@ if (window.location.protocol !== 'file:') {
     //
     // Every log line the backend writes reaches this stream (see logger.go),
     // which is why the sync progress overlay needs no transport of its own:
-    // git_helper.go's "[sync] ..." lines are the progress feed. Subscribers
+    // git_sync.go's "[sync] ..." lines are the progress feed. Subscribers
     // registered through window.omnGoOnServerLog get each line in addition
     // to the console mirroring that has always happened here.
     //

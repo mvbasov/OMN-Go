@@ -853,7 +853,7 @@ func redactGitURL(raw string) string {
 }
 
 // openRepoReadOnly opens the storage repository and creates nothing. It
-// uses the same filesystem wrapping as getOrInitRepo (git_helper.go), so
+// uses the same filesystem wrapping as getOrInitRepo (git_repo.go), so
 // both see one worktree. With no repository on disk it returns an error.
 // It never initializes one.
 func (a *App) openRepoReadOnly() (*git.Repository, error) {

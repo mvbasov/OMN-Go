@@ -176,7 +176,7 @@ func returnsRows(query string) bool {
 // openUserDB call reopens the file from scratch instead of reusing a
 // handle tied to a now-stale file identity. Paired with
 // isStaleDBHandleError below: this is what lets /api/sql self-heal from a
-// SQLITE_READONLY_DBMOVED-class error (see syncPull in git_helper.go for
+// SQLITE_READONLY_DBMOVED-class error (see syncPull in git_sync.go for
 // the one concrete cause already found and fixed) instead of leaving
 // every query against that database permanently failing until a full
 // process restart.
