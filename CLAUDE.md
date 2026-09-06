@@ -3,7 +3,10 @@
 These are the standing rules for work on the OMN-Go repository.
 Read this document before you change code, tests, documents, or build files.
 
-Source: repository `https://github.com/mvbasov/OMN-Go` at commit `66d7cd9`, version 26.08.77.
+Source: repository `https://github.com/mvbasov/OMN-Go`, version 26.09.34.
+
+The commit hash stood here until 26.09.34. A hash names the commit before this
+document, and never the commit that carries it. The version is enough.
 
 This document uses ASD-STE100 Simplified Technical English. See section 10.
 
@@ -31,7 +34,7 @@ Do not remove a constraint without an instruction from the maintainer.
    `armeabi-v7a` and on `x86`. F-Droid publishes those builds. The test
    `TestNoBare64BitAtomics` in `backend/middleware_test.go` scans the source and
    enforces this rule.
-5. **The WebView floor is Chromium 85 and `minSdk 23`.** `html/js/omn-go-compat.js`
+5. **The WebView floor is Chromium 85 and `minSdk 23`.** `html/js/OMN-Go/omn-go-compat.js`
    holds the only ES5 code in the project. Two rules keep it working, and
    `TestCompatScriptIsFirstAndES5` enforces both. **Keep the file in ES5**, and
    **keep it the first script in `templates/index.html`**, with no `defer` and no
@@ -76,7 +79,7 @@ Do not remove a constraint without an instruction from the maintainer.
 | Path | Contents |
 | --- | --- |
 | `main_desktop.go` | The only file in `package main`. It holds the only build tag: `//go:build !android`. |
-| `backend/` | The full Go application. One flat `package backend`. About 30 files, not counting tests. |
+| `backend/` | The full Go application. One flat `package backend`. 33 files, not counting tests. |
 | `backend/frontend/templates/` | Server-side page fragments. Embedded as `templatesFS`. Never extracted to disk. |
 | `backend/frontend/html/` | `js/`, `css/`, `css/fonts/`, `json/`, `favicon.ico`. Embedded as `staticFS`. Extracted to the storage directory on demand. The user can edit these files with `?edit=true`. |
 | `backend/frontend/md/` | The bundled system notes. Examples: `Welcome.md`, `UserManual.md`, `Database.md`, `ScriptRules.md`. Also a `Test/OMN-Go/` demonstration tree. |
@@ -84,7 +87,9 @@ Do not remove a constraint without an instruction from the maintainer.
 | `local/` | Maintainer scripts. The Docker context excludes this directory. The build never ships it. |
 | `fastlane/metadata/android/en-US/` | Store metadata and `changelogs/<versionCode>.txt`. Each changelog line starts with `•`. |
 | `metadata/` | `net.basov.omngo.fdroid.yml`, the F-Droid build recipe. |
-| `doc/` | Maintainer documents. `API.md` holds the endpoint reference. `TERMINOLOGY.md` holds the controlled vocabulary. `initial_prompt.md` holds the historical origin prompt. |
+| `backend/frontend/test/` | The JavaScript unit tests and the DOM stub. Embedded by no `go:embed`, thus no device receives them. |
+| `android/test/` | The Java unit test. It sits OUTSIDE the Gradle project on purpose. See `doc/TESTING.md`. |
+| `doc/` | Maintainer documents. `API.md` holds the endpoint reference. `TERMINOLOGY.md` holds the controlled vocabulary. `TESTING.md` holds the map of the test set. `initial_prompt.md` holds the historical origin prompt. |
 | `CLAUDE.md` | This document. The Docker context excludes it. |
 
 The repository does not hold `go.sum`, `output-binaries/`, `data/`, `.env`, or keystores.
@@ -164,8 +169,11 @@ Two statements in the tree are wrong. Do not trust them.
   `normalizeXxx` functions repair an unknown enum value. The loader, the POST
   handler, and the renderer then always agree. A request that omits a field leaves
   that field alone. See `configFieldSent` in `handlers.go`.
-* **Routes.** Register every route in one block inside `StartServer`, on a plain
-  `http.ServeMux`. Use the form
+* **Routes.** Register every route in `registerRoutes` in `backend/server.go`.
+  `StartServer` calls it with `a.Router`, a plain `http.ServeMux`. The parameter
+  is the small `routeTable` interface, thus `TestBaseline_RouteSet` can pass a
+  recorder and read the real table. Do not register a route anywhere else. Use
+  the form
   `a.Router.HandleFunc("/api/x", a.authMiddleware(a.handleX, true))`. The boolean is
   `requireAdmin`. Add a comment to any registration that differs from this form.
 * **Comments say why, at length.** Most files start with a `// ---` banner of 20 to
@@ -186,23 +194,40 @@ Two statements in the tree are wrong. Do not trust them.
   or a `link`. `TestCompiledPageShellStaysSmall` guards the size.
 * **Do not add Tailwind, React, or marked.js.** goldmark renders the markdown on the
   server. The word "Tailwind" stays only in the historical `doc/initial_prompt.md`.
-* Write CSS by hand. `css/omn-go-core.css` declares the design tokens as `:root`
+* Write CSS by hand. `css/OMN-Go/omn-go-core.css` declares the design tokens as `:root`
   custom properties. The theme is CSS only. It uses `data-theme` on `<html>` with a
   `prefers-color-scheme` fallback.
 * **Module pattern.** Use an IIFE with an explicit `window.*` export. Attach anything
   that an inline `onclick=` calls to `window`.
+* **A note page loads three scripts.** `templates/index.html` names
+  `omn-go-compat.js`, `omn-go-core.js` and `omn-go-sse.js`, and then the three
+  vendored libraries and `omn-go-custom.js`. It names no other file of the
+  project. Four more files load on demand. See the lazy loading rule below.
 * File roles:
   * `omn-go-core.js` holds the offline-safe part: render helpers, the KaTeX start
     code, the progress API, link interception, and the version footer.
   * `omn-go-sse.js` holds everything that calls the backend. The file body sits
     inside `if (window.location.protocol !== 'file:')`. The `else` branch replaces
-    the same globals with stubs, so an exported page degrades quietly.
+    the same globals with stubs, so an exported page degrades quietly. It also
+    holds `omnLoadModule` and `omnLazy`, the two functions of the lazy loading.
+  * `omn-go-sync.js`, `omn-go-bookmark.js` and `omn-go-search.js` hold the parts
+    that a tap starts. `omnLazy` writes a stub for each exported name. The first
+    call to a stub fetches the file one time and then calls the real function.
+  * `omn-go-config.js` holds the whole Config page. Only
+    `templates/config_page.html` names it. A note page never loads it.
   * `omn-go-editor.js` holds the standalone editor page. It uses `var` in an
     ES5 style. It reads `OMN_EDIT_NAME`, `OMN_EDIT_EXT`, and `OMN_EDIT_VIEW`.
   * `omn-go-compat.js` holds the too-old-WebView notice, and nothing else. It is
     the only ES5 file. See section 1, rule 5.
+  * `Bookmarker.js` holds the bookmark page of the bundled note. See
+    `frontend/md/BookmarksHowTo.md`.
   * `omn-go-custom.js` and `omn-go-custom.css` are user files. They are empty on
-    purpose.
+    purpose. `omn-go-custom.js` stays independent. It keeps its own plain
+    `<script>` element, and it loads last.
+* **A lazy file must export through `omnLazy`.** Add the file to the `omnLazy`
+  call in `omn-go-sse.js` and name each function that the page calls. A name that
+  is absent from that list is undefined until something else loads the file.
+  `printDebug` sits above the `file:` guard, because a stub needs it.
 * **The fold table has two implementations on purpose.** `foldTable` in
   `backend/search_match.go` folds before the server matches. `OMN_FOLD_TABLE` in
   `omn-go-core.js` folds again in the page. The server sends the term unfolded in
@@ -354,9 +379,18 @@ subject line, also when it has no list.
 
 ## 8. Tests
 
-* Tests live in `backend/`. Each production file has one `_test.go` file beside it.
-  All tests use `package backend`, so they are white-box tests. The suite holds about
-  346 `Test*` functions. No tests exist outside `backend/`.
+* The Go tests live in `backend/`. Each production file has one `_test.go` file
+  beside it. All tests use `package backend`, so they are white-box tests. The
+  suite holds 459 `Test*` functions.
+* **Go is the one gate, and it is not the only language.** `backend/js_test.go`
+  runs the JavaScript tests of `backend/frontend/test/` with `node --test`.
+  `backend/java_test.go` compiles and runs `android/test/` with `javac` and
+  `java`. Each one skips when the tool is absent, and the build image holds both.
+  `doc/TESTING.md` maps the whole set.
+* **A test that reads source text proves what a file SAYS. A test that runs the
+  code proves what the code DOES.** Prefer the second. Two source-reading tests
+  were replaced in 26.09.27 and 26.09.32, and each replacement found a fault that
+  the first shape could not see.
 * The tests use the standard library `testing` package, `net/http/httptest`, and
   `t.TempDir()`. The project uses no assertion library and no mock library.
 * Build the application under test with `newTestApp(t)` from `handlers_test.go`.
@@ -385,7 +419,9 @@ subject line, also when it has no list.
   `go.sum`. `Dockerfile` then builds the artifacts. `local/build.sh` runs both stages
   and copies the artifacts to `output-binaries/`.
 * **Quality gate.** `go vet ./backend/... && go test ./backend/...` runs after
-  `go mod tidy` and before any artifact build. A failed test stops the build before
+  `go mod tidy` and before any artifact build. `Dockerfile.base` and
+  `Dockerfile.ci` install `openjdk-17-jdk` and `nodejs`, thus that one command
+  also runs the Java test and the JavaScript tests. A failed test stops the build before
   the gomobile and Gradle work. `--build-arg SKIP_TESTS=1` skips the gate and prints
   a warning. Do not use that argument for work that you push.
 * Desktop targets are `linux/amd64` and `windows/amd64`. The binary name is
@@ -426,6 +462,13 @@ at most 25 words, active voice, no semicolon, no contraction.
 Check your own text before you give a patch. A sentence over the limit and a
 banned word are both easy to find with a search, and both are easy to miss by
 eye.
+
+**`TestCommentStyleDoesNotGetWorse` in `backend/comment_style_test.go` counts
+them.** It reads each whole line comment of every Go, JavaScript and Java file.
+`commentStyleDebt` in that file records what each file owes today. The test
+fails when a count goes up, and it fails when a count goes down with no change
+to the table. A style pass therefore lowers a number, and a new comment can
+never raise one.
 
 * Write each new document in ASD-STE100 Simplified Technical English. The
   `ste-writing` skill does this.
