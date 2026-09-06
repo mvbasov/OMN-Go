@@ -13,6 +13,7 @@ package backend
 //     rests on the index not being a copy of the notes.
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -93,8 +94,8 @@ func TestIndexExclusions(t *testing.T) {
 	got := indexedPaths(a)
 
 	for _, unwanted := range []string{
-		"md/OMNGoTags.md",        // derived from the notes; indexing it duplicates them
-		"md/local/Scratch.md",    // the gitignored scratch tree
+		"md/OMNGoTags.md",               // derived from the notes; indexing it duplicates them
+		"md/local/Scratch.md",           // the gitignored scratch tree
 		"html/js/OMN-Go/omn-go-core.js", // shipped with the app
 		"html/js/OMN-Go/katex.min.js",   // ... and a bundled library
 	} {
@@ -587,4 +588,101 @@ func containsPath(list []string, want string) bool {
 // readIfExists is a small helper for asserting that something was NOT created.
 func readIfExists(path string) ([]byte, error) {
 	return os.ReadFile(path)
+}
+
+// ----------------------------------------------------------------------
+// The common words of the collection
+// ----------------------------------------------------------------------
+//
+// See the banner of commonWordShare in search_index.go for why the set
+// exists, and claude/s1-search-panel-report-2026-09-06.md for the
+// measurement that asked for it.
+//
+// Four signals were measured before this one, and each one failed:
+//
+//   - the character mask of the index. It answers "could match" and it
+//     saturates. The word "cat" reads as present in 96 percent of the
+//     documents of a corpus that never says it.
+//   - the share of the lines of one document that a term matches. The
+//     subsequence rung makes "cat" match half the lines of a document.
+//   - the score of one row against the best row of its document. A
+//     noise row scores 93 to 100 percent of the best in a document that
+//     holds no answer.
+//   - the count of distinct query terms that one row carries. The
+//     subsequence rung inflates that count as well.
+//
+// The two halves of the rule that shipped BOTH have to be there. On the
+// reported query, document frequency alone leaves 75 percent of the rows
+// saying nothing, and a verbatim test alone leaves 89 percent. Together
+// they leave none.
+
+// ciCorpus writes n notes. Each one holds the words of common, and note
+// number i also holds a word of its own.
+func ciCorpus(t *testing.T, a *App, n int, common string) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		writeSearchNote(t, a, fmt.Sprintf("Note%02d.md", i),
+			fmt.Sprintf("Title: Note %d\n\n%s\nwidget%02d stands here alone.\n", i, common, i))
+	}
+	a.rebuildSearchIndex()
+}
+
+// A word of most documents is common. A word of one document is not.
+func TestCommonWordsHoldsTheWordsAboveTheHalf(t *testing.T) {
+	a := enabledSearchApp(t)
+	ciCorpus(t, a, 10, "the parser reads the file and it writes the answer")
+
+	common := a.commonWords()
+	if len(common) == 0 {
+		t.Fatal("the set is empty after a rebuild that indexed ten notes")
+	}
+	for _, w := range []string{"the", "and", "parser", "file"} {
+		if !common[w] {
+			t.Errorf("%q is in every note and the set does not hold it", w)
+		}
+	}
+	for _, w := range []string{"widget00", "widget07"} {
+		if common[w] {
+			t.Errorf("%q is in one note of ten and the set holds it as common", w)
+		}
+	}
+}
+
+// The count is of DOCUMENTS and not of occurrences.
+//
+// A word repeated twenty times in one note of ten is a word of one note.
+// A count of occurrences would call it common and hide every row that
+// holds it.
+func TestCommonWordsCountsDocumentsAndNotOccurrences(t *testing.T) {
+	a := enabledSearchApp(t)
+	for i := 0; i < 10; i++ {
+		body := "Title: Note\n\nplain text here.\n"
+		if i == 0 {
+			body += strings.Repeat("kingfisher kingfisher kingfisher\n", 20)
+		}
+		writeSearchNote(t, a, fmt.Sprintf("N%02d.md", i), body)
+	}
+	a.rebuildSearchIndex()
+
+	if a.commonWords()["kingfisher"] {
+		t.Error("a word of one note in ten reads as common, thus the count is " +
+			"of occurrences and not of documents")
+	}
+}
+
+// With no index there is no set, and cutSnippets then behaves as it did
+// before 26.09.40.
+func TestCommonWordsIsEmptyWithNoIndex(t *testing.T) {
+	a := enabledSearchApp(t)
+	if got := a.commonWords(); len(got) != 0 {
+		t.Errorf("the set holds %d words before any rebuild", len(got))
+	}
+	ciCorpus(t, a, 4, "one common line for each note")
+	if len(a.commonWords()) == 0 {
+		t.Fatal("the set is empty after a rebuild")
+	}
+	a.dropSearchIndex()
+	if got := a.commonWords(); len(got) != 0 {
+		t.Errorf("the set survived the drop of the index with %d words", len(got))
+	}
 }

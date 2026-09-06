@@ -736,7 +736,7 @@ func TestCutSnippetsDropsALoneLetterLine(t *testing.T) {
 	if !ok {
 		t.Fatal("the note must match")
 	}
-	got := cutSnippets(q, hits, 10)
+	got := cutSnippets(q, hits, 10, nil)
 	if len(got) >= 10 {
 		t.Errorf("kept %d lines of the ten. A line that matches the letter "+
 			"\"a\" alone carries no word of the query.", len(got))
@@ -767,7 +767,7 @@ func TestCutSnippetsNeverPromotes(t *testing.T) {
 		}
 		window[h.line.no] = true
 	}
-	for _, h := range cutSnippets(q, hits, 10) {
+	for _, h := range cutSnippets(q, hits, 10, nil) {
 		if !window[h.line.no] {
 			t.Errorf("line %d reached the answer, and the first ten did not "+
 				"hold it: cutSnippets promoted a line", h.line.no)
@@ -794,7 +794,7 @@ func TestCutSnippetsKeepsAnHonestList(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: no match", c.name)
 		}
-		if got := len(cutSnippets(q, hits, c.limit)); got > c.want {
+		if got := len(cutSnippets(q, hits, c.limit, nil)); got > c.want {
 			t.Errorf("%s: kept %d, want at most %d (%s)", c.name, got, c.want, c.why)
 		}
 	}
@@ -840,5 +840,170 @@ func TestCutSnippetsInTheResponse(t *testing.T) {
 		if strings.Contains(m.Text, "nothing at all") {
 			t.Errorf("a line that matches one letter reached the answer: %q", m.Text)
 		}
+	}
+}
+
+// ----------------------------------------------------------------------
+// The snippet cut, with the common words of the collection
+// ----------------------------------------------------------------------
+//
+// 26.09.39 measured the panel for the query "the tag and the level".
+// **33 of 50 rows carried no content word, and the panel drew 1360
+// marks.** See claude/s1-search-panel-report-2026-09-06.md.
+//
+// The rule of 26.09.40 keeps a row that holds a term which is not one
+// rune, is not common in this collection, and matches VERBATIM.
+//
+// EACH OF THE THREE PARTS DOES WORK. The tests below break each part in
+// turn. Remove the common test and the reported query keeps 75 percent
+// of its empty rows. Remove the verbatim test and it keeps 89 percent.
+
+// csDoc writes a note that answers a two-word query on some lines with
+// the rare word and on others with the common word alone.
+func csDoc(t *testing.T, a *App, name string) *searchDocument {
+	t.Helper()
+	body := "Title: A note\n\n" +
+		"The kingfisher waits by the water.\n" +
+		"The kingfisher is a bird.\n" +
+		"The morning was cold and long.\n" +
+		"The evening came and the light went.\n" +
+		"The road turned and the wall ended.\n"
+	return phraseDoc(t, a, name, body)
+}
+
+// A row that holds the common word alone goes.
+//
+// "the" is in every note of the collection. A row that carries it and
+// nothing else of the query tells the reader nothing.
+func TestCutSnippetsDropsARowOfCommonWordsAlone(t *testing.T) {
+	a := newTestApp(t)
+	doc := csDoc(t, a, "cs-common")
+	q := parseQuery("the kingfisher")
+	_, _, hits, ok := scoreDocument(q, doc)
+	if !ok {
+		t.Fatal("the note must match")
+	}
+	common := map[string]bool{"the": true}
+
+	got := cutSnippets(q, hits, 10, common)
+	if len(got) == 0 {
+		t.Fatal("every row went, and two rows hold the rare word")
+	}
+	for _, h := range got {
+		if !strings.Contains(strings.ToLower(h.line.raw), "kingfisher") {
+			t.Errorf("a row of common words alone survived: %q",
+				strings.TrimSpace(h.line.raw))
+		}
+	}
+	if len(got) != 2 {
+		t.Errorf("kept %d rows, want the two that hold the rare word", len(got))
+	}
+}
+
+// The same note with no common set keeps every row.
+//
+// This is the half of the rule that document frequency does. Without the
+// set, "the" is an ordinary term and each row carries it.
+func TestCutSnippetsWithNoCommonSetKeepsTheCommonRows(t *testing.T) {
+	a := newTestApp(t)
+	doc := csDoc(t, a, "cs-nocommon")
+	q := parseQuery("the kingfisher")
+	_, _, hits, _ := scoreDocument(q, doc)
+
+	if got := len(cutSnippets(q, hits, 10, nil)); got <= 2 {
+		t.Errorf("kept %d rows with no common set, want each row of the "+
+			"window. The common set is then doing no work.", got)
+	}
+}
+
+// A row that matches only as a SUBSEQUENCE goes.
+//
+// scoreTerm answers true for a line that holds the runes of the term in
+// order and apart. A line that says "the cabinet at the top" carries
+// "cat" that way, and it says nothing about a cat.
+//
+// This is the half that document frequency cannot do. It is why the
+// measurement of the report, which used a plain substring test, promised
+// more than document frequency alone delivered.
+func TestCutSnippetsNeedsAVerbatimMatch(t *testing.T) {
+	a := newTestApp(t)
+	body := "Title: A note\n\n" +
+		"The cat sat on the mat.\n" +
+		"The cabinet at the top holds the tea.\n" +
+		"A certificate arrived this morning.\n"
+	doc := phraseDoc(t, a, "cs-subseq", body)
+
+	q := parseQuery("cat morning")
+	_, _, hits, ok := scoreDocument(q, doc)
+	if !ok {
+		t.Fatal("the note must match")
+	}
+
+	// Every line of the window carries "cat" through scoreTerm, thus the
+	// rule before 26.09.40 kept each of them.
+	loose := 0
+	for _, h := range hits {
+		if _, _, _, ok := scoreTerm([]rune("cat"), h.line.fold); ok {
+			loose++
+		}
+	}
+	if loose < 3 {
+		t.Skipf("only %d lines match \"cat\" loosely, thus this note proves "+
+			"nothing about the subsequence rung", loose)
+	}
+
+	for _, h := range cutSnippets(q, hits, 10, nil) {
+		low := strings.ToLower(h.line.raw)
+		if !strings.Contains(low, "cat ") && !strings.Contains(low, "morning") {
+			t.Errorf("a row that holds no whole word of the query survived: %q",
+				strings.TrimSpace(h.line.raw))
+		}
+	}
+}
+
+// When every term of the query is common, the window is the answer.
+//
+// The document matched, thus it has something to say. A cut that leaves
+// no row would tell the reader that a result exists and show nothing of
+// it.
+//
+// This guard stood before 26.09.40. It now carries the whole risk of the
+// common set. A person whose notes are all about one subject pushes the
+// words of that subject above the half, and lands here.
+func TestCutSnippetsAnswersTheWindowWhenEachTermIsCommon(t *testing.T) {
+	a := newTestApp(t)
+	doc := csDoc(t, a, "cs-allcommon")
+	q := parseQuery("the kingfisher")
+	_, _, hits, _ := scoreDocument(q, doc)
+
+	common := map[string]bool{"the": true, "kingfisher": true}
+	got := cutSnippets(q, hits, 10, common)
+
+	window := hits
+	if len(window) > 10 {
+		window = window[:10]
+	}
+	if len(got) != len(window) {
+		t.Errorf("kept %d rows of the %d of the window. With every term "+
+			"common the window is the answer.", len(got), len(window))
+	}
+}
+
+// A one-term query never reaches the rule.
+//
+// cutSnippets returns before it reads a term. A single common term is
+// the whole query, and hiding each row would answer a search with
+// nothing at all.
+func TestCutSnippetsKeepsAOneTermQueryWhole(t *testing.T) {
+	a := newTestApp(t)
+	doc := csDoc(t, a, "cs-oneterm")
+	q := parseQuery("the")
+	_, _, hits, ok := scoreDocument(q, doc)
+	if !ok {
+		t.Fatal("the note must match")
+	}
+	common := map[string]bool{"the": true}
+	if got := len(cutSnippets(q, hits, 10, common)); got == 0 {
+		t.Error("a one-term query of a common word answered no row at all")
 	}
 }

@@ -1045,7 +1045,7 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 	}
 
 	limit := clampInt(atoiOr(get("snippets"), searchDefaultSnippets), 1, searchMaxSnippets)
-	hits = cutSnippets(q, hits, limit)
+	hits = cutSnippets(q, hits, limit, nil)
 
 	res := searchResult{
 		Path: doc.Path, Kind: doc.Kind, Name: doc.Name, Title: doc.Title,
@@ -1087,7 +1087,7 @@ func (a *App) searchPage(resp *searchResponse, qs map[string][]string) {
 // query of three terms, thus it answered one case and not the fault. A cut
 // at the first change of rung reduced a list to ONE row, because the phrase
 // rung above belongs to the first line alone.
-func cutSnippets(q parsedQuery, hits []lineHit, limit int) []lineHit {
+func cutSnippets(q parsedQuery, hits []lineHit, limit int, common map[string]bool) []lineHit {
 	if len(hits) > limit {
 		hits = hits[:limit] // the window first
 	}
@@ -1098,20 +1098,22 @@ func cutSnippets(q parsedQuery, hits []lineHit, limit int) []lineHit {
 	for _, h := range hits {
 		carries := false
 		for _, term := range q.terms {
-			if isShortTerm(term.runes) {
+			if isShortTerm(term.runes) || common[string(term.runes)] {
 				continue
 			}
-			if _, _, _, ok := scoreTerm(term.runes, h.line.fold); ok {
-				carries = true
-				break
+			_, _, tier, ok := scoreTerm(term.runes, h.line.fold)
+			if !ok || tier != tierSubstring {
+				continue
 			}
+			carries = true
+			break
 		}
 		if carries {
 			kept = append(kept, h)
 		}
 	}
-	// A document that matched has something to say. When every line of the
-	// window carries short terms alone, the window is the answer.
+	// A document that matched has something to say. When no line of the
+	// window carries a word of its own, the window is the answer.
 	if len(kept) == 0 {
 		return hits
 	}
@@ -1151,6 +1153,7 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 		hits  []lineHit
 	}
 	var found []scored
+	common := a.commonWords()
 	read := 0
 
 	for _, d := range a.snapshotDocs() {
@@ -1208,7 +1211,7 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 	}
 
 	for _, f := range found {
-		hits := cutSnippets(q, f.hits, snippets)
+		hits := cutSnippets(q, f.hits, snippets, common)
 		res := searchResult{
 			Path: f.doc.Path, Kind: f.doc.Kind, Name: f.doc.Name, Title: f.doc.Title,
 			Tags: f.doc.Tags, Score: f.score, URL: f.doc.URL, Truncated: f.doc.truncated,

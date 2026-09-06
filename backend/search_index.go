@@ -172,6 +172,75 @@ type searchIndex struct {
 	bytes   int64
 	kinds   string // the SearchKinds the current contents were built for
 	bundled bool   // ... and the SearchBundled setting
+	common  map[string]bool
+}
+
+// ----------------------------------------------------------------------
+// The common words of this collection
+// ----------------------------------------------------------------------
+//
+// A query of five words where two are "the" gave a panel of rows that
+// said nothing. 26.09.39 measured it: 33 of 50 rows carried no content
+// word, and the panel drew 1360 marks. See
+// claude/s1-search-panel-report-2026-09-06.md.
+//
+// cutSnippets steps over a term of ONE rune. That rule cannot grow by
+// rune count, because "cat", "dog", "git" and "log" are three runes and
+// each one is a real query. The measure has to be how common the word
+// is, and not how long it is.
+//
+// commonWordShare is the share of the collection above which a word
+// carries little. It is a half.
+//
+// THE SET IS TINY. This corpus of 66 documents holds 4536 distinct
+// words and 22 of them are above the half. The index therefore keeps
+// the words above the line and no others, which costs a map of tens of
+// entries and not one of thousands.
+//
+// A COUNT OF EVERY WORD RUNS DURING THE REBUILD, and that map is large
+// for the length of the rebuild alone. The rebuild already reads each
+// file and walks each rune of it for the trigram signature. See
+// indexFile.
+//
+// THE SET IS RELATIVE TO THE COLLECTION, and that is the point. A
+// person who writes only about one subject pushes the words of that
+// subject above the line. cutSnippets then keeps no row and answers the
+// window, which is the behavior of today. The worst case of this rule
+// is the state before it.
+const commonWordShare = 2 // one part in two, thus above a half
+
+// indexWords adds each word of one folded string to a set.
+//
+// It is not tokenize. tokenize drops a word below minTokenLen, and
+// "the", "and", "of" and "to" are exactly the words this set needs.
+func indexWords(rs []rune, into map[string]bool) {
+	var w []rune
+	flush := func() {
+		if len(w) > 0 {
+			into[string(w)] = true
+			w = w[:0]
+		}
+	}
+	for _, r := range rs {
+		if isWordRune(r) {
+			w = append(w, r)
+			continue
+		}
+		flush()
+	}
+	flush()
+}
+
+// commonWords answers the set of words that carry little in this
+// collection. It answers nil when no index is built, and cutSnippets
+// then behaves as it did before 26.09.40.
+func (a *App) commonWords() map[string]bool {
+	if a.search == nil {
+		return nil
+	}
+	a.search.mu.RLock()
+	defer a.search.mu.RUnlock()
+	return a.search.common
 }
 
 // ----------------------------------------------------------------------
@@ -201,6 +270,7 @@ func (a *App) dropSearchIndex() {
 	a.search.mu.Lock()
 	had := len(a.search.docs)
 	a.search.docs = nil
+	a.search.common = nil
 	a.search.lines = 0
 	a.search.bytes = 0
 	a.search.built = time.Time{}
@@ -339,6 +409,7 @@ func (a *App) rebuildSearchIndex() {
 	}
 
 	docs := map[string]*indexedDoc{}
+	docFreq := map[string]int{}
 	var lines int
 	var bytes int64
 	capped := false
@@ -397,7 +468,7 @@ func (a *App) rebuildSearchIndex() {
 			if err != nil {
 				return nil
 			}
-			doc := a.indexFile(root.kind, kind, rel, p, info, bundled)
+			doc := a.indexFile(root.kind, kind, rel, p, info, bundled, docFreq)
 			if doc == nil {
 				return nil
 			}
@@ -408,10 +479,20 @@ func (a *App) rebuildSearchIndex() {
 		})
 	}
 
+	// Keep the words above the line and drop the rest. See the banner of
+	// commonWordShare above.
+	common := map[string]bool{}
+	for w, n := range docFreq {
+		if n*commonWordShare > len(docs) {
+			common[w] = true
+		}
+	}
+
 	stamp := a.searchStamp(kinds)
 
 	a.search.mu.Lock()
 	a.search.docs = docs
+	a.search.common = common
 	a.search.lines = lines
 	a.search.bytes = bytes
 	a.search.stamp = stamp
@@ -430,7 +511,11 @@ func (a *App) rebuildSearchIndex() {
 }
 
 // indexFile reads one file and reduces it to what the index keeps.
-func (a *App) indexFile(rootKind, kind, rel, path string, info fs.FileInfo, bundled bool) *indexedDoc {
+//
+// docFreq counts the DOCUMENTS that hold each word, and not the times
+// that a word appears. Each word of this file therefore adds one, and a
+// word that appears twenty times still adds one.
+func (a *App) indexFile(rootKind, kind, rel, path string, info fs.FileInfo, bundled bool, docFreq map[string]int) *indexedDoc {
 	data, truncated, err := readCapped(path, maxIndexFileBytes)
 	if err != nil || isBinary(data) {
 		return nil
@@ -464,6 +549,19 @@ func (a *App) indexFile(rootKind, kind, rel, path string, info fs.FileInfo, bund
 	for i := range doc.lines {
 		out.LineMasks = append(out.LineMasks, doc.lines[i].mask)
 		addTrigrams(&out.Tri, doc.lines[i].fold)
+	}
+
+	if docFreq != nil {
+		words := map[string]bool{}
+		for _, f := range doc.fields {
+			indexWords(f.text, words)
+		}
+		for i := range doc.lines {
+			indexWords(doc.lines[i].fold, words)
+		}
+		for w := range words {
+			docFreq[w]++
+		}
 	}
 	return out
 }
