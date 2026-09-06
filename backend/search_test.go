@@ -508,7 +508,9 @@ func writeSearchNote(t *testing.T, a *App, rel, content string) {
 // because the behaviour needs a physical Android keyboard to observe, and
 // these attributes are exactly what a later tidy-up puts back.
 func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
-	src, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-sse.js")
+	// The overlay moved to a file of its own in 26.09.24. It loads at the
+	// first press of the magnifier, and not with each note page.
+	src, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-search.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +545,7 @@ func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
 // until I open and close another panel" report was. Pinned as a shape test for
 // the same reason as above - the failure needs a real soft keyboard to see.
 func TestSearchOverlayReattachesFocusAfterLayout(t *testing.T) {
-	src, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-sse.js")
+	src, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-search.js")
 	if err != nil {
 		t.Fatal(err)
 	}

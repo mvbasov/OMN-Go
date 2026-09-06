@@ -128,6 +128,9 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/js/OMN-Go/omn-go-core.js\n" +
 		"/html/js/OMN-Go/omn-go-sse.js\n" +
 		"/html/js/OMN-Go/omn-go-config.js\n" +
+		"/html/js/OMN-Go/omn-go-sync.js\n" +
+		"/html/js/OMN-Go/omn-go-bookmark.js\n" +
+		"/html/js/OMN-Go/omn-go-search.js\n" +
 		"/html/js/OMN-Go/omn-go-editor.js\n" +
 		"/html/js/OMN-Go/auto-render.min.js\n" +
 		"/html/js/OMN-Go/katex.min.js\n" +

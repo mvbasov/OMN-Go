@@ -642,16 +642,29 @@ var documentedCoreAPI = []string{
 // note that used the name then fails in the browser of the reader, and
 // nowhere else.
 func TestDocumentedCoreAPIIsExported(t *testing.T) {
+	// It reads EVERY shipped script and not a named pair. omn-go-sse.js
+	// split into four files in 26.09.24, and a fixed list would have to
+	// grow with each such move. A name that no file exports is the fault
+	// this test looks for, and the file that holds it does not matter.
+	entries, err := staticFS.ReadDir("frontend/html/js/OMN-Go")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var all strings.Builder
-	for _, f := range []string{
-		"frontend/html/js/OMN-Go/omn-go-core.js",
-		"frontend/html/js/OMN-Go/omn-go-sse.js",
-	} {
-		src, err := staticFS.ReadFile(f)
-		if err != nil {
-			t.Fatalf("%s is not embedded: %v", f, err)
+	var read int
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".js") {
+			continue
+		}
+		src, rErr := staticFS.ReadFile("frontend/html/js/OMN-Go/" + e.Name())
+		if rErr != nil {
+			t.Fatalf("%s is not embedded: %v", e.Name(), rErr)
 		}
 		all.Write(src)
+		read++
+	}
+	if read == 0 {
+		t.Fatal("no script was read, thus this test proves nothing")
 	}
 	src := all.String()
 	for _, name := range documentedCoreAPI {
