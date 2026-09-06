@@ -178,20 +178,25 @@ func TestConfigPostPasswordFollowsTheSentRule(t *testing.T) {
 	}
 }
 
-// omn-go-sse.js removes each box that carries data-secret and no
+// omn-go-config.js removes each box that carries data-secret and no
 // data-dirty from the FormData. The page and the script must therefore
 // agree on the attribute name. This test reads both files and compares
 // them, the same as TestFoldTableHasAFrontendCopy.
+//
+// THE SCRIPT MOVED IN 26.09.23. It was part of omn-go-sse.js, which every
+// note loads. The Config page is the only reader of this code, thus the
+// code is now a file that only the Config page loads.
 func TestSecretAttributeHasAFrontendReader(t *testing.T) {
-	raw, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-sse.js")
+	const scriptPath = "frontend/html/js/OMN-Go/omn-go-config.js"
+	raw, err := staticFS.ReadFile(scriptPath)
 	if err != nil {
-		t.Fatalf("omn-go-sse.js is not embedded: %v", err)
+		t.Fatalf("%s is not embedded: %v", scriptPath, err)
 	}
 	script := string(raw)
 
 	for _, want := range []string{"[data-secret]", "dataset.dirty", "fd.delete("} {
 		if !strings.Contains(script, want) {
-			t.Errorf("omn-go-sse.js no longer holds %q. The Config page then sends "+
+			t.Errorf("omn-go-config.js no longer holds %q. The Config page then sends "+
 				"an empty password on each save, and each save clears it.", want)
 		}
 	}
@@ -199,6 +204,26 @@ func TestSecretAttributeHasAFrontendReader(t *testing.T) {
 		t.Error("the Config page has no button that reads the passwords back")
 	}
 	if !strings.Contains(script, "window.omnGoRevealSecrets") {
-		t.Error("omn-go-sse.js exports no omnGoRevealSecrets, thus the button does nothing")
+		t.Error("omn-go-config.js exports no omnGoRevealSecrets, thus the button does nothing")
+	}
+
+	// The page must LOAD the file. The two checks above pass on a file
+	// that no page reads. A Config page with no script is a page where
+	// no button works.
+	if !strings.Contains(configPageTmpl, `<script src="/js/OMN-Go/omn-go-config.js"></script>`) {
+		t.Error("config_page.html does not load omn-go-config.js")
+	}
+
+	// And the code must be gone from the file that every note loads.
+	// Leaving a copy there is how two implementations of one rule start.
+	sse, err := staticFS.ReadFile("frontend/html/js/OMN-Go/omn-go-sse.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{"omnGoRevealSecrets", "window.saveConfig"} {
+		if strings.Contains(string(sse), gone) {
+			t.Errorf("omn-go-sse.js still holds %q. Every note carries that file, "+
+				"and only the Config page runs this code.", gone)
+		}
 	}
 }

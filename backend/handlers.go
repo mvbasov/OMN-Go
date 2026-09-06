@@ -173,7 +173,7 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 		if next.ShareLAN != prev.ShareLAN {
 			// The save worked, and the new bind address exists only after
-			// a restart. saveConfig in omn-go-sse.js reads this exact
+			// a restart. saveConfig in omn-go-config.js reads this exact
 			// word and then calls /api/restart.
 			w.Write([]byte("RestartRequired"))
 			return

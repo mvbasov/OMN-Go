@@ -101,6 +101,7 @@ var versionDependentAssets = []string{
 	"html/js/OMN-Go/omn-go-core.js",
 	"html/js/OMN-Go/omn-go-editor.js",
 	"html/js/OMN-Go/omn-go-sse.js",
+	"html/js/OMN-Go/omn-go-config.js",
 	"html/js/OMN-Go/Bookmarker.js",
 	"html/js/OMN-Go/auto-render.min.js",
 	"html/js/OMN-Go/katex.min.js",

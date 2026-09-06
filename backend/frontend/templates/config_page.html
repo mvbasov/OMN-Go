@@ -149,7 +149,7 @@
             </div>
             <!-- The two password boxes are EMPTY on purpose, and they carry
                  no value attribute. The page source thus holds no password.
-                 data-secret marks the box for omn-go-sse.js: an empty box
+                 data-secret marks the box for omn-go-config.js: an empty box
                  that the reader did not touch leaves the stored password as
                  it is. See revealSecrets and saveConfig. -->
             <div class="config-field">
@@ -394,4 +394,15 @@
             </div>
         </div>
     </form>
+
+    <!-- The code of this page. Every note carries a copy of the shell of
+         index.html. A script in that shell costs its bytes again for each
+         note, on disk and in each git sync. This one loads here and
+         nowhere else.
+
+         The path is absolute because a page with a body of its own gets
+         the asset prefix "/" (see compilePageWithBody in markdown.go).
+         The element sits after the form, thus omn-go-core.js and
+         omn-go-sse.js in the head of the shell have already run. -->
+    <script src="/js/OMN-Go/omn-go-config.js"></script>
 </div>
