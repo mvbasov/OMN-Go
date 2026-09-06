@@ -157,6 +157,12 @@ Two statements in the tree are wrong. Do not trust them.
     matches a sync stage. Keep the two in agreement, or the progress overlay
     loses a stage. That file exports it as `window.applySyncLogLine`, because
     `omn-go-sync.js` is the only caller and it is a separate file.
+    `TestEverySyncLineReachesTheOverlay` runs a whole sync and sends each
+    line that it wrote through the real JavaScript.
+  * `logLinePrints` in `omn-go-sse.js` and `logLineEnabled` in `logger.go`
+    are two implementations of one decision. The page needs the answer
+    without the server, thus rule 7 of section 1 allows the pair with a test.
+    `TestLogFilterPortAgreesWithTheRealJavaScript` compares them.
   * A log line must never take the config lock. `loadConfig` holds the write
     lock and writes a line, and a Go RWMutex is not reentrant. `applyLogFilter`
     keeps an atomic copy of the three switches for that reason.

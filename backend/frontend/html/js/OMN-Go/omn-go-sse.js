@@ -86,6 +86,15 @@ if (window.location.protocol !== 'file:') {
         const tags = (window.OMN_LOG_TAGS || '').split(',');
         return tags.indexOf(tag) !== -1;
     }
+    // Exposed so a test can run it, and harmless in a browser. The same
+    // shape as OMN_expandEmmet in omn-go-editor.js.
+    //
+    // logLinePrints and logLineEnabled in backend/logger.go are the two
+    // implementations of ONE decision, which rule 7 of CLAUDE.md section
+    // 1 allows only with a test that compares them.
+    // TestLogFilterPortAgreesWithTheRealJavaScript is that test, and it
+    // needs a name to call.
+    window.logLinePrints = logLinePrints;
 
     // Maps a backend "[sync] ..." log line to a human-readable stage. First
     // match wins, so more specific prefixes come first. Anything unmatched

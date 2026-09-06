@@ -86,6 +86,20 @@ button did nothing.
 call promises. A ReferenceError is a failure. A TypeError is not, because
 the page is a stub and not a browser.
 
+Two tests of `js_test.go` run BOTH languages against one another. Each
+one starts on the Go side, because the Go side is what writes the input.
+
+`TestEverySyncLineReachesTheOverlay` runs a whole sync, reads the lines
+that it really wrote out of the log ring, and sends each one through the
+real `applySyncLogLine`. A line that moves no stage is the failure. The
+overlay fails quietly, thus nothing else would report it.
+
+`TestLogFilterPortAgreesWithTheRealJavaScript` compares `logLineEnabled`
+in `backend/logger.go` with `logLinePrints` in `omn-go-sse.js` over 120
+states. It builds the value of `OMN_LOG_TAGS` the way `injectRuntimeVars`
+does, because a test that builds it another way compares a state that no
+page ever holds.
+
 `editor.test.js` uses the DOM stub. Each case of it quotes
 `backend/frontend/md/Editor.md`, which is the note that a person reads
 before they type. A failure therefore reads in one of two ways. The
