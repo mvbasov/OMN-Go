@@ -214,6 +214,8 @@ Two statements in the tree are wrong. Do not trust them.
   * `omn-go-sync.js`, `omn-go-bookmark.js` and `omn-go-search.js` hold the parts
     that a tap starts. `omnLazy` writes a stub for each exported name. The first
     call to a stub fetches the file one time and then calls the real function.
+    Each one puts its functions on `window` and needs no IIFE of its own. The
+    body of each file already sits inside the `file:` guard.
   * `omn-go-config.js` holds the whole Config page. Only
     `templates/config_page.html` names it. A note page never loads it.
   * `omn-go-editor.js` holds the standalone editor page. It uses `var` in an
