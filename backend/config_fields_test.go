@@ -260,3 +260,57 @@ func TestSearchIndexNeedsRebuild(t *testing.T) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
+// The git slot array
+// ----------------------------------------------------------------------
+
+// loadConfig must always leave maxGitServers slots, whatever the file
+// holds. Each renderer and each handler indexes that array by number, and
+// a short array is an out-of-range panic waiting for a save.
+//
+// The loop that does this stood two times in loadConfig until 26.09.21.
+// The second copy covered both branches, thus the first one was dead. A
+// test of the shape below is what makes the deletion safe.
+func TestConfigWithFewGitServersIsPadded(t *testing.T) {
+	for _, tt := range []struct{ what, file string }{
+		{"no key at all", `{"author":"Ann"}`},
+		{"an explicit null", `{"git_servers":null}`},
+		{"an empty array", `{"git_servers":[]}`},
+		{"one slot", `{"git_servers":[{"name":"mine","url":"git@host:r.git"}]}`},
+		{"a full array", `{"git_servers":[{},{},{},{},{}]}`},
+	} {
+		a := newUnconfiguredApp(t)
+		writeConfigJSON(t, a, tt.file)
+		a.loadConfig(a.StorageDir)
+
+		cfg := a.GetConfig()
+		if len(cfg.GitServers) != maxGitServers {
+			t.Errorf("%s: %d slots, want %d", tt.what, len(cfg.GitServers), maxGitServers)
+			continue
+		}
+		// A slot that the file carried keeps its values. Padding must
+		// add rows and never rewrite one.
+		if tt.what == "one slot" {
+			if cfg.GitServers[0].Name != "mine" || cfg.GitServers[0].URL != "git@host:r.git" {
+				t.Errorf("padding overwrote the slot the file carried: %+v", cfg.GitServers[0])
+			}
+			// Each added row carries the label that the Config page shows
+			// for an empty slot.
+			if cfg.GitServers[4].Name != "Server 5" {
+				t.Errorf("added slot 5 is named %q, want %q", cfg.GitServers[4].Name, "Server 5")
+			}
+		}
+	}
+}
+
+// A fresh install gets the same array. The branch that writes the default
+// configuration does not pad, thus the one loop after both branches is
+// what covers it.
+func TestFreshInstallHasEveryGitSlot(t *testing.T) {
+	a := newUnconfiguredApp(t)
+	a.loadConfig(a.StorageDir)
+	if got := len(a.GetConfig().GitServers); got != maxGitServers {
+		t.Errorf("a fresh install has %d slots, want %d", got, maxGitServers)
+	}
+}

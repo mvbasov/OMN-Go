@@ -425,11 +425,6 @@ func (a *App) loadConfig(storageDir string) {
 			// like passwords/settings mysteriously reset themselves.
 			a.logErrf(logConfig, "loadConfig: failed to parse %s (using defaults for any unparsed fields): %v", configPath, err)
 		}
-		// [OMN-Go 1.5.21] Absolute Array Lock: Prevents the JSON 'null' wipe bug forever
-		for len(a.Config.GitServers) < maxGitServers {
-			a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
-		}
-
 	}
 	// A config.json written before server_port existed, or one carrying a
 	// nonsense value, falls back the same way a fresh install does.
@@ -445,7 +440,16 @@ func (a *App) loadConfig(storageDir string) {
 	// The repair is not written back at once. The next save of config.json
 	// carries it, whatever started that save.
 	normalizeConfig(&a.Config)
-	// [OMN-Go 1.5.16] Enforce maxGitServers empty slots natively
+	// The slot array always holds maxGitServers rows. A config.json that
+	// carries fewer, or a "git_servers": null that an older version
+	// wrote, gets the missing rows here.
+	//
+	// This loop stood two times in this function until 26.09.21. One copy
+	// was inside the branch that reads an existing file, and this one
+	// covers both branches. The first copy therefore ran and then ran
+	// again with nothing left to do. getConfigPageBody holds a third copy
+	// as a guard for the renderer, and that one stays: it reads a
+	// snapshot and never the field below.
 	for len(a.Config.GitServers) < maxGitServers {
 		a.Config.GitServers = append(a.Config.GitServers, GitServerConfig{Name: fmt.Sprintf("Server %d", len(a.Config.GitServers)+1)})
 	}
