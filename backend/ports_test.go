@@ -48,11 +48,25 @@ func portsJS(t *testing.T, name string) string {
 // The Docker build and the CI build both hold the full tree, thus the
 // rule still has a guard where it counts.
 func portsJava(t *testing.T) string {
+	return portsJavaFile(t, "MainActivity.java")
+}
+
+// portsJavaConfig reads the class that holds the config rules.
+//
+// MainActivity held them until 26.09.25, in three near copies of one
+// reader. OmnConfig.java holds one copy now, and it imports no Android
+// package, thus a plain JVM can run a test of it. See the banner of that
+// file and TestJavaUnitTests in java_test.go.
+func portsJavaConfig(t *testing.T) string {
+	return portsJavaFile(t, "OmnConfig.java")
+}
+
+func portsJavaFile(t *testing.T, name string) string {
 	t.Helper()
-	path := filepath.Join("..", "android", "app", "src", "main", "java", "net", "basov", "omngo", "MainActivity.java")
+	path := filepath.Join("..", "android", "app", "src", "main", "java", "net", "basov", "omngo", name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("MainActivity.java is not in this tree: %v", err)
+		t.Skipf("%s is not in this tree: %v", name, err)
 	}
 	return string(raw)
 }
@@ -259,7 +273,7 @@ var javaFullscreenConstRe = regexp.MustCompile(`FULLSCREEN_(OFF|ON|IMMERSIVE)\s*
 // uses another. The default is the half that matters most: it decides
 // what each install that predates the setting looks like.
 func TestFullscreenModeHasAJavaCopy(t *testing.T) {
-	java := portsJava(t)
+	java := portsJavaConfig(t)
 
 	found := map[string]string{}
 	for _, m := range javaFullscreenConstRe.FindAllStringSubmatch(java, -1) {
@@ -273,7 +287,7 @@ func TestFullscreenModeHasAJavaCopy(t *testing.T) {
 	for name, value := range want {
 		got, ok := found[name]
 		if !ok {
-			t.Errorf("MainActivity.java holds no FULLSCREEN_%s constant", name)
+			t.Errorf("OmnConfig.java holds no FULLSCREEN_%s constant", name)
 			continue
 		}
 		if got != value {
@@ -286,8 +300,8 @@ func TestFullscreenModeHasAJavaCopy(t *testing.T) {
 	// FULLSCREEN_ON, and normalizeFullscreen answers the same for an
 	// empty value and for a value it does not know.
 	if !strings.Contains(java, "return FULLSCREEN_ON;") {
-		t.Error("readFullscreenMode no longer falls back to FULLSCREEN_ON. Each " +
-			"install that predates android_fullscreen then changes how it looks.")
+		t.Error("OmnConfig.fullscreenMode no longer falls back to FULLSCREEN_ON. " +
+			"Each install that predates android_fullscreen then changes how it looks.")
 	}
 	if got := normalizeFullscreen(""); got != FullscreenOn {
 		t.Errorf("normalizeFullscreen(\"\") = %q, want %q, which is what the Java "+
@@ -302,7 +316,9 @@ func TestFullscreenModeHasAJavaCopy(t *testing.T) {
 // 5. The upload limit
 // ----------------------------------------------------------------------
 
-var javaUploadDefaultRe = regexp.MustCompile(`optInt\("max_upload_size_mb",\s*(\d+)\)`)
+// The default moved from three inline numbers to one named constant in
+// 26.09.25. A named constant is what makes the three readers agree.
+var javaUploadDefaultRe = regexp.MustCompile(`DEFAULT_MAX_UPLOAD_MB\s*=\s*(\d+)`)
 
 // The Android layer writes a shared file itself, thus it reads the limit
 // out of config.json without the Go server. It carries its own default
@@ -312,11 +328,11 @@ var javaUploadDefaultRe = regexp.MustCompile(`optInt\("max_upload_size_mb",\s*(\
 // would refuse. A Java default below it refuses a file that the Config
 // page says is allowed.
 func TestUploadLimitHasAJavaCopy(t *testing.T) {
-	java := portsJava(t)
+	java := portsJavaConfig(t)
 
 	m := javaUploadDefaultRe.FindStringSubmatch(java)
 	if m == nil {
-		t.Fatal("MainActivity.java no longer reads max_upload_size_mb with a default")
+		t.Fatal("OmnConfig.java no longer declares DEFAULT_MAX_UPLOAD_MB")
 	}
 	want := fmt.Sprint(defaultMaxUploadSizeMB)
 	if m[1] != want {
@@ -324,20 +340,23 @@ func TestUploadLimitHasAJavaCopy(t *testing.T) {
 			"paths then accept different files.", m[1], want)
 	}
 
-	// readMaxUploadSizeMB answers the same number three times: for a
-	// missing file, for a missing key, and for a fault. Each one must be
-	// the Go default.
+	// maxUploadMB answers the constant for a missing file, for a missing
+	// key, for a value of the wrong type and for a number at zero or
+	// below. A bare number in that method is a fourth default waiting to
+	// go out of step, which is what the three readers of MainActivity
+	// were until 26.09.25.
 	inside := java
-	if at := strings.Index(java, "private int readMaxUploadSizeMB()"); at != -1 {
+	if at := strings.Index(java, "static int maxUploadMB("); at != -1 {
 		if end := strings.Index(java[at:], "\n    }"); end != -1 {
 			inside = java[at : at+end]
 		}
 	}
 	for _, n := range regexp.MustCompile(`return (\d+)`).FindAllStringSubmatch(inside, -1) {
-		if n[1] != want {
-			t.Errorf("readMaxUploadSizeMB answers %s MB somewhere and the Go default "+
-				"is %s MB", n[1], want)
-		}
+		t.Errorf("maxUploadMB answers the bare number %s. Answer "+
+			"DEFAULT_MAX_UPLOAD_MB, so that one line holds the default.", n[1])
+	}
+	if !strings.Contains(inside, "DEFAULT_MAX_UPLOAD_MB") {
+		t.Error("maxUploadMB no longer answers DEFAULT_MAX_UPLOAD_MB")
 	}
 }
 

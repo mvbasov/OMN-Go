@@ -600,21 +600,20 @@ public class MainActivity extends Activity {
     // older path uses View.setSystemUiVisibility, which is deprecated from
     // API 30 but still functional and is the only platform option on API
     // 24-29 (this app's minSdk is 24).
-    private static final String FULLSCREEN_OFF = "off";
-    private static final String FULLSCREEN_ON = "fullscreen";
-    private static final String FULLSCREEN_IMMERSIVE = "immersive";
+    // The three mode names. OmnConfig holds the values, thus this file and
+    // the reader can never disagree about what "immersive" is called. The
+    // aliases stay, because applyFullscreenMode below reads better with a
+    // short name.
+    private static final String FULLSCREEN_OFF = OmnConfig.FULLSCREEN_OFF;
+    private static final String FULLSCREEN_ON = OmnConfig.FULLSCREEN_ON;
+    private static final String FULLSCREEN_IMMERSIVE = OmnConfig.FULLSCREEN_IMMERSIVE;
 
-    // Mirrors backend/config.go's normalizeFullscreen: an unknown or absent
-    // value means "fullscreen", so a config.json written before this setting
-    // existed keeps the behaviour that install already had. Changing the
-    // default here without changing it there (or vice versa) would make the
-    // Config page disagree with what the window actually does.
+    // OmnConfig.fullscreenMode mirrors normalizeFullscreen in
+    // backend/config.go. An unknown or absent value means "fullscreen",
+    // thus a config.json written before this setting existed keeps the
+    // behavior that install already had. See the banner of OmnConfig.
     private String readFullscreenMode() {
-        String mode = readConfigString("android_fullscreen");
-        if (FULLSCREEN_OFF.equals(mode) || FULLSCREEN_IMMERSIVE.equals(mode)) {
-            return mode;
-        }
-        return FULLSCREEN_ON;
+        return OmnConfig.fullscreenMode(storageDir());
     }
 
     private void applyFullscreenMode() {
@@ -683,24 +682,10 @@ public class MainActivity extends Activity {
         if (hasFocus) applyFullscreenMode();
     }
 
-    // Reads a string value out of config.json (empty string when the file or
-    // key is missing/unreadable, which every caller must treat as "use the
-    // default"). String counterpart to readConfigFlag below.
+    // Reads a string value out of config.json. OmnConfig holds the reader
+    // and the default, and this method is the one line that remains.
     private String readConfigString(String key) {
-        try {
-            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
-            if (!cfgFile.exists()) return "";
-            java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
-            int n;
-            while ((n = fis.read(buf)) != -1) bos.write(buf, 0, n);
-            fis.close();
-            org.json.JSONObject cfg = new org.json.JSONObject(bos.toString("UTF-8"));
-            return cfg.optString(key, "");
-        } catch (Exception e) {
-            return "";
-        }
+        return OmnConfig.string(storageDir(), key);
     }
 
     @Override
@@ -1163,21 +1148,7 @@ public class MainActivity extends Activity {
     // (defaultMaxUploadSizeMB in backend/config.go) if config.json is
     // missing or unreadable.
     private int readMaxUploadSizeMB() {
-        try {
-            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
-            if (!cfgFile.exists()) return 3;
-            java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
-            int n;
-            while ((n = fis.read(buf)) != -1) bos.write(buf, 0, n);
-            fis.close();
-            org.json.JSONObject cfg = new org.json.JSONObject(bos.toString("UTF-8"));
-            int mb = cfg.optInt("max_upload_size_mb", 3);
-            return mb > 0 ? mb : 3;
-        } catch (Exception e) {
-            return 3; // matches backend/config.go's defaultMaxUploadSizeMB
-        }
+        return OmnConfig.maxUploadMB(storageDir());
     }
 
     // Copies uri's bytes to destFile, aborting (returns -1; the partial
@@ -1786,20 +1757,7 @@ public class MainActivity extends Activity {
     // the Go HTTP server, and reading fresh on each call means a Settings
     // change applies on the next tap without an app restart.
     private boolean readConfigFlag(String key) {
-        try {
-            java.io.File cfgFile = new java.io.File(storageDir(), "config.json");
-            if (!cfgFile.exists()) return false;
-            java.io.FileInputStream fis = new java.io.FileInputStream(cfgFile);
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            byte[] buf = new byte[4096];
-            int n;
-            while ((n = fis.read(buf)) != -1) bos.write(buf, 0, n);
-            fis.close();
-            org.json.JSONObject cfg = new org.json.JSONObject(bos.toString("UTF-8"));
-            return cfg.optBoolean(key, false);
-        } catch (Exception e) {
-            return false;
-        }
+        return OmnConfig.flag(storageDir(), key);
     }
 
     // ----------------------------------------------------------------------
