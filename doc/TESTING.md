@@ -61,12 +61,30 @@ test of it. See the banner of that file.
 
 ### The JavaScript under test runs in a stub of a browser
 
-`backend/frontend/test/dom-stub.js` makes the `window` and the `document`
-that a shipped script touches WHILE IT LOADS, and nothing more. It is not
-a browser, and no test drives a page.
+There are TWO stubs, and the difference between them found a fault.
 
-Each shipped script carries a short export tail behind a check of
-`module`, thus a browser never sees the export.
+`backend/frontend/test/dom-stub.js` makes the `window` and the `document`
+that a shipped script touches WHILE IT LOADS, and nothing more. It loads
+a script with `require`, thus each one runs as a Node module. Each shipped
+script carries a short export tail behind a check of `module`, and a
+browser never sees that export.
+
+`backend/frontend/test/page-stub.js` builds a `vm` context whose GLOBAL is
+the window stub, then runs a script the way a `<script src>` element does.
+That is how a browser works: `window` IS the global object, thus
+`window.runSync = ...` makes a global name and a bare name resolves
+against the same object.
+
+**A Node module has its own scope, and that difference hid a real fault.**
+`SYNC_TITLES` sat in the `if` block of `omn-go-sse.js` while
+`omn-go-sync.js` read it as a bare name. Every upload from 26.09.24 to
+26.09.40 threw "SYNC_TITLES is not defined", and the "Commit & Push"
+button did nothing.
+
+`lazy.test.js` uses the page stub. It reads the `omnLazy` call of
+`omn-go-sse.js`, loads each lazy file ALONE, and calls each name that the
+call promises. A ReferenceError is a failure. A TypeError is not, because
+the page is a stub and not a browser.
 
 ---
 

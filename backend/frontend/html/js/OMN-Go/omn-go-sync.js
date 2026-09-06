@@ -13,6 +13,26 @@
 // not define writes a console fault at the first press.
 if (window.location.protocol !== 'file:') {
 
+    // The title of the progress overlay, for each action that runSync
+    // takes.
+    //
+    // IT LIVED IN omn-go-sse.js UNTIL 26.09.41, AND THAT BROKE THE UPLOAD.
+    // F3 moved the sync code into this file in 26.09.24 and left the map
+    // behind. The body of omn-go-sse.js sits inside an if block, thus a
+    // const of that block reaches no other file. Each press of
+    // "Commit & Push" then threw "SYNC_TITLES is not defined" and the
+    // button did nothing.
+    //
+    // A name that this file reads belongs in this file. See
+    // TestLazyFilesDefineWhatTheyRead, which runs each exported function
+    // of each lazy file and fails on a free variable.
+    const SYNC_TITLES = {
+        pull: 'Download', pull_ff: 'Download', download: 'Download',
+        pull_force: 'Force download', pull_mark: 'Mark conflicts',
+        pull_abort: 'Abort pull',
+        push: 'Upload', upload: 'Upload', push_force: 'Force upload'
+    };
+
     const Logger = (function() {
         // runSync is the single place that talks to /api/sync. It always
         // POSTs action/force/message together and always expects a JSON
@@ -37,7 +57,7 @@ if (window.location.protocol !== 'file:') {
             let data, netErr = null;
             window.OMNProgress.show(SYNC_TITLES[action] || 'Sync');
             window.OMNProgress.stage('Contacting server…');
-            const unsubscribe = window.omnGoOnServerLog(applySyncLogLine);
+            const unsubscribe = window.omnGoOnServerLog(window.applySyncLogLine);
             try {
                 const res = await fetch('/api/sync', { method: 'POST', body: fd });
                 data = await res.json();
@@ -213,7 +233,7 @@ if (window.location.protocol !== 'file:') {
         let res, preview, err = null;
         window.OMNProgress.show('Upload');
         window.OMNProgress.stage('Collecting pending changes…');
-        const unsubscribe = window.omnGoOnServerLog(applySyncLogLine);
+        const unsubscribe = window.omnGoOnServerLog(window.applySyncLogLine);
         try {
             res = await fetch('/api/sync/preview?action=upload');
             if (res.ok) preview = await res.json();

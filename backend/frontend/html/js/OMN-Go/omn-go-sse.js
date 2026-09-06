@@ -161,13 +161,18 @@ if (window.location.protocol !== 'file:') {
         window.OMNProgress.detail(line);
     }
 
-    const SYNC_TITLES = {
-        pull: 'Download', pull_ff: 'Download', download: 'Download',
-        pull_force: 'Force download', pull_mark: 'Mark conflicts',
-        pull_abort: 'Abort pull',
-        push: 'Upload', upload: 'Upload', push_force: 'Force upload'
-    };
-
+    // applySyncLogLine reaches omn-go-sync.js through window, and not
+    // through the scope.
+    //
+    // The body of this file sits inside an if block. Annex B of the
+    // standard hoists a function of such a block to the global scope.
+    // omn-go-sync.js found this name that way for 17 versions, by
+    // accident. A const of the same block does NOT hoist, and
+    // SYNC_TITLES broke the upload of 26.09.24 for that reason. See the
+    // banner of omn-go-sync.js.
+    //
+    // One export, written out, cannot break that way.
+    window.applySyncLogLine = applySyncLogLine;
 
     // ------------------------------------------------------------------
     // The lazy loader

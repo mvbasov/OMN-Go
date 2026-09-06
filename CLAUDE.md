@@ -87,7 +87,7 @@ Do not remove a constraint without an instruction from the maintainer.
 | `local/` | Maintainer scripts. The Docker context excludes this directory. The build never ships it. |
 | `fastlane/metadata/android/en-US/` | Store metadata and `changelogs/<versionCode>.txt`. Each changelog line starts with `•`. |
 | `metadata/` | `net.basov.omngo.fdroid.yml`, the F-Droid build recipe. |
-| `backend/frontend/test/` | The JavaScript unit tests and the DOM stub. Embedded by no `go:embed`, thus no device receives them. |
+| `backend/frontend/test/` | The JavaScript unit tests, the DOM stub and the page stub. Embedded by no `go:embed`, thus no device receives them. |
 | `android/test/` | The Java unit test. It sits OUTSIDE the Gradle project on purpose. See `doc/TESTING.md`. |
 | `doc/` | Maintainer documents. `API.md` holds the endpoint reference. `TERMINOLOGY.md` holds the controlled vocabulary. `TESTING.md` holds the map of the test set. `initial_prompt.md` holds the historical origin prompt. |
 | `CLAUDE.md` | This document. The Docker context excludes it. |
@@ -155,7 +155,8 @@ Two statements in the tree are wrong. Do not trust them.
     the raw stream, and it must work when debug is off.
   * `applySyncLogLine` in `omn-go-sse.js` removes the level word before it
     matches a sync stage. Keep the two in agreement, or the progress overlay
-    loses a stage.
+    loses a stage. That file exports it as `window.applySyncLogLine`, because
+    `omn-go-sync.js` is the only caller and it is a separate file.
   * A log line must never take the config lock. `loadConfig` holds the write
     lock and writes a line, and a Go RWMutex is not reentrant. `applyLogFilter`
     keeps an atomic copy of the three switches for that reason.
@@ -228,6 +229,14 @@ Two statements in the tree are wrong. Do not trust them.
   call in `omn-go-sse.js` and name each function that the page calls. A name that
   is absent from that list is undefined until something else loads the file.
   `printDebug` sits above the `file:` guard, because a stub needs it.
+* **A lazy file must read NO bare name of `omn-go-sse.js`.** The body of that
+  file sits inside an `if` block, thus a `const` of the block reaches no other
+  file. A `function` of the block reaches one by accident, through Annex B of
+  the standard. Both are traps. Put the value in the lazy file, or export it as
+  a property of `window`. `SYNC_TITLES` broke every upload from 26.09.24 to
+  26.09.40 this way, and the button did nothing.
+  `backend/frontend/test/lazy.test.js` runs each exported function of each lazy
+  file and fails on a free variable.
 * **The fold table has two implementations on purpose.** `foldTable` in
   `backend/search_match.go` folds before the server matches. `OMN_FOLD_TABLE` in
   `omn-go-core.js` folds again in the page. The server sends the term unfolded in
