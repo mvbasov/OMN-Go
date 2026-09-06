@@ -997,7 +997,7 @@ every git server slot, all in cleartext.**
 The Config page reads this endpoint for that reason. Since 26.09.7 the page
 renders each password box and each SSH key box empty, thus the HTML of the
 page holds no secret. The **Show passwords** button calls this endpoint and
-fills the boxes. See `omnGoRevealSecrets` in `omn-go-sse.js`.
+fills the boxes. See `omnGoRevealSecrets` in `omn-go-config.js`.
 
 **Response** `200`, `application/json`:
 
@@ -1278,7 +1278,7 @@ es.onmessage = e => console.log(e.data);
 Run one atomic batch of SQL statements against one named SQLite database on
 the server. The server stores the database at `<storage>/db/<name>.sqlite`.
 This endpoint replaces the removed WebSQL API. The wrapper in the browser is
-`omnGoOpenDatabase()` in `omn-go-core.js`.
+`omnGoOpenDatabase()` in `omn-go-sse.js`.
 
 **Headers**: `Content-Type: application/json`
 
