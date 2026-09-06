@@ -1139,7 +1139,6 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 		return
 	}
 
-	cfg := a.GetConfig()
 	kindFilter := splitCSV(get("kind"))
 	limit := clampInt(atoiOr(get("limit"), searchDefaultLimit), 1, searchMaxLimit)
 	snippets := clampInt(atoiOr(get("snippets"), searchDefaultSnippets), 1, searchMaxSnippets)
@@ -1222,7 +1221,6 @@ func (a *App) searchGlobal(resp *searchResponse, qs map[string][]string) {
 		}
 		resp.Results = append(resp.Results, res)
 	}
-	_ = cfg
 	if read > 0 {
 		a.logInfof(logSearch, "%q: %d candidates read, %d matched", resp.Query, read, resp.Total)
 	}
