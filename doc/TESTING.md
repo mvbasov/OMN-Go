@@ -86,6 +86,11 @@ button did nothing.
 call promises. A ReferenceError is a failure. A TypeError is not, because
 the page is a stub and not a browser.
 
+`editor.test.js` uses the DOM stub. Each case of it quotes
+`backend/frontend/md/Editor.md`, which is the note that a person reads
+before they type. A failure therefore reads in one of two ways. The
+editor broke, or the note is now wrong.
+
 ---
 
 ## 3. What the F-Droid build sees
