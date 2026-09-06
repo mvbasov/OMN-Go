@@ -50,11 +50,11 @@ public final class OmnConfigTest {
     private static void noFileAtAll(File dir) {
         File empty = new File(dir, "empty");
         empty.mkdirs();
-        eq("no file: fullscreen", "fullscreen", OmnConfig.fullscreenMode(empty));
-        eq("no file: intent uri", false, OmnConfig.flag(empty, "enable_intent_uri"));
-        eq("no file: termux", false, OmnConfig.flag(empty, "enable_termux_intent"));
-        eq("no file: upload cap", 3, OmnConfig.maxUploadMB(empty));
-        eq("no file: a string", "", OmnConfig.string(empty, "author"));
+        eq("no file: fullscreen", "fullscreen", OmnConfig.fullscreenMode(empty.getPath()));
+        eq("no file: intent uri", false, OmnConfig.flag(empty.getPath(), "enable_intent_uri"));
+        eq("no file: termux", false, OmnConfig.flag(empty.getPath(), "enable_termux_intent"));
+        eq("no file: upload cap", 3, OmnConfig.maxUploadMB(empty.getPath()));
+        eq("no file: a string", "", OmnConfig.string(empty.getPath(), "author"));
     }
 
     // The configuration that loadConfig writes on a fresh install.
@@ -68,10 +68,10 @@ public final class OmnConfigTest {
             "  \"enable_termux_intent\": false,\n" +
             "  \"max_upload_size_mb\": 3\n" +
             "}\n");
-        eq("fresh: fullscreen", "fullscreen", OmnConfig.fullscreenMode(d));
-        eq("fresh: intent uri", false, OmnConfig.flag(d, "enable_intent_uri"));
-        eq("fresh: upload cap", 3, OmnConfig.maxUploadMB(d));
-        eq("fresh: author", "Anonymous", OmnConfig.string(d, "author"));
+        eq("fresh: fullscreen", "fullscreen", OmnConfig.fullscreenMode(d.getPath()));
+        eq("fresh: intent uri", false, OmnConfig.flag(d.getPath(), "enable_intent_uri"));
+        eq("fresh: upload cap", 3, OmnConfig.maxUploadMB(d.getPath()));
+        eq("fresh: author", "Anonymous", OmnConfig.string(d.getPath(), "author"));
     }
 
     // A person who turned each Android setting on.
@@ -82,14 +82,14 @@ public final class OmnConfigTest {
             "\"enable_termux_intent\":true," +
             "\"max_upload_size_mb\":25," +
             "\"author\":\"Ann\"}");
-        eq("changed: fullscreen", "immersive", OmnConfig.fullscreenMode(d));
-        eq("changed: intent uri", true, OmnConfig.flag(d, "enable_intent_uri"));
-        eq("changed: termux", true, OmnConfig.flag(d, "enable_termux_intent"));
-        eq("changed: upload cap", 25, OmnConfig.maxUploadMB(d));
-        eq("changed: author", "Ann", OmnConfig.string(d, "author"));
+        eq("changed: fullscreen", "immersive", OmnConfig.fullscreenMode(d.getPath()));
+        eq("changed: intent uri", true, OmnConfig.flag(d.getPath(), "enable_intent_uri"));
+        eq("changed: termux", true, OmnConfig.flag(d.getPath(), "enable_termux_intent"));
+        eq("changed: upload cap", 25, OmnConfig.maxUploadMB(d.getPath()));
+        eq("changed: author", "Ann", OmnConfig.string(d.getPath(), "author"));
 
         File off = write(dir, "off", "{\"android_fullscreen\":\"off\"}");
-        eq("off: fullscreen", "off", OmnConfig.fullscreenMode(off));
+        eq("off: fullscreen", "off", OmnConfig.fullscreenMode(off.getPath()));
     }
 
     // A file that a crash cut in half. Each reader answers its default,
@@ -101,9 +101,9 @@ public final class OmnConfigTest {
             "[1,2,3]", "{\"a\":\"unterminated",
         }) {
             File d = write(dir, "bad" + Math.abs(bad.hashCode()), bad);
-            eq("damaged " + show(bad) + ": fullscreen", "fullscreen", OmnConfig.fullscreenMode(d));
-            eq("damaged " + show(bad) + ": flag", false, OmnConfig.flag(d, "enable_intent_uri"));
-            eq("damaged " + show(bad) + ": cap", 3, OmnConfig.maxUploadMB(d));
+            eq("damaged " + show(bad) + ": fullscreen", "fullscreen", OmnConfig.fullscreenMode(d.getPath()));
+            eq("damaged " + show(bad) + ": flag", false, OmnConfig.flag(d.getPath(), "enable_intent_uri"));
+            eq("damaged " + show(bad) + ": cap", 3, OmnConfig.maxUploadMB(d.getPath()));
         }
     }
 
@@ -115,22 +115,22 @@ public final class OmnConfigTest {
             "\"max_upload_size_mb\":\"25\"," +
             "\"android_fullscreen\":7," +
             "\"author\":42}");
-        eq("wrong type: a string is not a flag", false, OmnConfig.flag(d, "enable_intent_uri"));
-        eq("wrong type: a string is not a cap", 3, OmnConfig.maxUploadMB(d));
-        eq("wrong type: a number is not a mode", "fullscreen", OmnConfig.fullscreenMode(d));
-        eq("wrong type: a number is not a string", "", OmnConfig.string(d, "author"));
+        eq("wrong type: a string is not a flag", false, OmnConfig.flag(d.getPath(), "enable_intent_uri"));
+        eq("wrong type: a string is not a cap", 3, OmnConfig.maxUploadMB(d.getPath()));
+        eq("wrong type: a number is not a mode", "fullscreen", OmnConfig.fullscreenMode(d.getPath()));
+        eq("wrong type: a number is not a string", "", OmnConfig.string(d.getPath(), "author"));
 
         // A cap of zero or less refuses every upload, thus it becomes the
         // default. The Go side holds the same rule.
         File zero = write(dir, "zero", "{\"max_upload_size_mb\":0}");
-        eq("cap of 0", 3, OmnConfig.maxUploadMB(zero));
+        eq("cap of 0", 3, OmnConfig.maxUploadMB(zero.getPath()));
         File neg = write(dir, "neg", "{\"max_upload_size_mb\":-5}");
-        eq("cap of -5", 3, OmnConfig.maxUploadMB(neg));
+        eq("cap of -5", 3, OmnConfig.maxUploadMB(neg.getPath()));
 
         // A null value means "no answer recorded".
         File nul = write(dir, "null", "{\"enable_intent_uri\":null,\"max_upload_size_mb\":null}");
-        eq("null flag", false, OmnConfig.flag(nul, "enable_intent_uri"));
-        eq("null cap", 3, OmnConfig.maxUploadMB(nul));
+        eq("null flag", false, OmnConfig.flag(nul.getPath(), "enable_intent_uri"));
+        eq("null cap", 3, OmnConfig.maxUploadMB(nul.getPath()));
     }
 
     // THE ONE THAT MATTERS FOR THE PARSER. config.json holds a nested
@@ -158,19 +158,19 @@ public final class OmnConfigTest {
             "  \"enable_intent_uri\": true,\n" +
             "  \"max_upload_size_mb\": 12\n" +
             "}\n");
-        eq("nested: fullscreen after a nested object and array", "immersive", OmnConfig.fullscreenMode(d));
-        eq("nested: flag after them", true, OmnConfig.flag(d, "enable_intent_uri"));
-        eq("nested: cap after them", 12, OmnConfig.maxUploadMB(d));
-        eq("nested: the nested keys are not top level", "", OmnConfig.string(d, "name"));
+        eq("nested: fullscreen after a nested object and array", "immersive", OmnConfig.fullscreenMode(d.getPath()));
+        eq("nested: flag after them", true, OmnConfig.flag(d.getPath(), "enable_intent_uri"));
+        eq("nested: cap after them", 12, OmnConfig.maxUploadMB(d.getPath()));
+        eq("nested: the nested keys are not top level", "", OmnConfig.string(d.getPath(), "name"));
 
         // An empty object and an empty array are the other shapes that
         // this file carries. A nil mime_types marshals as null.
         File e = write(dir, "emptynest",
             "{\"mime_types\":{},\"git_servers\":[],\"android_fullscreen\":\"off\"}");
-        eq("empty nest: fullscreen", "off", OmnConfig.fullscreenMode(e));
+        eq("empty nest: fullscreen", "off", OmnConfig.fullscreenMode(e.getPath()));
         File n = write(dir, "nullnest",
             "{\"mime_types\":null,\"git_servers\":null,\"android_fullscreen\":\"off\"}");
-        eq("null nest: fullscreen", "off", OmnConfig.fullscreenMode(n));
+        eq("null nest: fullscreen", "off", OmnConfig.fullscreenMode(n.getPath()));
     }
 
     // json.MarshalIndent escapes a character outside ASCII as \\uXXXX. A

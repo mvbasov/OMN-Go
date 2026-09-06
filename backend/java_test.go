@@ -21,6 +21,7 @@ package backend
 // tests below hold the rules that keep the recipe correct with no edit.
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -209,6 +210,84 @@ func TestJavaUnitTests(t *testing.T) {
 		return
 	}
 	t.Logf("%s", strings.TrimSpace(string(result)))
+}
+
+// THE CALL SITES OF MainActivity MUST TYPE-CHECK AGAINST OmnConfig.
+//
+// TestJavaUnitTests compiles OmnConfig.java and its test, and it compiles
+// NEITHER caller. Version 26.09.29 therefore passed the whole Go gate with
+// four call sites that could not compile: storageDir() answers a String,
+// and OmnConfig took a File. Gradle found it, twenty minutes later.
+//
+// Compiling MainActivity itself is not the answer. It needs android.jar,
+// which only the build image has, and it needs R and BuildConfig, which
+// Gradle generates from the resources. A stub for those would be a pile
+// of fakes that drifts away from the real ones.
+//
+// This test compiles the REAL call sites instead. It reads each
+// OmnConfig call out of MainActivity, and it reads the return type of
+// storageDir() from that same file. It then writes a small class that
+// holds those lines. javac answers the question that matters: does the
+// argument of each call fit the parameter that OmnConfig declares.
+//
+// It is a real type check by a real compiler, and it needs no Android SDK.
+func TestAndroidConfigCallSitesTypeCheck(t *testing.T) {
+	javac, err := exec.LookPath("javac")
+	if err != nil {
+		t.Skip("no javac on this machine. The Docker gate has a JDK and runs this test.")
+	}
+	main, err := readRepoFile("android/app/src/main/java/net/basov/omngo/MainActivity.java")
+	if err != nil {
+		t.Skipf("MainActivity.java is not in this tree: %v", err)
+	}
+
+	// The return type of the helper that each call site passes.
+	sd := regexp.MustCompile(`(?m)^\s*private\s+(\w+)\s+storageDir\(\)`).FindStringSubmatch(main)
+	if sd == nil {
+		t.Fatal("MainActivity.java declares no storageDir(). This test reads its " +
+			"return type, thus it cannot check the call sites without it.")
+	}
+	storageDirType := sd[1]
+
+	// Each statement that calls OmnConfig, taken whole.
+	calls := regexp.MustCompile(`OmnConfig\.\w+\([^;]*\);`).FindAllString(main, -1)
+	if len(calls) == 0 {
+		t.Fatal("MainActivity.java calls OmnConfig nowhere. Either the calls moved, " +
+			"or the three readers came back. See the banner of OmnConfig.java.")
+	}
+
+	// One class that holds each call. Each call answers a value, thus each
+	// one is assigned, and a numbered name keeps the assignments apart.
+	var body strings.Builder
+	body.WriteString("package net.basov.omngo;\n\n")
+	body.WriteString("// Written by TestAndroidConfigCallSitesTypeCheck.\n")
+	body.WriteString("// It is not a file of this project, and nothing ships it.\n")
+	body.WriteString("final class CallSiteCheck {\n")
+	body.WriteString("    private " + storageDirType + " storageDir() { return null; }\n")
+	body.WriteString("    @SuppressWarnings(\"unused\")\n")
+	body.WriteString("    void use(String key) {\n")
+	for i, c := range calls {
+		fmt.Fprintf(&body, "        Object v%d = %s\n", i, c)
+	}
+	body.WriteString("    }\n}\n")
+	src := body.String()
+
+	dir := t.TempDir()
+	checkSrc := filepath.Join(dir, "CallSiteCheck.java")
+	if err := os.WriteFile(checkSrc, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, cErr := exec.Command(javac, "-encoding", "UTF-8", "-d", dir,
+		filepath.Join("..", filepath.FromSlash(
+			"android/app/src/main/java/net/basov/omngo/OmnConfig.java")),
+		checkSrc).CombinedOutput()
+	if cErr != nil {
+		t.Errorf("the OmnConfig call sites of MainActivity do not compile:\n%s\n"+
+			"storageDir() answers %s. Each parameter of OmnConfig must take that "+
+			"type, or each call site must convert.\nThe checked source was:\n%s",
+			out, storageDirType, src)
+	}
 }
 
 // The two files that a raw javac reads must hold no byte above 127.

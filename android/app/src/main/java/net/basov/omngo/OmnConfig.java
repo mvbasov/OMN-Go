@@ -61,7 +61,14 @@ final class OmnConfig {
     //
     // It reads the whole file each time. The file is small, and a cache
     // would have to know when the Config page wrote a new one.
-    static Map<String, Object> read(File storageDir) {
+    //
+    // THE PARAMETER IS A String AND NOT A File. MainActivity.storageDir()
+    // and ServerService.storageDir(Context) both answer a String, and so
+    // does the path that Backend.startServer takes. A File parameter made
+    // each of the four call sites convert, and 26.09.29 shipped with four
+    // that did not. TestAndroidConfigCallSitesTypeCheck now compiles the
+    // real call sites against these signatures.
+    static Map<String, Object> read(String storageDir) {
         try {
             File cfgFile = new File(storageDir, "config.json");
             if (!cfgFile.exists()) return new HashMap<String, Object>();
@@ -87,13 +94,13 @@ final class OmnConfig {
     // enable_termux_intent are off on a fresh install, and rule 11 of
     // CLAUDE.md section 1 says that they stay off until a person turns
     // them on.
-    static boolean flag(File storageDir, String key) {
+    static boolean flag(String storageDir, String key) {
         Object v = read(storageDir).get(key);
         return (v instanceof Boolean) && ((Boolean) v).booleanValue();
     }
 
     // string answers one string, or the empty string.
-    static String string(File storageDir, String key) {
+    static String string(String storageDir, String key) {
         Object v = read(storageDir).get(key);
         return (v instanceof String) ? (String) v : "";
     }
@@ -105,7 +112,7 @@ final class OmnConfig {
     // behavior that each install had before the setting existed. A change
     // of this default without the same change there makes the Config page
     // disagree with the window.
-    static String fullscreenMode(File storageDir) {
+    static String fullscreenMode(String storageDir) {
         String mode = string(storageDir, "android_fullscreen");
         if (FULLSCREEN_OFF.equals(mode) || FULLSCREEN_IMMERSIVE.equals(mode)) {
             return mode;
@@ -115,7 +122,7 @@ final class OmnConfig {
 
     // maxUploadMB answers the upload cap in megabytes, and never a number
     // at zero or below. A cap of zero would refuse each upload.
-    static int maxUploadMB(File storageDir) {
+    static int maxUploadMB(String storageDir) {
         Object v = read(storageDir).get("max_upload_size_mb");
         if (!(v instanceof Number)) return DEFAULT_MAX_UPLOAD_MB;
         int mb = ((Number) v).intValue();
