@@ -129,77 +129,128 @@ func configFieldSent(r *http.Request) func(field string) bool {
 	}
 }
 
+// handleConfig answers GET and POST on /api/config.
+//
+// The body of this function was 191 lines until 26.09.19. It read the
+// form, wrote the file, and started the work that a change needs, in one
+// block. Four functions hold that work now, and each one has a name that
+// says what it does:
+//
+//	applyConfigForm       config_fields.go, the table of settings
+//	applyGitServerForm    config_fields.go, the five git slots
+//	persistConfig         below, the marshal and the write
+//	applyConfigChange     below, the log filter and the search index
+//
+// A GET answers with the whole Config struct, each password included. It
+// is admin-only, and the Config page reads it for the "Show passwords"
+// button. See the banner of gitServerView in templates.go.
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		cfg := a.GetConfig()
+	switch r.Method {
+	case http.MethodGet:
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cfg)
-		return
-	}
-	if r.Method == "POST" {
-		// The listen socket is bound exactly once at startup, so flipping
-		// ShareLAN can only take effect through a full process restart.
-		// Capture the pre-save value to detect the flip and tell the
-		// frontend, which then drives /api/restart.
-		prevShareLAN := a.GetConfig().ShareLAN
-		prevSearchEnabled := a.GetConfig().SearchEnabled
-		prevSearchKinds := strings.Join(normalizeSearchKinds(a.GetConfig().SearchKinds), ",")
-		prevSearchBundled := a.GetConfig().SearchBundled
+		json.NewEncoder(w).Encode(a.GetConfig())
+
+	case http.MethodPost:
+		prev := a.GetConfig()
 
 		// A field this request does not carry is left as it is. See
 		// configFieldSent for the rule and for why the Config page has to
 		// declare its checkboxes.
 		sent := configFieldSent(r)
 
-		var snapshot Config
+		var next Config
 		a.WithConfig(func(c *Config) {
-			// One row for each setting, in config_fields.go. The chain of
-			// branches that stood here until 26.09.19 is that table now.
 			applyConfigForm(c, r, sent)
 			applyGitServerForm(c, r, sent)
-			snapshot = *c
+			next = *c
 		})
 
-		// Persist outside the lock — file I/O should not block other
-		// goroutines that only need a config read.
-		data, err := json.MarshalIndent(snapshot, "", "  ")
-		if err != nil {
-			a.logErrf(logConfig, "handleConfig: failed to marshal config: %v", err)
+		if err := a.persistConfig(next); err != nil {
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
-		configPath := filepath.Join(a.StorageDir, "config.json")
-		if err := os.WriteFile(configPath, data, 0644); err != nil {
-			a.logErrf(logConfig, "handleConfig: failed to write %s: %v", configPath, err)
-			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
-			return
-		}
-		// The log filter applies at once, and never at a restart. A person
-		// who switches a level on wants the next line, not the next run.
-		a.applyLogFilter(snapshot)
+		a.applyConfigChange(prev, next)
 
-		// Applying the search setting is not deferred to a restart, unlike
-		// ShareLAN below: turning search OFF is exactly what someone does when
-		// a device is short of memory, and telling them to restart first would
-		// be an odd way to help.
-		if !snapshot.SearchEnabled {
-			a.dropSearchIndex()
-		} else if !prevSearchEnabled || prevSearchKinds != strings.Join(normalizeSearchKinds(snapshot.SearchKinds), ",") ||
-			prevSearchBundled != snapshot.SearchBundled {
-			go a.rebuildSearchIndex()
-		}
-
-		if snapshot.ShareLAN != prevShareLAN {
-			// Saved fine, but the new bind address only exists after a
-			// restart. The frontend reacts to this exact string (see
-			// saveConfig in omn-go-sse.js) by calling /api/restart.
+		if next.ShareLAN != prev.ShareLAN {
+			// The save worked, and the new bind address exists only after
+			// a restart. saveConfig in omn-go-sse.js reads this exact
+			// word and then calls /api/restart.
 			w.Write([]byte("RestartRequired"))
 			return
 		}
 		w.Write([]byte("Saved"))
+
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// persistConfig writes one configuration to config.json.
+//
+// It runs OUTSIDE the configuration lock. A write to a file must not stop
+// a goroutine that needs a read of the configuration alone. The caller
+// therefore passes the snapshot that it took inside the lock.
+func (a *App) persistConfig(cfg Config) error {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		a.logErrf(logConfig, "persistConfig: failed to marshal the configuration: %v", err)
+		return err
+	}
+	configPath := filepath.Join(a.StorageDir, "config.json")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		a.logErrf(logConfig, "persistConfig: failed to write %s: %v", configPath, err)
+		return err
+	}
+	return nil
+}
+
+// applyConfigChange starts the work that a saved change needs.
+//
+// It takes the configuration from before the save and the one from after
+// it. A field whose new work depends on the old value is why both are
+// here.
+//
+// NOTHING HERE WAITS FOR A RESTART, and share_lan is the one exception.
+// The listen socket is bound one time at the start, thus only a restart
+// can move it. Each other change applies at once. A person who turns
+// search off does that because the device is short of memory, and an
+// answer of "restart first" would be an odd way to help.
+func (a *App) applyConfigChange(prev, next Config) {
+	// The log filter applies at once, and never at a restart. A person
+	// who switches a level on wants the next line, not the next run.
+	a.applyLogFilter(next)
+
+	if !next.SearchEnabled {
+		a.dropSearchIndex()
 		return
 	}
-	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	if searchIndexNeedsRebuild(prev, next) {
+		go a.rebuildSearchIndex()
+	}
+}
+
+// searchIndexNeedsRebuild reports whether a saved change makes the global
+// index wrong.
+//
+// The index is rebuilt when search was off before the save, or when what
+// the index covers changed. A save that touched neither leaves the index
+// alone. A rebuild reads each note of the collection, thus it is not free
+// on a device that holds many of them.
+//
+// The caller tests SearchEnabled first. This function answers only for a
+// configuration that has search on.
+func searchIndexNeedsRebuild(prev, next Config) bool {
+	if !prev.SearchEnabled {
+		return true
+	}
+	if prev.SearchBundled != next.SearchBundled {
+		return true
+	}
+	// The kinds are compared after normalization. A nil list and the
+	// default list are the same set, and a save must not rebuild for a
+	// difference that no reader can see.
+	return strings.Join(normalizeSearchKinds(prev.SearchKinds), ",") !=
+		strings.Join(normalizeSearchKinds(next.SearchKinds), ",")
 }
 
 // handleRestart restarts the whole application process so startup-bound

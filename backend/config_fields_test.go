@@ -212,3 +212,51 @@ func TestIntRowsRefuseAnythingButAPositiveNumber(t *testing.T) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
+// The work that a saved change starts
+// ----------------------------------------------------------------------
+
+// A rebuild of the global index reads each note, thus a save must start
+// one only when the index is really wrong. The condition was one line of
+// three clauses inside handleConfig until 26.09.20, and no test read it.
+//
+// The caller tests SearchEnabled before it calls this, thus each row
+// below has search on in the new configuration.
+func TestSearchIndexNeedsRebuild(t *testing.T) {
+	on := func(f func(*Config)) Config {
+		c := Config{SearchEnabled: true, SearchKinds: []string{"md", "bookmarks"}}
+		if f != nil {
+			f(&c)
+		}
+		return c
+	}
+	for _, tt := range []struct {
+		what string
+		prev Config
+		next Config
+		want bool
+	}{
+		{"search was off", on(func(c *Config) { c.SearchEnabled = false }), on(nil), true},
+		{"nothing changed", on(nil), on(nil), false},
+		{"the kinds changed", on(nil), on(func(c *Config) { c.SearchKinds = []string{"md"} }), true},
+		{"the bundled switch changed", on(nil), on(func(c *Config) { c.SearchBundled = true }), true},
+		{
+			// A nil list and the default list are the same set. A save
+			// that writes the default over a nil must not rebuild.
+			"nil against the default list",
+			on(func(c *Config) { c.SearchKinds = nil }),
+			on(func(c *Config) { c.SearchKinds = normalizeSearchKinds(nil) }),
+			false,
+		},
+		{
+			// A change that no part of the index reads.
+			"an unrelated field changed",
+			on(nil), on(func(c *Config) { c.Author = "Ann" }), false,
+		},
+	} {
+		if got := searchIndexNeedsRebuild(tt.prev, tt.next); got != tt.want {
+			t.Errorf("%s: got %v, want %v", tt.what, got, tt.want)
+		}
+	}
+}
