@@ -16,9 +16,11 @@
 if (window.location.protocol !== 'file:') {
 
     // --- Bookmark capture UI (moved here from omn-go-core.js in Phase 5a) ---
-    // handleShare (Android share-to), the URL drag-and-drop, and the tag
-    // autocomplete all belong to the server-backed bookmark/quick-note
-    // capture flow whose submit handlers already live in this file.
+    //
+    // handleShare is the Android share-to path. It, the URL drag-and-drop,
+    // and the tag autocomplete all belong to the server-backed bookmark and
+    // quick-note capture flow. The submit handlers of that flow already live
+    // in this file.
     window.handleShare = function(text, subject) {
         text = text || '';
         subject = subject || '';
@@ -52,37 +54,41 @@ if (window.location.protocol !== 'file:') {
         }
     };
     // --- Bookmark "Tags" autocomplete ---
-    // Suggests existing tags while typing into the Ingest Bookmark modal's
-    // #bmTags field. Tags are typed comma-separated ("work, recipe, ita|" -
-    // the "|" marks the caret); suggestions are computed against only the
-    // fragment after the last comma, and are only shown once that fragment
-    // reaches #bmTags's minChars attribute (default 2, set in index.html).
-    // Picking a suggestion completes the fragment and appends ", " so the
-    // next tag can be typed right away.
     //
-    // This is plain same-origin UI sugar, not a "server extension" - unlike
-    // the sync/login/etc. calls in omn-go-sse.js it doesn't need a protocol
-    // guard: a failed fetch (e.g. the page opened offline) is treated as "no
-    // suggestions" rather than an error, so the field still works as a plain
-    // comma-separated text input either way.
+    // Suggests existing tags while a person types into the #bmTags field of
+    // the Ingest Bookmark modal. Tags are typed comma-separated, as in
+    // "work, recipe, ita|", where the "|" marks the caret. Suggestions are
+    // computed against the fragment after the last comma alone. They are
+    // shown once that fragment reaches the minChars attribute of #bmTags,
+    // which is 2 by default and set in index.html. To pick a suggestion
+    // completes the fragment and appends ", ", thus the next tag can be
+    // typed right away.
     //
-    // Both the DOM wiring and the tag-list fetch are deliberately lazy: they
-    // only run the first time the Ingest Bookmark modal is actually opened,
-    // not on every page load (most page views never touch this panel).
-    // window.showBookmarkPanel()/toggleBookmarkPanel() below are the only
-    // places that reveal #bmPanel - the header's "add bookmark" button, the
-    // URL drag-and-drop handler, and window.handleShare all go through one of
-    // them now instead of poking #bmPanel's classList directly - so "the
-    // modal is opening" is caught in exactly one place.
+    // This is plain same-origin UI sugar, and not a "server extension". The
+    // sync and login calls in omn-go-sse.js need a protocol guard, and this
+    // does not. A failed fetch, for example on a page opened offline, is
+    // read as "no suggestions" and not as an error. The field still works as
+    // a plain comma-separated text input either way.
+    //
+    // Both the DOM wiring and the tag-list fetch are deliberately lazy. They
+    // run the first time the Ingest Bookmark modal is opened, and not on
+    // every page load. Most page views never touch this panel.
+    //
+    // window.showBookmarkPanel() and toggleBookmarkPanel() below are the only
+    // places that reveal #bmPanel. The "add bookmark" button of the header,
+    // the URL drag-and-drop handler and window.handleShare all go through one
+    // of them now. None pokes the classList of #bmPanel directly. "The modal
+    // is opening" is thus caught in exactly one place.
     (function () {
         var tagsCache = null;    // null until prepared; array once loaded (even if empty)
         var tagsPromise = null;  // in-flight fetch, if any
         var wired = false;       // #bmTags/#bmTagsSuggestions listeners attached only once
 
-        // Fetches /json/bookmarker-tags.json at most once per page. Safe to
-        // call every time the modal opens: if the list is already prepared
-        // (tagsCache set) or already loading (tagsPromise set) this reuses
-        // that instead of firing a second request.
+        // Fetches /json/bookmarker-tags.json at most one time for each page.
+        // It is safe to call every time the modal opens. The list can be
+        // already prepared, with tagsCache set, or already loading, with
+        // tagsPromise set. This reuses either one, and it fires no second
+        // request.
         function ensureTagsLoaded() {
             if (tagsCache) return Promise.resolve(tagsCache);
             if (tagsPromise) return tagsPromise;

@@ -23,32 +23,33 @@ if (window.location.protocol !== 'file:') {
     // The everyday entry point to search: a spotlight-style panel over the
     // current page. It has two scopes and one control to pick between them:
     //
-    //   page - the open note only. No index, no configuration, always
-    //          available, so this panel works on any device and in any state
-    //          of the app: there is nothing to switch on first.
-    //   all  - every indexed note. Offered only when the server says it can
-    //          answer (OMN_SEARCH_GLOBAL), so the control never leads nowhere.
+    //   - page: the open note only. There is no index and no configuration,
+    //     and it is always available. This panel thus works on any device
+    //     and in any state of the app, with nothing to switch on first.
+    //   - all: every indexed note. It is offered only when the server says
+    //     it can answer, through OMN_SEARCH_GLOBAL, thus the control never
+    //     leads nowhere.
     //
-    // It lives in this file rather than a new asset for two reasons: this file
-    // is already inside the `protocol !== 'file:'` guard, so an exported page
-    // gets the stub version for free; and it is already in
-    // versionDependentAssets + gitignorePatterns, so no new plumbing is needed
-    // to ship it.
+    // It lives in this file rather than in a new asset, for two reasons.
+    // This file is already inside the `protocol !== 'file:'` guard, thus an
+    // exported page gets the stub version for free. It is also already in
+    // versionDependentAssets and in gitignorePatterns, thus it needs no new
+    // plumbing to ship.
     //
-    // Everything the server returns is written with textContent (or into a
-    // <mark> element's textContent). Nothing from a response is ever assigned
-    // to innerHTML - the same discipline OMNProgress.build documents in
-    // omn-go-core.js, and it matters more here because the text being rendered
-    // is the user's own notes.
+    // Everything the server returns is written with textContent, or into the
+    // textContent of a <mark> element. Nothing from a response is ever
+    // assigned to innerHTML. That is the same discipline that
+    // OMNProgress.build documents in omn-go-core.js. It matters more here,
+    // because the text being rendered is the own notes of the user.
     (function () {
         // THE SEARCH IS ASKED FOR, NOT GUESSED AT.
         //
         // Typing does not search. The magnifier button does, and so does
-        // Enter. A query of all notes reads every note the index holds, and a
-        // search per keystroke did that work five or six times for one word
-        // and kept only the last answer. A timer instead of a button only
-        // moves the guess: too short and it fires mid-word, too long and the
-        // panel looks broken.
+        // Enter. A query of all notes reads every note that the index holds.
+        // A search for each keystroke did that work five or six times for one
+        // word, and it kept only the last answer. A timer instead of a button
+        // only moves the guess. Too short and it fires mid-word, too long and
+        // the panel looks broken.
         //
         // The button is the same control the results page carries, so "type,
         // then press the magnifier" is one habit for both.
@@ -60,16 +61,17 @@ if (window.location.protocol !== 'file:') {
         var seeAllEl = null;   // lives in the scope row - see renderScope
         var rows = [];
         var active = -1;
-        // The query the rows on screen belong to. Enter opens a row while the
-        // field still says that; once the field says something else, Enter is
-        // a request to search for the new thing instead - see onInputKey.
+        // The query that the rows on screen belong to. Enter opens a row
+        // while the field still says that. Once the field says something
+        // else, Enter is a request to search for the new thing instead. See
+        // onInputKey.
         var lastQuery = null;
         var inflight = null;
         var lastTerms = [];
-        // "" until the user picks: the FIRST query deliberately sends no scope
-        // and adopts whatever the server used (it knows the configured
-        // default, and whether global search can answer at all). After that
-        // the choice is explicit and sticky for the session.
+        // It is "" until the user picks. The FIRST query deliberately sends
+        // no scope, and it adopts whatever the server used. The server knows
+        // the configured default, and whether global search can answer at
+        // all. After that the choice is explicit, and sticky for the session.
         var scope = "";
         var scopeShown = "";
 
@@ -96,21 +98,24 @@ if (window.location.protocol !== 'file:') {
             overlay.innerHTML =
                 '<div class="omn-search-card" role="dialog" aria-label="Search">' +
                   '<div class="omn-search-head">' +
-                    // Deliberately BARE: no spellcheck, no autocorrect, no
-                    // autocapitalize, no autocomplete, no inputmode. Every one
-                    // of those is a hint the Android keyboard reads when it
-                    // attaches, and several of them (spellcheck="false" and
-                    // autocorrect="off" certainly, autocomplete="off" in some
-                    // WebView builds) fold into the NO_SUGGESTIONS flag, which
-                    // switches off the COMPOSING region - the mechanism every
-                    // non-Latin layout uses to enter text at all.
+                    // Deliberately BARE. There is no spellcheck, no
+                    // autocorrect, no autocapitalize, no autocomplete and no
+                    // inputmode. Every one of those is a hint that the
+                    // Android keyboard reads when it attaches.
+                    //
+                    // Several of them fold into the NO_SUGGESTIONS flag.
+                    // spellcheck="false" and autocorrect="off" do so
+                    // certainly, and autocomplete="off" does so in some
+                    // WebView builds. That flag switches off the COMPOSING
+                    // region, which is the mechanism that every non-Latin
+                    // layout uses to enter text at all.
                     //
                     // None of them buys anything here. The field is not in a
-                    // <form> and has no name, so autofill never engages;
-                    // matching is case-folded, so auto-capitalisation is
-                    // harmless; and a red squiggle under a query is cosmetic.
-                    // A search box has no reason to describe itself as
-                    // anything other than a plain text field.
+                    // <form> and has no name, thus autofill never engages.
+                    // Matching is case-folded, thus auto-capitalization is
+                    // harmless. A red squiggle under a query is cosmetic. A
+                    // search box has no reason to describe itself as anything
+                    // other than a plain text field.
                     '<input type="text" class="omn-search-input" ' +
                           'placeholder="Search this page">' +
                     // The one control that searches. It stands where the
@@ -128,9 +133,9 @@ if (window.location.protocol !== 'file:') {
                     '</button>' +
                   '</div>' +
                   // The wait, on the line under the field that causes it. It
-                  // reuses the shared .omn-progress-track / -fill look from
-                  // omn-go-core.css, so a wait is the same object here as in
-                  // the sync overlay; only the placement is local.
+                  // reuses the shared .omn-progress-track and -fill look
+                  // from omn-go-core.css. A wait is thus the same object
+                  // here as in the sync overlay. Only the placement is local.
                   '<div class="omn-search-progress omn-progress-track" ' +
                        'role="progressbar" aria-label="Search progress" hidden>' +
                     '<div class="omn-progress-fill"></div>' +
@@ -149,14 +154,15 @@ if (window.location.protocol !== 'file:') {
             goEl = overlay.querySelector('.omn-search-go');
 
             goEl.addEventListener('click', function () {
-                // Back to the field afterwards: on a phone the tap on this
-                // button closes the keyboard, and the next thing a reader
-                // does is usually edit the query.
+                // Back to the field afterwards. On a phone the tap on this
+                // button closes the keyboard, and a reader usually edits the
+                // query next.
                 run();
                 focusInput();
             });
             overlay.querySelector('.omn-search-close').addEventListener('click', close);
-            // A click on the backdrop closes; a click inside the card must not.
+            // A click on the backdrop closes. A click inside the card must
+            // not close.
             overlay.addEventListener('click', function (e) {
                 if (e.target === overlay) close();
             });
@@ -211,13 +217,14 @@ if (window.location.protocol !== 'file:') {
                 scopeEl.appendChild(where);
             }
 
-            // "See all results" belongs up here with the scope, not at the foot
-            // of the list: it is a statement about WHERE to search rather than
-            // one of the answers, and at the bottom it moved with every query
-            // and was only reachable after scrolling past everything above it.
+            // "See all results" belongs up here with the scope, and not at
+            // the foot of the list. It is a statement about WHERE to search,
+            // and not one of the answers. At the bottom it moved with every
+            // query, and it was reachable only after a scroll past
+            // everything above it.
             //
-            // A real <button> rather than a chip, so Tab reaches it and Enter
-            // and Space work without a keydown handler of its own - which
+            // A real <button> rather than a chip, thus Tab reaches it, and
+            // Enter and Space work with no keydown handler of its own. That
             // matters more now that it is no longer in the arrow-key list.
             seeAllEl = null;
             if (globalAvailable()) {
@@ -252,10 +259,10 @@ if (window.location.protocol !== 'file:') {
             // does not cover it: that one watches <a> clicks and this is an
             // assignment to location.
             //
-            // Armed, not shown - the same 300 ms the guard uses, and for the
-            // same reason: a fast answer must not flash an overlay on the way
-            // past. The timer dies with the document if the page arrives
-            // first, so there is nothing to take down.
+            // Armed, and not shown. It is the same 300 ms that the guard
+            // uses, and for the same reason. A fast answer must not flash an
+            // overlay on the way past. The timer dies with the document when
+            // the page arrives first, thus there is nothing to take down.
             if (window.OMNProgress) {
                 setTimeout(function () {
                     window.OMNProgress.show('Searching');
@@ -266,8 +273,8 @@ if (window.location.protocol !== 'file:') {
             window.location.href = '/OMNGoSearch.html?q=' + encodeURIComponent(q);
         }
 
-        // Switching to "All notes" is the slowest thing the dialog does and
-        // the one that most needs to say so: run() raises the bar before the
+        // A switch to "All notes" is the slowest thing the dialog does, and
+        // the one that most needs to say so. run() raises the bar before the
         // request leaves.
         function setScope(next) {
             if (scope === next && scopeShown === next) return;
@@ -292,22 +299,24 @@ if (window.location.protocol !== 'file:') {
         // focusInput hands the field to the keyboard twice, and the second time
         // is the one that matters.
         //
-        // The soft keyboard attaches to whatever element has focus and reads
-        // its configuration at that instant. This overlay goes from
-        // display:none to display:flex and takes focus in the SAME tick, so on
-        // Android the IME can attach to an element the browser has not laid out
-        // yet. When that happens it comes up without a COMPOSING region - which
-        // is how every non-Latin layout enters text - and the field then accepts
-        // Latin typing while silently refusing Cyrillic. That is why it reads as
-        // "the search box is broken" rather than "the keyboard attached wrong",
-        // and why it is intermittent: it depends on what the browser had already
-        // laid out.
+        // The soft keyboard attaches to whatever element has focus, and it
+        // reads the configuration of that element at that instant. This
+        // overlay goes from display:none to display:flex and takes focus in
+        // the SAME tick. On Android the IME can thus attach to an element
+        // that the browser has not laid out yet.
         //
-        // blur() before the second focus() is what makes it a re-attach rather
-        // than a no-op - focus() on the already-focused element does nothing,
-        // and doing nothing is exactly the state that needs clearing. It is the
-        // same reset a user stumbles on by opening the quick note panel and
-        // closing it again.
+        // The keyboard then comes up with no COMPOSING region, and that
+        // region is how every non-Latin layout enters text. The field then
+        // accepts Latin typing while it silently refuses Cyrillic. That is
+        // why it reads as "the search box is broken" and not as "the
+        // keyboard attached wrong". It is intermittent, because it depends
+        // on what the browser had already laid out.
+        //
+        // blur() before the second focus() is what makes it a re-attach, and
+        // not a no-op. focus() on the already-focused element does nothing,
+        // and to do nothing is exactly the state that needs clearing. It is
+        // the same reset that a user stumbles on, by opening the quick note
+        // panel and closing it again.
         //
         // The first, synchronous focus stays so that a character typed straight
         // after Ctrl-K on a desktop is not dropped in the frame between.
@@ -361,9 +370,10 @@ if (window.location.protocol !== 'file:') {
             progressEl.classList.toggle('indeterminate', !!on);
         }
 
-        // Typing changes no results. It only keeps the two things that
-        // describe the field honest: whether "See all results" applies, and
-        // whether the rows below still answer what the field says.
+        // Typing changes no results. It keeps two things honest, and both
+        // describe the field. The first is whether "See all results"
+        // applies. The second is whether the rows below still answer what
+        // the field says.
         function onInput() {
             updateSeeAll();
             var q = input.value.trim();
@@ -400,15 +410,15 @@ if (window.location.protocol !== 'file:') {
             }
 
             // The rows about to arrive answer THIS text. onInputKey compares
-            // against it to decide what Enter means, so it is set here, where
-            // the request is made, and not where the answer lands - a reply
-            // that never comes must not leave Enter opening rows that belong
-            // to a query the field no longer shows.
+            // against it to decide what Enter means. It is thus set here,
+            // where the request is made, and not where the answer lands. A
+            // reply that never comes must not leave Enter opening rows that
+            // belong to a query the field no longer shows.
             lastQuery = q;
 
-            // From here a request is going out, and how long it takes is the
-            // server's business - an index of every note answers slower than
-            // one page. This is the wait that "All notes" makes visible.
+            // From here a request goes out, and how long it takes is the
+            // business of the server. An index of every note answers slower
+            // than one page. This is the wait that "All notes" makes visible.
             showProgress(true);
             setStatus('Searching…');
 
@@ -466,11 +476,12 @@ if (window.location.protocol !== 'file:') {
 
         function render(query, data) {
             clearRows();
-            // The server's own list, not a naive split: it has already dropped
-            // the field prefixes ("tag:hydro" is a search for "hydro", and
-            // marking the literal "tag:hydro" would find nothing) and applied
-            // the same minimum length the highlighter uses. Falling back to a
-            // split keeps this working against an older server.
+            // The own list of the server, and not a naive split. It has
+            // already dropped the field prefixes. "tag:hydro" is a search for
+            // "hydro", and a mark on the literal "tag:hydro" would find
+            // nothing. It has also applied the same minimum length that the
+            // highlighter uses. A fall back to a split keeps this working
+            // against an older server.
             lastTerms = (data && data.highlight && data.highlight.length)
                 ? data.highlight
                 : query.split(/\s+/).filter(function (t) { return t.length > 0; });
@@ -497,8 +508,9 @@ if (window.location.protocol !== 'file:') {
             }
         }
 
-        // Global scope: several documents, each with its own snippets. A row
-        // opens the document; the heading above it says which one.
+        // Global scope. There are several documents, and each one has its own
+        // snippets. A row opens the document, and the heading above it says
+        // which one.
         function renderGlobal(data, results) {
             results.forEach(function (r) {
                 var head = document.createElement('li');
@@ -540,41 +552,44 @@ if (window.location.protocol !== 'file:') {
             setActive(0);
         }
 
-        // A result in global scope is a different document, so following it is
-        // a navigation - unlike page scope, where the answer is already on
-        // screen and the useful move is to highlight it in place.
-        // m is the line the reader chose, and is absent when the document
-        // itself was chosen.
+        // A result in global scope is a different document, thus to follow
+        // it is a navigation. Page scope is different. There the answer is
+        // already on screen, and the useful move is a highlight in place.
+        //
+        // m is the line that the reader chose. It is absent when the reader
+        // chose the document itself.
         function openResult(r, m) {
             close();
             if (r && r.url) window.location.href = withHighlight(r.url, m);
         }
 
-        // withHighlight hangs the query terms off a URL as ?hl=, so the page
-        // being opened marks them on arrival. With a line it also hangs that
-        // line's text off as ?hlt=, which is what the page goes TO: a result
-        // lists each matching line, and every one of them opening the first
-        // match in the note is only right for the first. Same two parameters
-        // the results page puts on its links (highlightURL and snippetURL in
-        // search.go), so a result behaves identically whichever list it came
-        // from. The receiving page strips them from the address bar once
-        // applied - see omn-go-core.js.
+        // withHighlight hangs the query terms off a URL as ?hl=, thus the
+        // page that opens marks them on arrival. With a line it also hangs
+        // the text of that line off as ?hlt=, and that is what the page goes
+        // TO.
+        //
+        // A result lists each matching line. To open the first match in the
+        // note is right for the first line alone. These are the same two
+        // parameters that the results page puts on its links, which are
+        // highlightURL and snippetURL in search.go. A result thus behaves
+        // identically, whichever list it came from. The receiving page strips
+        // them from the address bar once applied, see omn-go-core.js.
         function withHighlight(url, m) {
             // The fragment stays last. A sectioned result arrives here as
-            // "/Bookmarks.html#2026-06-15-200000", and appending blindly gives
-            // "#2026-06-15-200000?hl=cats" - one fragment that names no
-            // element, and no query string at all, so the page neither scrolls
-            // nor highlights. This mirrors highlightURL in search.go; the two
-            // build the same URL from opposite ends of the app and have to
-            // agree.
+            // "/Bookmarks.html#2026-06-15-200000". A blind append gives
+            // "#2026-06-15-200000?hl=cats". That is one fragment that names
+            // no element, and no query string at all, thus the page neither
+            // scrolls nor highlights. This mirrors highlightURL in search.go.
+            // The two build the same URL from opposite ends of the app, and
+            // they have to agree.
             var frag = '';
             var hash = url.indexOf('#');
             if (hash >= 0) {
                 frag = url.slice(hash);
                 url = url.slice(0, hash);
             }
-            // url already ends in the BEST hit's section; this line may be in
-            // another one, and the fragment is what the page falls back to
+            // url already ends in the section of the BEST hit. This line may
+            // be in another one. The fragment is what the page falls back to
             // when it cannot find the text.
             if (m && m.section && m.section.id) frag = '#' + m.section.id;
 
@@ -583,10 +598,11 @@ if (window.location.protocol !== 'file:') {
                 url += sep + 'hl=' + encodeURIComponent(lastTerms[i]);
                 sep = '&';
             }
-            // A hit inside a <script> block gets no ?hlt=: the text is indexed
-            // but never rendered, so there is no word on the page to go to and
-            // a search for it would only find a coincidence. Without terms
-            // there is nothing marked, so there is nothing to go to either.
+            // A hit inside a <script> block gets no ?hlt=. The text is
+            // indexed and never rendered. There is thus no word on the page
+            // to go to, and a search for it would only find a coincidence.
+            // With no terms nothing is marked, thus there is nothing to go
+            // to either.
             if (lastTerms.length && m && m.text && m.context !== 'script') {
                 url += sep + 'hlt=' + encodeURIComponent(m.text);
             }
@@ -595,9 +611,9 @@ if (window.location.protocol !== 'file:') {
 
         function renderPage(result) {
             if (!result || !result.matches || !result.matches.length) {
-                // A note can match on its title or a tag and have no matching
-                // LINE - say so, rather than showing an empty list that reads
-                // as "nothing found".
+                // A note can match on its title or a tag and have no
+                // matching LINE. Say so, rather than show an empty list that
+                // reads as "nothing found".
                 setStatus('Matches this page’s title or tags, but no line in the text');
                 return;
             }
@@ -614,19 +630,19 @@ if (window.location.protocol !== 'file:') {
             setActive(0);
         }
 
-        // buildSnippetRow renders one match. Shared by both scopes so a line
-        // looks the same wherever it was found; only what following it DOES
-        // differs, which is the caller's business.
+        // buildSnippetRow renders one match. Both scopes share it, thus a
+        // line looks the same wherever it was found. Only what a follow of it
+        // DOES differs, and that is the business of the caller.
         function buildSnippetRow(m, onChoose) {
             var li = document.createElement('li');
             li.className = 'omn-search-row';
             li.setAttribute('role', 'option');
 
-            // A section label replaces the bare line number when there is one.
-            // "27 Jul, 07:23" or "OMN-Go on GitHub" locates a hit inside a
-            // 3 000-line QuickNotes in a way "line 1842" does not; the line
-            // number is still what the API reports, and still what the editor
-            // needs, but it is not what a reader is looking for.
+            // A section label replaces the bare line number when there is
+            // one. "27 Jul, 07:23" or "OMN-Go on GitHub" locates a hit
+            // inside a 3 000-line QuickNotes in a way that "line 1842" does
+            // not. The line number is still what the API reports, and still
+            // what the editor needs. It is not what a reader looks for.
             var num = document.createElement('span');
             num.className = 'omn-search-line';
             if (m.section && m.section.label) {
@@ -662,11 +678,11 @@ if (window.location.protocol !== 'file:') {
             return li;
         }
 
-        // renderHighlighted writes text into node, wrapping each span in a
-        // <mark>. Spans are RUNE offsets (the Go side works in runes so that
-        // Cyrillic is not cut in half), so the text is split with Array.from,
-        // which iterates code points - text.substring would use UTF-16 units
-        // and drift on anything outside the BMP.
+        // renderHighlighted writes text into node, and it wraps each span in
+        // a <mark>. Spans are RUNE offsets, because the Go side works in
+        // runes so that Cyrillic is not cut in half. The text is thus split
+        // with Array.from, which iterates code points. text.substring would
+        // use UTF-16 units, and it would drift on anything outside the BMP.
         function renderHighlighted(node, text, spans) {
             var runes = Array.from(text);
             var at = 0;
@@ -702,21 +718,24 @@ if (window.location.protocol !== 'file:') {
 
         // choose closes the panel and marks the query in the page itself.
         //
-        // Per-LINE jumping is deliberately not attempted here: the result's
-        // line number indexes the markdown SOURCE, and the page shows compiled
-        // HTML, so there is no reliable mapping between the two without the
-        // machinery a later phase adds. Highlighting every occurrence and
-        // scrolling to the first is honest about what it knows, and is the
-        // answer to "where does this note talk about X" either way.
+        // A per-LINE jump is deliberately not attempted here. The line number
+        // of the result indexes the markdown SOURCE, and the page shows
+        // compiled HTML. There is no reliable mapping between the two,
+        // without the machinery that a later phase adds.
+        //
+        // To highlight every occurrence and scroll to the first is honest
+        // about what it knows. It is also the answer to "where does this note
+        // talk about X" either way.
         function choose(i, m) {
             setActive(i);
             close();
             var first = window.omnHighlightTerms(lastTerms);
 
-            // Go to the occurrence THIS row is about, not the first one on the
-            // page. A row inside a <script> block is skipped deliberately: the
-            // text is indexed but never rendered, so there is nothing on the
-            // page to scroll to and looking would only find a coincidence.
+            // Go to the occurrence that THIS row is about, and not to the
+            // first one on the page. A row inside a <script> block is skipped
+            // deliberately. The text is indexed and never rendered, thus
+            // there is nothing on the page to scroll to, and a look would
+            // only find a coincidence.
             var target = null;
             if (m && m.context !== 'script' && window.omnMarkNear) {
                 target = window.omnMarkNear(m.text || '');
@@ -745,11 +764,12 @@ if (window.location.protocol !== 'file:') {
                 break;
             case 'Enter':
                 e.preventDefault();
-                // Enter is the keyboard's magnifier. It searches whenever the
-                // field says something the rows on screen do not answer -
-                // which, now that typing searches nothing, is every moment
-                // between typing and asking. Only when the two agree does
-                // Enter mean what it used to: open the row I am on.
+                // Enter is the magnifier of the keyboard. It searches
+                // whenever the field says something that the rows on screen
+                // do not answer. Typing now searches nothing, thus that is
+                // every moment between typing and asking. Only when the two
+                // agree does Enter mean what it used to, which is to open
+                // the row I am on.
                 if (input.value.trim() !== lastQuery) {
                     run();
                     break;
@@ -766,10 +786,10 @@ if (window.location.protocol !== 'file:') {
 
         // --- highlighting inside the rendered page ---
         //
-        // The implementation lives in omn-go-core.js, not here: arriving at a
-        // page with ?hl= needs it on every page, including one opened from
-        // disk where this file's server half never runs. This module is just
-        // one of its callers.
+        // The implementation lives in omn-go-core.js, and not here. An
+        // arrival at a page with ?hl= needs it on every page, and a page
+        // opened from disk counts. The server half of this file never runs
+        // there. This module is one of its callers.
 
         // --- entry points ---
 

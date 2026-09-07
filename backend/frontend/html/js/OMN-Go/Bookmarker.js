@@ -562,20 +562,21 @@ function configuration(params = '') {
 
 // --- Arriving from a search result -------------------------------------
 //
-// A search hit inside a bookmark links to "/Bookmarks.html#<date-anchor>",
-// the same id showBookmarks() puts on each <li> (see the setAttribute above).
-// Usually nothing more is needed: urlParams() renders the full, unfiltered
-// list synchronously while the document is still parsing, so the element
-// exists before the browser performs its fragment scroll.
+// A search hit inside a bookmark links to "/Bookmarks.html#<date-anchor>".
+// That is the same id that showBookmarks() puts on each <li>, see the
+// setAttribute above. Usually nothing more is needed. urlParams() renders
+// the full, unfiltered list synchronously while the document is still
+// parsing, thus the element exists before the browser performs its fragment
+// scroll.
 //
-// The exception is a URL that also carries ?tag= or ?search=, which renders a
-// FILTERED list - and the entry being linked to may not be in it. Rather than
-// leave the reader on a page that silently does not contain what they clicked,
-// drop the filter and render everything.
+// The exception is a URL that also carries ?tag= or ?search=, which renders
+// a FILTERED list. The entry that the link names may not be in that list.
+// Drop the filter and render everything, rather than leave the reader on a
+// page that silently does not contain what they clicked.
 //
-// The flash is not decoration: several entries look alike, the anchor scroll
-// gives no feedback about which one it landed on, and this is the same
-// treatment a match gets everywhere else in the app.
+// The flash is not decoration. Several entries look alike, and the anchor
+// scroll gives no feedback about which one it landed on. This is the same
+// treatment that a match gets everywhere else in the app.
 function revealHashedBookmark() {
   var id = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
   if (!id) return;

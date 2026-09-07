@@ -20,11 +20,11 @@
 // shell. The globals of both are there before the first line below runs.
 
 // --- Config page: menu navigation + unsaved-changes tracking ---
-// The config form itself is untouched: each settings group is a
-// show/hide .config-screen block inside the ONE <form>, so
-// FormData(form) in saveConfig() (omn-go-sse.js) still collects every
-// field no matter which screen is open. No-ops on pages without a
-// #configForm.
+//
+// The config form itself is untouched. Each settings group is a show and
+// hide .config-screen block inside the ONE <form>. FormData(form) in
+// saveConfig(), in omn-go-sse.js, thus still collects every field, whatever
+// screen is open. A no-op on a page with no #configForm.
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById('configForm');
     if (!form) return;
@@ -33,13 +33,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const screens = panel.querySelectorAll('.config-screen');
 
     // -- Navigation --
-    // Driven by the URL hash rather than plain click handlers so that
-    // Android's hardware Back button works: MainActivity.onBackPressed
-    // forwards Back to webView.goBack() whenever there is history, and
-    // each hash change is a history entry. Back therefore walks
-    // sub-screen -> menu -> whatever page preceded Config, matching what
-    // a native settings screen does. Desktop browser Back behaves the
-    // same way for free.
+    //
+    // Driven by the URL hash, and not by plain click handlers, thus the
+    // hardware Back button of Android works. MainActivity.onBackPressed
+    // forwards Back to webView.goBack() whenever there is history, and each
+    // hash change is a history entry. Back therefore walks from a sub-screen
+    // to the menu, and then to whatever page preceded Config. That matches
+    // what a native settings screen does. Back in a desktop browser behaves
+    // the same way for free.
     const HASH_PREFIX = 'cfg-';
 
     function currentScreen() {
@@ -51,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const want = currentScreen();
         let matched = false;
         screens.forEach(s => {
-            // The menu block has no data-screen attribute; it is the
+            // The menu block has no data-screen attribute. It is the
             // fallback shown when the hash names no known sub-screen.
             const name = s.getAttribute('data-screen');
             const active = !!name && name === want;
@@ -70,9 +71,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
     panel.querySelectorAll('[data-back]').forEach(btn => {
-        // history.back() rather than clearing the hash, so returning to the
-        // menu consumes the history entry instead of adding another one -
-        // otherwise Back would bounce between menu and sub-screen.
+        // history.back(), and not a clear of the hash. A return to the menu
+        // thus consumes the history entry, and it does not add another one.
+        // Back would otherwise bounce between the menu and the sub-screen.
         btn.addEventListener('click', () => window.history.back());
     });
 
@@ -80,13 +81,16 @@ document.addEventListener("DOMContentLoaded", () => {
     applyHash();
 
     // -- Unsaved-changes tracking --
-    // Mirrors the dirty/clean dot in omn-go-editor.js. Any input/change
-    // anywhere in the form marks dirty; beforeunload then covers every way
-    // of leaving, since this is a real full-page load and not an SPA
-    // (following a link, browser Back out of the page, closing the tab).
-    // Moving between sub-screens only changes the hash, so it never
+    //
+    // Mirrors the dirty and clean dot in omn-go-editor.js. Any input or
+    // change anywhere in the form marks dirty. beforeunload then covers
+    // every way of leaving, because this is a real full-page load and not an
+    // SPA. Those ways are a link followed, a browser Back out of the page,
+    // and a tab closed.
+    //
+    // A move between sub-screens changes the hash alone, thus it never
     // triggers the prompt. saveConfig() calls window.configMarkClean()
-    // before its reload paths so a successful save doesn't prompt.
+    // before its reload paths, thus a successful save does not prompt.
     const dots = panel.querySelectorAll('.config-dirty-dot');
     const labels = panel.querySelectorAll('.config-dirty-indicator .config-dirty-label');
     const menuBanner = document.getElementById('configMenuDirty');
@@ -225,9 +229,9 @@ window.saveConfig = async function() {
     try {
         const res = await fetch('/api/config', { method: 'POST', body: fd });
         if (res.ok) {
-            // Config is now persisted server-side; clear the dirty flag
-            // before either reload path below so the save doesn't
-            // immediately re-trigger its own "leave site?" prompt.
+            // Config is now persisted on the server. Clear the dirty flag
+            // before either reload path below, thus the save does not at
+            // once re-trigger its own "leave site?" prompt.
             if (window.configMarkClean) window.configMarkClean();
             const body = await res.text();
             if (body === 'RestartRequired') {

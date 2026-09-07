@@ -96,11 +96,11 @@ if (window.location.protocol !== 'file:') {
     // needs a name to call.
     window.logLinePrints = logLinePrints;
 
-    // Maps a backend "[sync] ..." log line to a human-readable stage. First
-    // match wins, so more specific prefixes come first. Anything unmatched
-    // leaves the current stage alone and only updates the detail line - that
-    // way a log message added to git_sync.go later degrades to "still
-    // working" rather than blanking the stage.
+    // Maps a backend "[sync] ..." log line to a human-readable stage. The
+    // first match wins, thus a more specific prefix comes first. Anything
+    // unmatched leaves the current stage alone and updates the detail line
+    // alone. A log message added to git_sync.go later thus degrades to
+    // "still working", and it does not blank the stage.
     const SYNC_STAGES = [
         ['Opening repo',            'Opening repository…'],
         ['Repo not found',          'Initializing repository…'],
@@ -147,8 +147,8 @@ if (window.location.protocol !== 'file:') {
         ['Writing objects',         'Transferring…']
     ];
 
-    // Feeds one server log line into the progress overlay. Only "[sync]"
-    // lines are relevant; everything else on the stream is ignored so an
+    // Feeds one server log line into the progress overlay. Only a "[sync]"
+    // line is relevant. Everything else on the stream is ignored, thus an
     // unrelated background log cannot hijack the display.
     //
     // A line reads "<stamp> [sync] (debug) Staging file: x". The level word
@@ -287,11 +287,11 @@ if (window.location.protocol !== 'file:') {
 
         const res = await fetch('/api/newpage', { method: 'POST', body: fd });
         if (res.ok) {
-            // The server resolves fileName relative to the current page's
-            // directory (a bare name becomes a sibling of src, not a
-            // root-level page), so the actual created page may live at
-            // e.g. "local/test" even though fileName was just "test".
-            // Redirect using what the server tells us it actually created.
+            // The server resolves fileName relative to the directory of the
+            // current page. A bare name becomes a sibling of src, and not a
+            // root-level page. The created page may thus live at
+            // "local/test" although fileName was only "test". Redirect with
+            // what the server says it created.
             const resolvedTarget = await res.text();
             window.location.href = '/' + resolvedTarget + '.html?edit=true';
         } else {
@@ -328,15 +328,19 @@ if (window.location.protocol !== 'file:') {
     };
 
 
-    // Called from Android (MainActivity.insertCapturedText) to pre-fill the
-    // Quick Note panel with a captured result - a scanned barcode, or a Termux
-    // command's output - for the user to review and save. Unlike handleShare,
-    // this ALWAYS targets the Quick Note panel (never the bookmark panel), so a
-    // scanned URL still lands in Quick Notes as the user asked, rather than
-    // being re-routed. Returns true only if the panel actually exists on the
-    // current page; the native side uses that to fall back to its own dialog
-    // when the WebView is on a page without the panel (e.g. mid-edit on
-    // editor.html, which doesn't load this file at all).
+    // Called from Android, in MainActivity.insertCapturedText, to pre-fill
+    // the Quick Note panel with a captured result. That result is a scanned
+    // barcode, or the output of a Termux command. The user reviews it and
+    // saves it.
+    //
+    // Unlike handleShare, this ALWAYS targets the Quick Note panel, and never
+    // the bookmark panel. A scanned URL thus still lands in Quick Notes as
+    // the user asked, and it is not re-routed.
+    //
+    // It answers true only when the panel exists on the current page. The
+    // native side uses that answer to fall back to its own dialog, when the
+    // WebView is on a page without the panel. A page mid-edit on editor.html
+    // is such a page, because it loads this file not at all.
     window.omnGoInsertCapture = function(text, label) {
         var q = document.getElementById('quickText');
         var p = document.getElementById('quickPanel');
@@ -351,10 +355,10 @@ if (window.location.protocol !== 'file:') {
         return true;
     };
 
-    // Global Drag & Drop for URLs (Bookmarks). Registered on
-    // DOMContentLoaded: this file now runs in <head>, where
-    // document.body is still null - touching it directly here would
-    // throw and kill the rest of this script.
+    // Global Drag & Drop for URLs (Bookmarks). It is registered on
+    // DOMContentLoaded. This file now runs in <head>, where document.body is
+    // still null. To touch it directly here would throw, and it would kill
+    // the rest of this script.
     document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('dragover', e => {
             if (!e.target.closest('#editor')) e.preventDefault();
@@ -385,12 +389,13 @@ if (window.location.protocol !== 'file:') {
     // data. Requires admin role (local connections qualify automatically).
     //
     // Modern API (preferred for new note scripts):
-    //   const db = omnGoOpenDatabase('mydata');
-    //   await db.exec('CREATE TABLE IF NOT EXISTS t(a,b)');
-    //   const r = await db.exec('SELECT * FROM t WHERE a > ?', [5]);
-    //   r.rows._array.forEach(row => console.log(row.a, row.b));
-    //   await db.batch([['INSERT INTO t VALUES(?,?)', [1,2]],
-    //                   ['INSERT INTO t VALUES(?,?)', [3,4]]]); // atomic
+    //
+    //   - const db = omnGoOpenDatabase('mydata');
+    //   - await db.exec('CREATE TABLE IF NOT EXISTS t(a,b)');
+    //   - const r = await db.exec('SELECT * FROM t WHERE a > ?', [5]);
+    //   - r.rows._array.forEach(row => console.log(row.a, row.b));
+    //   - await db.batch([['INSERT INTO t VALUES(?,?)', [1,2]],
+    //                     ['INSERT INTO t VALUES(?,?)', [3,4]]]); // atomic
     window.omnGoOpenDatabase = function(name) {
         async function post(statements) {
             const res = await fetch('/api/sql', {
@@ -433,12 +438,12 @@ if (window.location.protocol !== 'file:') {
                 return (await post(norm)).map(wrap);
             },
             // WebSQL-compatible: db.transaction(tx => tx.executeSql(...)).
-            // All statements queued synchronously inside the callback run
-            // as ONE atomic server-side transaction. Statements queued
-            // from inside success callbacks run as a FOLLOW-UP atomic
-            // batch (a separate transaction) - the one semantic
-            // difference from real WebSQL, where the whole cascade shared
-            // a transaction.
+            // Every statement queued synchronously inside the callback runs
+            // as ONE atomic transaction on the server. A statement queued
+            // from inside a success callback runs as a FOLLOW-UP atomic
+            // batch, which is a separate transaction. That is the one
+            // semantic difference from real WebSQL, where the whole cascade
+            // shared a transaction.
             transaction: function(cb, errCb, doneCb) {
                 const queue = [];
                 const tx = {
@@ -461,7 +466,7 @@ if (window.location.protocol !== 'file:') {
                         batch.forEach((q, i) => {
                             if (q.okCb) try { q.okCb(tx, wrap(results[i])); } catch (_) {}
                         });
-                        // okCb calls may have queued more statements; loop.
+                        // okCb calls may have queued more statements. Loop.
                     }
                     if (doneCb) doneCb();
                 })();
@@ -547,22 +552,24 @@ if (window.location.protocol !== 'file:') {
 
     // GoOMN Log Interceptor - Bridges Go background logs to JS UI
     //
-    // Every log line the backend writes reaches this stream (see logger.go),
-    // which is why the sync progress overlay needs no transport of its own:
-    // git_sync.go's "[sync] ..." lines are the progress feed. Subscribers
-    // registered through window.omnGoOnServerLog get each line in addition
-    // to the console mirroring that has always happened here.
+    // Every log line that the backend writes reaches this stream, see
+    // logger.go. That is why the sync progress overlay needs no transport of
+    // its own. The "[sync] ..." lines of git_sync.go are the progress feed.
+    // A subscriber registered through window.omnGoOnServerLog gets each
+    // line, beside the console mirroring that has always happened here.
     //
     // The stream carries every level. The console mirror does not: it asks
     // logLinePrints above, which reads the switches of the Config page. A
     // subscriber is never filtered, because the overlay is built on the
     // (debug) lines a reader normally does not want to see.
     //
-    // Caveat worth knowing: JSLogger drops a message rather than blocking
-    // when a client's 10-slot channel is full, so this stream is a live
-    // sample, not a guaranteed-complete transcript. That is fine for a
-    // progress display (it only ever shows the newest line) but means it
-    // must never be used to drive state that has to see every event.
+    // A caveat worth knowing. JSLogger drops a message rather than block,
+    // when the 10-slot channel of a client is full. This stream is thus a
+    // live sample, and not a guaranteed-complete transcript.
+    //
+    // That is fine for a progress display, which only ever shows the newest
+    // line. It does mean that the stream must never drive state that has to
+    // see every event.
     document.addEventListener('DOMContentLoaded', () => {
         try {
             const logSource = new EventSource('/api/logs');
@@ -638,23 +645,23 @@ if (window.location.protocol !== 'file:') {
     // The receive box on the Incoming notes page (note exchange)
     // ----------------------------------------------------------------
     //
-    // The markup is in modals.html and the behaviour is here, for the same
-    // reason every other panel is split that way: the incoming index is the
-    // user's note and holds nothing but the list of what arrived. A control
-    // that OMN-Go owns has no business being stored inside it, where a user
-    // could delete half of it and be left with a box that does nothing.
+    // The markup is in modals.html and the behavior is here. Every other
+    // panel is split that way for the same reason. The incoming index is the
+    // note of the user, and it holds nothing but the list of what arrived. A
+    // control that OMN-Go owns has no business inside it. A user could
+    // delete half of it there, and be left with a box that does nothing.
     //
-    // WHICH PAGE. OMN_INCOMING_PAGE is the note name, injected per request
-    // (see injectRuntimeVars) so the name lives in Go beside the code that
-    // writes the page and not as a second copy in this file.
+    // WHICH PAGE. OMN_INCOMING_PAGE is the note name, injected for each
+    // request, see injectRuntimeVars. The name thus lives in Go beside the
+    // code that writes the page, and not as a second copy in this file.
     //
-    // NOT ON ANDROID. The share sheet receives a note there; this box would
-    // be a control that duplicates it and cannot be reached from the
+    // NOT ON ANDROID. The share sheet receives a note there. This box would
+    // be a control that duplicates it, and that cannot be reached from the
     // application that holds the file.
     //
-    // The whole block sits inside the "not file:" gate above, so an exported
-    // page never runs it - and never carries the markup either, because the
-    // modals slot is filled at serve time.
+    // The whole block sits inside the "not file:" gate above. An exported
+    // page thus never runs it. Such a page never carries the markup either,
+    // because the modals slot is filled at serve time.
     (function () {
         function onIncomingPage() {
             return typeof OMN_INCOMING_PAGE !== 'undefined' &&
@@ -685,10 +692,10 @@ if (window.location.protocol !== 'file:') {
                 statusEl.classList.toggle('is-error', !!bad);
             };
 
-            // One note per request. The rules live in the backend
-            // (note_exchange.go), which is the same code the Android share
-            // path reaches - so a note lands in the same place whichever
-            // way it came.
+            // One note for each request. The rules live in the backend, in
+            // note_exchange.go. The Android share path reaches that same
+            // code. A note thus lands in the same place, whichever way it
+            // came.
             const importOne = async function (file) {
                 const form = new FormData();
                 form.append('file', file, file.name);
@@ -725,8 +732,8 @@ if (window.location.protocol !== 'file:') {
                 button.disabled = false;
 
                 if (!failed.length) {
-                    // The list is written by the server, so the page has to
-                    // come again to show what just arrived.
+                    // The server writes the list, thus the page has to come
+                    // again to show what arrived.
                     say('Imported ' + done + '. Refreshing…');
                     window.location.reload();
                     return;

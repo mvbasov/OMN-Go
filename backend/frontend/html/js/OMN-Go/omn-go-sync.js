@@ -1,7 +1,7 @@
 // --- The sync controls ---
 //
-// Everything behind the download and upload buttons: the one call to
-// /api/sync, the conflict modal, the force push, and the commit-message
+// Everything behind the download and upload buttons. That is the one call
+// to /api/sync, the conflict modal, the force push, and the commit-message
 // modal that an upload opens first.
 //
 // THIS FILE ARRIVES ON DEMAND. It was part of omn-go-sse.js until
@@ -42,14 +42,16 @@ if (window.location.protocol !== 'file:') {
     // guard, thus a name here reaches no other file unless it goes on
     // window. The wrapper added a scope and hid nothing.
 
-    // runSync is the single place that talks to /api/sync. It always
-    // POSTs action/force/message together and always expects a JSON
-    // {status, message} response — the backend previously only read
-    // "action" from the URL query string while this file posted it in
-    // the body, so the action was silently ignored and every request
-    // fell back to a plain "pull". Both syncAction and the conflict
-    // modal handler (performSync below) go through this one function
-    // so the two can't drift out of sync with each other.
+    // runSync is the one place that talks to /api/sync. It always POSTs
+    // action, force and message together, and it always expects a JSON
+    // {status, message} response.
+    //
+    // The backend previously read "action" from the URL query string
+    // alone, and this file posted it in the body. The action was thus
+    // silently ignored, and every request fell back to a plain "pull".
+    //
+    // Both syncAction and the conflict modal handler, which is performSync
+    // below, go through this one function. The two thus cannot drift apart.
     window.runSync = async function(action, opts) {
         opts = opts || {};
         const fd = new URLSearchParams();
@@ -124,13 +126,17 @@ if (window.location.protocol !== 'file:') {
         }
     };
 
-    // populateConflictFiles fills the conflict modal's file list with the
-    // files the backend reported as being in contention (the ones "Mark
-    // Conflicts" would inject markers into). An empty list means the
-    // histories diverged with no per-file overlap (a clean local tree with
-    // its own commits) - Force Pull is then the meaningful choice - so the
-    // modal says so rather than showing an empty box. Built with
-    // textContent, never innerHTML, so a note filename can't inject markup.
+    // populateConflictFiles fills the file list of the conflict modal. The
+    // files are the ones that the backend reported as in contention, which
+    // are the ones that "Mark Conflicts" would fill with markers.
+    //
+    // An empty list means that the histories diverged with no per-file
+    // overlap, which is a clean local tree with its own commits. Force Pull
+    // is then the meaningful choice, thus the modal says so and does not
+    // show an empty box.
+    //
+    // Built with textContent, and never with innerHTML, thus a note filename
+    // cannot inject markup.
     function populateConflictFiles(files) {
         const box = document.getElementById('conflict-files');
         const list = document.getElementById('conflict-file-list');
@@ -153,16 +159,16 @@ if (window.location.protocol !== 'file:') {
     }
 
     // performSync handles the three buttons on the conflict modal in
-    // index.html (moved here from an inline <script> in that file so
-    // all sync UI logic lives together). It goes through window.runSync
-    // above, so the modal and the header sync buttons can't disagree
-    // about the wire format or response handling.
+    // index.html. It moved here from an inline <script> in that file, thus
+    // all sync UI logic lives together. It goes through window.runSync
+    // above, thus the modal and the header sync buttons cannot disagree
+    // about the wire format or the response handling.
     window.performSync = async function(action) {
         const modal = document.getElementById('conflict-modal');
         if (action === 'abort') {
-            // A plain "pull" never mutates local state before reporting a
-            // conflict, so aborting here is purely a UI cancel — there is
-            // nothing on the server to undo.
+            // A plain "pull" never changes local state before it reports a
+            // conflict. To abort here is thus a UI cancel alone, and there
+            // is nothing on the server to undo.
             if (modal) modal.classList.add('hidden');
             return;
         }
@@ -170,8 +176,8 @@ if (window.location.protocol !== 'file:') {
 
         const data = await window.runSync(action);
         if (data && data.status === 'success') {
-            // pull_force / pull_mark both change what's on disk under this
-            // page, so reload to show it.
+            // pull_force and pull_mark both change what is on disk under
+            // this page, thus reload to show it.
             location.reload();
         }
     };
@@ -231,9 +237,9 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.previewAndCommit = async function() {
-        // Building the preview walks the whole worktree diff, which is the
-        // slow half of an upload on a large note collection - show progress
-        // here too, not just during the commit/push that follows.
+        // To build the preview walks the whole worktree diff. That is the
+        // slow half of an upload on a large note collection. Show progress
+        // here too, and not during the commit and push alone.
         let res, preview, err = null;
         window.OMNProgress.show('Upload');
         window.OMNProgress.stage('Collecting pending changes…');
@@ -260,10 +266,11 @@ if (window.location.protocol !== 'file:') {
 
             if (files.length === 0) {
                 // A clean worktree is NOT nothing to upload. A commit whose
-                // push failed, or a git profile switched after a successful
-                // push, leaves commits the active remote has never seen -
-                // and this branch used to end the upload right here, with no
-                // way to retry them short of making a new change.
+                // push failed leaves commits that the active remote has
+                // never seen, and so does a git profile switched after a
+                // successful push. This branch used to end the upload right
+                // here. There was then no way to retry them, short of a new
+                // change.
                 //
                 // There is nothing to commit, so no commit message is asked
                 // for: the upload goes straight to the push.
@@ -276,9 +283,9 @@ if (window.location.protocol !== 'file:') {
                     }
                     return;
                 }
-                // Only now is "nothing to do" an honest thing to say - and it
-                // says which remote it is true OF, because with several
-                // profiles configured that is the part that matters.
+                // Only now is "nothing to do" an honest thing to say. It also
+                // says which remote it is true OF. With several profiles
+                // configured, that is the part that matters.
                 var where = preview.remote ? ' on ' + preview.remote : '';
                 if (preview.remote_error) {
                     alert('Nothing to commit.\n\nCould not reach the remote' + where +
@@ -318,12 +325,12 @@ if (window.location.protocol !== 'file:') {
         document.getElementById('commitMessage').value = '';
     };
 
-    // NOTE: In-page editing was removed. Editing a note now opens the
-    // dedicated editor page (any URL with ?edit=true, served by the Go
-    // backend and driven by omn-go-editor.js), which fetches the source
-    // from /api/note itself. The view page therefore no longer embeds an
-    // #editor textarea, and the old toggleMode / loadNoteIntoEditor /
-    // setupEditorDragDrop / saveNote helpers that manipulated it are gone.
+    // NOTE: In-page editing was removed. To edit a note now opens the
+    // dedicated editor page. That is any URL with ?edit=true, served by the
+    // Go backend and driven by omn-go-editor.js. It fetches the source from
+    // /api/note itself. The view page therefore embeds no #editor textarea
+    // any more. The old toggleMode, loadNoteIntoEditor, setupEditorDragDrop
+    // and saveNote helpers that manipulated it are gone.
 
 } else {
     window.runSync = function() { printDebug('runSync'); };
