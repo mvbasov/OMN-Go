@@ -20,17 +20,20 @@ package backend
 // its own screen now, and inside a tree each NAME has exactly one row that
 // states the relation.
 //
-// SILENCE IS THE ORDINARY CASE. On a real installation most files are the
-// user's: the notes they wrote, the pages OMN-Go compiled from those notes,
-// the images they put in them. 26.08.54 gave each of those a word - "yours",
-// "compiled", "as shipped" - and the words that mattered drowned in them. A
-// row now speaks ONLY when the application is involved:
+// SILENCE IS THE ORDINARY CASE. On a real installation most files belong to
+// the user. Those are the notes they wrote, the pages that OMN-Go compiled
+// from those notes, and the images they put in them.
 //
-//	not extracted     the build carries this file and this device has no copy
-//	changed here      the build carries it and the copy here differs
-//	edited outside    a .txt copy in html/ is newer than the file in md/
-//	waits for restart ... or older, and the next start repairs it
-//	same size         too large to compare, and the two sizes agree
+// 26.08.54 gave each of those a word, which was "yours", "compiled" or "as
+// shipped". The words that mattered drowned in them. A row now speaks ONLY
+// when the application is involved:
+//
+//	not extracted     the build carries this file and this device has no
+//	                  copy.
+//	changed here      the build carries it and the copy here differs.
+//	edited outside    a .txt copy in html/ is newer than the file in md/.
+//	waits for restart ... or older, and the next start repairs it.
+//	same size         too large to compare, and the two sizes agree.
 //
 // A file with no word is yours, or is one OMN-Go makes again when it needs
 // to. Neither costs you anything, so neither needs a word.
@@ -46,14 +49,14 @@ package backend
 //	teal    OMN-Go repairs this by itself at the next start
 //	grey    nothing at stake
 //
-// Colour is never the only carrier: "app-owned" is a WORD on the second line
+// Color is never the only carrier. "app-owned" is a WORD on the second line
 // of every row it applies to, in each of the three trees.
 //
-// NOTHING HERE MAY WRITE. In particular it must never call materializeAsset:
-// a listing that extracted all 70 embedded files as a side effect of
-// describing them would defeat lazy extraction entirely, and materializeAsset
-// is exactly the function this code would otherwise reach for to resolve a
-// path. Reading an embedded file to compare it is not writing.
+// NOTHING HERE MAY WRITE. Above all it must never call materializeAsset. A
+// listing that extracted all 70 embedded files as a side effect of
+// describing them would defeat lazy extraction entirely. materializeAsset is
+// exactly the function that this code would otherwise reach for to resolve a
+// path. To read an embedded file and compare it is not a write.
 
 import (
 	"bytes"
@@ -68,8 +71,8 @@ import (
 	"time"
 )
 
-// filesDirLimit caps how many FILES one directory prints. Directory rows are
-// never capped: there are never enough of them to matter, and hiding a
+// filesDirLimit caps how many FILES one directory prints. A directory row is
+// never capped. There are never enough of them to matter, and to hide a
 // subdirectory hides a branch of the tree rather than some leaves.
 const filesDirLimit = 200
 
@@ -85,13 +88,15 @@ const filesExcludedDir = "db_backup"
 // filesCompareMax bounds the byte comparison that tells "as shipped" from
 // "changed here".
 //
-// Sizes come free with the walk, so a file of a different size is answered
-// without opening anything. Two files of the SAME size still need their bytes:
-// a typo repaired in a note keeps its length often enough to matter, and a row
+// Sizes come free with the walk, thus a file of a different size is answered
+// with no file opened. Two files of the SAME size still need their bytes. A
+// typo repaired in a note keeps its length often enough to matter. A row
 // that reads "as shipped" for a file the user edited is worse than no row at
-// all. The read is bounded because one directory is in view: html/js is the
-// largest in the tree at about 620 KB. Above this cap the row says "same size"
-// rather than claiming to know.
+// all.
+//
+// The read is bounded because one directory is in view. html/js is the
+// largest in the tree, at about 620 KB. Above this cap the row says "same
+// size", and it does not claim to know.
 const filesCompareMax = 2 << 20
 
 // The three trees. The key is what ?tree= carries and what the crumb shows.
@@ -105,10 +110,10 @@ const (
 // slash-separated, relative to that tree's root, no leading slash.
 //
 // For the embedded tree the logical path folds two embed roots into one
-// namespace - frontend/html/js/x.js becomes "js/x.js" and frontend/md/Note.md
-// becomes "md/Note.md" - so "md" reads as an ordinary subdirectory of the
-// Bundled tree. They cannot collide: md/ is a sibling of html/ in storage,
-// never inside it.
+// namespace. frontend/html/js/x.js becomes "js/x.js", and frontend/md/Note.md
+// becomes "md/Note.md". "md" thus reads as an ordinary subdirectory of the
+// Bundled tree. They cannot collide, because md/ is a sibling of html/ in
+// storage and never inside it.
 type indexedFile struct {
 	path string
 	size int64
@@ -243,12 +248,13 @@ func (a *App) treeEntries(tree string) []filesEntry {
 // normalizeFilesDir turns the ?dir= parameter into a logical directory prefix:
 // either "" (the root) or something ending in "/".
 //
-// It is validated rather than trusted, then used ONLY as a string prefix
-// against paths the walk already collected - it is never joined onto a
-// filesystem path and handed to the OS. A dir that survives validation but
-// names nothing renders an empty directory, which is the honest answer for a
-// directory that does not exist and the safe one for a dir that was trying to
-// leave.
+// It is validated and not trusted. It is then used ONLY as a string prefix
+// against paths that the walk already collected. It is never joined onto a
+// filesystem path and handed to the OS.
+//
+// A dir that survives validation but names nothing renders an empty
+// directory. That is the honest answer for a directory that does not exist,
+// and the safe answer for a dir that was trying to leave.
 func normalizeFilesDir(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -289,10 +295,10 @@ func normalizeFilesTree(raw, dir string) string {
 // foldToDir splits one tree at dir into the subdirectories directly below it
 // and the entries directly in it.
 //
-// Directory totals are RECURSIVE - everything at or below that subdirectory -
-// because "this subtree is 4 MB" is the question a file index is opened to
-// answer, and the walk has collected it anyway. One name counts once, even
-// when both sides hold it.
+// Directory totals are RECURSIVE, and count everything at or below that
+// subdirectory. "This subtree is 4 MB" is the question a file index is
+// opened to answer, and the walk has collected it anyway. One name counts
+// one time, also when both sides hold it.
 func foldToDir(entries []filesEntry, dir string) (dirs []filesDirRow, here []filesEntry, bytes int64, count int) {
 	byDir := map[string]*filesDirRow{}
 	for _, e := range entries {
@@ -331,8 +337,8 @@ func foldToDir(entries []filesEntry, dir string) (dirs []filesDirRow, here []fil
 	return dirs, here, bytes, count
 }
 
-// bytes gives the size to report for one name: the copy on the device when
-// there is one, because that is the copy that occupies the storage.
+// bytes gives the size to report for one name. That is the copy on the
+// device when there is one, because that copy occupies the storage.
 func (e filesEntry) bytes() int64 {
 	if e.device != nil {
 		return e.device.size
@@ -375,10 +381,10 @@ const (
 
 // filesKindIcon gives the Material Icons ligature that marks what a file is.
 //
-// Every name here resolves in the bundled subset of the icon font
-// (css/fonts/material-icons.woff2), which carries the full set - "javascript",
-// "css" and "html" draw as JS, CSS and HTML monograms, which is what a file
-// listing wants. No new asset is needed for this column.
+// Every name here resolves in the bundled subset of the icon font, which is
+// css/fonts/material-icons.woff2 and which carries the full set.
+// "javascript", "css" and "html" draw as JS, CSS and HTML monograms, and
+// that is what a file listing wants. This column needs no new asset.
 func filesKindIcon(name string, isDir bool) string {
 	if isDir {
 		return "folder"
@@ -408,19 +414,21 @@ func filesKindIcon(name string, isDir bool) string {
 //
 // Two exclusions, both asked for:
 //
-//   - a compiled .html page. Not because editing it would be wrong -
-//     ?edit=true on a page resolves through resolvePageName and opens the
-//     editor on the MARKDOWN SOURCE, which is entirely correct - but because
-//     the rendered page already carries an Edit button that does exactly that.
+//   - a compiled .html page. An edit of it would not be wrong. ?edit=true on
+//     a page resolves through resolvePageName and opens the editor on the
+//     MARKDOWN SOURCE, which is entirely correct. The reason is that the
+//     rendered page already carries an Edit button that does exactly that.
 //   - anything that is not text. There is nothing to type into a PNG.
 //
-// The second is decided by asking the one content-type table every route
-// already consults, rather than adding a fourth hardcoded extension list
-// beside versionDependentAssets, imageUploadExtensions and
-// jsonUploadExtensions. A consequence worth knowing: SVG resolves to
-// image/svg+xml and so gets no edit link, even though it is text. "Images are
-// not editable here" is the rule; carving out an exception would make it
-// harder to state than it is worth.
+// The second is decided by a question to the one content-type table that
+// every route already consults. A fourth hardcoded extension list beside
+// versionDependentAssets, imageUploadExtensions and jsonUploadExtensions
+// would be worse.
+//
+// One consequence is worth knowing. SVG resolves to image/svg+xml, thus it
+// gets no edit link although it is text. The rule is "images are not
+// editable here". An exception carved out of it would make the rule harder
+// to state than it is worth.
 func (a *App) filesEditable(logical string) bool {
 	if strings.HasSuffix(strings.ToLower(logical), ".html") {
 		return false
@@ -430,11 +438,13 @@ func (a *App) filesEditable(logical string) bool {
 
 // editableFileType reports whether the content type of logical is text that
 // an editor can open. It is the "anything that is not text" half of
-// filesEditable, split out because the editor routes need the same answer
-// without the .html rule: ?edit=true on a compiled page resolves to its
-// markdown source and must stay editable, while ?edit=true on a picture, a
-// font, an audio file or a video file must not open an editor at all (see
-// serveEditor, handleEditExternal, handleGetNote and handleSaveNote).
+// filesEditable. It is split out because the editor routes need the same
+// answer without the .html rule.
+//
+// ?edit=true on a compiled page resolves to its markdown source, and it must
+// stay editable. ?edit=true on a picture, a font, an audio file or a video
+// file must not open an editor at all. See serveEditor, handleEditExternal,
+// handleGetNote and handleSaveNote.
 func (a *App) editableFileType(logical string) bool {
 	ct := a.resolveContentType(logical)
 	if i := strings.IndexByte(ct, ';'); i >= 0 {
@@ -444,18 +454,19 @@ func (a *App) editableFileType(logical string) bool {
 	switch {
 	case ct == "":
 		return false // an unknown extension is not assumed to be text
-	// Checked BEFORE the +xml / +json suffixes below, which would otherwise
-	// claim image/svg+xml. SVG is text and would open in the editor perfectly
-	// well; the rule that was asked for is about images, not about parsers.
+	// Checked BEFORE the +xml and +json suffixes below, which would
+	// otherwise claim image/svg+xml. SVG is text and would open in the
+	// editor perfectly well. The rule that was asked for is about images,
+	// and not about parsers.
 	case strings.HasPrefix(ct, "image/"), strings.HasPrefix(ct, "font/"),
 		strings.HasPrefix(ct, "audio/"), strings.HasPrefix(ct, "video/"):
 		return false
 	case strings.HasPrefix(ct, "text/"):
 		return true
-	// "application/jsonl" is not in the builtin table any more (.jsonl is
-	// served as text/plain, so the "view" link on the Database Backups page
-	// works in the Android WebView), but a config.json mime_types override
-	// can still put it back - keep accepting it as text.
+	// "application/jsonl" is not in the builtin table any more. .jsonl is
+	// served as text/plain, thus the "view" link on the Database Backups
+	// page works in the Android WebView. A mime_types override in
+	// config.json can still put it back, thus keep accepting it as text.
 	case ct == "application/javascript", ct == "application/x-javascript",
 		ct == "application/json", ct == "application/jsonl",
 		ct == "application/xml":
@@ -481,9 +492,9 @@ func isVersionDependent(want string) bool {
 
 // filesSameBytes answers "are these two copies the same file".
 //
-// The sizes are compared first and answer most pairs for free. Equal sizes
-// need the bytes, and only up to filesCompareMax; above it the caller reports
-// "same size" instead of a claim it did not check.
+// The sizes are compared first, and they answer most pairs for free. Equal
+// sizes need the bytes, and only up to filesCompareMax. Above that, the
+// caller reports "same size" instead of a claim it did not check.
 func filesSameBytes(embeddedLogical, diskPath string, size int64) (same bool, checked bool) {
 	if size > filesCompareMax {
 		return false, false
@@ -502,16 +513,17 @@ func filesSameBytes(embeddedLogical, diskPath string, size int64) (same bool, ch
 // filesMirrorState describes the pair that note_files.go keeps: md/x.txt is
 // the file, html/x.txt is a copy of it.
 //
-// copyFileWithTime stamps the copy with the modification time of its source on
-// purpose, so an equal (size, mtime) pair IS the answer and no byte reading is
-// needed. The sign of a difference decides what happens next, and the two
-// cases have different remedies:
+// copyFileWithTime stamps the copy with the modification time of its source
+// on purpose. An equal pair of size and mtime IS the answer, thus no byte
+// read is needed. The sign of a difference decides what happens next, and the
+// two cases have different remedies:
 //
-//	the copy is older  the next start refreshes it (syncNoteFilesToHTML), so
-//	                   the row says "waits for restart" and needs no remedy
+//	the copy is older  the next start refreshes it, in syncNoteFilesToHTML.
+//	                   The row says "waits for restart" and needs no remedy.
 //	the copy is newer  nothing repairs this by itself. An editor outside
-//	                   OMN-Go wrote html/ and gave OMN-Go no signal. One save
-//	                   in the editor copies it back (syncNoteFileToMD).
+//	                   OMN-Go wrote html/ and gave OMN-Go no signal. One
+//	                   save in the editor copies it back, in
+//	                   syncNoteFileToMD.
 //
 // A pair that agrees says NOTHING. That is the ordinary state of every .txt
 // beside a note, and it was the longest word on the page.
@@ -543,9 +555,9 @@ func (a *App) filesRowFor(tree string, e filesEntry) filesFileRow {
 		row.AppOwned = isVersionDependent(filesStoragePath(tree, e.path))
 		row.OwnerColor = filesColorApp
 		// A starter note is reached as its PAGE, and every other embedded
-		// file at its own address. No edit link in this tree: an edit always
-		// operates on the copy on the device, and that copy has a row of its
-		// own in the Served or the Source tree.
+		// file at its own address. There is no edit link in this tree. An
+		// edit always operates on the copy on the device. That copy has a
+		// row of its own in the Served or the Source tree.
 		if md, ok := strings.CutPrefix(e.path, "md/"); ok {
 			row.URL = "/" + strings.TrimSuffix(md, ".md") + ".html"
 		} else {
@@ -640,19 +652,19 @@ func (a *App) filesState(tree string, e filesEntry, row *filesFileRow) {
 		case !checked && e.ships.size == e.device.size:
 			row.State, row.StateColor = "same size", filesColorPlain
 		case same:
-			// SILENT. The copy here is the copy in the build, so nothing is
-			// at stake. "app-owned" on the second line still says where the
-			// file came from and what the next version does to it, which is
-			// the only part a reader can act on.
+			// SILENT. The copy here is the copy in the build, thus nothing
+			// is at stake. "app-owned" on the second line still says where
+			// the file came from, and what the next version does to it.
+			// That is the only part a reader can act on.
 		default:
 			row.State, row.StateColor = "changed here", filesColorKeep
 			if row.AppOwned {
 				row.StateColor = filesColorAlert
 				row.OwnerColor = filesColorAlert
 			}
-			// Both sizes, but only when they READ differently: two files
+			// Both sizes, and only when they READ differently. Two files
 			// that differ by a line still round to the same "68 KB", and
-			// "68 KB → 68 KB" says nothing twice.
+			// "68 KB → 68 KB" says nothing two times.
 			if from, to := filesSize(e.ships.size), filesSize(e.device.size); from != to {
 				row.Size = from + " → " + to
 			}
@@ -714,16 +726,16 @@ const filesFromTheApp = "from the app"
 
 // serveFilesPage answers GET /OMNGoFiles.html.
 //
-// Registered as its own exact route rather than as an arm of serveHTMLPage,
-// because it is the first PAGE that needs authorization and serveHTMLPage is
-// reached through the unauthenticated catch-all. /db_backups is registered the
-// same way for the same reason.
+// Registered as its own exact route, and not as an arm of serveHTMLPage. It
+// is the first PAGE that needs authorization, and serveHTMLPage is reached
+// through the unauthenticated catch-all. /db_backups is registered the same
+// way for the same reason.
 //
-// The route deliberately does NOT wrap authMiddleware. That middleware answers
-// a refusal with one line of plain text, which is right for /api/* and wrong
-// for an address a person can link to from their own note - the lesson from
-// the search page's 404 in 26.08.2. It asks the same question through hasRole
-// and answers it with a page.
+// The route deliberately does NOT wrap authMiddleware. That middleware
+// answers a refusal with one line of plain text. That is right for /api/*
+// and wrong for an address that a person can link to from their own note.
+// The 404 of the search page in 26.08.2 taught that lesson. This route asks
+// the same question through hasRole, and it answers with a page.
 func (a *App) serveFilesPage(w http.ResponseWriter, r *http.Request) {
 	dir := normalizeFilesDir(r.URL.Query().Get("dir"))
 	view := filesPageView{
@@ -821,15 +833,15 @@ func filesSummary(count int, bytes int64, below bool, rows []filesFileRow) strin
 
 // filesLegend explains the words that THIS page uses, and nothing else.
 //
-// The key is the pair (word, colour), because one word can carry two
-// outcomes: "changed here" is green on a file that OMN-Go keeps and red on a
-// file that the next version replaces. A key on the colour alone would have
-// to choose one of the two, and a key on the word alone would print the line
-// twice.
+// The key is the pair of the word and the color, because one word can carry
+// two outcomes. "changed here" is green on a file that OMN-Go keeps, and red
+// on a file that the next version replaces. A key on the color alone would
+// have to choose one of the two. A key on the word alone would print the
+// line two times.
 //
-// The page folds this away by default (renderFilesListing). Most screens of a
-// real installation use one word or none, so the key is for the reader who
-// meets a word for the first time.
+// The page folds this away by default, see renderFilesListing. Most screens
+// of a real installation use one word or none. The key is thus for the
+// reader who meets a word for the first time.
 func filesLegend(tree string, rows []filesFileRow, dirs []filesDirRow) []filesLegendItem {
 	type key struct{ word, color string }
 	seen := map[key]bool{}

@@ -1,20 +1,23 @@
 package backend
 
-// Tests for sections: the machinery that lets a result point at the bookmark
-// or the timestamped entry it matched rather than at the top of the page.
+// Tests for sections. That is the machinery behind one thing. A result
+// points at the bookmark or the timestamped entry it matched, and not at the
+// top of the page.
 //
 // Two very different risks live here, and the tests are shaped around them.
 //
-// The bookmarks parser is a CORRECTNESS fix - text that was unfindable becomes
-// findable - so those tests are about what can now be found, and about not
-// corrupting the file's data while cleaning up its syntax.
+// The bookmarks parser is a CORRECTNESS fix. Text that was unfindable
+// becomes findable. Those tests are thus about what can now be found. They
+// are also about a cleanup of the syntax of the file that does not corrupt
+// its data.
 //
-// The heading anchors are a WRONGNESS risk. The ids are minted by goldmark at
-// compile time and predicted here, and a prediction that is merely close sends
-// the reader to a different section of the right page - which reads as a bug in
-// the note, not in the search. So those tests check agreement with the real
-// renderer, and check that every path that cannot guarantee agreement declines
-// instead.
+// The heading anchors are a WRONGNESS risk. goldmark mints the ids at
+// compile time, and this code predicts them. A prediction that is merely
+// close sends the reader to a different section of the right page. That
+// reads as a bug in the note, and not as a bug in the search.
+//
+// Those tests thus check agreement with the real renderer. They also check
+// that every path which cannot guarantee agreement declines instead.
 
 import (
 	"encoding/json"
@@ -26,10 +29,10 @@ import (
 
 // forceAnchors pins the renderer self-check for one test.
 //
-// anchorsPredictable() compiles a probe through goldmark once per process, so a
-// test cannot simply set a flag. Resetting the Once is safe here: tests in a
-// package run one at a time unless they say otherwise, and nothing else reads
-// the value concurrently.
+// anchorsPredictable() compiles a probe through goldmark one time for each
+// process, thus a test cannot set a flag on its own. A reset of the Once is
+// safe here. Tests in a package run one at a time unless they say otherwise,
+// and nothing else reads the value concurrently.
 func forceAnchors(t *testing.T, ok bool) {
 	t.Helper()
 	anchorsOnce = sync.Once{}
@@ -45,13 +48,14 @@ func forceAnchors(t *testing.T, ok bool) {
 // Anchor prediction
 // ----------------------------------------------------------------------
 
-// THE test for this phase. Everything else about headings is arrangement; this
-// is the one that says the anchors are real.
+// THE test for this phase. Everything else about headings is arrangement.
+// This is the one that says the anchors are real.
 //
-// It does not compare against a recorded golden value, it compares against the
-// renderer that is actually linked into this build. A golden file says "this is
-// what goldmark did the day someone ran the test"; this says "this is what
-// goldmark does here, now" - which is the claim a link into a section makes.
+// It does not compare against a recorded golden value. It compares against
+// the renderer that is linked into this build. A golden file says "this is
+// what goldmark did the day someone ran the test". This says "this is what
+// goldmark does here, now", and that is the claim a link into a section
+// makes.
 func TestHeadingIDsAgreeWithTheRenderer(t *testing.T) {
 	a := &App{}
 
@@ -95,9 +99,9 @@ func TestHeadingIDsAgreeWithTheRenderer(t *testing.T) {
 	}
 }
 
-// The refusals. Each of these is a construct where the source and the rendered
-// text differ, so predicting from the source would be guessing - and the whole
-// design here is that a missing anchor beats a wrong one.
+// The refusals. Each of these is a construct where the source and the
+// rendered text differ. To predict from the source would thus be a guess,
+// and the whole design here is that a missing anchor beats a wrong one.
 func TestHeadingIDsDeclineWhatTheyCannotRead(t *testing.T) {
 	forceAnchors(t, true)
 
@@ -126,9 +130,9 @@ func TestHeadingIDsDeclineWhatTheyCannotRead(t *testing.T) {
 		})
 	}
 
-	// And declining is contagious within a document: goldmark has consumed an
-	// id this code cannot compute, so any later heading might legitimately be
-	// its "-1" and every later prediction is a guess.
+	// A refusal is also contagious within a document. goldmark has consumed
+	// an id that this code cannot compute. Any later heading might
+	// legitimately be its "-1", thus every later prediction is a guess.
 	ids := predictedIDs("# a `b` c\n\ntext\n\n# plain\n\ntext\n\n# plainer")
 	for i, id := range ids {
 		if id != "" {
@@ -185,8 +189,8 @@ func TestSetextRuleIsHandledConservatively(t *testing.T) {
 	}
 }
 
-// A heading inside a fence is not a heading, and the cost of thinking it is
-// runs past the fence: goldmark never counted it, so every collision suffix
+// A heading inside a fence is not a heading. The cost of a wrong answer runs
+// past the fence. goldmark never counted it, thus every collision suffix
 // afterwards would be off by one.
 func TestFencedHeadingIsNotASection(t *testing.T) {
 	forceAnchors(t, true)
@@ -207,8 +211,8 @@ func TestSectionsCoverTheWholeBody(t *testing.T) {
 	if len(secs) != 3 {
 		t.Fatalf("got %d sections, want 3 (preamble + two headings)", len(secs))
 	}
-	// The preamble belongs to no heading, so it is labelled by nothing and
-	// linked by nothing - but it must not be swallowed by the first heading.
+	// The preamble belongs to no heading, thus nothing labels it and nothing
+	// links it. The first heading must not swallow it.
 	if secs[0].label != "" || secs[0].id != "" {
 		t.Errorf("preamble got label %q id %q; it is not a section anyone named", secs[0].label, secs[0].id)
 	}
@@ -294,10 +298,10 @@ func bookmarkJSON(date, url, title string, tags, notes []string, trailingComma b
 	return out + "\n"
 }
 
-// THE bug this phase fixes. json.MarshalIndent writes '<', '>' and '&' as \u
-// escapes so a bookmark cannot break out of the <script> it lives in - which
-// means the readable text is nowhere in the file, and a line-based index could
-// never match it. Every bookmark whose title contains an ampersand was
+// THE bug that this phase fixes. json.MarshalIndent writes '<', '>' and '&'
+// as \u escapes, thus a bookmark cannot break out of the <script> it lives
+// in. The readable text is then nowhere in the file, and a line-based index
+// could never match it. Every bookmark whose title held an ampersand was
 // invisible to search.
 func TestBookmarkWithEscapedPunctuationIsFindable(t *testing.T) {
 	a := newTestApp(t)
@@ -371,8 +375,9 @@ func TestBookmarkWithoutTitleIsLabelledByURL(t *testing.T) {
 }
 
 // The two things in the file that are not JSON, and one that must survive
-// intact. The marker comment and a trailing comma are syntax to be cleaned up;
-// the same character sequences INSIDE a quoted string are the user's data.
+// intact. The marker comment and a trailing comma are syntax to be cleaned
+// up. The same character sequences INSIDE a quoted string are the data of
+// the user.
 func TestScanBookmarksArrayCleansSyntaxNotData(t *testing.T) {
 	src := "x = 1;\nbookmarks = [\n<!-- Don't edit body below this line -->\n" +
 		"  {\"title\": \"a <!-- b -->\", \"notes\": [\"ends with ,]\"]},\n" +
@@ -405,8 +410,9 @@ func TestScanBookmarksArrayCleansSyntaxNotData(t *testing.T) {
 	}
 }
 
-// An empty list plus one added bookmark is exactly how a fresh install produces
-// a trailing comma, so this is the common case rather than a pathological one.
+// An empty list plus one added bookmark is exactly how a fresh install
+// produces a trailing comma. This is thus the common case, and not a
+// pathological one.
 func TestScanBookmarksArrayToleratesATrailingComma(t *testing.T) {
 	src := bookmarksSource(bookmarkJSON("2026-06-15 20:00:00", "u", "t", nil, nil, true))
 	block, ok := scanBookmarksArray(src, 1)
@@ -585,9 +591,9 @@ func loadDoc(t *testing.T, a *App, name string) *searchDocument {
 	return doc
 }
 
-// docContains reports whether any indexed line carries the text - the question
-// "would search find this", asked of the document rather than of a query, so a
-// failure points at the parser rather than at the matcher.
+// docContains reports whether any indexed line carries the text. The
+// question is "would search find this", asked of the document and not of a
+// query. A failure thus points at the parser, and not at the matcher.
 func docContains(d *searchDocument, want string) bool {
 	for _, ln := range d.lines {
 		if strings.Contains(ln.raw, want) {
@@ -597,10 +603,10 @@ func docContains(d *searchDocument, want string) bool {
 	return false
 }
 
-// A result links to its best hit's section, but each section HEADING on the
+// A result links to the section of its best hit. Each section HEADING on the
 // results page links to its own. Both come off the same document URL, which
-// already carries one anchor - so the second must replace it rather than pile
-// onto it: "/Q.html#a#b" is a link to nothing.
+// already carries one anchor. The second must thus replace that anchor, and
+// not pile onto it. "/Q.html#a#b" is a link to nothing.
 func TestSearchPageSectionLinksDoNotStackFragments(t *testing.T) {
 	forceAnchors(t, true)
 	a := enabledSearchApp(t)

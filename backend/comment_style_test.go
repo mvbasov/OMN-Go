@@ -84,12 +84,8 @@ import (
 //
 // The path is relative to the root of the repository.
 var commentStyleDebt = map[string]int{
-	"backend/baseline_test.go":         35,
-	"backend/files_index.go":           29,
-	"backend/files_index_test.go":      20,
 	"backend/config.go":                20,
 	"backend/db_backup.go":             20,
-	"backend/search_sections_test.go":  17,
 	"backend/search_test.go":           13,
 	"backend/sqlite.go":                13,
 	"backend/search_highlight_test.go": 12,

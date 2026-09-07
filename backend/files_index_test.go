@@ -2,21 +2,23 @@ package backend
 
 // Tests for the file index page.
 //
-// Four things here are worth more than the rest, because each is a claim the
-// page makes that nothing else in the app would catch if it stopped being
-// true:
+// Four things here are worth more than the rest. Each one is a claim that
+// the page makes, and nothing else in the app would catch it if it stopped
+// being true:
 //
-//   - it shows ONE directory of ONE tree. The whole design turns on that, and
-//     "flat list of everything" is what it drifted into twice while being
-//     planned.
-//   - one NAME has one ROW. Until 26.08.53 a name that both shipped and sat on
-//     the device was printed twice, in two sections, with nothing to pair them.
+//   - it shows ONE directory of ONE tree. The whole design turns on that. A
+//     "flat list of everything" is what it drifted into two times while it
+//     was planned.
+//   - one NAME has one ROW. Until 26.08.53 a name that both shipped and sat
+//     on the device was printed two times, in two sections, with nothing to
+//     pair them.
 //   - it never WRITES. The obvious way to resolve an embedded path is
-//     materializeAsset, which extracts the file as a side effect - a listing
-//     built that way would silently defeat lazy extraction for all 70 of them.
-//   - templates never appear. That is currently guaranteed by the embeds being
-//     separate rather than by any code here, which is exactly the kind of
-//     guarantee that evaporates without a test.
+//     materializeAsset, and that extracts the file as a side effect. A
+//     listing built that way would silently defeat lazy extraction for all
+//     70 of them.
+//   - templates never appear. Today the separate embeds guarantee that, and
+//     no code here does. That is exactly the kind of guarantee that
+//     evaporates without a test.
 
 import (
 	"net/http"
@@ -79,9 +81,9 @@ func writeStorageFile(t *testing.T, a *App, sub, rel, body string) {
 // The first screen
 // ----------------------------------------------------------------------
 
-// Three buttons and nothing else. A listing under them was the shape that made
-// the old page unreadable: two kinds of file on one screen with no way to tell
-// which question each answered.
+// Three buttons and nothing else. A listing under them was the shape that
+// made the old page unreadable. It put two kinds of file on one screen, with
+// no way to tell which question each one answered.
 func TestFilesPage_FirstScreenIsThreeTrees(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "js/mine.js", "// mine")
@@ -172,7 +174,8 @@ func TestFilesPage_NavigatesAndOffersAWayBack(t *testing.T) {
 	if !strings.Contains(leaf, "Fetch.html") {
 		t.Error("the leaf directory does not list its file")
 	}
-	// The breadcrumb must offer BOTH ancestors, not just the immediate one.
+	// The breadcrumb must offer BOTH ancestors, and not the immediate one
+	// alone.
 	for _, want := range []string{`href="/OMNGoFiles.html?tree=served"`, "dir=Test%2F"} {
 		if !strings.Contains(leaf, want) {
 			t.Errorf("breadcrumb is missing %q; a leaf you cannot leave is a dead end", want)
@@ -203,9 +206,9 @@ func TestFilesCrumbs_HaveNoDoubledSlash(t *testing.T) {
 	}
 }
 
-// A directory row answers "how big is this subtree", not "how many entries are
-// immediately inside" - which is rarely the question a file index is opened to
-// answer.
+// A directory row answers "how big is this subtree". It does not answer "how
+// many entries are immediately inside". That second question is rarely the
+// one a file index is opened to answer.
 func TestFilesPage_DirectoryTotalsAreRecursive(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "Test/a/one.html", "12345")
@@ -386,8 +389,8 @@ func touch(t *testing.T, path string, when time.Time) {
 	}
 }
 
-// rowOfName renders one tree and returns the row of one name, so a test can
-// assert on the fields rather than on a substring of HTML.
+// rowOfName renders one tree and answers the row of one name. A test can
+// thus assert on the fields, and not on a substring of HTML.
 func rowOfName(t *testing.T, a *App, tree, dir, name string) filesFileRow {
 	t.Helper()
 	_, here, _, _ := foldToDir(a.treeEntries(tree), dir)
@@ -400,8 +403,9 @@ func rowOfName(t *testing.T, a *App, tree, dir, name string) filesFileRow {
 	return filesFileRow{}
 }
 
-// A same-size edit is the case that sizes alone cannot answer, and a note is
-// exactly where it happens: one word swapped for another of equal length.
+// A same-size edit is the case that sizes alone cannot answer. A note is
+// exactly where it happens, with one word swapped for another of equal
+// length.
 func TestFilesPage_SameSizeEditIsFound(t *testing.T) {
 	a := newTestApp(t)
 	shipped, err := staticFS.ReadFile("frontend/md/Editor.md")
@@ -620,9 +624,9 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	if !strings.Contains(body, `href="/js/mine.js?edit=true"`) {
 		t.Error("no edit link on a .js file")
 	}
-	// A file that ships and is not extracted yet keeps its edit link: pressing
-	// it goes through handleGetNote, which extracts the file and then opens the
-	// editor on it.
+	// A file that ships and is not extracted yet keeps its edit link. A press
+	// on it goes through handleGetNote. That extracts the file, and then it
+	// opens the editor on it.
 	if !strings.Contains(body, `href="/js/local_counter.js?edit=true"`) {
 		t.Error("a file that is not extracted yet lost its edit link")
 	}
@@ -635,15 +639,17 @@ func TestFilesPage_EditLinksAppearOnlyWhereTheyShould(t *testing.T) {
 	if !strings.Contains(imgs, "photo.png") {
 		t.Error("images/ content must still be LISTED")
 	}
-	// Scoped to the row's own href: the page SHELL carries an Edit button of
-	// its own (index.html), so a bare search for "?edit=true" would always hit.
+	// Scoped to the own href of the row. The page SHELL carries an Edit
+	// button of its own, in index.html, thus a bare search for "?edit=true"
+	// would always hit.
 	if strings.Contains(imgs, "/images/photo.png?edit=true") {
 		t.Error("edit link on an image")
 	}
 }
 
-// A note of the Source tree opens the editor through its PAGE address, which is
-// what resolvePageName expects and what the Edit button of the page does.
+// A note of the Source tree opens the editor through its PAGE address. That
+// is what resolvePageName expects, and what the Edit button of the page
+// does.
 func TestFilesPage_SourceNoteEditsThroughItsPage(t *testing.T) {
 	a := newTestApp(t)
 	writeNoteFile(t, a, "Test/Deep.md", "Title: Deep\n\nx\n")
@@ -783,9 +789,9 @@ func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
 	writeNoteFile(t, a, "Notes/Log.md", "Title: Log\n\nx\n")
 	writeDiskFile(t, a, "Notes/Log.html", "<html></html>")
 
-	// A directory of nothing but the user's own files needs no key. It has to
-	// be a SUBDIRECTORY: the root of the Served tree always holds the assets
-	// that the build carries, thus it always uses at least one word.
+	// A directory of nothing but the own files of the user needs no key. It
+	// has to be a SUBDIRECTORY. The root of the Served tree always holds the
+	// assets that the build carries, thus it always uses at least one word.
 	quiet := served(t, a, "Notes%2F")
 	if strings.Contains(quiet, "Log.html") == false {
 		t.Fatal("the test directory is empty; the assertion below would pass for the wrong reason")
@@ -805,10 +811,10 @@ func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
 	}
 }
 
-// The point of the whole page: describing a file must not create it.
-// materializeAsset is the obvious function to reach for when resolving an
-// embedded path, and calling it here would extract every shipped file on the
-// first page view.
+// The point of the whole page. To describe a file must not create it.
+// materializeAsset is the obvious function to reach for when an embedded
+// path is resolved. A call to it here would extract every shipped file on
+// the first page view.
 func TestFilesPage_WritesNothing(t *testing.T) {
 	a := newTestApp(t)
 	before := countFiles(t, a.StorageDir)
@@ -965,11 +971,14 @@ func TestNormalizeFilesDir(t *testing.T) {
 //
 // What "never escapes" means here is worth stating, because the obvious
 // assertion is the wrong one. It is NOT that the requested string is absent
-// from the page: the breadcrumb echoes the directory you asked for, escaped,
-// exactly as a browser shows the address you typed. The listing is built by
-// filtering paths already collected from the two roots, so a dir that names
-// nothing simply matches nothing - there is no filesystem walk to escape from.
-// So what is asserted is that nothing was listed and no link leads out.
+// from the page. The breadcrumb echoes the directory you asked for, escaped,
+// exactly as a browser shows the address you typed.
+//
+// The listing is built by a filter over paths already collected from the two
+// roots. A dir that names nothing thus matches nothing, and there is no
+// filesystem walk to escape from.
+//
+// What is asserted is that nothing was listed, and that no link leads out.
 func TestFilesPage_HostileDirNeverEscapes(t *testing.T) {
 	a := newTestApp(t)
 	writeDiskFile(t, a, "js/mine.js", "// mine")
@@ -1061,16 +1070,17 @@ func TestFilesPage_EscapesFileNames(t *testing.T) {
 }
 
 // The cap is what keeps a real storage directory from turning into a
-// multi-megabyte page, and the number that matters is the response size, not
-// the row count - so it is the response size that is asserted.
+// multi-megabyte page. The number that matters is the response size, and not
+// the row count. The response size is thus what is asserted.
 //
-// 3 000 files in ONE directory is the shape that hurts: the note tree spreads
-// pages across subdirectories, but every note at the top level is a file
-// directly in html/, so the root page is the one that can grow without bound.
+// 3 000 files in ONE directory is the shape that hurts. The note tree
+// spreads pages across subdirectories. Every note at the top level is a file
+// directly in html/, thus the root page is the one that can grow without
+// bound.
 //
 // The budget is generous on purpose. It is not a golden size to be nudged
-// whenever a column is added; it is the line between "a page" and "a download",
-// and only a change that removes the cap can cross it.
+// whenever a column is added. It is the line between "a page" and "a
+// download", and only a change that removes the cap can cross it.
 func TestFilesPage_ScalesToABigDirectory(t *testing.T) {
 	a := newTestApp(t)
 	for i := 0; i < 3000; i++ {

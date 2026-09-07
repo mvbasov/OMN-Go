@@ -2,19 +2,21 @@ package backend
 
 // BASELINE: what OMN-Go does today, pinned before the search feature is built.
 //
-// This file replaces phase0_regression_test.go, which was the safety net for an
-// EARLIER plan: its comments are written in the future tense about refactors
-// that have since shipped ("Phase 1 will replace them with one
-// parseFrontMatter"), and two of its four tests asserted post-refactor
-// behaviour while still being named for the pre-refactor one. What those two
-// guarded is now covered directly by header_block_test.go and markdown_test.go.
-// The two that are still load-bearing (compiled-page shape across every write
-// path, and the /api/logs SSE lifecycle) moved here, re-commented as statements
-// about today rather than promises about tomorrow.
+// This file replaces phase0_regression_test.go, which was the safety net for
+// an EARLIER plan. Its comments are written in the future tense about
+// refactors that have since shipped, such as "Phase 1 will replace them with
+// one parseFrontMatter". Two of its four tests asserted post-refactor
+// behavior while they still carried the pre-refactor name.
 //
-// The rest of the file pins behaviour the search work is about to lean on or
-// walk past, chosen by asking: "what would break silently if the search work
-// got something wrong, and is asserted nowhere today?"
+// What those two guarded is now covered directly by header_block_test.go and
+// markdown_test.go. Two others are still load-bearing, and they moved here.
+// Those are the shape of a compiled page across every write path, and the
+// /api/logs SSE lifecycle. They are re-commented as statements about today,
+// and not as promises about tomorrow.
+//
+// The rest of the file pins behavior that the search work is about to lean
+// on or walk past. One question chose it. "What would break silently if the
+// search work got something wrong, and is asserted nowhere today?"
 //
 // NOTHING HERE TESTS SEARCH. Every test must pass on the current tree, before a
 // single line of search code exists, and keep passing after. Two exceptions are
@@ -23,24 +25,26 @@ package backend
 //   - S2 adds /api/search to TestBaseline_RouteSet (done)
 //   - S4 adds OMN_SEARCH_GLOBAL to TestBaseline_InjectedRuntimeVarSet (done)
 //   - S7 adds the OMNGoSearch arm to TestBaseline_ServeHTMLPageDispatch (done)
-//   - 26.08.2 changes that same arm: with global search off the page no longer
-//     404s, it explains how to turn it on (done). Not a planned edit - a
-//     reversal. S7 argued a permanently empty results page was worse than an
-//     honest miss, which was wrong about who arrives here: the address is
-//     linkable and people put a "Search" link on their Welcome note, so the
-//     404 was a dead end naming neither cause nor cure.
+//   - 26.08.2 changes that same arm (done). With global search off, the page
+//     no longer answers 404. It explains how to turn it on. This was not a
+//     planned edit, but a reversal. S7 argued that a permanently empty
+//     results page was worse than an honest miss. That was wrong about who
+//     arrives here. The address is linkable, and people put a "Search" link
+//     on their Welcome note. The 404 was thus a dead end that named neither
+//     the cause nor the cure.
 //   - 26.08.3 adds /OMNGoFiles.html to TestBaseline_RouteSet (done). The
-//     directory index is a page, but it is admin-only, and the catch-all that
-//     serves every other page is unauthenticated - so it takes a route of its
-//     own, next to /db_backups, which is there for the same reason.
+//     directory index is a page, but it is admin-only. The catch-all that
+//     serves every other page is unauthenticated. The index thus takes a
+//     route of its own, next to /db_backups, which is there for the same
+//     reason.
 //   - 26.08.35 adds /api/export/note and /api/import/note to
 //     TestBaseline_RouteSet (done). Note exchange, phase 2 of
 //     claude/note-exchange-plan.md. Two exact patterns under /api/, both
 //     behind authMiddleware with requireAdmin.
 //   - 26.08.47 adds OMN_INCOMING_PAGE to TestBaseline_InjectedRuntimeVarSet
 //     (done). The receive box moved out of the incoming index note and into
-//     modals.html, so omn-go-sse.js has to be told which page it belongs on
-//     - and the name stays in Go, beside the code that writes that page.
+//     modals.html. omn-go-sse.js thus has to be told which page it belongs
+//     on, and the name stays in Go, beside the code that writes that page.
 //   - 26.08.71 adds OMN_LOG_DEBUG, OMN_LOG_INFO and OMN_LOG_TAGS to
 //     TestBaseline_InjectedRuntimeVarSet (done), and log_debug, log_info and
 //     log_tags to configFormFields. Every page mirrors the server log into
@@ -56,9 +60,9 @@ package backend
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
 //
-// Convention inherited from the file this replaces, and worth keeping: every
-// test says WHY it exists, so a failure reads as either "you broke it" or "you
-// changed it on purpose, update the golden value".
+// A convention inherited from the file that this replaces, and worth keeping.
+// Every test says WHY it exists. A failure thus reads either as "you broke
+// it", or as "you changed it on purpose, update the golden value".
 
 import (
 	"context"
@@ -80,9 +84,10 @@ import (
 // Shared helpers (moved from phase0_regression_test.go)
 // ---------------------------------------------------------------------
 
-// baseWriteMD writes a note into <storage>/md/<rel>, creating directories.
-// Deliberately private to this file: a baseline suite that depends on helpers
-// owned by other test files can be broken by an unrelated edit to those files.
+// baseWriteMD writes a note into <storage>/md/<rel>, and it creates the
+// directories. It is deliberately private to this file. A baseline suite that
+// depends on helpers owned by other test files can be broken by an unrelated
+// edit to those files.
 func baseWriteMD(t *testing.T, a *App, rel, content string) string {
 	t.Helper()
 	p := filepath.Join(a.StorageDir, "md", filepath.FromSlash(rel))
@@ -104,9 +109,10 @@ func postForm(t *testing.T, h http.HandlerFunc, path string, form url.Values) *h
 	return rec
 }
 
-// getPage issues a browser-shaped GET (Accept: text/html) through
-// serveFrontend, the handler registered at "/" - so the test exercises the real
-// dispatch chain rather than calling an inner handler directly.
+// getPage issues a browser-shaped GET, with Accept: text/html, through
+// serveFrontend. That is the handler registered at "/". The test thus
+// exercises the real dispatch chain, and it does not call an inner handler
+// directly.
 func getPage(t *testing.T, a *App, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, target, nil)
@@ -119,11 +125,12 @@ func getPage(t *testing.T, a *App, target string) *httptest.ResponseRecorder {
 // ---------------------------------------------------------------------
 // 1. serveHTMLPage dispatch
 //
-// serveFrontend -> serveHTMLPage is a switch with several arms (Config,
-// OMNGoTags, ordinary note, missing note, ?refresh, ?edit, non-page asset), and
-// nothing tests it AS A WHOLE - the handler tests all call the inner functions
-// directly. The search feature adds another arm to it (OMNGoSearch), which is
-// exactly the kind of edit that can silently reorder or shadow an existing one.
+// serveFrontend -> serveHTMLPage is a switch with several arms. Those arms are
+// Config, OMNGoTags, an ordinary note, a missing note, ?refresh, ?edit and a
+// non-page asset. Nothing tests the switch AS A WHOLE, because the handler
+// tests all call the inner functions directly. The search feature adds another
+// arm to it (OMNGoSearch). That is exactly the kind of edit that can silently
+// reorder or shadow an existing arm.
 // ---------------------------------------------------------------------
 
 func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
@@ -174,8 +181,8 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 	})
 
 	t.Run("OMNGoSearch is dynamic and gated", func(t *testing.T) {
-		// With global search off the page still answers - it explains how to
-		// switch it on - and, unlike an unknown page name, it must not
+		// With global search off, the page still answers. It explains how to
+		// switch global search on. Unlike an unknown page name, it must not
 		// synthesize a note either way.
 		rec := getPage(t, a, "/OMNGoSearch.html")
 		if rec.Code != http.StatusOK {
@@ -524,10 +531,11 @@ func TestBaseline_HeadingIDs(t *testing.T) {
 // ---------------------------------------------------------------------
 // 4. On-disk formats the search sectionizers will parse
 //
-// handleQuickNote and handleBookmark define a structure inside a note: quick
-// notes are separated by "---" + a "#####" timestamp heading, bookmarks are a
-// JSON array in a <script> block. Both shapes are load-bearing for anything
-// that wants to address an individual entry, and neither is asserted today.
+// handleQuickNote and handleBookmark define a structure inside a note. A "---"
+// rule and a "#####" timestamp heading separate the quick notes. A bookmark
+// set is a JSON array in a <script> block. Both shapes are load-bearing for
+// anything that wants to address an individual entry, and neither is asserted
+// today.
 // ---------------------------------------------------------------------
 
 func TestBaseline_QuickNoteEntryFormat(t *testing.T) {
@@ -586,9 +594,9 @@ func TestBaseline_BookmarkStorageFormat(t *testing.T) {
 	}
 
 	// encoding/json escapes <, > and & in every string value. The readable
-	// text is therefore NOT present in the markdown source - anything that
-	// wants to search or display bookmark content has to decode the JSON
-	// first. This is the single most surprising property of this file.
+	// text is therefore NOT present in the markdown source. Anything that
+	// wants to search or display bookmark content must decode the JSON first.
+	// This is the single most surprising property of this file.
 	for _, hex := range []string{"003c", "003e", "0026"} {
 		esc := jsonUnicodeEscape(hex)
 		if !strings.Contains(src, esc) {
@@ -622,21 +630,22 @@ func TestBaseline_BookmarkStorageFormat(t *testing.T) {
 	}
 }
 
-// jsonUnicodeEscape builds the six-character sequence encoding/json emits for
-// a character it escapes (e.g. "003c" -> the escape for '<'). Built by
-// concatenation on purpose: written literally, the sequence is the kind of
-// thing an editor or a copy-paste through a JSON-aware tool silently rewrites,
-// which would make this test assert nothing.
+// jsonUnicodeEscape builds the six-character sequence that encoding/json emits
+// for a character that it escapes. An example is "003c", which gives the
+// escape for '<'. The function builds the sequence by concatenation on
+// purpose. Written literally, the sequence is the kind of thing that an
+// editor, or a copy-paste through a JSON-aware tool, silently rewrites. That
+// would make this test assert nothing.
 func jsonUnicodeEscape(hex string) string { return "\\" + "u" + hex }
 
 // ---------------------------------------------------------------------
 // 5. A plain view never rewrites its source
 //
-// recompileMarkdownPage carries a long comment warning that calling
-// ensureHeaderModified there would re-stamp "Modified:" on every VIEW that
-// happens to need a cache rebuild - a bug that was fixed once. Nothing fails
-// today if it comes back. Anything that adds work to the view path (indexing,
-// for one) should have to prove it kept its hands off the source.
+// recompileMarkdownPage carries a long comment about ensureHeaderModified. A
+// call to it there would re-stamp "Modified:" on every VIEW that needs a cache
+// rebuild. That bug was fixed one time. Nothing fails today if it comes back.
+// Anything that adds work to the view path, indexing for one, must prove that
+// it kept its hands off the source.
 // ---------------------------------------------------------------------
 
 func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
@@ -681,22 +690,22 @@ func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
 // ---------------------------------------------------------------------
 // 6. Config POST semantics
 //
-// CHANGED IN 26.08.43. handleConfig used to rebuild the config from the form,
-// so an ABSENT field was not "leave it alone": a missing checkbox read as
-// false and a missing text input as "". That was invisible while the Config
-// page was the only caller, because it sends the whole form - and then a note
-// posted "theme" on its own and emptied the author name, both passwords, the
-// external-editor command and the device label.
+// CHANGED IN 26.08.43. handleConfig used to rebuild the config from the form.
+// An ABSENT field was thus not "leave it alone". A missing checkbox read as
+// false, and a missing text input read as "". That was invisible while the
+// Config page was the only caller, because that page sends the whole form.
+// Then a note posted "theme" on its own. It emptied the author name, both
+// passwords, the external-editor command and the device label.
 //
 // The rule now: a field the request does not carry is left as it is. A field
 // it DOES carry is applied, empty value included, so the Config page can
 // still clear a text box.
 //
-// A checkbox has no value to send when it is unticked, so the form declares
-// the fields it governs in one hidden "config_fields" input, and a name in
-// that list counts as sent. Every new checkbox on that form has to be added
-// to the list; a new text input or select does not, because a browser always
-// sends those.
+// A checkbox has no value to send when it is unticked. The form thus declares
+// the fields that it governs in one hidden "config_fields" input. A name in
+// that list counts as sent. Add every new checkbox on that form to the list.
+// A new text input or select needs no entry, because a browser always sends
+// those.
 // ---------------------------------------------------------------------
 
 // configFormFields is what the Config page's hidden config_fields input
@@ -707,10 +716,10 @@ func TestBaseline_ViewDoesNotRewriteSource(t *testing.T) {
 // 26.09.19. A test therefore cannot drift from the page.
 var configFormFields = configCheckboxFields()
 
-// assertConfigOnDisk decodes config.json and hands it to check. Separate from
-// the in-memory assertions because "saved" in this app means both, and a
-// half-applied save is exactly the kind of thing that only shows up on the next
-// restart.
+// assertConfigOnDisk decodes config.json and hands it to check. It is separate
+// from the in-memory assertions, because "saved" in this app means both. A
+// half-applied save is exactly the kind of fault that shows up only on the
+// next restart.
 func assertConfigOnDisk(t *testing.T, a *App, check func(Config)) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
@@ -750,9 +759,9 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 	if !cfg.UseInternalEd {
 		t.Error("an absent checkbox was cleared: use_internal_editor")
 	}
-	// The numeric fields also ignore an absent or invalid value, for their
-	// own older reason: 0 would be a broken port and a cap that rejects
-	// every upload.
+	// The numeric fields also ignore an absent or invalid value. They do that
+	// for their own older reason. A 0 would be a broken port, and a cap that
+	// rejects every upload.
 	if cfg.ServerPort != 9999 {
 		t.Errorf("server_port = %d, want 9999 kept", cfg.ServerPort)
 	}
@@ -760,9 +769,9 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 		t.Errorf("max_upload_size_mb = %d, want 7 kept", cfg.MaxUploadSizeMB)
 	}
 
-	// Every save lands in config.json too - the file the Android layer reads
-	// natively (MainActivity, ServerService), so memory and disk must agree at
-	// every step, not eventually.
+	// Every save lands in config.json too. That is the file that the Android
+	// layer reads natively (MainActivity, ServerService). Memory and disk must
+	// agree at every step, and not eventually.
 	assertConfigOnDisk(t, a, func(onDisk Config) {
 		if onDisk.Theme != ThemeLight {
 			t.Errorf("config.json theme = %q, want light", onDisk.Theme)
@@ -789,16 +798,16 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 		t.Errorf("theme after a POST that omitted it = %q, want light kept", got)
 	}
 
-	// A field that IS sent applies even when its value is empty: the Config
-	// page clears a text box by sending it empty, and that has to keep
+	// A field that IS sent applies even when its value is empty. The Config
+	// page clears a text box when it sends that box empty. That must keep
 	// working now that absence means something else.
 	postForm(t, a.handleConfig, "/api/config", url.Values{"author": {""}})
 	if got := a.GetConfig().Author; got != "" {
 		t.Errorf("a sent-but-empty field did not clear: author = %q", got)
 	}
 
-	// Only a ShareLAN flip asks for a restart; every other change applies live.
-	// The frontend keys off this exact word.
+	// Only a ShareLAN flip asks for a restart. Every other change applies
+	// live. The frontend keys off this exact word.
 	rec = postForm(t, a.handleConfig, "/api/config", url.Values{"share_lan": {"true"}})
 	if body := strings.TrimSpace(rec.Body.String()); body != "RestartRequired" {
 		t.Errorf("share_lan flip answered %q, want RestartRequired", body)
@@ -809,14 +818,13 @@ func TestBaseline_ConfigPostSemantics(t *testing.T) {
 	}
 }
 
-// The bug this rule was written for: a note that saves ONE setting used to
-// empty the author name, both passwords, the external-editor command and the
-// device label, and to untick every checkbox on the Config page.
+// This is the bug that the rule was written for. A note that saves ONE setting
+// used to empty the author name, both passwords, the external-editor command
+// and the device label. It also unticked every checkbox on the Config page.
 //
-// The device label is the
-// wrapper's field and it had the same fault in a worse form: an absent
-// "hostname" was rewritten to the OS-derived default, which then renamed
-// every database backup the device wrote next.
+// The device label is the field of the wrapper, and it had the same fault in a
+// worse form. An absent "hostname" was rewritten to the OS-derived default.
+// That default then renamed every database backup that the device wrote next.
 func TestConfigPost_PartialRequestKeepsTheRest(t *testing.T) {
 	a := newTestApp(t)
 	a.WithConfig(func(c *Config) {
@@ -1008,12 +1016,12 @@ func TestConfigPost_HostnameClearedFallsBack(t *testing.T) {
 // 7. versionDependentAssets and gitignorePatterns agree
 //
 // versionDependentAssets (assets.go) is the list of files that ship with the
-// build and are refreshed on upgrade; gitignorePatterns (git_repo.go) is what
-// keeps those same files out of the user's sync repo. They are two hand-kept
-// lists that must not drift - and the search feature makes the first one the
-// single source of truth for "OMN-Go's own code", so its integrity matters more
-// than it used to. TestVersionDependentAssetsAllEmbedded covers the embed side;
-// this is the other half.
+// build and are refreshed on upgrade. gitignorePatterns (git_repo.go) keeps
+// those same files out of the sync repo of the user. They are two hand-kept
+// lists that must not drift. The search feature also makes the first list the
+// single source of truth for the own code of OMN-Go. Its integrity thus
+// matters more than it did. TestVersionDependentAssetsAllEmbedded covers the
+// embed side. This test is the other half.
 // ---------------------------------------------------------------------
 
 func TestBaseline_VersionDependentAssetsAreGitignored(t *testing.T) {
@@ -1033,9 +1041,9 @@ func TestBaseline_VersionDependentAssetsAreGitignored(t *testing.T) {
 // ---------------------------------------------------------------------
 // 8. precompileAllPages
 //
-// The startup pass that compiles every note. Untested today, and it is where
-// any future "warm up something at startup" work will be attached - so pin what
-// it currently guarantees: every note compiled, nested ones included, the Tags
+// The startup pass that compiles every note. It is untested today. It is also
+// where any future "warm up something at startup" work will be attached. Pin
+// what it guarantees now: every note compiled, nested notes included, the Tags
 // page generated, and no source touched.
 // ---------------------------------------------------------------------
 
@@ -1078,8 +1086,8 @@ func TestBaseline_PrecompileAllPages(t *testing.T) {
 //
 // Cached pages carry a marker that injectRuntimeVars fills per request with the
 // values that must reflect the RUNNING server rather than compile time. Which
-// globals those are is a contract with the frontend; writing the set down makes
-// adding one a deliberate edit instead of a silent drift.
+// globals those are is a contract with the frontend. A written set makes the
+// addition of one global a deliberate edit, and not a silent drift.
 // ---------------------------------------------------------------------
 
 var runtimeVarRe = regexp.MustCompile(`var ([A-Za-z_][A-Za-z0-9_]*) =`)
@@ -1094,12 +1102,13 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 	}
 	sort.Strings(names)
 
-	// S4 added OMN_SEARCH_GLOBAL: whether the dialog may offer the "All notes"
-	// scope depends on a setting that is toggleable at any time, so it has to
-	// reach already-cached pages the same way the theme does.
-	// 26.08.47 added OMN_INCOMING_PAGE: the receive box lives in the modals
-	// block now, and omn-go-sse.js has to know which page it belongs on
-	// without keeping a second copy of the note's name.
+	// S4 added OMN_SEARCH_GLOBAL. The offer of the "All notes" scope in the
+	// dialog depends on a setting that a person can change at any time. The
+	// value must thus reach an already-cached page, the same way the theme
+	// does.
+	// 26.08.47 added OMN_INCOMING_PAGE. The receive box lives in the modals
+	// block now. omn-go-sse.js must know which page the box belongs on, and it
+	// must keep no second copy of the name of the note.
 	// 26.08.71 added the three log switches. The console mirror in
 	// omn-go-sse.js reads them to decide what it prints. A page compiled
 	// before a switch changed must still get the new answer.
@@ -1114,7 +1123,7 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 			"the whole reason this mechanism exists.", names, want)
 	}
 
-	// The marker survives into the on-disk cache RAW; it is filled at serve
+	// The marker survives into the on-disk cache RAW. It is filled at serve
 	// time. If it were filled at compile time, changing the theme would mean
 	// recompiling every page.
 	baseWriteMD(t, a, "Marked.md", "Title: Marked\n\nbody")
@@ -1139,11 +1148,10 @@ func TestBaseline_InjectedRuntimeVarSet(t *testing.T) {
 // ---------------------------------------------------------------------
 // 10. The compiled-page shape, across every write path
 //
-// (Moved from phase0_regression_test.go, where it was written to prove a
+// Moved from phase0_regression_test.go, where it was written to prove a
 // refactor that has since shipped. It is kept because the invariant is still
-// the one that matters: five different handlers write html/<name>.html through
-// renderAndCache, and all five must keep producing a page the frontend can
-// actually run.)
+// the one that matters. Five different handlers write html/<name>.html through
+// renderAndCache. All five must keep making a page that the frontend can run.
 // ---------------------------------------------------------------------
 
 func assertCachedPageShape(t *testing.T, path string) {
@@ -1205,11 +1213,11 @@ func TestBaseline_CompiledHTMLShapeAcrossWritePaths(t *testing.T) {
 // ---------------------------------------------------------------------
 // 11. The /api/logs SSE lifecycle
 //
-// (Also moved from phase0_regression_test.go.) The desktop connection-stall bug
-// was every page holding its EventSource open forever. The client half closes
-// it on pagehide; this is the server half - HandleLogsSSE must register a
-// client on connect and DE-register it when the request context is cancelled.
-// Break the deferred cleanup and the leak returns.
+// Also moved from phase0_regression_test.go. The desktop connection-stall bug
+// was every page that held its EventSource open forever. The client half
+// closes it on pagehide. This is the server half. HandleLogsSSE must register
+// a client on connect, and it must DE-register that client when the request
+// context is canceled. Break the deferred cleanup and the leak returns.
 // ---------------------------------------------------------------------
 
 func countLogClients() int {
