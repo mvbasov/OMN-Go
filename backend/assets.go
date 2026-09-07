@@ -18,37 +18,39 @@ import (
 // starter notes are embedded in the binary. Files reach StorageDir in two
 // different ways, and this file draws a hard line between them:
 //
-//   - USER-OWNED files are created from embedFS ONLY when absent (a lazy
-//     cache): serveLazyEmbed (server.go) extracts an html/ file the first
-//     time it is requested, and the initial md/ extraction seeds the
-//     starter notes once. After that the on-disk copy is yours - a user
-//     edits it (?edit=true), and a version change must never overwrite it.
-//     md/Welcome.md and html/json/bookmarker-tags.json are the canonical
-//     examples: they are meant to be edited and kept.
+//   - USER-OWNED files are created from embedFS ONLY when they are absent.
+//     That is a lazy cache. serveLazyEmbed (server.go) extracts an html/
+//     file the first time a person asks for it. The initial md/ extraction
+//     seeds the starter notes one time. After that the on-disk copy is
+//     yours. A user edits it (?edit=true), and a version change must never
+//     overwrite it. md/Welcome.md and html/json/bookmarker-tags.json are the
+//     canonical examples. They are meant to be edited and kept.
 //
 //   - VERSION-DEPENDENT files (versionDependentAssets below) ship as part
-//     of the application and must match the running build: the app's own
-//     JS/CSS, and the system documentation notes. Lazy extraction alone
-//     cannot keep these correct across an upgrade - an already-extracted
-//     copy from the previous version shadows the new one forever, and a
-//     note ADDED in a new release (e.g. md/SQLImport.md) would never appear
-//     at all, since a missing note is synthesized blank rather than pulled
-//     from embedFS. refreshEmbeddedAssets closes both gaps.
+//     of the application, and they must match the running build. Those are
+//     the JS and the CSS of the app, and the system documentation notes.
+//     Lazy extraction alone cannot keep these correct through an upgrade.
+//     An already-extracted copy from the previous version shadows the new
+//     one forever. A note ADDED in a new release, for example
+//     md/SQLImport.md, would never appear at all. A missing note is
+//     synthesized blank, and it is not pulled from embedFS.
+//     refreshEmbeddedAssets closes both gaps.
 //
-// Once per APP_VERSION change, refreshEmbeddedAssets walks the
-// version-dependent list and, for each entry, writes this build's embedded
-// copy: it CREATES the file if it is missing (so new bundled notes land on
-// existing installs), and if an on-disk copy DIFFERS it first moves that
-// copy to StorageDir/asset_backups/<previous-version>/... and then
-// replaces it. Nothing is ever silently lost: a user who customized a
-// version-dependent file finds their copy in the backup directory (the
-// path is logged) and can merge it back. While the version stamp already
-// matches APP_VERSION the function is a cheap no-op, so nothing is touched
-// between upgrades.
+// One time for each APP_VERSION change, refreshEmbeddedAssets walks the
+// version-dependent list. For each entry it writes the embedded copy of this
+// build. It CREATES the file when the file is missing, thus a new bundled
+// note lands on an existing install. When an on-disk copy DIFFERS, it first
+// moves that copy to StorageDir/asset_backups/<previous-version>/, and then
+// it replaces the file. Nothing is ever silently lost. A user who customized
+// a version-dependent file finds that copy in the backup directory, and can
+// merge it back. The log carries the path. While the version stamp already
+// matches APP_VERSION, the function does cheap work and writes nothing, thus
+// nothing is touched between upgrades.
 
-// assetsVersionFilename stores (in StorageDir, next to config.json, NOT
-// under html/ where it would be served and synced) the APP_VERSION that
-// most recently refreshed the extracted assets.
+// assetsVersionFilename stores the APP_VERSION that most recently refreshed
+// the extracted assets. The file sits in StorageDir, next to config.json. It
+// is NOT under html/, where the server would serve it and the sync would
+// carry it.
 const assetsVersionFilename = "assets_version"
 
 // assetsRefreshed tells if refreshEmbeddedAssets wrote a minimum of one
@@ -300,10 +302,10 @@ func (a *App) refreshEmbeddedAssets() {
 			continue
 		}
 
-		// A differing on-disk copy (an older version's extract, or a user
-		// edit) is preserved before being overwritten; never overwrite
-		// without a successful backup. A MISSING file has nothing to
-		// preserve - it is simply installed.
+		// A differing on-disk copy is preserved before it is overwritten. That
+		// copy is an extract of an older version, or a user edit. Never
+		// overwrite without a successful backup. A MISSING file has nothing to
+		// preserve, thus it is only installed.
 		existed := rerr == nil
 		if existed {
 			bakPath := filepath.Join(backupDir, filepath.FromSlash(rel))
@@ -329,9 +331,9 @@ func (a *App) refreshEmbeddedAssets() {
 		}
 	}
 
-	// Stamp AFTER the loop: if the process dies mid-refresh the next start
-	// simply re-runs it (already-current files compare equal and are
-	// skipped, so this is idempotent).
+	// Stamp AFTER the loop. If the process dies during a refresh, the next
+	// start runs the refresh again. An already-current file compares equal and
+	// is skipped, thus the refresh is idempotent.
 	if err := os.WriteFile(verFile, []byte(APP_VERSION+"\n"), 0644); err != nil {
 		a.logErrf(logAssets, "cannot write version stamp %s: %v", verFile, err)
 	}

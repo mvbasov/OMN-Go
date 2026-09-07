@@ -8,20 +8,22 @@ import (
 	"testing"
 )
 
-// refreshEmbeddedAssets must, once per APP_VERSION change:
+// refreshEmbeddedAssets must do the following, one time for each APP_VERSION
+// change.
 //
-//	(a) replace a version-dependent asset whose on-disk copy no longer
-//	    matches this build's embedded content,
-//	(b) preserve the old copy under asset_backups/<prev>/<rel>,
-//	(c) INSTALL a version-dependent file that is absent (this is how a note
-//	    added in a new release, e.g. md/SQLImport.md, reaches existing
-//	    installs),
-//	(d) never create a USER-OWNED file (anything not on the version list -
-//	    md/Welcome.md, html/json/bookmarker-tags.json, ...): those are
-//	    lazily cached only when absent, never by a version refresh,
-//	(e) be a no-op once the version stamp matches APP_VERSION, so user
-//	    edits survive between upgrades, and
-//	(f) on the next version change, back up a user-edited version-dependent
+//	(a) Replace a version-dependent asset whose on-disk copy no longer
+//	    matches the embedded content of this build.
+//	(b) Preserve the old copy under asset_backups/<prev>/<rel>.
+//	(c) INSTALL a version-dependent file that is absent. This is how a note
+//	    added in a new release, for example md/SQLImport.md, reaches an
+//	    existing install.
+//	(d) Never create a USER-OWNED file. That is anything not on the version
+//	    list, such as md/Welcome.md or html/json/bookmarker-tags.json. The
+//	    app caches those lazily when they are absent, and never by a version
+//	    refresh.
+//	(e) Do no work once the version stamp matches APP_VERSION, thus a user
+//	    edit stays through an upgrade.
+//	(f) On the next version change, back up a user-edited version-dependent
 //	    file and replace it.
 func TestRefreshEmbeddedAssets(t *testing.T) {
 	dir := t.TempDir()
@@ -125,9 +127,8 @@ func TestAssetsRefreshedReportsOnlyAStartThatWroteAFile(t *testing.T) {
 		t.Error("a start that changed no file must report false")
 	}
 
-	// A version change alone is not sufficient: each file on disk is
-	// already the content of this build, thus nothing is written and the
-	// cache stays.
+	// A version change alone is not sufficient. Each file on disk is already
+	// the content of this build. Nothing is written, and the cache stays.
 	if err := os.WriteFile(filepath.Join(dir, assetsVersionFilename), []byte("0.0.2\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -151,12 +152,12 @@ func TestAssetsRefreshedReportsOnlyAStartThatWroteAFile(t *testing.T) {
 	}
 }
 
-// Every version-dependent asset must actually be embedded, otherwise
-// refreshEmbeddedAssets silently logs "not embedded" and the file never
-// reaches an install - exactly the failure mode of listing a new doc note
-// (e.g. md/AndroidIntents.md) but forgetting to ship it. This guards the
-// whole list, so any future addition is caught at test time rather than in
-// the field.
+// Every version-dependent asset must be embedded. If it is not,
+// refreshEmbeddedAssets silently logs "not embedded", and the file reaches no
+// install. That is exactly the failure of a new doc note, for example
+// md/AndroidIntents.md, that the list names but the build does not ship. This
+// test guards the whole list, thus a future addition is caught at test time
+// and not in the field.
 func TestVersionDependentAssetsAllEmbedded(t *testing.T) {
 	for _, rel := range versionDependentAssets {
 		if _, err := staticFS.ReadFile("frontend/" + rel); err != nil {

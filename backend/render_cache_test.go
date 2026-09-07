@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestRenderAndCacheWritesCompiledHTML pins the single cache pipeline
-// introduced in Phase 2: renderAndCache compiles a page and writes it to
-// html/<name>.html, and the on-disk bytes equal both compilePage's output
-// and the bytes it returns.
+// TestRenderAndCacheWritesCompiledHTML pins the single cache pipeline that
+// Phase 2 introduced. renderAndCache compiles a page and writes it to
+// html/<name>.html. The on-disk bytes equal the output of compilePage, and
+// they equal the bytes that the function returns.
 func TestRenderAndCacheWritesCompiledHTML(t *testing.T) {
 	a := newTestApp(t)
 	content := []byte("Title: Doc\n\nHello **bold**")
@@ -35,9 +35,9 @@ func TestRenderAndCacheWritesCompiledHTML(t *testing.T) {
 		t.Error("on-disk cache differs from returned bytes")
 	}
 
-	// Sanity: it is a real compiled page, and it carries the raw runtime
-	// marker (the cache is intentionally an incomplete template - see the
-	// contract in render_cache.go).
+	// A sanity check. It is a real compiled page, and it carries the raw
+	// runtime marker. The cache is deliberately an incomplete template. See
+	// the contract in render_cache.go.
 	s := string(onDisk)
 	if !strings.Contains(s, "<strong>bold</strong>") {
 		t.Error("cache missing rendered markdown body")

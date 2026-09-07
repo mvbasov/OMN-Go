@@ -23,28 +23,29 @@ import (
 // precompileAllPages). They agreed by luck; consolidating them here means
 // the cache-write behavior is defined once. See CODE_REVIEW.md Phase 2.
 //
-// Intentionally, the cached HTML is an INCOMPLETE template: it carries a
-// runtimeVarsMarker (see templates.go) that injectRuntimeVars fills in per
-// request with values that must always reflect "now" - APP_VERSION, the
-// theme, and the internal-editor flag. That is why the cache does not need
-// rewriting when those change, and why the on-disk file legitimately still
-// contains the raw marker. Do not "fix" that by baking the values in at
-// compile time; it would defeat the cache.
+// The cached HTML is deliberately an INCOMPLETE template. It carries a
+// runtimeVarsMarker (see templates.go). injectRuntimeVars fills that marker
+// per request, with the values that must always show "now". Those values are
+// APP_VERSION, the theme, and the internal-editor flag. The cache thus needs
+// no rewrite when one of them changes, and the on-disk file correctly still
+// holds the raw marker. Do not "repair" that with the values baked in at
+// compile time. That would defeat the cache.
 
-// pageHTMLPath is the single formula for a markdown page's compiled-HTML
-// path. resolvePageName returns exactly this for a page (they must agree;
-// TestPageHTMLPath guards it), and renderAndCache / precompileAllPages use
-// it directly so the path is defined in one place.
+// pageHTMLPath is the single formula for the compiled-HTML path of a markdown
+// page. resolvePageName returns exactly this for a page, and the two must
+// agree. TestPageHTMLPath guards that. renderAndCache and precompileAllPages
+// use pageHTMLPath directly, thus the path is defined in one place.
 func (a *App) pageHTMLPath(name string) string {
 	return filepath.Join(a.StorageDir, "html", filepath.Clean(name+".html"))
 }
 
 // renderAndCache compiles a markdown page and writes it to its on-disk HTML
-// cache - the ONLY sanctioned way to produce html/<name>.html (see the
-// cache contract above). name is the page's base name (no extension),
-// content its markdown source. Parent directories are created as needed.
-// Returns the compiled bytes (handy for a caller that also serves them) and
-// any error; callers that only need the side effect can ignore the bytes.
+// cache. That is the ONLY sanctioned way to produce html/<name>.html. See the
+// cache contract above. name is the base name of the page, with no extension,
+// and content is its markdown source. It creates each parent directory as
+// necessary. It returns the compiled bytes, which help a caller that also
+// serves them, and it returns any error. A caller that needs only the side
+// effect can ignore the bytes.
 func (a *App) renderAndCache(name string, content []byte) ([]byte, error) {
 	compiled := a.compilePage(name, content)
 	htmlPath := a.pageHTMLPath(name)
@@ -54,11 +55,11 @@ func (a *App) renderAndCache(name string, content []byte) ([]byte, error) {
 	if err := os.WriteFile(htmlPath, compiled, 0644); err != nil {
 		return compiled, fmt.Errorf("cache %q: write: %w", name, err)
 	}
-	// Every in-process note change funnels through here - save, quick note,
-	// bookmark, new page, sync, precompile - which makes this the one place
-	// that can tell the search index "something moved" without a hook in each
-	// handler. It only skips the wait for the next stat walk; the walk is
-	// still what decides what actually changed.
+	// Every in-process note change goes through here. Those are the save, the
+	// quick note, the bookmark, the new page, the sync and the precompile.
+	// This is thus the one place that can tell the search index "something
+	// moved", with no hook in each handler. It only skips the wait for the
+	// next stat walk. The walk is still what decides what changed.
 	a.markSearchIndexDirty()
 	return compiled, nil
 }

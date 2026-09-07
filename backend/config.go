@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-// maxGitServers is the fixed number of git-server config slots the UI
-// exposes. It used to be a literal "5" repeated in four different places
-// (this file, handleConfig's POST handler, and getConfigPageBody) that all
-// had to be kept in sync by hand; centralizing it here means changing the
-// slot count is a one-line change.
+// maxGitServers is the fixed number of git-server config slots that the UI
+// shows. It used to be a literal "5" in four different places. Those are this
+// file, the POST handler of handleConfig, and getConfigPageBody. A person had
+// to keep all four in agreement by hand. One constant here makes a change of
+// the slot count a change of one line.
 const maxGitServers = 5
 
 // UI theme values accepted in Config.Theme. ThemeAuto means "follow the
@@ -24,12 +24,12 @@ const (
 	ThemeDark  = "dark"
 )
 
-// normalizeTheme maps any input to a valid theme value. Unknown or empty
-// values (including configs written before the theme field existed)
-// become ThemeAuto. Centralized here so the config loader, the config
-// POST handler and the page renderer cannot disagree on what is valid -
-// everything downstream (injectRuntimeVars, renderConfigPage) may safely
-// assume the value is one of the three constants.
+// normalizeTheme maps any input to a valid theme value. An unknown or empty
+// value becomes ThemeAuto. That includes a config written before the theme
+// field existed. The one function here keeps the config loader, the config
+// POST handler and the page renderer in agreement about what is valid. Each
+// caller downstream, such as injectRuntimeVars and renderConfigPage, can
+// safely assume that the value is one of the three constants.
 func normalizeTheme(s string) string {
 	switch s {
 	case ThemeLight, ThemeDark:
@@ -41,13 +41,13 @@ func normalizeTheme(s string) string {
 
 // Android system-bar modes accepted in Config.AndroidFullscreen.
 //
-// Note the default is FullscreenOn, NOT the zero value: the app has always
-// shipped Theme.NoTitleBar.Fullscreen in AndroidManifest.xml, so every
-// existing install already runs with the status bar hidden. A plain bool
-// would have made "field absent" mean false and silently changed how every
-// upgraded install looks; a string enum lets normalizeFullscreen map absent
-// onto the behaviour those installs already have, exactly as normalizeTheme
-// maps absent onto auto.
+// Note that the default is FullscreenOn, and NOT the zero value. The app has
+// always shipped Theme.NoTitleBar.Fullscreen in AndroidManifest.xml. Every
+// existing install thus already runs with the status bar hidden. A plain bool
+// would have made "field absent" mean false. That would silently change how
+// every upgraded install looks. A string enum lets normalizeFullscreen map
+// absent onto the behavior that those installs already have. That is exactly
+// how normalizeTheme maps absent onto auto.
 const (
 	FullscreenOff       = "off"        // status and navigation bars visible
 	FullscreenOn        = "fullscreen" // status bar hidden (historic behaviour)
@@ -99,12 +99,13 @@ const (
 
 // normalizeSearchKinds whitelists and de-duplicates, preserving order.
 //
-// The nil/empty distinction is load-bearing and deliberate: a config written
-// before this feature existed has NO search_kinds key, unmarshals to nil, and
-// must get the default - whereas someone who unticks every box gets a real
-// empty list, which means "index nothing". Same shape as normalizeTheme
-// otherwise: the loader, the POST handler and the renderer all go through
-// here, so none of them can disagree about what is valid.
+// The difference between nil and empty is load-bearing and deliberate. A
+// config written before this feature existed has NO search_kinds key. It
+// unmarshals to nil, and it must get the default. A person who unticks every
+// box gets a real empty list, which means "index nothing". The shape is the
+// same as normalizeTheme in other respects. The loader, the POST handler and
+// the renderer all go through here, thus none of them can disagree about what
+// is valid.
 func normalizeSearchKinds(kinds []string) []string {
 	if kinds == nil {
 		return append([]string(nil), searchKindsDefault...)
@@ -139,12 +140,12 @@ var logTagsDefault = func() []string {
 	return out
 }()
 
-// normalizeLogTags whitelists and de-duplicates, preserving the order of
-// allLogTags. It is the same shape as normalizeSearchKinds above, and the
-// nil rule is load-bearing for the same reason: a config.json written
-// before this field existed has no log_tags key, unmarshals to nil, and
-// must get every tag. A person who unticks every box gets a real empty
-// list, which means "no debug or info line from any subsystem".
+// normalizeLogTags whitelists and de-duplicates, and keeps the order of
+// allLogTags. It is the same shape as normalizeSearchKinds above. The nil
+// rule is load-bearing for the same reason. A config.json written before this
+// field existed has no log_tags key. It unmarshals to nil, and it must get
+// every tag. A person who unticks every box gets a real empty list, which
+// means "no debug or info line from any subsystem".
 func normalizeLogTags(tags []string) []string {
 	if tags == nil {
 		return append([]string(nil), logTagsDefault...)
@@ -265,14 +266,13 @@ type GitServerConfig struct {
 	Password   string `json:"password"`
 }
 
-// defaultMaxUploadSizeMB is the out-of-the-box cap on how large an
-// uploaded image or JSON file may be, in megabytes - enforced by
-// saveUploadedFile (backend/handlers.go) for both the editor's
-// drag-and-drop upload and Android's "share to OMN-Go" file handoff
-// (android/.../MainActivity.java, which reads this same value out of
-// config.json natively since that path never goes through the Go HTTP
-// server for the file write itself). Overridable per-install via the
-// Config page; see Config.MaxUploadSizeMB below.
+// defaultMaxUploadSizeMB is the out-of-the-box cap on the size of an uploaded
+// image or JSON file, in megabytes. saveUploadedFile (backend/handlers.go)
+// enforces it for the drag-and-drop upload of the editor. It also applies to
+// the "share to OMN-Go" file handoff of Android. MainActivity.java reads this
+// same value out of config.json natively, because that path never goes
+// through the Go HTTP server for the file write itself. The Config page can
+// override the cap for each install. See Config.MaxUploadSizeMB below.
 const defaultMaxUploadSizeMB = 3
 
 type Config struct {
@@ -284,24 +284,26 @@ type Config struct {
 	UseInternalEd    bool   `json:"use_internal_editor"`
 	DesktopExtCmd    string `json:"desktop_ext_cmd"`
 	Theme            string `json:"theme"` // "auto" | "light" | "dark", see normalizeTheme
-	// ShareLAN controls the listen address: false (default) binds
-	// 127.0.0.1 so only this device can reach the server; true binds
-	// 0.0.0.0 so other devices on the network can connect (protected by
-	// the admin/guest passwords via authMiddleware). Changing it takes
-	// effect on the next application start - the socket is bound once.
+	// ShareLAN controls the listen address. False, the default, binds
+	// 127.0.0.1, thus only this device can reach the server. True binds
+	// 0.0.0.0, thus another device on the network can connect. The admin and
+	// guest passwords protect that connection, through authMiddleware. A
+	// change takes effect on the next application start, because the socket
+	// is bound one time.
 	ShareLAN         bool              `json:"share_lan"`
 	Hostname         string            `json:"hostname"`
 	BackupPruneDepth int               `json:"backup_prune_depth"`
 	MimeTypes        map[string]string `json:"mime_types"`
 	ActiveGitIndex   int               `json:"active_git_index"`
 	GitServers       []GitServerConfig `json:"git_servers"`
-	// SearchEnabled turns on GLOBAL search - the part that builds and holds
-	// an index. Default FALSE: the index is the first standing memory cost
-	// this app has (roughly half the size of the indexed text, held for the
-	// life of the process), and on a device with little to spare the right
-	// amount of it is none. Page search is unaffected and always available.
+	// SearchEnabled turns on GLOBAL search, the part that builds and holds an
+	// index. The default is FALSE. The index is the first standing memory cost
+	// that this app has. It is approximately half the size of the indexed
+	// text, and it stays for the life of the process. On a device with little
+	// memory to spare, the correct amount of index is none. Page search is
+	// unaffected, and it is always available.
 	SearchEnabled bool `json:"search_enabled"`
-	// SearchKinds is what the global index covers; see normalizeSearchKinds
+	// SearchKinds is what the global index covers. See normalizeSearchKinds
 	// for why absent and empty mean different things.
 	SearchKinds []string `json:"search_kinds"`
 	// SearchBundled additionally indexes OMN-Go's own shipped scripts
@@ -316,34 +318,37 @@ type Config struct {
 	// where the default and the Android-native duplicate of this value
 	// come from.
 	MaxUploadSizeMB int `json:"max_upload_size_mb"`
-	// EnableIntentURI is the master switch for launching Android "intent:"
-	// URIs (e.g. [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;))
-	// from taps inside the WebView. Default false. When false,
-	// MainActivity.shouldOverrideUrlLoading refuses to dispatch intent
-	// URIs at all. Like MaxUploadSizeMB, the Android layer reads this value
-	// straight out of config.json at tap time (see MainActivity), not
-	// through the Go HTTP server, so a change applies without an app
-	// restart. Purely an Android-client concern: the desktop/LAN server
-	// ignores it (an intent link is dead in a normal browser regardless).
+	// EnableIntentURI is the master switch for the launch of an Android
+	// "intent:" URI, for example
+	// [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;),
+	// from a tap inside the WebView. Default false. When false,
+	// MainActivity.shouldOverrideUrlLoading refuses to dispatch an intent URI
+	// at all. Like MaxUploadSizeMB, the Android layer reads this value
+	// straight out of config.json at tap time. See MainActivity. It does not
+	// read it through the Go HTTP server, thus a change applies with no app
+	// restart. This is purely an Android-client concern. The desktop and LAN
+	// server ignores it, and an intent link is dead in a normal browser
+	// anyway.
 	EnableIntentURI bool `json:"enable_intent_uri"`
-	// EnableTermuxIntent additionally permits the Termux RUN_COMMAND path
-	// (a note running a shell command on the device via
-	// com.termux/.app.RunCommandService). Default false, and gated behind
-	// EnableIntentURI as well - both must be true, mirroring old OMN's
-	// pk_enable_intent_uri + pk_enable_termux_intent pair - plus Termux
-	// installed, its RUN_COMMAND permission granted, and a per-tap
-	// confirmation (all enforced Android-side). Also read natively from
-	// config.json at tap time.
+	// EnableTermuxIntent additionally permits the Termux RUN_COMMAND path.
+	// That is a note that runs a shell command on the device through
+	// com.termux/.app.RunCommandService. Default false, and it is also gated
+	// behind EnableIntentURI. Both must be true. That mirrors the
+	// pk_enable_intent_uri and pk_enable_termux_intent pair of the old OMN.
+	// Termux must also be installed, its RUN_COMMAND permission must be
+	// granted, and each tap needs a confirmation. The Android side enforces
+	// all three. This value is also read natively from config.json at tap
+	// time.
 	EnableTermuxIntent bool `json:"enable_termux_intent"`
-	// AndroidFullscreen selects which system bars the Android app hides:
-	// FullscreenOff (none), FullscreenOn (status bar - the historic and
-	// default behaviour) or FullscreenImmersive (status and navigation
-	// bars, revealed by a swipe). See normalizeFullscreen above for why
-	// this is a string rather than a bool. Like the two intent toggles it
-	// is read natively by MainActivity out of config.json rather than
-	// through the Go HTTP server, and re-read on resume and after each page
-	// load, so a change applies without an app restart. Purely an
-	// Android-client concern; the desktop/LAN server ignores it.
+	// AndroidFullscreen selects which system bars the Android app hides.
+	// FullscreenOff hides none. FullscreenOn hides the status bar, which is
+	// the historic and default behavior. FullscreenImmersive hides the status
+	// and navigation bars, and a swipe reveals them. See normalizeFullscreen
+	// above for why this is a string and not a bool. Like the two intent
+	// toggles, MainActivity reads it natively out of config.json, and not
+	// through the Go HTTP server. It reads it again on resume, and after each
+	// page load, thus a change applies with no app restart. This is purely an
+	// Android-client concern. The desktop and LAN server ignores it.
 	AndroidFullscreen string `json:"android_fullscreen"`
 	// LogDebug and LogInfo switch on the two quiet log levels. Both are
 	// false on a fresh install. Every open page mirrors the log into the
@@ -366,11 +371,12 @@ func (a *App) loadConfig(storageDir string) {
 	configPath := filepath.Join(a.StorageDir, "config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		a.Config = Config{
-			// Not a literal 8080: the Android fdroid flavor passes 8081 so
-			// the two flavors, which are installable side by side, do not
+			// Not a literal 8080. The Android fdroid flavor passes 8081. The
+			// two flavors are installable side by side, and they must not
 			// compete for the same loopback port. This is the one place that
-			// decision can be honoured - the value written here is persisted,
-			// and everything downstream sees a config that already has a port.
+			// can honor that decision. The value written here is persisted,
+			// and each caller downstream sees a config that already has a
+			// port.
 			ServerPort:      a.fallbackPort(),
 			AdminPassword:   "admin_secret_changeme",
 			GuestPassword:   "guest_secret_changeme",
@@ -380,7 +386,7 @@ func (a *App) loadConfig(storageDir string) {
 			Theme:           ThemeAuto,
 			MaxUploadSizeMB: defaultMaxUploadSizeMB,
 
-			// Global search is off on a fresh install; when it is switched
+			// Global search is off on a fresh install. When it is switched
 			// on, it starts with notes and bookmarks.
 			SearchEnabled: false,
 			SearchKinds:   append([]string(nil), searchKindsDefault...),
@@ -414,9 +420,9 @@ func (a *App) loadConfig(storageDir string) {
 	} else {
 		data, readErr := os.ReadFile(configPath)
 		if readErr != nil {
-			// Cannot read an existing config.json - leave a.Config at its
-			// zero value and say so loudly, rather than silently running
-			// with an empty/broken config that looks intentional.
+			// Cannot read an existing config.json. Leave a.Config at its zero
+			// value, and say so loudly. Do not run silently with an empty or
+			// broken config that looks intentional.
 			a.logErrf(logConfig, "loadConfig: failed to read %s: %v", configPath, readErr)
 		} else if err := json.Unmarshal(data, &a.Config); err != nil {
 			// A corrupt config.json used to be swallowed here, leaving

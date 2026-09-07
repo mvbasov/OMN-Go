@@ -2,16 +2,17 @@ package backend
 
 // Tests for the per-flavor default server port.
 //
-// The Android standard and fdroid flavors are installable side by side, which
-// is the whole point of the separate applicationId - but the loopback port is
-// a device-global resource. With both defaulting to 8080 whichever app starts
-// second loses the bind, and its WebView then silently talks to the OTHER
-// app's server. build.gradle therefore passes 8081 for the fdroid flavor.
+// A person can install the Android standard flavor and the fdroid flavor side
+// by side. That is the whole point of the separate applicationId. But the
+// loopback port is a device-global resource. With both flavors on 8080, the
+// app that starts second loses the bind. Its WebView then silently talks to
+// the server of the OTHER app. build.gradle therefore passes 8081 for the
+// fdroid flavor.
 //
-// It never arrived. StartServer applied the caller's default AFTER
-// loadConfig, which had already put a positive 8080 in the config and written
-// it to disk - so the branch could not be reached, and the wrong port was
-// persisted on first run and stuck for the life of the install.
+// It never arrived. StartServer applied the default of the caller AFTER
+// loadConfig. loadConfig had already put a positive 8080 in the config, and
+// written it to disk. The branch could thus not be reached. The wrong port
+// was persisted on first run, and it stuck for the life of the install.
 
 import (
 	"encoding/json"
@@ -48,9 +49,9 @@ func TestFreshInstallUsesTheCallerSuppliedPort(t *testing.T) {
 	if a.Config.ServerPort != 8081 {
 		t.Errorf("in-memory port %d, want 8081", a.Config.ServerPort)
 	}
-	// And it must be PERSISTED. The value written on first run is the one the
-	// Config page shows and the one every later start reads; writing 8080 here
-	// is what made the bug outlive a fix.
+	// And it must be PERSISTED. The Config page shows the value written on
+	// first run, and every later start reads that same value. A write of 8080
+	// here is what made the bug outlive a fix.
 	if got := portOfConfigFile(t, a); got != 8081 {
 		t.Errorf("config.json carries server_port %d, want 8081", got)
 	}
@@ -69,9 +70,9 @@ func TestFreshInstallWithNoCallerDefaultStaysOn8080(t *testing.T) {
 	}
 }
 
-// A port the user chose outranks the flavor's default - that is the contract
-// the build.gradle comment states, and the reason the default is only a
-// default.
+// A port that the user chose outranks the default of the flavor. That is the
+// contract that the build.gradle comment states. It is also the reason that
+// the default is only a default.
 func TestConfiguredPortBeatsTheFlavorDefault(t *testing.T) {
 	a := newUnconfiguredApp(t)
 	writeConfigJSON(t, a, `{"server_port":9000}`)

@@ -21,38 +21,40 @@ import (
 // Whole-database JSONL backups for user SQLite databases
 // ----------------------------------------------------------------------
 //
-// Replaces the per-table db_json/ mirror (formerly sqlite_backup.go).
-// That mechanism was automatic (export at push, mtime-triggered restore
-// on open) and file-per-object, which made cross-device sync fragile:
-// stale caches could be re-exported over freshly pulled data, fresh
-// devices never restored at all, and dropped tables resurrected from
-// orphaned files. This design is the opposite on every axis:
+// Replaces the per-table db_json/ mirror (formerly sqlite_backup.go). That
+// mechanism was automatic and file-per-object. It exported at push, and it
+// restored on open when the mtime asked for it. That made cross-device sync
+// fragile. A stale cache could be re-exported over freshly pulled data. A
+// fresh device never restored at all. A dropped table resurrected itself from
+// an orphaned file. This design is the opposite on every axis.
 //
 //   - MANUAL: backups are created and restored only from the /db_backups
-//     page (or its /api/db/* endpoints). The one exception is bootstrap:
-//     opening a database that has backups but no .sqlite file at all
-//     restores the newest backup, because there is no local state a
+//     page, or from its /api/db/* endpoints. The one exception is the
+//     bootstrap. A database that has backups but no .sqlite file at all
+//     restores the newest backup on open. There is no local state that a
 //     restore could destroy.
-//   - WHOLE-DATABASE: one backup = one self-contained .jsonl file
-//     holding the header, every schema object (tables, indexes, views,
-//     triggers), sqlite_sequence values and every row. A backup is
+//   - WHOLE-DATABASE: one backup is one self-contained .jsonl file. It
+//     holds the header, every schema object (tables, indexes, views,
+//     triggers), the sqlite_sequence values and every row. A backup is
 //     internally consistent by construction.
-//   - IMMUTABLE: a backup file is written once (timestamped filename,
-//     unique per device via the config Hostname) and never modified -
-//     only pruned. Git therefore only ever sees clean adds and deletes;
-//     two devices cannot conflict on the same path.
+//   - IMMUTABLE: a backup file is written one time and never modified. The
+//     name carries a timestamp, and the config Hostname makes it unique per
+//     device. A backup file is only pruned. Git therefore only ever sees
+//     clean adds and deletes, and two devices cannot conflict on the same
+//     path.
 //   - FULL REPLACE on restore: the backup is loaded into a temporary
-//     .sqlite file which is then atomically renamed over the real one
-//     (after evicting the cached handle - the same eviction machinery
-//     /api/sql already uses to self-heal from SQLITE_READONLY_DBMOVED).
+//     .sqlite file. That file is then atomically renamed over the real one.
+//     The cached handle is evicted first, with the same machinery that
+//     /api/sql already uses to self-heal from SQLITE_READONLY_DBMOVED.
 //     Nothing from the old database can survive by accident.
 //
 // Layout: <StorageDir>/html/db_backup/<db>/<UTCtimestamp>_<hostname>.jsonl
-// Living under html/ means backups are served (download links work in
-// any real browser) and staged for git like every other tracked file;
-// databases named local-* are kept out of git by the general local-only
-// name rule. That rule started here and now applies to each path, not
-// only to a database backup (see localOnlyPrefix in git_repo.go).
+//
+// A backup under html/ is served, thus a download link works in any real
+// browser. It is also staged for git like every other tracked file. A
+// database named local-* is kept out of git by the general local-only name
+// rule. That rule started here, and it now applies to each path, and not only
+// to a database backup. See localOnlyPrefix in git_repo.go.
 //
 // File format (version 2), one JSON object per line:
 //
@@ -66,11 +68,12 @@ import (
 //	{"kind":"row","table":"t","v":[1,"x"]}
 //	{"kind":"trigger","name":"tr1","table":"t","sql":"CREATE TRIGGER ..."}
 //
-// Values: numbers are written exactly (int64 survives via json.Number on
-// read-back); BLOBs - and TEXT that is not valid UTF-8 - are tagged as
-// {"b64":"..."}; everything else is the natural JSON type. One line per
-// row keeps git diffs minimal, and a git conflict marker anywhere in the
-// file fails JSON parsing on a precise line instead of half-applying.
+// Values: a number is written exactly, and an int64 survives through
+// json.Number on read-back. A BLOB is tagged as {"b64":"..."}. TEXT that is
+// not valid UTF-8 is tagged the same way. Everything else is the natural JSON
+// type. One line per row keeps a git diff small. A git conflict marker
+// anywhere in the file fails the JSON parse on a precise line, and it does
+// not half-apply the backup.
 
 const (
 	backupFormatName    = "omn-db-backup"
@@ -78,10 +81,10 @@ const (
 	backupMaxLineBytes  = 10 << 20 // same 10MB row cap the old loader used
 )
 
-// backupFileRe validates backup filenames handed to the restore endpoint
-// (they are used to build a path, so this is the traversal guard) and
-// filters directory listings. Lexicographic order of matching names is
-// chronological order because the timestamp leads.
+// backupFileRe validates a backup filename that reaches the restore endpoint.
+// The endpoint uses that name to build a path, thus this is the traversal
+// guard. It also filters a directory listing. The lexicographic order of
+// matching names is chronological order, because the timestamp leads.
 var backupFileRe = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}Z(_[0-9]+)?_[A-Za-z0-9_-]{1,64}\.jsonl$`)
 
 func dbBackupRoot(a *App) string {
@@ -143,9 +146,10 @@ type backupLine struct {
 // Create
 // ---------------------------------------------------------------------
 
-// backupTableInfo returns column names in declaration order and, per
-// column, whether it is declared BLOB (matching "BLOB" anywhere in the
-// declared type, the same convention SQLite's affinity rules use).
+// backupTableInfo returns the column names in declaration order. For each
+// column it also tells if the column is declared BLOB. The test matches
+// "BLOB" anywhere in the declared type, which is the same convention that the
+// affinity rules of SQLite use.
 func backupTableInfo(tx *sql.Tx, table string) (cols []string, blob []bool, err error) {
 	rows, err := tx.Query(`PRAGMA table_info(` + quoteIdent(table) + `)`)
 	if err != nil {
@@ -165,10 +169,11 @@ func backupTableInfo(tx *sql.Tx, table string) (cols []string, blob []bool, err 
 	return cols, blob, rows.Err()
 }
 
-// encodeBackupValue maps a scanned SQLite value to its JSON form. []byte
-// becomes {"b64":...} when the column is declared BLOB or the bytes are
-// not valid UTF-8 (JSON cannot carry raw bytes); otherwise it is written
-// as a plain string. Everything else passes through as its natural type.
+// encodeBackupValue maps a scanned SQLite value to its JSON form. A []byte
+// becomes {"b64":...} when the column is declared BLOB, or when the bytes are
+// not valid UTF-8. JSON cannot carry raw bytes. In every other case a []byte
+// is written as a plain string. Everything else passes through as its natural
+// type.
 func encodeBackupValue(v interface{}, blobCol bool) interface{} {
 	b, ok := v.([]byte)
 	if !ok {
@@ -240,9 +245,9 @@ func (a *App) createDBBackup(name string) (created string, pruned []string, err 
 	tables := map[string][]string{} // name -> columns, for the row pass
 	blobs := map[string][]bool{}
 
-	// Schema first: tables, then indexes, views, triggers. The restore
-	// side regroups by kind anyway; this order just keeps the file
-	// readable top-down.
+	// Schema first: tables, then indexes, views, triggers. The restore side
+	// regroups by kind anyway. This order only keeps the file readable from
+	// the top down.
 	for _, phase := range []string{"table", "index", "view", "trigger"} {
 		for _, o := range objs {
 			if o.kind != phase {
@@ -355,9 +360,10 @@ func (a *App) createDBBackup(name string) (created string, pruned []string, err 
 		return "", nil, fmt.Errorf("create backup directory: %w", err)
 	}
 
-	// Timestamped name; on a same-second collision (two backups within
-	// one second, or two devices sharing a hostname) insert a counter
-	// rather than overwrite - backups are immutable by contract.
+	// The name carries a timestamp. On a same-second collision, insert a
+	// counter, and do not overwrite. Such a collision is two backups within
+	// one second, or two devices that share a hostname. A backup is immutable
+	// by contract.
 	stamp := time.Now().UTC().Format("20060102T150405") + "Z"
 	fileName := stamp + "_" + host + ".jsonl"
 	target := filepath.Join(dir, fileName)
@@ -389,8 +395,8 @@ func (a *App) createDBBackup(name string) (created string, pruned []string, err 
 
 	pruned, err = a.pruneDBBackups(name)
 	if err != nil {
-		// The backup itself succeeded; a prune hiccup is not worth
-		// failing the request over.
+		// The backup itself succeeded. A prune fault is not sufficient reason
+		// to fail the request.
 		a.logErrf(logDBBackup, "prune %s: %v", name, err)
 		err = nil
 	}
@@ -417,10 +423,10 @@ func (a *App) listBackupFiles(name string) ([]string, error) {
 	return files, nil
 }
 
-// pruneDBBackups removes backups beyond the configured depth (newest
-// kept). Returns the StorageDir-relative paths of removed files - for
-// tracked databases these deletions travel through git like any other
-// removed file; for local-* databases they are final.
+// pruneDBBackups removes backups beyond the configured depth, and keeps the
+// newest. It returns the StorageDir-relative path of each removed file. For a
+// tracked database, these deletions travel through git like any other removed
+// file. For a local-* database, they are final.
 func (a *App) pruneDBBackups(name string) ([]string, error) {
 	depth := a.GetConfig().BackupPruneDepth
 	if depth <= 0 {
@@ -495,11 +501,11 @@ func decodeBackupValue(v interface{}) (interface{}, error) {
 }
 
 // restoreDBFromBackup replaces database name with the contents of backup
-// fileName (a bare filename inside the database's backup directory). The
-// backup is loaded into a temporary .sqlite file first and atomically
-// renamed over the real one only after every statement succeeded - a
-// half-parsed file (e.g. one damaged by git conflict markers) therefore
-// changes nothing at all.
+// fileName. That is a bare filename inside the backup directory of the
+// database. The backup is loaded into a temporary .sqlite file first. That
+// file is atomically renamed over the real one only after every statement
+// succeeded. A half-parsed file, for example one damaged by a git conflict
+// marker, therefore changes nothing at all.
 //
 // Callers must hold a.dbRestoreMu (bootstrapIfMissing and handleDBRestore
 // do); this function itself must not take it, so bootstrap can call it
@@ -662,9 +668,9 @@ func (a *App) restoreDBFromBackup(name, fileName string) error {
 		return fail(err)
 	}
 	for _, s := range seqs {
-		// sqlite_sequence rows already exist for AUTOINCREMENT tables
-		// that received data above; overwrite with the saved counter so
-		// deleted-then-never-reused ids stay never-reused.
+		// sqlite_sequence rows already exist for the AUTOINCREMENT tables
+		// that received data above. Overwrite with the saved counter, thus a
+		// deleted-and-never-reused id stays never-reused.
 		res, err := tx.Exec(`UPDATE sqlite_sequence SET seq = ? WHERE name = ?`, s.Value, s.Table)
 		if err != nil {
 			return fail(fmt.Errorf("restore sequence for %s: %w", s.Table, err))
@@ -699,10 +705,10 @@ func (a *App) restoreDBFromBackup(name, fileName string) error {
 		return fmt.Errorf("swap database: %w", err)
 	}
 
-	// Align the .sqlite mtime with the restored backup's: the two are
-	// content-identical right now, and the page's state dot reads exactly
-	// that (older backups than the newest one will correctly show as
-	// "newer backup exists").
+	// Align the .sqlite mtime with the mtime of the restored backup. The two
+	// are content-identical right now, and the state dot of the page reads
+	// exactly that. A backup older than the newest one correctly shows as
+	// "newer backup exists".
 	if info, err := os.Stat(backupPath); err == nil {
 		os.Chtimes(finalPath, info.ModTime(), info.ModTime())
 	}
@@ -713,11 +719,11 @@ func (a *App) restoreDBFromBackup(name, fileName string) error {
 }
 
 // bootstrapIfMissing is the single automatic exception to manual-only
-// backups: when a database has at least one backup but no .sqlite file
-// at all (fresh device right after a pull), the newest backup IS the
-// database, and restoring it cannot destroy anything because there is no
-// local state yet. Returns a fresh handle when a restore happened (the
-// caller's handle was evicted by the swap), nil otherwise.
+// backups. When a database has a minimum of one backup but no .sqlite file at
+// all, the newest backup IS the database. That is a fresh device right after
+// a pull. A restore then cannot destroy anything, because there is no local
+// state yet. It returns a fresh handle when a restore happened, because the
+// swap evicted the handle of the caller. In every other case it returns nil.
 func (a *App) bootstrapIfMissing(name string) (*sql.DB, error) {
 	a.dbRestoreMu.Lock()
 	defer a.dbRestoreMu.Unlock()
@@ -877,10 +883,10 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 	dbs := make([]backupDBView, 0, len(sorted))
 	for _, name := range sorted {
 		v := backupDBView{Name: name}
-		// Keep the raw mtime for the state comparison below: the RFC3339
-		// string in v.MTime is second-precision, and comparing a re-parsed
-		// (truncated) value against the backup file's nanosecond mtime
-		// would misreport "backup newer" right after a backup, where
+		// Keep the raw mtime for the state comparison below. The RFC3339
+		// string in v.MTime is second-precision. A comparison of a re-parsed
+		// and truncated value against the nanosecond mtime of the backup file
+		// would misreport "backup newer" right after a backup. There
 		// createDBBackup made the two mtimes exactly equal.
 		var dbMTime time.Time
 		if info, err := os.Stat(a.userDBPath(name)); err == nil && info.Size() > 0 {
@@ -920,10 +926,10 @@ func (a *App) handleDBBackupList(w http.ResponseWriter, r *http.Request) {
 			v.Backups = append(v.Backups, bv)
 		}
 		if v.Backups == nil {
-			// A database with zero backups (fresh install: pages created
-			// their databases, nothing backed up yet) must serialize as
-			// "backups":[] - a nil slice marshals as JSON null, which the
-			// page JS then trips over reading .length.
+			// A database with zero backups must serialize as "backups":[].
+			// That is a fresh install, where pages created their databases
+			// and nothing is backed up yet. A nil slice marshals as JSON
+			// null, and the page JS then trips over a read of .length.
 			v.Backups = []backupFileView{}
 		}
 

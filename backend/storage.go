@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// initStorage computes a.StorageDir and prepares its layout. overrideDir,
-// when non-empty, is used as-is (see StartServer's doc comment for why
-// Android needs this instead of the runtime.GOOS branch below - its
-// applicationId, and therefore its external media directory, differs
-// between the standard and fdroid product flavors, which this package
-// cannot know on its own).
+// initStorage computes a.StorageDir and prepares its layout. An overrideDir
+// that is not empty is used as it is. The doc comment of StartServer says why
+// Android needs this, and not the runtime.GOOS branch below. The applicationId
+// of the app, and thus its external media directory, differs between the
+// standard and the fdroid product flavor. This package cannot know that on its
+// own.
 func (a *App) initStorage(overrideDir string) {
 	if overrideDir != "" {
 		a.StorageDir = overrideDir
@@ -88,10 +88,10 @@ func (a *App) initStorage(overrideDir string) {
 		}
 	}
 
-	// The start page's two large buttons are markup in the note, not page
-	// chrome (see the .omn-start-buttons block in omn-go-core.css), so this
-	// fallback carries them too - an install that lands here must still get
-	// the same two entry points as the embedded Welcome.md.
+	// The two large buttons of the start page are markup in the note, and not
+	// page chrome. See the .omn-start-buttons block in omn-go-core.css. This
+	// fallback thus carries them too. An install that lands here must still
+	// get the same two entry points as the embedded Welcome.md.
 	initDefaultPage("Welcome.md", `Title: Welcome
 Date: 2026-06-14 12:00:00
 Category: System
@@ -137,11 +137,11 @@ Tags: Bookmarks
 <!-- Don't edit body below this line -->
 ];
 </script>`)
-	// A plain file kept beside a note (md/log.txt) is copied into html/,
-	// which is where its URL resolves - see note_files.go. Synchronous, and
-	// before the precompile below: the walk reads nothing until it finds a
-	// file to copy, and a link tapped in the first second after start must
-	// not race the copy that makes it work.
+	// A plain file kept beside a note (md/log.txt) is copied into html/, which
+	// is where its URL resolves. See note_files.go. It is synchronous, and it
+	// runs before the precompile below. The walk reads nothing until it finds
+	// a file to copy. A link tapped in the first second after start must not
+	// race the copy that makes it work.
 	a.syncNoteFilesToHTML()
 
 	// The incoming index (note_exchange.go), created when it is absent, the
@@ -161,10 +161,10 @@ func (a *App) precompileAllPages() {
 	htmlDir := filepath.Join(a.StorageDir, "html")
 	os.MkdirAll(htmlDir, 0755)
 
-	// This runs in a background goroutine at startup, so a note opened before
-	// it finishes is compiled on demand by serveHTMLPage instead - the user
-	// waits, with no way to tell why. Logging the run makes that visible on
-	// the /api/logs stream rather than leaving it invisible.
+	// This runs in a background goroutine at startup. A note opened before it
+	// finishes is thus compiled on demand by serveHTMLPage. The user waits,
+	// with no way to tell why. A log of the run makes that visible on the
+	// /api/logs stream, and it does not stay invisible.
 	a.logDebugf(logPrecompile, "Compiling notes in background")
 	started := time.Now()
 	compiled := 0
@@ -189,20 +189,20 @@ func (a *App) precompileAllPages() {
 	a.logInfof(logPrecompile, "Compiled %d notes in %s", compiled,
 		time.Since(started).Round(time.Millisecond))
 
-	// After every note is compiled, (re)generate the Tags index so
-	// html/OMNGoTags.html exists and is current in the offline artifact even if
-	// it is never viewed (it is reachable only via tag pills). Runs here, at the
-	// end of the background startup precompile, so it never blocks server start.
-	// See tags.go.
+	// After every note is compiled, generate the Tags index again. This makes
+	// sure that html/OMNGoTags.html exists, and that it is current in the
+	// offline artifact, even when no person views it. A tag pill is the only
+	// way to reach it. This runs at the end of the background startup
+	// precompile, thus it never blocks the server start. See tags.go.
 	if err := a.generateTagsPage(); err != nil {
 		a.logErrf(logTags, "precompileAllPages: tags: %v", err)
 	}
 
-	// Warm the search index, if the user asked for one. Deliberately last and
-	// on this same background goroutine: it is the cheapest of the three
-	// startup passes (masks and trigrams, no markdown rendering), and running
-	// it here means the first search after launch is instant instead of
-	// paying for the build inside a request.
+	// Warm the search index, if the user asked for one. It is deliberately
+	// last, and on this same background goroutine. It is the cheapest of the
+	// three startup passes, because it builds masks and trigrams and renders
+	// no markdown. A build here also makes the first search after launch
+	// instant, and no request pays for that build.
 	if a.GetConfig().SearchEnabled {
 		a.rebuildSearchIndex()
 	}

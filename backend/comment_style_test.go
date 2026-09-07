@@ -84,28 +84,18 @@ import (
 //
 // The path is relative to the root of the repository.
 var commentStyleDebt = map[string]int{
-	"backend/config.go":                20,
-	"backend/db_backup.go":             20,
 	"backend/search_test.go":           13,
-	"backend/sqlite.go":                13,
 	"backend/search_highlight_test.go": 12,
 	"backend/tags.go":                  10,
 	"backend/search_config_test.go":    9,
 	"backend/search_index_test.go":     9,
-	"backend/assets.go":                8,
 	"backend/search_page_test.go":      6,
-	"backend/storage.go":               6,
-	"backend/config_port_test.go":      5,
-	"backend/render_cache.go":          5,
-	"backend/assets_test.go":           4,
 	"backend/middleware_test.go":       3,
 	"backend/search_match_test.go":     3,
 	"backend/hostname.go":              2,
 	"backend/paths.go":                 2,
 	"backend/ports_test.go":            2,
-	"backend/render_cache_test.go":     2,
 	"main_desktop.go":                  2,
-	"backend/db_backup_test.go":        1,
 	"backend/java_test.go":             1,
 	"backend/logger.go":                1,
 }

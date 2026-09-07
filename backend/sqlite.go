@@ -57,25 +57,25 @@ const (
 	sqlMaxStatements = 500
 )
 
-// openUserDB returns the handle for a named user database, opening (and
-// creating) it on first use, then - now that the lock is free - runs the
-// one automatic restore this app still has: bootstrapping a database
-// that has backups but no .sqlite file at all (fresh device after a
-// pull). Every other restore is manual, from the /db_backups page. See
-// db_backup.go.
+// openUserDB returns the handle for a named user database. It opens the
+// database, and creates it, on first use. Then, now that the lock is free, it
+// runs the one automatic restore that this app still has. That restore
+// bootstraps a database that has backups but no .sqlite file at all, which is
+// a fresh device after a pull. Every other restore is manual, from the
+// /db_backups page. See db_backup.go.
 func (a *App) openUserDB(name string) (*sql.DB, error) {
 	db, err := a.openUserDBLocked(name)
 	if err != nil {
 		return nil, err
 	}
 	if reopened, err := a.bootstrapIfMissing(name); err != nil {
-		// A failed bootstrap must not take the database down: the note
-		// script simply sees (and creates) an empty database, and the
-		// backup file stays untouched for a later manual restore.
+		// A failed bootstrap must not take the database down. The note script
+		// then sees an empty database, and creates it. The backup file stays
+		// untouched for a later manual restore.
 		a.logErrf(logDBBootstrap, "%s: %v", name, err)
 	} else if reopened != nil {
-		// The bootstrap restore swapped the database file and evicted
-		// the handle opened above; hand out the fresh one.
+		// The bootstrap restore swapped the database file, and evicted the
+		// handle opened above. Hand out the fresh one.
 		return reopened, nil
 	}
 	return db, nil
@@ -105,10 +105,10 @@ func (a *App) openUserDBLocked(name string) (*sql.DB, error) {
 	}
 
 	// busy_timeout: do not fail instantly if a second request races this
-	// one. journal_mode TRUNCATE instead of WAL on purpose: WAL needs a
-	// shared-memory-mapped -shm file, which is unreliable on Android's
-	// FUSE-backed scoped storage where these files live; TRUNCATE keeps
-	// everything as plain file I/O, which that storage handles fine.
+	// one. journal_mode is TRUNCATE, and not WAL, on purpose. WAL needs a
+	// shared-memory-mapped -shm file. That file is unreliable on the
+	// FUSE-backed scoped storage of Android, where these files live. TRUNCATE
+	// keeps everything as plain file I/O, which that storage handles well.
 	dsn := "file:" + filepath.Join(dir, name+".sqlite") +
 		"?_pragma=busy_timeout(5000)&_pragma=journal_mode(TRUNCATE)"
 	db, err := sql.Open("sqlite", dsn)
@@ -158,10 +158,10 @@ func (a *App) writeSQLResponse(w http.ResponseWriter, httpStatus int, resp sqlRe
 	}
 }
 
-// returnsRows decides Query vs Exec per statement. First-keyword sniffing
-// is imperfect (a "WITH ... INSERT" is treated as a query and loses its
-// rows_affected), but it errs on the safe side: worst case a result set
-// is empty or a counter is zero - never data corruption.
+// returnsRows decides Query against Exec for each statement. A sniff of the
+// first keyword is imperfect. A "WITH ... INSERT" counts as a query, and it
+// loses its rows_affected. But the fault is on the safe side. The worst case
+// is an empty result set, or a counter of zero, and never data corruption.
 func returnsRows(query string) bool {
 	q := strings.ToUpper(strings.TrimSpace(query))
 	for _, kw := range []string{"SELECT", "WITH", "PRAGMA", "EXPLAIN", "VALUES"} {
@@ -172,14 +172,13 @@ func returnsRows(query string) bool {
 	return false
 }
 
-// evictUserDB closes and forgets a cached database handle, so the next
-// openUserDB call reopens the file from scratch instead of reusing a
-// handle tied to a now-stale file identity. Paired with
-// isStaleDBHandleError below: this is what lets /api/sql self-heal from a
-// SQLITE_READONLY_DBMOVED-class error (see syncPull in git_sync.go for
-// the one concrete cause already found and fixed) instead of leaving
-// every query against that database permanently failing until a full
-// process restart.
+// evictUserDB closes and forgets a cached database handle. The next
+// openUserDB call thus reopens the file from the start. It does not reuse a
+// handle that is tied to a now-stale file identity. It works with
+// isStaleDBHandleError below. The pair is what lets /api/sql self-heal from an
+// error of the SQLITE_READONLY_DBMOVED class. See syncPull in git_sync.go for
+// the one concrete cause that is already found and fixed. Without the pair,
+// every query against that database fails until a full process restart.
 func (a *App) evictUserDB(name string) {
 	a.sqlMu.Lock()
 	db, ok := a.sqlDBs[name]
@@ -194,15 +193,16 @@ func (a *App) evictUserDB(name string) {
 	}
 }
 
-// isStaleDBHandleError reports whether err is the class of error SQLite
-// raises when an already-open connection's underlying file was replaced
-// on disk out from under it (SQLITE_READONLY_DBMOVED, code 1032) - the
-// driver re-stats the path on every write and refuses to write once the
-// file it opened no longer matches what is at that path. Matched on
-// message text rather than a driver-specific error type, since that is
-// what modernc.org/sqlite's error actually renders as (verified against
-// a live "attempt to write a readonly database (1032)" report) and avoids
-// this file depending on driver-internal type details for something this
+// isStaleDBHandleError tells if err is the class of error that SQLite raises
+// when the file below an already-open connection was replaced on disk. That
+// is SQLITE_READONLY_DBMOVED, code 1032. The driver stats the path again on
+// every write. It refuses to write once the file that it opened no longer
+// matches what is at that path.
+//
+// The match is on the message text, and not on a driver-specific error type.
+// The error of modernc.org/sqlite renders as that text. A live report of
+// "attempt to write a readonly database (1032)" verified it. The match also
+// keeps this file free of driver-internal type details, for something this
 // narrow.
 func isStaleDBHandleError(err error) bool {
 	if err == nil {
@@ -214,11 +214,11 @@ func isStaleDBHandleError(err error) bool {
 		strings.Contains(msg, "(1032)")
 }
 
-// runSQLBatchWithRetry runs statements against dbName as one transaction,
-// self-healing ONCE from a stale-handle error by evicting the cached
-// connection, reopening the database fresh, and retrying the whole batch
-// from scratch. Safe to retry from scratch because a failed Begin or a
-// rolled-back transaction has committed nothing on the first attempt.
+// runSQLBatchWithRetry runs statements against dbName as one transaction. It
+// self-heals ONE TIME from a stale-handle error. It evicts the cached
+// connection, reopens the database fresh, and runs the whole batch again. A
+// retry from the start is safe, because a failed Begin or a rolled-back
+// transaction committed nothing on the first attempt.
 func (a *App) runSQLBatchWithRetry(dbName string, statements []sqlStatement) ([]sqlResult, *int, error) {
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
@@ -346,7 +346,7 @@ func runStatement(tx *sql.Tx, stmt sqlStatement) (sqlResult, error) {
 		if err := rows.Scan(ptrs...); err != nil {
 			return sqlResult{}, err
 		}
-		// []byte would JSON-encode as base64; hand text out as text.
+		// A []byte would JSON-encode as base64. Hand text out as text.
 		for i, v := range raw {
 			if b, ok := v.([]byte); ok {
 				raw[i] = string(b)
