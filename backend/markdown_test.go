@@ -44,18 +44,19 @@ func TestRewriteInternalLink(t *testing.T) {
 		{"market://details?id=net.basov.omngo", "market://details?id=net.basov.omngo"},
 		{"omngo://open?note=Welcome", "omngo://open?note=Welcome"},
 		{"bitcoin:1abc", "bitcoin:1abc"},
-		// The cost of the rule above: a page name with a ":" in it is a
+		// The cost of the rule above. A page name that holds a ":" is a
 		// scheme to any URL parser, and the click interceptor in
-		// omn-go-core.js reads it the same way. Pinned so that the trade-off
+		// omn-go-core.js reads it the same way. Pinned, thus the trade-off
 		// is a decision and not a surprise.
 		{"Notes:Draft", "Notes:Draft"},
 		// A space before the ":" is not a scheme, so this stays a page.
 		{"My Note: Part 2", "My Note: Part 2.html"},
-		// Android intent URIs pass through byte-identical - the bare
-		// "intent:#Intent;...;end" form must NOT be split at its "#" and
-		// have ".html" appended to the "intent:" segment (would produce the
-		// broken "intent:.html#Intent;..."), and the "intent://" form is
-		// likewise left alone. See MainActivity.shouldOverrideUrlLoading.
+		// An Android intent URI passes through byte-identical. The bare
+		// "intent:#Intent;...;end" form must NOT be split at its "#", and
+		// ".html" must not be appended to the "intent:" segment. That would
+		// produce the broken "intent:.html#Intent;...". The "intent://" form
+		// is left alone as well. See
+		// MainActivity.shouldOverrideUrlLoading().
 		{"intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;", "intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;"},
 		{"intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end;", "intent:#Intent;action=android.settings.DEVICE_INFO_SETTINGS;end;"},
 		{"intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end", "intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end"},
@@ -112,15 +113,18 @@ func TestRenderMarkdownToHTMLMathProtection(t *testing.T) {
 	}
 }
 
-// TestRenderMarkdownRawNoPlaceholderLeak guards the bug where documentation
-// pages that mention "<script>" inside inline code and inside fenced code
-// blocks (like Database.md) leaked "OMN_RAW_n_END" placeholder tokens into
-// the rendered HTML. The old five-sequential-pass shielding matched the
-// literal "<script>" in a code span and paired it with a real "</script>"
-// in a later fenced example, producing placeholders whose stored text
-// contained other placeholders; restoring them in Go's randomized
-// map-iteration order left some unrestored (so it surfaced on some devices
-// only). The combined single-pass scan must never leak, deterministically.
+// TestRenderMarkdownRawNoPlaceholderLeak guards a bug. A documentation page
+// that mentions "<script>" inside inline code and inside a fenced code
+// block leaked "OMN_RAW_n_END" placeholder tokens into the rendered HTML.
+// Database.md is such a page.
+//
+// The old five-sequential-pass shielding matched the literal "<script>" in a
+// code span, and it paired that with a real "</script>" in a later fenced
+// example. The stored text of a placeholder then held other placeholders. A
+// restore in the randomized map-iteration order of Go left some of them
+// unrestored, thus the fault surfaced on some devices only.
+//
+// The combined single-pass scan must never leak, deterministically.
 func TestRenderMarkdownRawNoPlaceholderLeak(t *testing.T) {
 	a := &App{}
 	md := strings.Join([]string{
@@ -204,10 +208,10 @@ func TestRenderMarkdownToHTMLIntentLinkUntouched(t *testing.T) {
 // every scheme it does not serve itself to the OS, so the one thing that has
 // to be right here is the href.
 //
-// The exact bytes are TestRewriteInternalLink's job. This test checks the
-// wiring, with assertions that no URL escaping goldmark applies to a link
-// destination can disturb: no ".html" in the output, and the scheme still
-// first in the href.
+// The exact bytes are the job of TestRewriteInternalLink. This test checks
+// the wiring. Its assertions hold whatever URL escaping goldmark applies to
+// a link destination. There is no ".html" in the output, and the scheme is
+// still first in the href.
 func TestRenderMarkdownToHTMLSchemeLinksUntouched(t *testing.T) {
 	a := &App{}
 	for _, c := range []struct{ href, scheme string }{
@@ -275,9 +279,10 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	}
 }
 
-// Tag pills must reach the single OMNGoTags page relatively (depth-correct via
-// AssetPrefix) and use tagSlug for the fragment, so they resolve offline from
-// any directory depth and match the generated page's section ids.
+// A tag pill must reach the one OMNGoTags page relatively, at the correct
+// depth through AssetPrefix. It must use tagSlug for the fragment. It thus
+// resolves offline from any directory depth, and it matches the section ids
+// of the generated page.
 func TestTagPillRelativePrefixAndSlug(t *testing.T) {
 	a := &App{}
 	md := "Title: Deep\nTags: 3D Print\n\nbody" // tag with a space -> slug "3D-Print"
@@ -295,9 +300,9 @@ func TestTagPillRelativePrefixAndSlug(t *testing.T) {
 	}
 }
 
-// TestModalsInjectedAtServeTime pins Phase 5c: the server-only modals are
-// NOT baked into the cached/exported page (which carries only the empty
-// slot), and injectRuntimeVars splices them in when the backend serves it.
+// TestModalsInjectedAtServeTime pins Phase 5c. The server-only modals are
+// NOT baked into the cached or exported page, which carries only the empty
+// slot. injectRuntimeVars splices them in when the backend serves the page.
 func TestModalsInjectedAtServeTime(t *testing.T) {
 	a := &App{}
 
@@ -337,11 +342,11 @@ func TestRelPrefix(t *testing.T) {
 	}
 }
 
-// TestCompilePageAssetPrefix pins Phase 5b: a cached markdown page gets
-// depth-relative chrome-asset paths (so it loads when opened directly from
-// disk as well as over HTTP), while a dynamic custom-body page keeps
-// absolute paths (it is only ever served online, at a URL whose depth does
-// not track the page name).
+// TestCompilePageAssetPrefix pins Phase 5b. A cached markdown page gets
+// depth-relative chrome-asset paths. It thus loads when opened directly
+// from disk, and over HTTP as well. A dynamic custom-body page keeps
+// absolute paths. Such a page is only ever served online, at a URL whose
+// depth does not track the page name.
 func TestCompilePageAssetPrefix(t *testing.T) {
 	a := &App{}
 
@@ -435,13 +440,14 @@ func TestEnsureHeaderModifiedSynthesizesHeader(t *testing.T) {
 }
 
 // TestCompilePageNoSpuriousMetaFromCSSBody is a regression test for the
-// GeminiSvgComponentEditor bug: a note whose header/body separator line
-// carried stray spaces ("    ") caused the header-block parser to run the
-// header on through the "<style>" block, turning every "--var: #hex;" CSS
-// line into a bogus <meta> tag (which the metadata panel then dumped, and
-// whose leaked SVG markup blew up innerHTML). The header must stop at the
-// whitespace-only separator, so the CSS renders as body and never becomes a
-// meta tag.
+// GeminiSvgComponentEditor bug. The separator line between the header and
+// the body of a note carried stray spaces. That made the header-block
+// parser run the header on through the "<style>" block. Every "--var: #hex;"
+// CSS line thus became a bogus <meta> tag. The metadata panel then dumped
+// those tags, and the leaked SVG markup blew up innerHTML.
+//
+// The header must stop at the whitespace-only separator. The CSS then
+// renders as body, and it never becomes a meta tag.
 func TestCompilePageNoSpuriousMetaFromCSSBody(t *testing.T) {
 	a := &App{}
 	md := "Title: Editor\nTags: AI\n    \n<style>\n#app { --bg-color: #E2DCD2; }\nhtml, body { margin: 0; }\n</style>\n\nBody."

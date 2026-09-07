@@ -46,21 +46,26 @@ var (
 	// KaTeX math: their text routinely contains '$', '*', '_', backticks and JS
 	// `${...}` template literals.
 	//
-	// This is ONE combined, leftmost-first alternation rather than five
-	// sequential passes, and that matters for correctness. Documentation
-	// pages (e.g. Database.md) legitimately mention "<script>" inside inline
-	// code and inside ``` fenced blocks. Run as separate passes, the
-	// <script>...</script> regex matched the FIRST literal "<script>" (inside
-	// a code span) and paired it with a real "</script>" far away in a later
-	// fenced example - swallowing everything between and producing
-	// placeholders whose stored text contained OTHER placeholders. Restoring
-	// those nested placeholders in a single map-iteration pass then left some
-	// unrestored (Go randomizes map order, so it surfaced on some
-	// runs/devices and not others): exactly the leaked "OMN_RAW_n_END" tokens
-	// this fixes. A single combined scan consumes each raw region whole, so a
-	// "<script>" mentioned inside a code span or fence is part of that
-	// span's/fence's match and can never start its own - no nesting, and
-	// restore order is genuinely irrelevant.
+	// This is ONE combined, leftmost-first alternation, and not five
+	// sequential passes. That matters for correctness. A documentation page
+	// such as Database.md legitimately mentions "<script>" inside inline
+	// code, and inside a ``` fenced block.
+	//
+	// Run as separate passes, the <script>...</script> regular expression
+	// matched the FIRST literal "<script>", inside a code span. It paired
+	// that with a real "</script>" far away in a later fenced example. It
+	// swallowed everything between, and it produced placeholders whose
+	// stored text held OTHER placeholders.
+	//
+	// A restore of those nested placeholders in one map-iteration pass then
+	// left some of them unrestored. Go randomizes map order, thus the fault
+	// surfaced on some runs and devices and not on others. Those are exactly
+	// the leaked "OMN_RAW_n_END" tokens that this fixes.
+	//
+	// One combined scan consumes each raw region whole. A "<script>"
+	// mentioned inside a code span or a fence is thus part of the match of
+	// that span or fence. It can never start its own. There is no nesting,
+	// and the restore order is irrelevant.
 	//
 	// Alternation order is significant: the fenced ``` alternative must
 	// precede the inline ` one, or a triple-backtick fence would first match
@@ -78,12 +83,14 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	rawBlocks := make(map[string]string)
 	mathBlocks := make(map[string]string)
 	counter := 0
-	// Placeholders are alphanumeric and "_END"-terminated so goldmark passes
-	// them through verbatim and no placeholder is ever a substring of another
-	// (OMN_MATH_1_END is not contained in OMN_MATH_10_END). The previous
-	// scheme (OMN_MATH_INLINE_%d) collided on restore — "_1" matched inside
-	// "_10" and, because a Go map iterates in random order, fragments of
-	// unrelated math/code were spliced into each other.
+	// A placeholder is alphanumeric and ends with "_END". goldmark thus
+	// passes it through verbatim, and no placeholder is ever a substring of
+	// another. OMN_MATH_10_END does not contain OMN_MATH_1_END.
+	//
+	// The previous scheme was OMN_MATH_INLINE_%d, and it collided on
+	// restore. "_1" matched inside "_10". A Go map iterates in random order,
+	// thus fragments of unrelated math and code were spliced into each
+	// other.
 	stash := func(store map[string]string, tag, m string) string {
 		placeholder := fmt.Sprintf("OMN_%s_%d_END", tag, counter)
 		store[placeholder] = m
@@ -91,13 +98,14 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 		return placeholder
 	}
 
-	// 1. Shield raw/verbatim regions BEFORE the math pass. Without this the
-	//    inline-math regex below pairs up the '$' signs in JS `${...}` template
-	//    literals (and any '$' inside code), which tears apart <script> notes
-	//    like the SVG editor. Restored just before goldmark so <script>/<style>/
-	//    <pre> pass through via html.WithUnsafe() and code renders as before.
-	//    A single combined scan (reRaw) consumes each region whole, so raw
-	//    regions never nest inside one another's placeholders.
+	// 1. Shield each raw and verbatim region BEFORE the math pass. Without
+	//    this, the inline-math regular expression below pairs up the '$'
+	//    signs in a JS `${...}` template literal, and any '$' inside code.
+	//    That tears apart a <script> note such as the SVG editor. The
+	//    regions are restored right before goldmark, thus <script>, <style>
+	//    and <pre> pass through by html.WithUnsafe(), and code renders as
+	//    before. One combined scan, reRaw, consumes each region whole, thus
+	//    raw regions never nest inside the placeholders of one another.
 	contentStr = reRaw.ReplaceAllStringFunc(contentStr, func(m string) string {
 		return stash(rawBlocks, "RAW", m)
 	})
@@ -110,11 +118,12 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 		return stash(mathBlocks, "MATH", m)
 	})
 
-	// 3. Restore the raw regions before rendering so goldmark parses them as
-	//    it always has. The combined scan above guarantees no placeholder's
-	//    stored text contains another, so order is irrelevant; the fixed-point
-	//    helper is cheap insurance against any future change reintroducing
-	//    nesting (a silent, order-dependent leak otherwise).
+	// 3. Restore the raw regions before the render, thus goldmark parses
+	//    them as it always has. The combined scan above guarantees that the
+	//    stored text of a placeholder contains no other placeholder, thus
+	//    order is irrelevant. The fixed-point helper is cheap insurance
+	//    against a future change that brings nesting back, which would
+	//    otherwise be a silent, order-dependent leak.
 	contentStr = restorePlaceholders(contentStr, rawBlocks)
 
 	var buf bytes.Buffer
@@ -137,14 +146,16 @@ func (a *App) renderMarkdownToHTML(mdContent []byte) string {
 	return htmlStr
 }
 
-// restorePlaceholders substitutes every placeholder in store back into s,
-// repeating until the string stops changing so a placeholder whose stored
-// text itself contains another placeholder is still fully restored
-// regardless of Go's randomized map-iteration order. With the current
-// single-pass stashing no nesting occurs, so this converges in one pass; the
-// loop (bounded by the number of placeholders, since restoration forms a DAG
-// and can never cycle) makes a stray, order-dependent leak - like the
-// historical "OMN_RAW_n_END" one - structurally impossible.
+// restorePlaceholders substitutes every placeholder of store back into s. It
+// repeats until the string stops changing. A placeholder whose stored text
+// itself holds another placeholder is thus fully restored, whatever the
+// randomized map-iteration order of Go is.
+//
+// With the current single-pass stashing there is no nesting, thus this
+// converges in one pass. The loop is bounded by the number of placeholders,
+// because a restore forms a DAG and can never cycle. It makes a stray,
+// order-dependent leak structurally impossible, and the historical
+// "OMN_RAW_n_END" leak was one of those.
 func restorePlaceholders(s string, store map[string]string) string {
 	for i := 0; i <= len(store); i++ {
 		before := s
@@ -166,15 +177,16 @@ func restorePlaceholders(s string, store map[string]string) string {
 //     combinations) are left untouched rather than having ".html" appended
 //     after them
 //
-// The only thing this function actually changes is normalizing an internal
-// page reference's extension: ".md" becomes ".html", and a bare page name
-// with no extension gets ".html" appended. Anything that already has a
-// concrete extension (.html, .js, .css, .png, ...), any link that carries a
-// URI scheme, and any link that is purely an anchor or query string is passed
-// through unchanged.
+// This function changes one thing only. It normalizes the extension of an
+// internal page reference. ".md" becomes ".html", and a bare page name with
+// no extension gets ".html" appended.
 //
-// A LINK WITH A SCHEME IS NOT A PAGE. This test was an allowlist - http,
-// https, mailto, tel, javascript, data, intent - and every scheme absent from
+// Three kinds of link pass through unchanged. The first already has a
+// concrete extension, such as .html, .js, .css or .png. The second carries a
+// URI scheme. The third is purely an anchor or a query string.
+//
+// A LINK WITH A SCHEME IS NOT A PAGE. This test was an allowlist of http,
+// https, mailto, tel, javascript, data and intent. Every scheme absent from
 // it was read as a bare page name and given ".html":
 //
 //	sms:+15551234               ->  sms:+15551234.html
@@ -182,18 +194,20 @@ func restorePlaceholders(s string, store map[string]string) string {
 //	whatsapp://send?phone=1555  ->  whatsapp://send.html?phone=1555
 //	geo:59,30                   ->  geo:59,30.html
 //
-// Each of those reaches Android as a URI that names nothing, and the
-// Messaging or Maps app it was written for never opens. A list can only ever
-// be short of some scheme; "geo:59.9,30.3" even survived by accident, because
+// Each of those reaches Android as a URI that names nothing. The Messaging
+// or Maps app that it was written for never opens. A list can only ever be
+// short of some scheme. "geo:59.9,30.3" even survived by accident, because
 // its last "." looked like a file extension.
 //
-// The test is the scheme itself now (uriSchemeRe), which is what the click
-// interceptor in omn-go-core.js already used. The two have to agree: this
-// function decides what the page SAYS and the interceptor decides what a tap
-// DOES, and a link works only when both leave it alone.
-// MainActivity.shouldOverrideUrlLoading hands every scheme it does not serve
-// itself to the OS, so the app that owns it (Messaging, Dialer, Maps, Termux)
-// opens - provided what arrives is what the note author wrote.
+// The test is now the scheme itself, uriSchemeRe, which is what the click
+// interceptor in omn-go-core.js already used. The two have to agree. This
+// function decides what the page SAYS, and the interceptor decides what a
+// tap DOES. A link works only when both leave it alone.
+//
+// MainActivity.shouldOverrideUrlLoading hands every scheme that it does not
+// serve itself to the OS. The app that owns it then opens, which is
+// Messaging, Dialer, Maps or Termux. What arrives has to be what the note
+// author wrote.
 //
 // The cost is a page name that holds a ":" before any "/". "Notes:Draft" is
 // not distinguishable from a scheme and is now left alone instead of becoming
@@ -233,8 +247,8 @@ func (a *App) rewriteInternalLink(href string) string {
 		return href
 	}
 
-	// Only touch the final path segment; preserve any "./", "../", nested
-	// directories, or a leading "/" exactly as written so relative and
+	// Only touch the final path segment. Preserve a "./", a "../", a nested
+	// directory and a leading "/" exactly as written, thus the relative and
 	// absolute semantics are unaffected.
 	dir := ""
 	base := path
@@ -280,10 +294,10 @@ func (a *App) compilePage(name string, mdContent []byte) []byte {
 // compilePageWithBody renders the full page shell (indexPageTmpl) for a
 // single note/page/asset-edit view.
 //
-// customBody, when non-empty, is used as the (already-HTML) main content
-// instead of rendering mdContent as markdown - this is how the
-// Config-dashboard and "editing externally" wait pages reuse the same page
-// shell without being markdown themselves.
+// customBody, when non-empty, is used as the main content, and it is already
+// HTML. mdContent is then not rendered as markdown. That is how the Config
+// dashboard and the "editing externally" wait page reuse the same page
+// shell, although neither is markdown itself.
 //
 // Editing is no longer an in-page mode: ?edit=true is served by the
 // dedicated editor page (renderEditorPage), so this function only ever
@@ -348,14 +362,17 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 	}
 	isMarkdown := pageExt == ".md" || pageExt == ""
 
-	// Chrome-asset (CSS/JS/Home) path prefix. A normal markdown note
-	// (customBody == "") is cached to html/<name>.html and may be opened
-	// directly from disk (file://), where an absolute "/js/..." path does not
-	// resolve - so use a prefix relative to the page's own directory depth
-	// (see relPrefix), which resolves correctly both offline and online.
-	// Custom-body pages (Config, DB backups, the external-edit wait page) are
-	// dynamic, served at URLs whose depth does not track the page name and
-	// never opened from disk, so they keep absolute "/" paths.
+	// The path prefix of a chrome asset, which is CSS, JS or Home. A normal
+	// markdown note has customBody == "". It is cached to html/<name>.html,
+	// and it may be opened directly from disk through file://. An absolute
+	// "/js/..." path does not resolve there. Use a prefix relative to the own
+	// directory depth of the page, see relPrefix, which resolves correctly
+	// both offline and online.
+	//
+	// A custom-body page is Config, DB backups or the external-edit wait
+	// page. Each is dynamic and is served at a URL whose depth does not
+	// track the page name. None is ever opened from disk, thus they keep
+	// absolute "/" paths.
 	assetPrefix := "/"
 	if customBody == "" {
 		assetPrefix = relPrefix(name)
@@ -377,11 +394,14 @@ func (a *App) compilePageWithBody(name string, mdContent []byte, customBody stri
 	return []byte(renderIndexPage(view))
 }
 
-// relPrefix returns the "../"-per-directory-level prefix that makes a cached
-// page's chrome-asset URLs (CSS/JS/Home) resolve to the storage root both
-// when served over HTTP and when the compiled .html is opened directly from
-// disk (file://). A root-level page yields "", a page one directory deep
-// "../", two deep "../../", and so on.
+// relPrefix answers the prefix of one "../" for each directory level. That
+// prefix makes the chrome-asset URLs of a cached page resolve to the storage
+// root. Those URLs are CSS, JS and Home. It works when the page is served
+// over HTTP, and when the compiled .html is opened directly from disk
+// through file://.
+//
+// A root-level page yields "". A page one directory deep yields "../", two
+// deep yields "../../", and so on.
 func relPrefix(name string) string {
 	return strings.Repeat("../", strings.Count(name, "/"))
 }

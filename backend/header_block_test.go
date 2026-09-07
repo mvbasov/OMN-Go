@@ -2,11 +2,13 @@ package backend
 
 import "testing"
 
-// TestParseHeaderBlock pins the behavior of the single header-block parser
-// introduced in Phase 1 (header_block.go), now the one authority every Go
-// caller shares. The interesting rows are the ones that used to be handled
-// differently by the three old copies: a '#'/'<'-prefixed first line is
-// body, not a header; a header-only note has an empty body; CRLF is handled.
+// TestParseHeaderBlock pins the behavior of the one header-block parser,
+// which Phase 1 introduced in header_block.go. It is now the one authority
+// that every Go caller shares.
+//
+// The interesting rows are the ones that the three old copies used to handle
+// differently. A first line that starts with '#' or '<' is body, and not a
+// header. A header-only note has an empty body. CRLF is handled.
 func TestParseHeaderBlock(t *testing.T) {
 	tests := []struct {
 		name       string

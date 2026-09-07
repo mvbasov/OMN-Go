@@ -7,10 +7,11 @@ package backend
 // md/ is the notes tree. html/ is what the server hands out: a URL that is
 // not a page resolves under html/ and nowhere else (materializeAsset).
 //
-// A user keeps a plain text file beside the note that refers to it - md/
-// holds Log.md and log.txt together - because that is where the note is,
-// that is what git sync carries, and that is what a file manager shows. The
-// note then links to it with "[log](log.txt)", the browser asks for
+// A user keeps a plain text file beside the note that refers to it, thus md/
+// holds Log.md and log.txt together. That is where the note is, that is what
+// git sync carries, and that is what a file manager shows.
+//
+// The note then links to it with "[log](log.txt)". The browser asks for
 // "/log.txt", and the server looks in html/, which has no such file. The
 // link answered 404.
 //
@@ -24,15 +25,15 @@ package backend
 //     md/ (syncNoteFileToMD). The editor writes where the URL points, which
 //     is html/, so without this the file beside the note would go stale.
 //
-// A copy carries the modification time of its source (os.Chtimes in
-// copyFileWithTime). This is what keeps "newer" meaningful: a copy stamped
-// with the time of the copy would be newer than the file it came from
-// forever, and each start would see a pair that differs when it does not.
+// A copy carries the modification time of its source, through os.Chtimes in
+// copyFileWithTime. That is what keeps "newer" meaningful. A copy stamped
+// with the time of the copy would be newer than its source forever. Each
+// start would then see a pair that differs when it does not.
 //
 // NOTHING IS DELETED HERE. A file removed from md/ keeps its html/ copy. To
 // delete, this code would have to tell an intentional removal apart from a
-// tree it has not seen before, which it cannot; and the cost of the wrong
-// answer is the user's data.
+// tree that it has not seen before. It cannot do that, and the cost of the
+// wrong answer is the data of the user.
 
 import (
 	"io"
@@ -45,13 +46,13 @@ import (
 // syncedNoteFileExts names which files are mirrored.
 //
 // ".txt" is the kind that a note keeps beside it. Another plain-text kind
-// that belongs there (".csv", ".log") is one line in this list, which is why
-// it is a list and not a comparison against one string.
+// that belongs there, such as ".csv" or ".log", is one line in this list.
+// That is why it is a list, and not a comparison against one string.
 //
 // ".md" IS NOT HERE AND MUST NOT BE. A markdown file in md/ is a NOTE. It
-// already reaches the browser as its compiled page at "/Name.html", and a
-// copy of it under html/ would be the same note at a second URL, with the
-// page cache of the first sitting next to it.
+// already reaches the browser as its compiled page at "/Name.html". A copy
+// of it under html/ would be the same note at a second URL. The page cache
+// of the first would sit next to it.
 var syncedNoteFileExts = []string{".txt"}
 
 func isSyncedNoteFile(name string) bool {
@@ -67,15 +68,15 @@ func isSyncedNoteFile(name string) bool {
 // syncNoteFilesToHTML copies each mirrored file in md/ to html/ when html/
 // has no copy or the md/ copy is newer. It runs once, at start.
 //
-// Newer, not different: a comparison of content would read every one of
-// these files on every start. The modification time is what a git checkout,
-// a file manager, a desktop editor and copyFileWithTime all set, so it is
-// the fact that is available.
+// Newer, and not different. A comparison of content would read every one of
+// these files on every start. A git checkout, a file manager, a desktop
+// editor and copyFileWithTime all set the modification time. It is thus the
+// fact that is available.
 //
-// The walk is over md/ only and reads nothing until it finds a file to copy,
-// so it stays cheap on a tree of some thousands of notes. It is synchronous
-// for that reason: a link tapped in the first second after start must not
-// race the copy that makes it work.
+// The walk is over md/ only, and it reads nothing until it finds a file to
+// copy. It thus stays cheap on a tree of some thousands of notes. It is
+// synchronous for that reason. A link tapped in the first second after the
+// start must not race the copy that makes it work.
 func (a *App) syncNoteFilesToHTML() {
 	mdRoot := filepath.Join(a.StorageDir, "md")
 	htmlRoot := filepath.Join(a.StorageDir, "html")
@@ -111,21 +112,22 @@ func (a *App) syncNoteFilesToHTML() {
 	}
 }
 
-// syncNoteFileToMD copies a file that was just written under html/ back to
-// md/. It is the other half of syncNoteFilesToHTML and runs after a save.
+// syncNoteFileToMD copies a file back to md/ after html/ received it. It is
+// the other half of syncNoteFilesToHTML, and it runs after a save.
 //
 // htmlPath is the path the caller already resolved (resolvePageName), not a
 // name to resolve again: one resolution, one file.
 //
 // It writes md/ even when nothing is there yet. A .txt first created through
-// the editor then joins the notes tree, where the next start finds it and
-// where git sync carries it beside the notes that link to it.
+// the editor then joins the notes tree. The next start finds it there, and
+// git sync carries it beside the notes that link to it.
 //
-// KNOWN GAP: the external editor (/api/edit-external) opens the html/ copy
-// in another application and gets no completion event back - cmd.Start() and
-// the Android intent are both fire and forget. An edit made that way reaches
-// md/ at no point. It is not lost: html/ holds it and serves it. The pair is
-// simply one-sided until someone saves that file through the in-app editor.
+// KNOWN GAP: the external editor, at /api/edit-external, opens the html/
+// copy in another application and gets no completion event back. cmd.Start()
+// and the Android intent are both fire and forget. An edit made that way
+// reaches md/ at no point. It is not lost, because html/ holds it and serves
+// it. The pair stays one-sided until someone saves that file through the
+// in-app editor.
 func (a *App) syncNoteFileToMD(htmlPath string) {
 	if !isSyncedNoteFile(htmlPath) {
 		return
@@ -133,9 +135,9 @@ func (a *App) syncNoteFileToMD(htmlPath string) {
 	htmlRoot := filepath.Join(a.StorageDir, "html")
 	rel, err := filepath.Rel(htmlRoot, htmlPath)
 	// A path that leaves html/ is not a file beside a note, whatever it is.
-	// resolvePageName builds htmlPath with filepath.Join, which RESOLVES a
-	// "../" in a name rather than refusing it, so a name is only as trusted
-	// as its caller - and this function will not carry that into md/.
+	// resolvePageName builds htmlPath with filepath.Join. That RESOLVES a
+	// "../" in a name, and it does not refuse it. A name is thus only as
+	// trusted as its caller, and this function will not carry that into md/.
 	if err != nil || rel == "." || rel == ".." ||
 		strings.HasPrefix(rel, ".."+string(filepath.Separator)) ||
 		filepath.IsAbs(rel) {
@@ -150,10 +152,10 @@ func (a *App) syncNoteFileToMD(htmlPath string) {
 // copyFileWithTime copies src over dst, creating dst's directory, and gives
 // dst the modification time of src.
 //
-// The time is the point. Without it each copy is newer than its source, so
-// the next start reads an identical pair as "md/ changed" and copies it
-// again, and a save that writes back to md/ makes md/ newer than the html/
-// copy that produced it.
+// The time is the point. Without it each copy is newer than its source. The
+// next start would then read an identical pair as "md/ changed" and copy it
+// again. A save that writes back to md/ would also make md/ newer than the
+// html/ copy that produced it.
 //
 // It streams: one of these files is a log that a note points at, and its
 // size is the user's business.

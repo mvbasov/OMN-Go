@@ -6,14 +6,15 @@ package backend
 // Two properties carry the weight here.
 //
 // A NAME FROM ANOTHER DEVICE IS NOT A PATH. FileName: is a line of text that
-// arrived from a stranger's phone through Telegram. The sanitizer table below
-// is the list of things it has tried to be, and the containment test asserts
-// the resolved path, not the string - because filepath.Join RESOLVES a "..".
+// arrived from the phone of a stranger through Telegram. The sanitizer table
+// below is the list of things that it has tried to be. The containment test
+// asserts the resolved path, and not the string, because filepath.Join
+// RESOLVES a "..".
 //
 // A KEY IS SET, NOT APPENDED. A note can hop twice, and a header block that
-// carries "Imported:" two times has no defined meaning: parseHeaderBlock
-// hands the first one to whatever reads it, and which is first is an accident
-// of the order the hops ran in.
+// carries "Imported:" two times has no defined meaning. parseHeaderBlock
+// hands the first one to whatever reads it, and which is first is an
+// accident of the order that the hops ran in.
 
 import (
 	"bytes"
@@ -320,10 +321,12 @@ func TestImportNoteRejectsEmpty(t *testing.T) {
 // ----------------------------------------------------------------------
 
 // The index is a LIST, and a blank line after the header block is what makes
-// it one. "* 2026-08-09 12:34 · [x](y)" holds a colon and does not begin with
-// a space, '#' or '<', so isHeaderFirstLine reads it as another "Key: value":
-// with one newline in front of it the line joins the header block, never
-// renders, and the next arrival is appended AFTER it - which silently turns
+// it one. "* 2026-08-09 12:34 · [x](y)" holds a colon and does not begin
+// with a space, a '#' or a '<'. isHeaderFirstLine thus reads it as another
+// "Key: value".
+//
+// With one newline in front of it, the line joins the header block and never
+// renders. The next arrival is then appended AFTER it, which silently turns
 // "newest first" into oldest first.
 func TestIncomingIndex(t *testing.T) {
 	a := newTestApp(t)
@@ -348,10 +351,11 @@ func TestIncomingIndex(t *testing.T) {
 		t.Errorf("%d list lines in the body, want 3:\n%s", n, hb.Body)
 	}
 
-	// The link TEXT is the note's Title with the collision index carried
-	// into it; the TARGET is the path under incoming/, which is where the
-	// index itself lives. The date leads the line in its own element, so it
-	// can be set smaller than the title a reader is looking for.
+	// The link TEXT is the Title of the note, with the collision index
+	// carried into it. The TARGET is the path under incoming/, which is
+	// where the index itself lives. The date leads the line in its own
+	// element, thus it can be set smaller than the title that a reader
+	// looks for.
 	const when = `* <span class="omn-incoming-when">2026-08-09 12:34</span> · `
 	for _, want := range []string{
 		when + `[Weekly plan](project/Sub/WeeklyPlan)` + "\n",
@@ -404,9 +408,9 @@ func TestExportNoteSource(t *testing.T) {
 	}
 }
 
-// A -> B -> C. The second import must REPLACE the Imported: line, not add a
-// second one, and the second export must replace the FileName: that the
-// first import kept, rather than let two of them travel.
+// A -> B -> C. The second import must REPLACE the Imported: line, and it
+// must not add a second one. The second export must replace the FileName:
+// that the first import kept, and it must not let two of them travel.
 func TestExportImportTwoHops(t *testing.T) {
 	a := newTestApp(t)
 	dir := filepath.Join(a.StorageDir, "md", "project", "Sub")
@@ -462,9 +466,10 @@ func TestExportImportTwoHops(t *testing.T) {
 // The endpoints
 // ----------------------------------------------------------------------
 
-// exchangeReq drives one handler directly. The handlers are registered behind
-// authMiddleware in server.go and TestBaseline_RouteSet pins that; what these
-// tests are about is the request and answer shapes on the other side of it.
+// exchangeReq drives one handler directly. The handlers are registered
+// behind authMiddleware in server.go, and TestBaseline_RouteSet pins that.
+// These tests are about the request and answer shapes on the other side of
+// it.
 func exchangeReq(t *testing.T, h http.HandlerFunc, method, target string,
 	body io.Reader, contentType string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -631,8 +636,8 @@ func TestEnsureIncomingIndex(t *testing.T) {
 	}
 }
 
-// With the starter in place, a line goes BELOW the marker so the receive box
-// stays at the top, and the note script survives every insertion.
+// With the starter in place, a line goes BELOW the marker. The receive box
+// thus stays at the top, and the note script survives every insertion.
 func TestIncomingIndexMarker(t *testing.T) {
 	a := newTestApp(t)
 	if err := a.ensureIncomingIndex(testNow); err != nil {
@@ -675,7 +680,7 @@ func TestIncomingIndexMarker(t *testing.T) {
 }
 
 // A user who rewrote the page and dropped the marker still gets a list, at
-// the top of the body - which is what every note did before the marker.
+// the top of the body. That is what every note did before the marker.
 func TestIncomingIndexWithoutMarker(t *testing.T) {
 	a := newTestApp(t)
 	dir := filepath.Join(a.StorageDir, "md", "incoming")
@@ -698,11 +703,11 @@ func TestIncomingIndexWithoutMarker(t *testing.T) {
 // The documentation links (26.08.40)
 // ----------------------------------------------------------------------
 
-// Two bundled notes link to the Incoming notes page, and that link is the
-// ONLY way a desktop user finds the receive box - nothing in the header
-// leads there. The target is spelled by hand in Markdown, so a rename of
-// incomingDirName or incomingIndexBase would leave two dead links behind
-// with nothing to say so. This test is that "something".
+// Two bundled notes link to the Incoming notes page. That link is the ONLY
+// way a desktop user finds the receive box, and nothing in the header leads
+// there. The target is spelled by hand in Markdown. A rename of
+// incomingDirName or incomingIndexBase would thus leave two dead links
+// behind, with nothing to say so. This test is that "something".
 //
 // The manual is also checked for its own table-of-contents entry, because
 // the anchor is derived from the heading text and the two are written
@@ -795,8 +800,8 @@ func TestNoteDescriptionCap(t *testing.T) {
 }
 
 // The export answers with the description in a header, and the value is safe
-// to put in one: base64, so no newline of the description can end the field
-// and no non-ASCII letter can be mangled by it.
+// to put in one. It is base64. No newline of the description can end the
+// field, and no non-ASCII letter can be mangled by it.
 func TestHandleExportNoteDescriptionHeader(t *testing.T) {
 	a := newTestApp(t)
 	os.WriteFile(filepath.Join(a.StorageDir, "md", "WithDesc.md"),
@@ -824,7 +829,7 @@ func TestHandleExportNoteDescriptionHeader(t *testing.T) {
 		t.Errorf("decoded %q, want %q", raw, "Привет\nмир")
 	}
 
-	// The description STAYS in the note that travels: it is part of the
+	// The description STAYS in the note that travels. It is part of the
 	// note, and the receiver has to be able to send it on with one.
 	if !strings.Contains(rec.Body.String(), "DESCRIPTION:") {
 		t.Errorf("the export dropped the description block:\n%s", rec.Body.String())
@@ -883,10 +888,10 @@ func TestIncomingLabel(t *testing.T) {
 	}
 }
 
-// A Title arrives from another device. Everything in it that would end the
-// link early, start markup of its own, or reach the page as raw HTML is
-// taken out before the line is written - because a Markdown link label is
-// not escaped by anything downstream.
+// A Title arrives from another device. Three kinds of character are taken
+// out before the line is written. The first would end the link early. The
+// second would start markup of its own. The third would reach the page as
+// raw HTML. Nothing downstream escapes a Markdown link label.
 func TestIncomingIndexLineIsSafeMarkdown(t *testing.T) {
 	a := newTestApp(t)
 	if err := a.ensureIncomingIndex(testNow); err != nil {

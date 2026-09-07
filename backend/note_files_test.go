@@ -4,11 +4,12 @@ package backend
 // (note_files.go).
 //
 // The property under test is not "a copy happened". It is that the pair
-// SETTLES: each direction runs on its own event, a copy carries the time of
-// its source, and a start that follows a save must find nothing to do. A
-// mirror that copies a file back and forth on every start would pass a
-// naive "the content matches" test and rewrite the user's notes tree
-// forever.
+// SETTLES. Each direction runs on its own event, and a copy carries the time
+// of its source. A start that follows a save must find nothing to do.
+//
+// A mirror that copies a file back and forth on every start would pass a
+// naive "the content matches" test. It would rewrite the notes tree of the
+// user forever.
 
 import (
 	"os"
@@ -17,9 +18,9 @@ import (
 	"time"
 )
 
-// writeStamped writes body at rel inside tree ("md" or "html") and gives the
-// file an explicit modification time, because every decision in this file is
-// made on that time.
+// writeStamped writes body at rel inside tree, which is "md" or "html". It
+// gives the file an explicit modification time, because every decision in
+// this file is made on that time.
 func writeStamped(t *testing.T, a *App, tree, rel, body string, mod time.Time) string {
 	t.Helper()
 	full := filepath.Join(a.StorageDir, tree, filepath.FromSlash(rel))
@@ -137,7 +138,7 @@ func TestSyncNoteFileToMD(t *testing.T) {
 	a := newTestApp(t)
 	recent := time.Now().Add(-time.Minute)
 
-	// The editor writes html/; the file goes back to md/ with it.
+	// The editor writes html/. The file goes back to md/ with it.
 	saved := writeStamped(t, a, "html", "log.txt", "edited in the browser", recent)
 	a.syncNoteFileToMD(saved)
 	if got := readOrMissing(t, a, "md", "log.txt"); got != "edited in the browser" {
@@ -182,10 +183,11 @@ func TestSyncNoteFileToMDRefusesEscape(t *testing.T) {
 	}
 }
 
-// The mirror is only useful if the copy is then SERVED, and served as text.
-// ".txt" is not in Go's own MIME table, so without the builtinMIME row the
-// file has no content type on a device with no /etc/mime.types - and
-// editableFileType, which reads the same table, then calls it "not text".
+// The mirror is useful only when the copy is then SERVED, and served as
+// text. ".txt" is not in the own MIME table of Go. Without the builtinMIME
+// row, the file has no content type on a device with no /etc/mime.types.
+// editableFileType reads that same table, and it then calls the file "not
+// text".
 func TestTxtIsServedAndEditableText(t *testing.T) {
 	a := newTestApp(t)
 	if ct := a.resolveContentType("log.txt"); ct != "text/plain; charset=utf-8" {

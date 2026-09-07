@@ -4,11 +4,11 @@ package backend
 // Sending a note to another person, and receiving one back
 // ----------------------------------------------------------------------
 //
-// One note leaves as its Markdown source with one line added to the header
-// block, and arrives under md/incoming/. The transport is not this file's
-// business: the Android share sheet reaches Telegram, e-mail, LocalSend,
-// Bluetooth and everything else installed, and the desktop uses a download
-// and an upload. All of them carry the same bytes.
+// One note leaves as its Markdown source, with one line added to the header
+// block, and it arrives under md/incoming/. The transport is not the
+// business of this file. The Android share sheet reaches Telegram, e-mail,
+// LocalSend, Bluetooth and everything else installed. The desktop uses a
+// download and an upload. All of them carry the same bytes.
 //
 // THE PATH TRAVELS INSIDE THE FILE. Every transport delivers a flat file
 // name: md/project/Sub/WeeklyPlan.md arrives as an attachment called
@@ -45,22 +45,22 @@ const (
 	// same directory: md/incoming/incoming.md.
 	incomingIndexBase = "incoming"
 
-	// incomingIndexName is that note's NAME - the path under md/ with no
-	// extension, which is what a URL and the frontend's PageName work in.
-	// injectRuntimeVars hands it to the browser as OMN_INCOMING_PAGE, so
-	// omn-go-sse.js can tell which page its receive box belongs on without
-	// a second copy of the name living in JavaScript.
+	// incomingIndexName is the NAME of that note. It is the path under md/
+	// with no extension, which is what a URL and the PageName of the
+	// frontend work in. injectRuntimeVars hands it to the browser as
+	// OMN_INCOMING_PAGE. omn-go-sse.js can thus tell which page its receive
+	// box belongs on, with no second copy of the name in JavaScript.
 	incomingIndexName = incomingDirName + "/" + incomingIndexBase
 
 	// incomingListMarker is where a new line goes: directly after it.
 	//
-	// Everything below it is the list, newest first, and everything above
-	// it is whatever the user has written there. The marker is what lets a
-	// user put their own text at the top of the page and keep it there, and
-	// it is why the note starts with nothing else.
+	// Everything below it is the list, newest first. Everything above it is
+	// whatever the user has written there. The marker is what lets a user
+	// put their own text at the top of the page and keep it there. That is
+	// why the note starts with nothing else.
 	//
-	// A note with no marker (a user who deleted it) takes its lines at the
-	// top of the body instead, which is what 26.08.34 did for every note.
+	// A note with no marker, from a user who deleted it, takes its lines at
+	// the top of the body instead. That is what 26.08.34 did for every note.
 	incomingListMarker = "<!-- omn-go-incoming-list -->"
 
 	headerKeyFileName = "FileName"
@@ -70,19 +70,19 @@ const (
 	// which puts it in the message that goes with the file.
 	//
 	// BASE64, because an HTTP header field is bytes and not text. A
-	// description in Cyrillic, or with an accented letter in it, is not
-	// ISO-8859-1 and a raw value would arrive damaged. A newline in it would
-	// be worse: it would end the header and make the rest of the description
-	// look like a field of its own. Base64 has neither problem, and Android
-	// decodes it in one call.
+	// description in Cyrillic, or one with an accented letter in it, is not
+	// ISO-8859-1, and a raw value would arrive damaged. A newline in it
+	// would be worse. It would end the header, and the rest of the
+	// description would look like a field of its own. Base64 has neither
+	// problem, and Android decodes it in one call.
 	headerDescription = "X-OMN-Description"
 
 	// descriptionMaxRunes caps what travels in that header.
 	//
-	// 1000 is under Telegram's caption limit of 1024 characters. Telegram
-	// does not shorten a caption that is too long - it refuses the whole
-	// caption - so a description of 1100 characters would arrive as no
-	// description at all.
+	// 1000 is under the caption limit of Telegram, which is 1024
+	// characters. Telegram does not shorten a caption that is too long. It
+	// refuses the whole caption. A description of 1100 characters would thus
+	// arrive as no description at all.
 	descriptionMaxRunes = 1000
 
 	// exportNameMaxRunes caps the attachment name. A recipient's filesystem
@@ -104,9 +104,9 @@ const (
 // exportNoteSource returns the Markdown of a note ready to send, and the file
 // name the attachment should carry.
 //
-// The returned bytes are the note's own source with FileName: SET - set and
-// not appended, because a note that was itself imported once already carries
-// one and two would be meaningless (see setHeaderKey).
+// The returned bytes are the own source of the note, with FileName: SET. It
+// is set and not appended. A note that was itself imported once already
+// carries one, and two of them would be meaningless. See setHeaderKey.
 func (a *App) exportNoteSource(name string) (data []byte, filename string, err error) {
 	mdPath, _, baseName, isPage := a.resolvePageName(name)
 	if !isPage {
@@ -128,10 +128,10 @@ func (a *App) exportNoteSource(name string) (data []byte, filename string, err e
 // two different attachments in one mail thread, which "WeeklyPlan.md" twice
 // is not.
 //
-// This name is A LABEL FOR A HUMAN and is never read back. A folder that
-// already holds a "-" makes the flattening ambiguous to the eye, and that
-// costs nothing: the importer reads FileName: from inside the file and only
-// looks at the attachment name when that line is missing altogether.
+// This name is A LABEL FOR A HUMAN, and it is never read back. A folder that
+// already holds a "-" makes the flattening ambiguous to the eye. That costs
+// nothing. The importer reads FileName: from inside the file, and it looks
+// at the attachment name only when that line is missing altogether.
 //
 // The character set is the one a recipient can save on Windows as well as on
 // Android, which is stricter than what OMN-Go itself accepts.
@@ -174,14 +174,14 @@ func flattenExportName(noteName string) string {
 //	description
 //	--->
 //
-// An HTML comment, so it is invisible on the rendered page and needs no
-// change to the header block, which holds one line per key and cannot carry
-// a paragraph.
+// An HTML comment. It is thus invisible on the rendered page, and it needs
+// no change to the header block. That block holds one line for each key, and
+// it cannot carry a paragraph.
 //
 // FORGIVING ON THE FENCE, DELIBERATELY. "<!---" and "--->" are what the note
-// author writes, but "<!--" and "-->" are the standard spelling of the same
-// comment and a note that uses them means the same thing. Any number of
-// dashes is accepted at each end, DESCRIPTION is matched whatever its case,
+// author writes. "<!--" and "-->" are the standard spelling of the same
+// comment, and a note that uses them means the same thing. Any number of
+// dashes is accepted at each end. DESCRIPTION is matched whatever its case,
 // and the colon is optional.
 //
 // ONE LIMIT, from HTML and not from here: a comment ends at the first "-->",
@@ -280,11 +280,11 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 	base = freeNoteBase(fullDir, base)
 	rel = path.Join(dir, base)
 
-	// The link text on the incoming index. A reader looks for the note's own
-	// Title, which is what they were told it was called; the file name is
-	// what OMN-Go had to call it, and that is the fallback rather than the
-	// first choice. The collision index is carried across, because two
-	// copies of one note otherwise read as the same line twice.
+	// The link text on the incoming index. A reader looks for the own Title
+	// of the note, because that is what they were told it was called. The
+	// file name is what OMN-Go had to call it, and that is the fallback and
+	// not the first choice. The collision index is carried across, because
+	// two copies of one note otherwise read as the same line twice.
 	title, _ := headerValue(src, "Title")
 	index := ""
 	if base != wanted {
@@ -308,8 +308,8 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 		Label: label,
 	}
 	if err := a.addIncomingIndexLine(res, now); err != nil {
-		// The note is on disk and readable; only its line is missing. Say so
-		// and keep the note rather than failing an import that succeeded.
+		// The note is on disk and readable. Only its line is missing. Say
+		// so and keep the note, and do not fail an import that succeeded.
 		return res, fmt.Errorf("the note was saved, but the incoming index was not updated: %w", err)
 	}
 	return res, nil
@@ -319,9 +319,9 @@ func (a *App) importNote(content []byte, displayName string, now time.Time) (imp
 // is safe to join under md/incoming/, or "" when nothing usable is left.
 //
 // THIS IS THE ONLY ATTACKER-CONTROLLED PATH IN THE FEATURE. It is not a
-// filename from our own disk; it is a line of text that arrived from a
-// stranger's phone through Telegram. Every rule here exists because the
-// alternative is writing a file where the sender chose.
+// filename from our own disk. It is a line of text that arrived from the
+// phone of a stranger through Telegram. Every rule here exists because the
+// alternative is to write a file where the sender chose.
 //
 // The containment check in incomingPath() runs afterwards regardless. Two
 // defenses, because one of them is a regular expression's worth of thinking
@@ -331,9 +331,10 @@ func sanitizeImportPath(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	// A Windows sender writes "project\Sub\Note". Treated as a separator
-	// rather than refused: the segments that come out of it go through the
-	// same rules as any other, so nothing is gained by rejecting the note.
+	// A Windows sender writes "project\Sub\Note". It is treated as a
+	// separator, and not refused. The segments that come out of it go
+	// through the same rules as any other, thus a refusal of the note gains
+	// nothing.
 	raw = strings.ReplaceAll(raw, "\\", "/")
 	raw = strings.TrimSuffix(raw, ".md")
 	// A drive letter is not a path here, it is the first two characters of
@@ -357,8 +358,9 @@ func sanitizeImportPath(raw string) string {
 		return ""
 	}
 
-	// Too long: drop from the FRONT. The deepest folder is the part a reader
-	// needs least; the file's own name is the part they need most.
+	// Too long, thus drop from the FRONT. The deepest folder is the part
+	// that a reader needs least. The own name of the file is the part that
+	// they need most.
 	for len([]rune(path.Join(segs...))) > importPathMaxRunes && len(segs) > 1 {
 		segs = segs[1:]
 	}
@@ -405,8 +407,8 @@ func sanitizeImportSegment(seg string) string {
 		}
 		out = append(out, r)
 	}
-	// A leading dot hides the file; a trailing dot or space is a name
-	// Windows cannot store; a trailing dash is just untidy.
+	// A leading dot hides the file. A trailing dot or space is a name that
+	// Windows cannot store. A trailing dash is untidy.
 	seg = strings.Trim(string(out), " .-")
 	if len([]rune(seg)) > importSegmentMaxRunes {
 		seg = string([]rune(seg)[:importSegmentMaxRunes])
@@ -418,10 +420,10 @@ func sanitizeImportSegment(seg string) string {
 // incomingPath joins rel under md/incoming/ and reports whether the result is
 // still inside it.
 //
-// filepath.Join RESOLVES a "..", it does not refuse one - the same thing
-// syncNoteFileToMD had to guard against in 26.08.31. sanitizeImportPath drops
-// every ".." it sees; this asks the resolved path itself, which is the only
-// question that actually matters.
+// filepath.Join RESOLVES a "..", and it does not refuse one. syncNoteFileToMD
+// had to guard against the same thing in 26.08.31. sanitizeImportPath drops
+// every ".." that it sees. This asks the resolved path itself, and that is
+// the only question that matters.
 func (a *App) incomingPath(rel string) (string, bool) {
 	root := filepath.Join(a.StorageDir, "md", incomingDirName)
 	full := filepath.Join(root, filepath.FromSlash(rel))
@@ -459,13 +461,15 @@ func freeNoteBase(dir, base string) string {
 
 // hrefEscapePath percent-encodes a note path for use in an href.
 //
-// url.PathEscape is not the right tool: it escapes "/" as well, and the
-// separators here have to stay separators. What actually needs encoding is
-// short - sanitizeImportSegment already allows only "A-Za-z0-9 ._-" and the
-// "/" between segments, and of those only the space is a problem in an
-// attribute - but this does not read that allowlist. It encodes everything
-// outside the unreserved set, so it stays correct if the sanitizer is ever
-// widened.
+// url.PathEscape is not the right tool. It escapes "/" as well, and the
+// separators here have to stay separators.
+//
+// What needs encoding is short. sanitizeImportSegment already allows only
+// "A-Za-z0-9 ._-", and the "/" between segments. Of those, only the space is
+// a problem in an attribute.
+//
+// This does not read that allowlist. It encodes everything outside the
+// unreserved set, thus it stays correct if the sanitizer is ever widened.
 func hrefEscapePath(p string) string {
 	var b strings.Builder
 	for i := 0; i < len(p); i++ {
@@ -482,7 +486,7 @@ func hrefEscapePath(p string) string {
 }
 
 // incomingLabelMaxRunes caps the link text on the incoming index. A Title:
-// line is one line, but nothing says it is a short one, and a title that runs
+// line is one line, and nothing says it is a short one. A title that runs
 // past the width of the page turns the list into prose.
 const incomingLabelMaxRunes = 80
 
@@ -490,36 +494,36 @@ const incomingLabelMaxRunes = 80
 // label, in the flavour this application renders (goldmark, GFM extensions,
 // raw HTML allowed):
 //
-//	[ ]    end the label early, and the rest of the title becomes body text
-//	< > &  raw HTML and entities are passed through, not escaped
-//	\      escapes whatever follows it
-//	` * ~  a code span, emphasis and strikethrough - "*" because it
-//	       emphasizes inside a word, which "_" does not, so "_" is left
-//	|      a table cell, if the line ever ends up in one
+//	[ ]    end the label early, and the rest of the title becomes body text.
+//	< > &  raw HTML and entities are passed through, and not escaped.
+//	\      escapes whatever follows it.
+//	` * ~  a code span, emphasis and strikethrough. "*" is here because it
+//	       emphasizes inside a word, which "_" does not, thus "_" is left.
+//	|      a table cell, if the line ever ends up in one.
 //
-// Each becomes a space, and the spaces then collapse. Removed and not
-// escaped: a backslash before each of these would keep the character but
-// leave the note's source full of "\[" for a gain nobody reading the list
-// can see.
+// Each becomes a space, and the spaces then collapse. They are removed and
+// not escaped. A backslash before each of these would keep the character.
+// It would also leave the source of the note full of "\[", for a gain that
+// nobody reading the list can see.
 const incomingLabelUnsafe = "[]<>&\\`*~|"
 
 // incomingLabel is the text of one line's link on the incoming index.
 //
-// The note's own Title, because that is the name the sender knows it by and
-// the name a reader is looking for. The FILE name is what OMN-Go had to call
-// it - derived from a path, stripped of everything a filesystem dislikes -
-// and it is the fallback for a note that carries no usable Title, not the
-// first choice.
+// The own Title of the note, because that is the name the sender knows it
+// by, and the name a reader looks for. The FILE name is what OMN-Go had to
+// call it. It comes from a path, stripped of everything a filesystem
+// dislikes. It is the fallback for a note that carries no usable Title, and
+// not the first choice.
 //
-// index is the collision suffix the file name received ("2" for
-// WeeklyPlan-2), or "". It is carried into the label because two copies of
-// one note otherwise read as the same line twice, with no way to tell which
-// link is which. It is not added to the fallback: the file name already
+// index is the collision suffix that the file name received, such as "2" for
+// WeeklyPlan-2, or "". It is carried into the label. Two copies of one note
+// otherwise read as the same line twice, with no way to tell which link is
+// which. It is not added to the fallback, because the file name already
 // carries it.
 //
 // The title is text from another device. It is cut down to one line of plain
-// text here, and that is the whole of its treatment - the line is Markdown,
-// so nothing downstream will escape it later.
+// text here, and that is the whole of its treatment. The line is Markdown,
+// thus nothing downstream will escape it later.
 func incomingLabel(title, base, index string) string {
 	clean := make([]rune, 0, len(title))
 	space := true // leading whitespace is dropped by starting "inside" a run
@@ -553,20 +557,21 @@ func incomingLabel(title, base, index string) string {
 
 // addIncomingIndexLine puts one line at the top of md/incoming/incoming.md.
 //
-// At the TOP, directly below the header block: the reason to open this note
-// is "what just arrived", so the newest line is the first one. That is the
-// same insertion point handleNewPage uses for the link it adds to a source
-// note.
+// At the TOP, directly below the header block. The reason to open this note
+// is "what has arrived", thus the newest line is the first one. That is the
+// same insertion point that handleNewPage uses for the link it adds to a
+// source note.
 //
-// The link target is relative to the index's own directory, because the index
-// IS in that directory: a note at md/incoming/project/Sub/WeeklyPlan-2 is
-// "project/Sub/WeeklyPlan-2" from here, which rewriteInternalLink turns into
-// "project/Sub/WeeklyPlan-2.html" and the browser resolves under /incoming/.
+// The link target is relative to the own directory of the index, because the
+// index IS in that directory. A note at md/incoming/project/Sub/WeeklyPlan-2
+// is "project/Sub/WeeklyPlan-2" from here. rewriteInternalLink turns that
+// into "project/Sub/WeeklyPlan-2.html", and the browser resolves it under
+// /incoming/.
 //
-// The link TEXT is the name as saved, carrying the collision index when there
-// was one, so a second copy of a note reads as a second copy in the list.
-// There is no "from" note of the original path: the target already spells it
-// out, minus the incoming/ root.
+// The link TEXT is the name as saved. It carries the collision index when
+// there was one, thus a second copy of a note reads as a second copy in the
+// list. There is no "from" note of the original path. The target already
+// spells that out, minus the incoming/ root.
 func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 	dir := filepath.Join(a.StorageDir, "md", incomingDirName)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -591,11 +596,11 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 	// markup. incomingLabel has already taken out of the label everything
 	// that would end the link early or start markup of its own.
 	//
-	// The destination is percent-encoded because a note name may hold a
-	// space, and a bare Markdown destination cannot: "[x](My Notes/Plan)"
-	// is not a link at all. The date keeps its <span> - there is no way to
-	// give one part of a line its own size in Markdown, and it is not a
-	// link, which is the part that had to stop being HTML.
+	// The destination is percent-encoded, because a note name may hold a
+	// space and a bare Markdown destination cannot. "[x](My Notes/Plan)" is
+	// not a link at all. The date keeps its <span>, because Markdown has no
+	// way to give one part of a line its own size. The date is not a link,
+	// and the link is the part that had to stop being HTML.
 	line := "* <span class=\"omn-incoming-when\">" + now.Format("2006-01-02 15:04") +
 		"</span> · [" + label + "](" + hrefEscapePath(res.Rel) + ")"
 
@@ -618,11 +623,11 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 	// No marker: the line becomes the FIRST body line, and then a blank line
 	// between it and the header block is not decoration.
 	//
-	// "* 2026-08-09 12:34 · [x](y)" holds a colon and does not begin with a
-	// space, '#' or '<', so isHeaderFirstLine reads it as another
-	// "Key: value". With one newline in front of it the line joins the
-	// HEADER BLOCK instead of starting the body: it never renders, and the
-	// next arrival is appended after it, which turns "newest first" into
+	// "* 2026-08-09 12:34 · [x](y)" holds a colon, and it does not begin
+	// with a space, a '#' or a '<'. isHeaderFirstLine thus reads it as
+	// another "Key: value". With one newline in front of it, the line joins
+	// the HEADER BLOCK and does not start the body. It never renders, and
+	// the next arrival is appended after it. That turns "newest first" into
 	// oldest first. One blank line is what makes the list a list.
 	if body == "" {
 		return os.WriteFile(indexPath, []byte(header+"\n\n"+line+"\n"), 0644)
@@ -632,17 +637,18 @@ func (a *App) addIncomingIndexLine(res importResult, now time.Time) error {
 
 // incomingIndexStarter is the incoming index as first written.
 //
-// It is a TEMPLATE and not a string in this file, because it is markup and a
-// note script - the receive box the desktop application imports through - and
-// that belongs in frontend/templates/ with the other page fragments.
+// It is a TEMPLATE and not a string in this file. It is markup and a note
+// script, and it is the receive box that the desktop application imports
+// through. That belongs in frontend/templates/, with the other page
+// fragments.
 //
-// It cannot ship in frontend/md/ with the other starter notes: initStorage
-// extracts those FLAT into md/, so a file there would land at md/incoming.md
-// and never at md/incoming/incoming.md.
+// It cannot ship in frontend/md/ with the other starter notes. initStorage
+// extracts those FLAT into md/. A file there would thus land at
+// md/incoming.md, and never at md/incoming/incoming.md.
 //
-// Written once, when the note is absent. From that moment it is the user's:
-// nothing rewrites it on a version change, and a user who deletes the receive
-// box keeps a working list.
+// It is written one time, when the note is absent. From that moment it
+// belongs to the user. Nothing rewrites it on a version change, and a user
+// who deletes the receive box keeps a working list.
 func incomingIndexStarter(now time.Time) string {
 	return normalizeNewlines(fill(incomingIndexTmpl, map[string]string{
 		"DATE": now.Format("2006-01-02 15:04:05"),
@@ -651,8 +657,8 @@ func incomingIndexStarter(now time.Time) string {
 
 // ensureIncomingIndex writes the incoming index when it is absent.
 //
-// Called at startup as well as by an import, because on the desktop the
-// receive box IS the way a first note arrives - the page has to exist before
+// Called at startup, and by an import as well. On the desktop the receive
+// box IS the way a first note arrives. The page has to exist before
 // there is anything to list on it.
 func (a *App) ensureIncomingIndex(now time.Time) error {
 	dir := filepath.Join(a.StorageDir, "md", incomingDirName)
@@ -671,8 +677,8 @@ func (a *App) ensureIncomingIndex(now time.Time) error {
 // ----------------------------------------------------------------------
 
 // normalizeNewlines makes CRLF and CR into LF. A note that travelled through
-// a mail client or a Windows machine arrives with whatever that leg used, and
-// every rule in this file counts lines.
+// a mail client or a Windows machine arrives with whatever that leg used.
+// Every rule in this file counts lines.
 func normalizeNewlines(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return strings.ReplaceAll(s, "\r", "\n")
@@ -698,18 +704,20 @@ func headerValue(content, key string) (string, bool) {
 // The HTTP surface
 // ----------------------------------------------------------------------
 //
-// Two endpoints, both ADMIN-ONLY. Import writes files, which is reason
-// enough. Export is locked too, by decision: it is a new way out of the note
-// tree, and a LAN guest has no business with one. A local connection bypasses
-// authMiddleware entirely, so the device itself is unaffected - which is the
-// case that matters, because Android is where this feature is used.
+// Two endpoints, both ADMIN-ONLY. Import writes files, and that is reason
+// enough. Export is locked too, by decision. It is a new way out of the note
+// tree, and a LAN guest has no business with one. A local connection
+// bypasses authMiddleware entirely, thus the device itself is unaffected.
+// That is the case that matters, because Android is where this feature is
+// used.
 //
 // The Android side calls both over the loopback address, exactly as
 // MainActivity already posts a quick note.
 
-// exchangeJSON answers with one JSON object. Errors from these two endpoints
-// are shown to a person - a toast on Android, a line on the incoming page -
-// so the message is the thing that matters, not the shape.
+// exchangeJSON answers with one JSON object. An error from these two
+// endpoints is shown to a person, as a toast on Android or as a line on the
+// incoming page. The message is thus the thing that matters, and not the
+// shape.
 func (a *App) exchangeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -724,10 +732,11 @@ func (a *App) exchangeErr(w http.ResponseWriter, status int, err error) {
 
 // handleExportNote: GET /api/export/note?name=<note>
 //
-// The note's Markdown with FileName: set, as a download. The frontend uses
-// the same URL two ways: the Send control is a link to it, and "send as text"
-// fetches it and copies the body to the clipboard. MainActivity fetches it,
-// writes the bytes to its cache, and hands the file to the share sheet.
+// The Markdown of the note with FileName: set, as a download. The frontend
+// uses the same URL in two ways. The Send control is a link to it, and "send
+// as text" fetches it and copies the body to the clipboard. MainActivity
+// fetches it, writes the bytes to its cache, and hands the file to the share
+// sheet.
 func (a *App) handleExportNote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		a.exchangeErr(w, http.StatusMethodNotAllowed, fmt.Errorf("GET only"))
@@ -756,9 +765,9 @@ func (a *App) handleExportNote(w http.ResponseWriter, r *http.Request) {
 	// caption, a mail body. It stays in the note as well: it is part of the
 	// note, and the receiver can send the note on with it.
 	//
-	// A header and not a second endpoint, because the Android side needs the
-	// bytes and the text together in one answer, and it already has this
-	// response open.
+	// A header, and not a second endpoint. The Android side needs the bytes
+	// and the text together in one answer, and it already has this response
+	// open.
 	if desc := noteDescription(string(data)); desc != "" {
 		w.Header().Set(headerDescription, base64.StdEncoding.EncodeToString([]byte(desc)))
 	}
@@ -778,8 +787,8 @@ func (a *App) handleExportNote(w http.ResponseWriter, r *http.Request) {
 //   - the desktop upload control POSTs a form file, because that is what a
 //     browser sends from a file input.
 //
-// ?name= is only a fallback for a note that carries no FileName: line, and it
-// is not trusted any more than FileName: is - it goes through the same
+// ?name= is only a fallback for a note that carries no FileName: line. It is
+// not trusted any more than FileName: is, and it goes through the same
 // sanitizer.
 func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -831,9 +840,9 @@ func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 		"url":    "/" + res.Name + ".html",
 	}
 	if err != nil {
-		// The note is on disk and readable; only its line on the incoming
-		// index is missing. Reporting a failure here would tell the user to
-		// send it again, and a second copy is not the repair.
+		// The note is on disk and readable. Only its line on the incoming
+		// index is missing. A report of a failure here would tell the user
+		// to send it again, and a second copy is not the repair.
 		out["warning"] = err.Error()
 		a.logErrf(logExchange, "%v", err)
 	}
@@ -844,11 +853,12 @@ func (a *App) handleImportNote(w http.ResponseWriter, r *http.Request) {
 // readImportBody reads at most limit bytes and reports an error when there
 // were more.
 //
-// NOT search.go's readCapped, which this was called until it collided with
-// it, and which must not be reached for here: that one takes a PATH and
-// TRUNCATES on purpose, because "found nothing in the part I looked at" is a
-// useful answer about a 2 MB note. Half a note is not a useful import. The
-// two have opposite behaviour at the cap and should stay apart.
+// This is NOT the readCapped of search.go. This function carried that name
+// until the two collided, and it must not reach for that one. The other one
+// takes a PATH and TRUNCATES on purpose. "Found nothing in the part I looked
+// at" is a useful answer about a 2 MB note. Half a note is not a
+// useful import. The two have opposite behavior at the cap, and they must
+// stay apart.
 func readImportBody(r io.Reader, limit int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
