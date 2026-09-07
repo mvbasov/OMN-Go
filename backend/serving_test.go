@@ -9,11 +9,12 @@ import (
 	"testing"
 )
 
-// TestResolveContentType pins the single MIME resolver's builtin table,
-// including .jsonl (database backups) and the web fonts. .jsonl is
-// text/plain so a browser - and above all the Android WebView, which has no
-// download handler - shows a backup instead of doing nothing with it. newTestApp has an empty Config.MimeTypes, so these exercise
-// the builtin layer directly.
+// TestResolveContentType pins the builtin table of the one MIME resolver.
+// That table holds .jsonl, which the database backups use, and the web
+// fonts. .jsonl is text/plain, thus a browser shows a backup instead of
+// doing nothing with it. The Android WebView above all, which has no
+// download handler, needs that. newTestApp has an empty Config.MimeTypes,
+// thus these cases exercise the builtin layer directly.
 func TestResolveContentType(t *testing.T) {
 	a := newTestApp(t)
 	cases := map[string]string{
@@ -89,10 +90,10 @@ func TestMaterializeAssetDirectory(t *testing.T) {
 	}
 }
 
-// TestServeEmbeddableAssetSetsContentType is the end-to-end proof that a
-// .jsonl asset (a database backup) is served with the content-type that
-// makes the "view" link on the Database Backups page work on each
-// platform.
+// TestServeEmbeddableAssetSetsContentType is the end-to-end proof for one
+// content-type. A .jsonl asset is a database backup. It is served with the
+// content-type that makes the "view" link on the Database Backups page
+// work on each platform.
 func TestServeEmbeddableAssetSetsContentType(t *testing.T) {
 	a := newTestApp(t)
 	body := "{\"kind\":\"row\"}\n"
@@ -126,11 +127,11 @@ func TestServeEmbeddableAssetMissing(t *testing.T) {
 	}
 }
 
-// TestServeStorageSubdir covers the /images and /user_json handler: both now
-// resolve the content-type per file through resolveContentType (forcedType
-// == ""). /user_json therefore serves .json as application/json AND .jsonl as
-// text/plain, so an uploaded JSON Lines file opens in the browser instead of
-// being forced to one type for the whole tree.
+// TestServeStorageSubdir covers the /images and /user_json handler. Both
+// now resolve the content-type for each file through resolveContentType,
+// with forcedType == "". /user_json therefore serves .json as
+// application/json AND .jsonl as text/plain. An uploaded JSON Lines file
+// thus opens in the browser, and one type is not forced on the whole tree.
 func TestServeStorageSubdir(t *testing.T) {
 	a := newTestApp(t)
 
@@ -225,11 +226,11 @@ func TestServeNotFoundNegotiatesContentType(t *testing.T) {
 	}
 }
 
-// The requested URL and the Referer are attacker-controlled and are echoed
-// into HTML, so this pins that they arrive escaped. renderNotFoundPage does
-// the escaping by hand - this package deliberately avoids html/template (see
-// the note at the top of templates.go), so nothing else will catch a
-// regression here.
+// The requested URL and the Referer are attacker-controlled, and they are
+// echoed into HTML. This pins that they arrive escaped. renderNotFoundPage
+// does the escaping by hand, because this package deliberately avoids
+// html/template. See the note at the top of templates.go. Nothing else
+// catches a regression here.
 func TestServeNotFoundEscapesRequestedURL(t *testing.T) {
 	a := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -250,8 +251,8 @@ func TestServeNotFoundEscapesRequestedURL(t *testing.T) {
 	}
 }
 
-// A Referer is only turned into a link when it points at this server; an
-// off-site or scheme-bearing value must not become an href.
+// A Referer becomes a link only when it points at this server. An off-site
+// or scheme-bearing value must not become an href.
 func TestServeNotFoundRefererFiltering(t *testing.T) {
 	a := newTestApp(t)
 	cases := []struct {
@@ -284,10 +285,10 @@ func TestServeNotFoundRefererFiltering(t *testing.T) {
 }
 
 // The [text](name) instead of [text](name.html) mistake is the most common
-// way to reach a 404 here, since a missing .html is auto-created rather than
-// 404ing. The suggestion must fire for a real note and stay silent
-// otherwise - especially for traversal attempts, which must not become a
-// way to probe for files outside the note tree.
+// way to reach a 404 here. A missing .html is created instead of answered
+// with a 404. The suggestion must fire for a real note, and it must stay
+// silent otherwise. A traversal attempt above all must not become a way to
+// probe for files outside the note tree.
 func TestNotFoundSuggestion(t *testing.T) {
 	a := newTestApp(t)
 	if err := os.WriteFile(filepath.Join(a.StorageDir, "html", "Recipes.html"), []byte("x"), 0644); err != nil {

@@ -123,7 +123,7 @@ func TestResolveNewPageTarget(t *testing.T) {
 		// explicit relative path with a slash: taken as-is (cleaned)
 		{"local/notes", "sub/page", "sub/page"},
 		{"local/notes", "./sub/page", "sub/page"},
-		// whitespace trimmed; empty stays empty
+		// whitespace trimmed. Empty stays empty.
 		{"a/b", "  c  ", "a/c"},
 		{"a/b", "", ""},
 	}
@@ -178,11 +178,11 @@ func TestHandleGetNoteMissingSynthesizesAndPersists(t *testing.T) {
 	}
 }
 
-// A shipped html/ asset that the user has never opened is not on disk yet
-// (lazy extraction - materializeAsset). /api/note must answer with the
-// EMBEDDED content, not 404: the editor turns a 404 into an empty buffer,
-// and the first Save would write that emptiness over the shipped file for
-// good, since lazy extraction only fills a file that is MISSING.
+// A shipped html/ asset that the user has never opened is not on disk yet.
+// See the lazy extraction in materializeAsset. /api/note must answer with
+// the EMBEDDED content, and not with a 404. The editor turns a 404 into an
+// empty buffer, and the first Save would write that emptiness over the
+// shipped file for good. Lazy extraction fills only a file that is MISSING.
 func TestHandleGetNoteEmbeddedAssetFallsBackToEmbed(t *testing.T) {
 	const rel = "json/bookmarker-tags.json"
 
@@ -212,9 +212,9 @@ func TestHandleGetNoteEmbeddedAssetFallsBackToEmbed(t *testing.T) {
 	}
 }
 
-// serveEditor puts the shipped asset on disk before ANY editor opens it -
-// the external editor and the Android omngo://edit intent open the file
-// path directly and never call /api/note.
+// serveEditor puts the shipped asset on disk before ANY editor opens it.
+// The external editor and the Android omngo://edit intent open the file
+// path directly, and they never call /api/note.
 func TestServeEditorMaterializesEmbeddedAsset(t *testing.T) {
 	const rel = "json/bookmarker-tags.json"
 
@@ -278,9 +278,9 @@ func TestServeStorageSubdirHonorsEditIntent(t *testing.T) {
 }
 
 // A picture, a font, an audio file or a video file has nothing to type
-// into, and a save through a textarea would damage it. Each of the four
-// routes that can reach an editor refuses such a file with 415, and
-// serveEditor refuses it BEFORE it writes the file to disk.
+// into. A save through a textarea would damage it. Each of the four routes
+// that can reach an editor refuses such a file with 415. serveEditor
+// refuses it BEFORE it writes the file to disk.
 func TestEditorRoutesRefuseBinaryFiles(t *testing.T) {
 	a := newTestApp(t)
 	a.Config.UseInternalEd = true
@@ -641,9 +641,9 @@ func TestHandleConfigSavesMaxUploadSizeMB(t *testing.T) {
 		t.Errorf("config.json missing persisted max_upload_size_mb:\n%s", data)
 	}
 
-	// Same "parse, only apply if positive" shape as server_port: a blank
-	// or zero submission must not silently zero out the limit (which
-	// would reject every upload).
+	// Same "parse, only apply if positive" shape as server_port. A blank
+	// or zero submission must not silently zero out the limit, because
+	// that would reject every upload.
 	rec = postConfig(t, a, url.Values{"max_upload_size_mb": {"0"}})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
@@ -656,9 +656,9 @@ func TestHandleConfigSavesMaxUploadSizeMB(t *testing.T) {
 func TestHandleConfigSavesAndroidIntentToggles(t *testing.T) {
 	a := newTestApp(t)
 
-	// Both boxes checked -> both true, both persisted. (The Termux/master
-	// dependency is enforced Android-side at tap time, not here; the config
-	// layer just stores whatever was submitted.)
+	// Both boxes checked -> both true, both persisted. The dependency of
+	// Termux on the master toggle is enforced on the Android side at tap
+	// time, and not here. The config layer stores whatever was submitted.
 	rec := postConfig(t, a, url.Values{
 		"enable_intent_uri":    {"true"},
 		"enable_termux_intent": {"true"},
@@ -696,13 +696,13 @@ func TestHandleConfigSavesAndroidIntentToggles(t *testing.T) {
 	}
 }
 
-// TestResolveAndroidEditName covers the bug where Android's external-editor
-// handoff opened the compiled .html cache instead of the .md source: it
-// picked md/ vs html/ purely by checking whether the name it was handed
-// ended in ".md", but the name reaching handleEditExternal is whatever URL
-// was being viewed (often "Name.html"), not necessarily the real source
-// file. resolveAndroidEditName is the fix, normalizing that name before
-// it is ever sent to the Android client.
+// TestResolveAndroidEditName covers a bug. The external-editor handoff of
+// Android opened the compiled .html cache instead of the .md source. It
+// picked md/ or html/ by one test alone, whether the name it was handed
+// ended in ".md". The name that reaches handleEditExternal is whatever URL
+// was on screen, and that is often "Name.html". It is not necessarily the
+// real source file. resolveAndroidEditName is the fix. It normalizes that
+// name before the name is ever sent to the Android client.
 func TestResolveAndroidEditName(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -730,13 +730,15 @@ func TestResolveAndroidEditName(t *testing.T) {
 }
 
 // TestResolveAndroidEditNameAgreesWithResolvePageName drives
-// resolveAndroidEditName off the SAME a.resolvePageName call
-// handleEditExternal itself makes, rather than hand-picked baseName/isPage
-// values - so it exercises the actual integration, not just the pure
-// function in isolation. All three spellings a real request could arrive
-// with ("Welcome", "Welcome.md", "Welcome.html" - see
-// TestResolvePageNameEquivalence in paths_test.go) must normalize to the
-// one correct Android edit name, "Welcome.md".
+// resolveAndroidEditName off the SAME a.resolvePageName call that
+// handleEditExternal itself makes. It does not use a hand-picked baseName
+// or isPage value. It thus exercises the real integration, and not the
+// pure function alone.
+//
+// A real request can arrive with three spellings, "Welcome", "Welcome.md"
+// and "Welcome.html". See TestResolvePageNameEquivalence in paths_test.go.
+// All three must normalize to the one correct Android edit name, which is
+// "Welcome.md".
 func TestResolveAndroidEditNameAgreesWithResolvePageName(t *testing.T) {
 	a := &App{StorageDir: "/store"}
 
@@ -758,9 +760,10 @@ func TestResolveAndroidEditNameAgreesWithResolvePageName(t *testing.T) {
 	}
 }
 
-// handleBookmark must split the notes field into several entries on ';'
-// (trimming, dropping empties), and store them safely — quotes JSON-escaped so
-// the entry embeds cleanly in Bookmarks.md's <script> block.
+// handleBookmark must split the notes field into several entries on ';'.
+// It trims each entry and drops an empty one. It must store them safely,
+// with each quote JSON-escaped, thus the entry embeds cleanly in the
+// <script> block of Bookmarks.md.
 func TestHandleBookmarkSplitsNotesBySemicolon(t *testing.T) {
 	a := newTestApp(t)
 	bmPath := filepath.Join(a.StorageDir, "md", "Bookmarks.md")
@@ -774,9 +777,10 @@ func TestHandleBookmarkSplitsNotesBySemicolon(t *testing.T) {
 		"url":   {"https://example.com"},
 		"title": {"Ex"},
 		"tags":  {"a, b"},
-		// three ';'-separated pieces; the trailing blank must be dropped. The
-		// double quotes are mid-note so the empty-note check below cannot be
-		// fooled by the "\"\"" a note *ending* in a quote would marshal to.
+		// Three pieces separated by a semicolon. The trailing blank must
+		// be dropped. The double quotes sit mid-note, thus the empty-note
+		// check below cannot be fooled. A note that *ends* in a quote
+		// would marshal to "\"\"", and that is the trap.
 		"notes": {` a "b" c ; it's second ; `},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/api/bookmark", strings.NewReader(form.Encode()))

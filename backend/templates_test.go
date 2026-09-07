@@ -86,10 +86,10 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, "tag&lt;1&gt;") {
 		t.Error("tag pill not HTML-escaped")
 	}
-	// The rendered view page must NOT carry a copy of its own source: the
-	// editor textarea (and the old %%RAW_MD_HTML%% placeholder) is gone,
-	// editing is a separate page. Guard against the doubled content
-	// regressing.
+	// The rendered view page must NOT carry a copy of its own source. The
+	// editor textarea is gone, and so is the old %%RAW_MD_HTML%%
+	// placeholder. An edit is a separate page. Guard against a return of
+	// the doubled content.
 	if strings.Contains(out, "<textarea id=\"editor\"") {
 		t.Error("rendered view page still embeds an #editor textarea (doubled content)")
 	}
@@ -101,9 +101,10 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, `var PageName = 'Weird\'Page\"Name';`) {
 		t.Error("PageName not JS-escaped in inline script")
 	}
-	// currentNote moved from an end-of-body script into the <head> page
-	// variables block (declared with var, single-quoted like its siblings)
-	// so classic note scripts that execute during body parsing can see it.
+	// currentNote moved from an end-of-body script into the page variables
+	// block of the <head>. It is declared with var and single-quoted, like
+	// its siblings. A classic note script that runs during the body parse
+	// can thus see it.
 	if !strings.Contains(out, `var currentNote = 'Weird\'Page\"Name';`) {
 		t.Error("currentNote not JS-escaped in inline script")
 	}
@@ -116,16 +117,16 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	if !strings.Contains(out, runtimeVarsMarker) {
 		t.Error("runtime vars marker missing from rendered page")
 	}
-	// Generator meta injected by compilePageWithBody is not part of this
-	// view; here we only assert what we passed in came through.
+	// The Generator meta that compilePageWithBody injects is not part of
+	// this view. Here we assert only that what we passed in came through.
 }
 
-// The user files must be LAST: the stylesheet after every stylesheet of
-// the application, the script after every script of it. That order is the
-// whole feature - it is what lets a user rule win and a user function
-// replace an application function. The editor page must NOT load them, so
-// a bad rule or a bad line can never keep the user out of the editor that
-// repairs it.
+// The user files must be LAST. The stylesheet comes after every stylesheet
+// of the application, and the script after every script of it. That order
+// is the whole feature. It is what lets a user rule win, and what lets a
+// user function replace an application function. The editor page must NOT
+// load them. A bad rule or a bad line can then never keep the user out of
+// the editor that repairs it.
 func TestRenderIndexPageLoadsCustomAssetsLast(t *testing.T) {
 	out := renderIndexPage(indexPageView{
 		Title:       "T",
@@ -316,9 +317,9 @@ func TestInjectRuntimeVars(t *testing.T) {
 	}
 }
 
-// End-to-end guard: a page rendered through renderIndexPage carries the
-// marker, and injectRuntimeVars finds it - the exact pair that broke when
-// the marker was an HTML comment.
+// End-to-end guard. A page rendered through renderIndexPage carries the
+// marker, and injectRuntimeVars finds it. That is the exact pair that broke
+// when the marker was an HTML comment.
 func TestRenderedPageAcceptsRuntimeVars(t *testing.T) {
 	a := &App{}
 	out := a.injectRuntimeVars([]byte(renderIndexPage(indexPageView{Title: "T", PageName: "T"})))
@@ -381,9 +382,9 @@ func TestRenderConfigPageFullscreenSelection(t *testing.T) {
 		{"fullscreen", `value="fullscreen" selected`},
 		{"immersive", `value="immersive" selected`},
 		// A config.json written before android_fullscreen existed carries
-		// "" and MUST land on fullscreen, not off - that is what keeps an
-		// upgraded install looking the way it always has. Garbage lands
-		// there too.
+		// "". It MUST land on fullscreen, and not on off. That is what
+		// keeps an upgraded install looking the way it always has. Garbage
+		// lands there too.
 		{"", `value="fullscreen" selected`},
 		{"sideways", `value="fullscreen" selected`},
 	}
@@ -485,9 +486,9 @@ func TestNormalizeTheme(t *testing.T) {
 // number comes from.
 // ---------------------------------------------------------------------
 
-// compatCommentRe removes a block comment and a line comment, so that the
-// prose of the banner, which names "async/await" and "arrow functions",
-// cannot look like code to the scan below.
+// compatCommentRe removes a block comment and a line comment. The prose of
+// the banner names "async/await" and "arrow functions". It thus cannot look
+// like code to the scan below.
 var compatCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/|//[^\n]*`)
 
 // compatBannedES6 are tokens that an ES5 parser rejects. Each one is

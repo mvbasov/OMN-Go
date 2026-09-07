@@ -81,10 +81,11 @@ const configFormMaxMemory = 32 << 20
 // one config field.
 //
 // WHY THIS EXISTS. handleConfig used to rebuild the whole Config from the
-// form, so a request that named one setting CLEARED every setting it did not
-// name. The Config page always sends the whole form, so nothing showed it -
-// until a note posted "theme" on its own and emptied the author name, both
-// passwords, the external-editor command and the device label with it.
+// form. A request that named one setting thus CLEARED every setting it did
+// not name. The Config page always sends the whole form, thus nothing
+// showed the fault. Then a note posted "theme" on its own, and it emptied
+// the author name, both passwords, the external-editor command and the
+// device label with it.
 //
 // The rule now is: a field the request does not carry is left as it is.
 //
@@ -100,8 +101,8 @@ const configFormMaxMemory = 32 << 20
 // config_fields governs only what it actually names - the safe default, and
 // the behaviour a note or a script wants.
 //
-// A field that IS sent is applied even when its value is empty: clearing the
-// author name or a password from the Config page has to keep working.
+// A field that IS sent is applied even when its value is empty. A person
+// must be able to clear the author name or a password from the Config page.
 func configFieldSent(r *http.Request) func(field string) bool {
 	if r.Form == nil {
 		// Fills r.Form for both shapes this endpoint sees: the Config page
@@ -136,10 +137,10 @@ func configFieldSent(r *http.Request) func(field string) bool {
 // block. Four functions hold that work now, and each one has a name that
 // says what it does:
 //
-//	applyConfigForm       config_fields.go, the table of settings
-//	applyGitServerForm    config_fields.go, the five git slots
-//	persistConfig         below, the marshal and the write
-//	applyConfigChange     below, the log filter and the search index
+//	applyConfigForm       config_fields.go, the table of settings.
+//	applyGitServerForm    config_fields.go, the five git slots.
+//	persistConfig         below, the marshal and the write.
+//	applyConfigChange     below, the log filter and the search index.
 //
 // A GET answers with the whole Config struct, each password included. It
 // is admin-only, and the Config page reads it for the "Show passwords"
@@ -213,8 +214,8 @@ func (a *App) persistConfig(cfg Config) error {
 // NOTHING HERE WAITS FOR A RESTART, and share_lan is the one exception.
 // The listen socket is bound one time at the start, thus only a restart
 // can move it. Each other change applies at once. A person who turns
-// search off does that because the device is short of memory, and an
-// answer of "restart first" would be an odd way to help.
+// search off does that because the device is short of memory. An answer of
+// "restart first" would be an odd way to help.
 func (a *App) applyConfigChange(prev, next Config) {
 	// The log filter applies at once, and never at a restart. A person
 	// who switches a level on wants the next line, not the next run.
@@ -253,26 +254,29 @@ func searchIndexNeedsRebuild(prev, next Config) bool {
 		strings.Join(normalizeSearchKinds(next.SearchKinds), ",")
 }
 
-// handleRestart restarts the whole application process so startup-bound
-// state - above all the listen address chosen from ShareLAN - is rebuilt
-// from the just-saved config. Triggered by the frontend right after a
-// config save that flipped ShareLAN.
+// handleRestart restarts the whole application process. Startup-bound
+// state is thus rebuilt from the config that was saved a moment before.
+// The listen address chosen from ShareLAN is the first of it. The
+// frontend
+// triggers it right after a config save that flipped ShareLAN.
 //
 // Per platform:
-//   - Android: plain os.Exit(0). The process (Go server, WebView UI - the
-//     whole app) terminates; ServerService is START_STICKY, so the system
-//     recreates it shortly after, which restarts the Go server with the
-//     new config and rebuilds the notification/foreground state from that
-//     same config (see ServerService.onStartCommand). The UI closes; the
-//     user reopens the app manually - at which point MainActivity also
-//     re-evaluates which permissions LAN sharing now needs.
-//   - Desktop: spawn a fresh copy of our own executable (marked with
-//     OMN_GO_RESTARTED=1 so main_desktop.go does not open a second browser
-//     tab), then exit. The bind-retry loop in server.go absorbs the brief
-//     window where the child races the parent's socket teardown.
+//   - Android: plain os.Exit(0). The process terminates, and that is the
+//     Go server, the WebView UI and the whole app. ServerService is
+//     START_STICKY, thus the system recreates it shortly after. That
+//     restarts the Go server with the new config, and it rebuilds the
+//     notification and foreground state from that same config. See
+//     ServerService.onStartCommand. The UI closes, and the user reopens
+//     the app by hand. MainActivity then also re-evaluates which
+//     permissions LAN sharing now needs.
+//   - Desktop: spawn a fresh copy of our own executable, and then exit.
+//     The copy is marked with OMN_GO_RESTARTED=1, thus main_desktop.go
+//     does not open a second browser tab. The bind-retry loop in server.go
+//     absorbs the brief window where the child races the socket teardown
+//     of the parent.
 //
-// The HTTP response is written before any of this happens so the browser
-// actually receives it; the exit runs on a delayed goroutine.
+// The HTTP response is written before any of this happens, thus the
+// browser receives it. The exit runs on a delayed goroutine.
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -310,22 +314,27 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 
 // resolveAndroidEditName computes the name handed to the omngo://edit
 // intent that MainActivity.shouldOverrideUrlLoading intercepts on Android.
-// That Java code picks md/ vs html/ purely by checking whether the name it
-// receives ends in ".md" - but the incoming name here is whatever URL the
-// user was viewing (e.g. "Welcome.html" for a markdown-backed page's
-// rendered view), not necessarily the actual editable source file. Passing
-// that raw name through used to make Android fall into the html/ branch
-// for every ordinary note and open the compiled HTML cache instead of the
-// markdown source. Normalize it here instead: baseName + ".md" for a real
-// page, or the original name unchanged for a genuine non-page asset
-// (isPage is false there, and baseName is just name itself - see
-// resolvePageName). Desktop's handleEditExternal never had this bug
-// because it already resolves isPage/baseName before picking filePath;
-// this is exactly that same resolution, reused for Android's redirect.
+// That Java code picks md/ or html/ by one test alone, whether the name it
+// receives ends in ".md".
 //
-// Extracted as its own pure function (no runtime.GOOS check inside) so it
-// can be unit-tested directly - runtime.GOOS is a compile-time constant
-// and cannot be faked in a test running on a non-Android build.
+// The incoming name here is whatever URL the user was viewing. For the
+// rendered view of a markdown-backed page that is "Welcome.html". It is not
+// necessarily the real editable source file. To pass that raw name through
+// used to make Android fall into the html/ branch for every ordinary note.
+// It then opened the compiled HTML cache instead of the markdown source.
+//
+// Normalize it here instead. A real page gives baseName + ".md". A genuine
+// non-page asset keeps the original name, because isPage is false there and
+// baseName is the name itself. See resolvePageName.
+//
+// The handleEditExternal of the desktop never had this bug, because it
+// already resolves isPage and baseName before it picks filePath. This is
+// exactly that same resolution, reused for the redirect of Android.
+//
+// It is extracted as its own pure function, with no runtime.GOOS check
+// inside, thus it can be unit-tested directly. runtime.GOOS is a
+// compile-time constant, and a test that runs on a non-Android build
+// cannot fake it.
 func resolveAndroidEditName(name, baseName string, isPage bool) string {
 	if isPage {
 		return baseName + ".md"
@@ -353,9 +362,9 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Second: a shipped html/ asset that nothing requested yet is not
-		// on disk, and the external editor (or the Android intent below)
-		// would open a path with no file behind it. A no-op when the file
-		// is there or is not embedded.
+		// on disk. The external editor, or the Android intent below, would
+		// then open a path with no file behind it. A no-op when the file is
+		// there or is not embedded.
 		a.materializeAsset("/" + filepath.ToSlash(name))
 	}
 
@@ -415,11 +424,11 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 //   - a leading "/" is treated as absolute, anchored at the storage root
 //   - a target that already specifies its own directory is used as-is
 //
-// source is defensively trimmed of any stray leading/trailing slashes
-// before computing its directory: a trailing slash (e.g. "path/file/"
-// instead of "path/file") would otherwise make the directory computation
-// treat the whole string as its own directory, producing "path/file/new"
-// instead of the intended sibling "path/new".
+// source is defensively trimmed of a stray leading or trailing slash
+// before its directory is computed. A trailing slash would otherwise make
+// the directory computation read the whole string as its own directory.
+// "path/file/" instead of "path/file" would then produce "path/file/new",
+// and not the intended sibling "path/new".
 func (a *App) resolveNewPageTarget(source, target string) string {
 	target = strings.TrimSpace(target)
 	if target == "" {
@@ -555,13 +564,16 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 			tagsList = append(tagsList, trimmed)
 		}
 	}
-	// Notes are split into several entries on ';' - the same shape as tags on
-	// ',' above - matching the old OMN bookmark behavior. Each entry is
-	// trimmed and empties are dropped (so a trailing "; " adds nothing). The
-	// entries are stored via json.MarshalIndent below, which already JSON-encodes
-	// them safely for the <script> block in Bookmarks.md: a double quote is
-	// escaped, and '<' '>' '&' are emitted as \u-escapes so a note can never
-	// break out of the script. A single quote needs no JSON escaping.
+	// Notes are split into several entries on a semicolon. Tags above use
+	// the same shape on a comma. Both match the old OMN bookmark behavior.
+	// Each entry is trimmed, and an empty one is dropped, thus a trailing
+	// separator adds nothing.
+	//
+	// The entries are stored through json.MarshalIndent below. That call
+	// already JSON-encodes them safely for the <script> block in
+	// Bookmarks.md. A double quote is escaped. The characters '<', '>' and
+	// '&' are emitted as \u-escapes, thus a note can never break out of the
+	// script. A single quote needs no JSON escaping.
 	notesList := []string{}
 	for n := range strings.SplitSeq(notes, ";") {
 		if trimmed := strings.TrimSpace(n); trimmed != "" {
@@ -597,37 +609,39 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Saved"))
 }
 
-// writeTreeFromDir recursively creates a sorted git tree object from the given directory.
-// It skips .git and .gitignore, and ensures entries are sorted by name.
+// writeTreeFromDir recursively creates a sorted git tree object from the
+// given directory. It skips .git and .gitignore, and it sorts the entries
+// by name.
 
-// imageUploadExtensions / jsonUploadExtensions whitelist what
-// saveUploadedFile will accept for handleUpload and handleUploadJSON
-// respectively - "only images and JSON accepted". Android's native
-// share-to-QuickNote handoff (MainActivity.java) enforces the same two
-// lists independently, since that path writes straight to disk rather
-// than going through these HTTP handlers; keep both in sync by hand if
-// either changes.
+// imageUploadExtensions and jsonUploadExtensions whitelist what
+// saveUploadedFile accepts, for handleUpload and for handleUploadJSON. The
+// rule is "only images and JSON accepted". The native share-to-QuickNote
+// handoff of Android, in MainActivity.java, enforces the same two lists on
+// its own. That path writes straight to disk, and it does not go through
+// these HTTP handlers. Keep both in step by hand if either one changes.
 var (
 	imageUploadExtensions = []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 	jsonUploadExtensions  = []string{".json", ".jsonl"}
 )
 
 // uploadRejected marks a saveUploadedFile failure as caused by the
-// uploaded file itself (wrong type, too large) rather than a server-side
-// I/O problem, so handleUpload/handleUploadJSON can answer 400 instead of
-// 500 - the client sent something we will not accept, not something broke.
+// uploaded file itself, with a wrong type or too large a size. It is not a
+// server-side I/O problem. handleUpload and handleUploadJSON can thus
+// answer 400 instead of 500. The client sent something we will not accept,
+// and nothing broke.
 type uploadRejected struct{ msg string }
 
 func (e *uploadRejected) Error() string { return e.msg }
 
 // saveUploadedFile does the shared work behind handleUpload and
-// handleUploadJSON: parse the multipart form, pull out the named file
-// field, check it against allowedExt and maxBytes, and copy it into
-// destDir/<original filename>. Every step that can fail now actually
-// reports failure to the caller instead of the previous
-// os.Create(...)/io.Copy(...) with errors discarded via "_" - a full disk
-// or a permissions problem used to look identical to a successful upload
-// from the browser's point of view.
+// handleUploadJSON. It parses the multipart form, pulls out the named file
+// field, checks it against allowedExt and maxBytes, and copies it into
+// destDir/<original filename>.
+//
+// Every step that can fail now reports a failure to the caller. The
+// previous code called os.Create(...) and io.Copy(...) and discarded each
+// error with "_". A full disk or a permissions problem then looked the same
+// as a successful upload, from the point of view of the browser.
 //
 // allowedExt is matched case-insensitively against the uploaded file's
 // extension; an empty allowedExt skips the type check entirely. maxBytes
@@ -690,10 +704,11 @@ func (a *App) maxUploadBytes() int64 {
 }
 
 // writeUploadError answers a saveUploadedFile failure with the right
-// status code: 400 (with the specific reason) for an uploadRejected -
-// bad type or too large, the client's fault - and a generic 500 for
-// anything else (disk full, permissions, ...), matching how the rest of
-// this file avoids leaking internal error detail to the response body.
+// status code. An uploadRejected gives 400, with the specific reason. That
+// is a bad type or too large a size, and it is the fault of the client.
+// Anything else gives a generic 500, for example a full disk or a
+// permissions problem. The rest of this file also keeps internal error
+// detail out of the response body.
 func (a *App) writeUploadError(w http.ResponseWriter, logPrefix string, err error) {
 	var rejected *uploadRejected
 	if errors.As(err, &rejected) {
@@ -711,18 +726,19 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		a.writeUploadError(w, "handleUpload", err)
 		return
 	}
-	// HTML rather than markdown image syntax: the goldmark renderer runs
-	// with html.WithUnsafe() (see markdown.go), so raw HTML passes through
-	// untouched, and only this form lets us attach a class - plain markdown
-	// image syntax has no attribute syntax in the GFM-only dialect this app
-	// renders with. .omn-imported-image (omn-go-core.css) is what actually
-	// gives dropped images a sane default width instead of rendering at
-	// full native resolution.
-	// NOTE: this must be a normal double-quoted string, not a backtick raw
-	// string - backticks do not interpret \n as an escape at all, so it was
-	// literally inserting the two characters "\" and "n" into the note
-	// instead of a newline (compare handleUploadJSON right below, which
-	// already gets this right).
+	// HTML rather than markdown image syntax. The goldmark renderer runs
+	// with html.WithUnsafe(), see markdown.go, thus raw HTML passes through
+	// untouched. Only this form lets us attach a class. Plain markdown
+	// image syntax has no attribute syntax in the GFM-only dialect that
+	// this app renders with. .omn-imported-image, in omn-go-core.css, is
+	// what gives a dropped image a sensible default width, instead of a
+	// render at full native resolution.
+	//
+	// NOTE: this must be a normal double-quoted string, and not a backtick
+	// raw string. Backticks do not interpret \n as an escape at all. The
+	// code thus literally inserted the two characters "\" and "n" into the
+	// note, instead of a newline. Compare handleUploadJSON right below,
+	// which already gets this right.
 	escaped := html.EscapeString(filename)
 	w.Write(fmt.Appendf(nil, "\n<img src=\"/images/%s\" alt=\"%s\" class=\"omn-imported-image\" />\n", escaped, escaped))
 }
@@ -755,28 +771,34 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 		}
 		data, err := os.ReadFile(htmlPath)
 		if err != nil {
-			// Not on disk. An html/ asset that ships with the build only
-			// reaches disk when something requests it (materializeAsset,
-			// serving.go), so on a fresh install every embedded asset the
-			// user has not opened yet is missing here. Answering 404 makes
-			// the editor open an EMPTY buffer for a file that does have
-			// shipped content, and the first Save writes that emptiness to
-			// disk - where it shadows the embedded copy forever, because
-			// lazy extraction only ever fills a MISSING file
-			// (json/bookmarker-tags.json is the one users hit). Run the
-			// same extraction the view path runs, then read it back.
+			// Not on disk. An html/ asset that ships with the build
+			// reaches disk only when something requests it. See
+			// materializeAsset in serving.go. On a fresh install, every
+			// embedded asset that the user has not opened yet is missing
+			// here.
+			//
+			// A 404 makes the editor open an EMPTY buffer for a file that
+			// does have shipped content. The first Save then writes that
+			// emptiness to disk, where it shadows the embedded copy
+			// forever. Lazy extraction only ever fills a MISSING file. The
+			// asset that users hit is json/bookmarker-tags.json.
+			//
+			// Run the same extraction that the view path runs, and then
+			// read it back.
 			if physPath, ok := a.materializeAsset("/" + strings.TrimPrefix(filepath.ToSlash(name), "/")); ok {
 				data, err = os.ReadFile(physPath)
 			}
 		}
 		if err != nil {
-			// Genuinely nowhere: not on disk, not embedded. Plain text in
-			// practice - the editor fetches this without an html Accept,
-			// and serveNotFound negotiates on that - so loadContent() still
-			// surfaces a readable message with the requested path in it.
+			// Genuinely nowhere. It is not on disk, and it is not
+			// embedded. It is plain text in practice, because the editor
+			// fetches this without an html Accept and serveNotFound
+			// negotiates on that. loadContent() thus still shows a
+			// readable message with the requested path in it.
+			//
 			// This is also the documented "open a path that does not exist
-			// yet, save to create it" case (see the User Manual), which is
-			// why it stays a 404 rather than an error page.
+			// yet, save to create it" case. See the User Manual. That is
+			// why it stays a 404, and not an error page.
 			a.serveNotFound(w, r)
 			return
 		}
@@ -790,11 +812,11 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Not on disk yet - fall back to the embedded default, or synthesize a
-	// fresh empty page. Either way, persist it so this fallback only ever
-	// runs once per page. Failures here are logged (not fatal to the
-	// request) since the in-memory `data` we are about to serve is still
-	// correct even if we cannot cache it to disk.
+	// Not on disk yet. Fall back to the embedded default, or make a fresh
+	// empty page. Either way, persist it, thus this fallback runs one time
+	// only for each page. A failure here is logged, and it is not fatal to
+	// the request. The in-memory `data` that we are about to serve is still
+	// correct, also when we cannot cache it to disk.
 	embedPath := "frontend/md/" + baseName + ".md"
 	if embedData, embedErr := staticFS.ReadFile(embedPath); embedErr == nil {
 		data = embedData
@@ -826,13 +848,15 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A bare target name (no "/") used to always land at the storage root
-	// regardless of which page it was created from, so creating "test"
-	// while viewing "local/local" produced "test" instead of "local/test" -
-	// inconsistent with how a bare relative link on that same page resolves
-	// (see rewriteInternalLink). Resolve it the same way here: relative to
-	// source's directory unless target is itself absolute or already
-	// specifies a directory.
+	// A bare target name, with no "/", used to always land at the storage
+	// root, whatever page it was created from. To create "test" while
+	// viewing "local/local" thus produced "test", and not "local/test".
+	// That disagreed with how a bare relative link on that same page
+	// resolves, see rewriteInternalLink.
+	//
+	// Resolve it the same way here. It is relative to the directory of
+	// source, unless target is itself absolute or already names a
+	// directory.
 	rawTarget := target
 	target = a.resolveNewPageTarget(source, target)
 
@@ -856,29 +880,34 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			content := string(sourceData)
 
 			// The href embedded in source must match how source itself
-			// will resolve it when clicked, not the fully-resolved
-			// storage path. A bare rawTarget (no "/") was resolved above
-			// relative to source's own directory (see
-			// resolveNewPageTarget) - inserting that same bare name here
-			// lets the browser's ordinary relative-link resolution land
-			// on exactly that file, since it resolves relative to
-			// source's directory too. Inserting the already-resolved
-			// "target" instead (e.g. "path/new") used to have the browser
-			// resolve it AGAIN relative to source's directory when
-			// clicked, doubling the nesting into "path/path/new". A
-			// rawTarget that already specified its own directory (or was
-			// absolute) is anchored at the storage root, so it needs an
-			// explicit leading "/" here to avoid being misresolved the
-			// same relative way.
+			// resolves it on a click. It is not the fully-resolved storage
+			// path.
+			//
+			// A bare rawTarget, with no "/", was resolved above relative
+			// to the own directory of source. See resolveNewPageTarget.
+			// The same bare name here lets the ordinary relative-link
+			// resolution of the browser land on exactly that file. That
+			// resolution is relative to the directory of source too.
+			//
+			// The already-resolved "target", such as "path/new", used to
+			// go in instead. The browser then resolved it AGAIN relative
+			// to the directory of source on a click, and the nesting
+			// doubled into "path/path/new".
+			//
+			// A rawTarget that already named its own directory, or that
+			// was absolute, is anchored at the storage root. It thus needs
+			// an explicit leading "/" here, or it is misresolved the same
+			// relative way.
 			linkHref := strings.TrimSpace(rawTarget)
 			if strings.Contains(linkHref, "/") {
 				linkHref = "/" + target
 			}
 			linkStr := fmt.Sprintf("* [%s](%s.html)", title, linkHref)
 
-			// Same header decision as everywhere else (see header_block.go).
-			// The new link is inserted just below the header block when one
-			// is present, or prepended to a headerless note.
+			// Same header decision as everywhere else, see
+			// header_block.go. The new link goes directly below the header
+			// block when one is present. A headerless note gets it at the
+			// top.
 			hb := parseHeaderBlock(content)
 			if hb.HasHeader {
 				if hb.Body != "" {
@@ -935,10 +964,10 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// The editor writes where the URL points, which is html/. A file
-		// that also belongs beside a note goes back to md/ as well, or the
-		// copy the user keeps with the notes - and that git sync carries -
-		// goes stale while the served copy moves on. A no-op for every
-		// other file under html/ (see note_files.go).
+		// that also belongs beside a note goes back to md/ as well.
+		// Otherwise the copy that the user keeps with the notes goes stale
+		// while the served copy moves on, and git sync carries that copy.
+		// A no-op for every other file under html/, see note_files.go.
 		a.syncNoteFileToMD(htmlPath)
 		w.Write([]byte("Saved"))
 		return
@@ -946,10 +975,10 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 
 	content = a.ensureHeaderModified(content, baseName)
 
-	// Write the markdown source first. This is the source of truth - if it
-	// fails, bail out and tell the caller "Saved" is a lie, rather than
-	// going on to compile/write the HTML from content that never actually
-	// made it to disk.
+	// Write the markdown source first. This is the one authority. When it
+	// fails, stop and tell the caller that "Saved" is a lie. Do not go on
+	// to compile and write the HTML from content that never reached the
+	// disk.
 	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
 		a.logErrf(logPage, "handleSaveNote: mkdir failed for %q: %v", baseName, err)
 		http.Error(w, "Failed to save", http.StatusInternalServerError)
@@ -961,12 +990,12 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The compiled HTML is a derived cache of the markdown we just saved
-	// successfully - if this part fails, the note itself is still safe on
-	// disk, so log it and let the next page load recompile it (serveHTMLPage
-	// already recompiles whenever the .md is newer than the .html) rather
-	// than reporting the save itself as failed. renderAndCache is the single
-	// cache writer (see render_cache.go).
+	// The compiled HTML is a derived cache of the markdown that we saved
+	// successfully above. When this part fails, the note itself is still
+	// safe on disk. Log it, and let the next page load recompile it.
+	// serveHTMLPage already recompiles whenever the .md is newer than the
+	// .html. Do not report the save itself as failed. renderAndCache is the
+	// one cache writer, see render_cache.go.
 	if _, err := a.renderAndCache(baseName, []byte(content)); err != nil {
 		a.logErrf(logPage, "handleSaveNote: %v", err)
 	}
@@ -982,10 +1011,11 @@ func (a *App) serveFrontend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Edit intent takes precedence for BOTH markdown pages and static
-	// assets, so the one dedicated editor page handles every editable file
-	// uniformly. Previously only non-".html" assets reached serveEditor
-	// here; markdown pages fell through to serveHTMLPage and relied on an
-	// in-page toggle that baked the entire source into every rendered page.
+	// assets. The one dedicated editor page thus handles every editable
+	// file the same way. Previously only an asset that was not ".html"
+	// reached serveEditor here. A markdown page fell through to
+	// serveHTMLPage, and it relied on an in-page toggle that baked the
+	// entire source into every rendered page.
 	if r.URL.Query().Get("edit") == "true" {
 		a.serveEditor(w, r, path)
 		return
@@ -1024,9 +1054,10 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 		return
 	}
 
-	// The auto-generated Tags index: regenerated when stale against ALL notes
-	// (not just its own .md), so it cannot use the normal one-source mtime path
-	// below. See serveTagsPage / tags.go.
+	// The auto-generated Tags index. It is regenerated when it is stale
+	// against ALL notes, and not against its own .md alone. It thus cannot
+	// use the normal one-source mtime path below. See serveTagsPage and
+	// tags.go.
 	if name == "OMNGoTags" {
 		a.serveTagsPage(w, r)
 		return
@@ -1078,16 +1109,17 @@ func (a *App) recompileMarkdownPage(name, mdPath string, errMd error) {
 
 	mdContent, err := os.ReadFile(mdPath)
 	if err == nil {
-		// Pure cache regeneration: recompile .html from whatever .md is
-		// on disk right now. This function runs on an ordinary page VIEW
-		// whenever the cache is stale (see serveHTMLPage's mtime check),
-		// not only on save - so it must never rewrite the .md source.
-		// ensureHeaderModified (which stamps "Modified: <time.Now()>")
-		// belongs exclusively to the explicit save path (handleSaveNote).
-		// Calling it here used to bump - and rewrite - the source file's
-		// Modified timestamp on every plain view that happened to need a
-		// cache rebuild, which is exactly the bug this comment guards
-		// against reintroducing.
+		// Pure cache regeneration. Recompile .html from whatever .md is on
+		// disk right now. This function runs on an ordinary page VIEW
+		// whenever the cache is stale. See the mtime check of
+		// serveHTMLPage. It does not run on a save alone, thus it must
+		// never rewrite the .md source.
+		//
+		// ensureHeaderModified stamps "Modified: <time.Now()>". It belongs
+		// to the explicit save path alone, which is handleSaveNote. A call
+		// to it here used to bump and rewrite the Modified timestamp of the
+		// source file. That happened on every plain view that needed a
+		// cache rebuild. This comment guards against a return of that bug.
 		if _, err := a.renderAndCache(name, mdContent); err != nil {
 			a.logErrf(logPrecompile, "recompileMarkdownPage: %v", err)
 		}
@@ -1117,13 +1149,13 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 			a.serveNotEditable(w, r, relPath)
 			return
 		}
-		// Put a shipped-but-not-yet-extracted html/ asset on disk before any
-		// editor opens it. The internal editor gets the same content through
-		// /api/note (handleGetNote runs this too), but the EXTERNAL editor and
-		// the Android omngo://edit intent open the file path directly, and a
-		// missing file gives them nothing to show and everything to overwrite.
-		// A no-op for a file already on disk and for a path that is not
-		// embedded at all.
+		// Put a shipped html/ asset that is not extracted yet on disk,
+		// before any editor opens it. The internal editor gets the same
+		// content through /api/note, because handleGetNote runs this too.
+		// The EXTERNAL editor and the Android omngo://edit intent open the
+		// file path directly. A missing file gives them nothing to show and
+		// everything to overwrite. A no-op for a file already on disk, and
+		// for a path that is not embedded at all.
 		a.materializeAsset("/" + filepath.ToSlash(relPath))
 	}
 
@@ -1136,13 +1168,14 @@ func (a *App) serveEditor(w http.ResponseWriter, r *http.Request, path string) {
 }
 
 // renderInternalEditor writes the standalone editor page for relPath. The
-// note text is NOT embedded here - the page fetches it from /api/note on
-// load (see omn-go-editor.js), which is the whole point of the rewrite:
-// the rendered view page no longer carries a hidden second copy of itself.
+// note text is NOT embedded here. The page fetches it from /api/note on
+// load, see omn-go-editor.js. That is the whole point of the rewrite. The
+// rendered view page no longer carries a hidden second copy of itself.
 //
-// This is shared by serveEditor (markdown pages and catch-all assets) and
-// the /js|/css|/json lazy-embed edit branch in server.go, so all editable
-// files open the same editor.
+// Two callers share this. The first is serveEditor, for a markdown page and
+// for a catch-all asset. The second is the lazy-embed edit branch of /js,
+// /css and /json in server.go. Every editable file thus opens the same
+// editor.
 func (a *App) renderInternalEditor(w http.ResponseWriter, relPath string) {
 	_, _, baseName, isPage := a.resolvePageName(relPath)
 

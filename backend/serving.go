@@ -16,9 +16,9 @@ import (
 // The single asset-serving layer
 // ----------------------------------------------------------------------
 //
-// Static assets under html/ reach the browser through exactly two shared
-// helpers here, so "which code serves URL X, and what content-type does it
-// get" is answerable in one place:
+// A static asset under html/ reaches the browser through exactly two
+// shared helpers here. One place thus answers "which code serves URL X,
+// and what content-type does it get":
 //
 //   - serveEmbeddableAsset backs the /js/, /css/, /json/ trees and the root
 //     catch-all (favicon.ico, robots.txt, ...). These ship embedded in the
@@ -26,43 +26,47 @@ import (
 //   - serveStorageSubdir backs the /images/ and /user_json/ trees, which are
 //     pure user content (never embedded), served straight from html/<sub>/.
 //
-// Both resolve content-type through resolveContentType, the ONE MIME
-// resolver - it folds together what used to be three separate sources: the
-// per-install Config.MimeTypes map, the startup mime.AddExtensionType(...)
-// registrations, and http.FileServer's implicit stdlib lookup. See
-// CODE_REVIEW.md Phase 3.
+// Both resolve the content-type through resolveContentType, which is the
+// ONE MIME resolver. It folds together what used to be three separate
+// sources. Those are the per-install Config.MimeTypes map, the startup
+// mime.AddExtensionType(...) registrations, and the implicit stdlib lookup
+// of http.FileServer. See CODE_REVIEW.md Phase 3.
 
-// builtinMIME is OMN-Go's canonical content-type table. It supersedes the
-// startup mime.AddExtensionType(...) calls that used to seed the process
-// mime table (so those are removed from StartServer), carries JSON Lines
-// (.jsonl, used by the database backups in db_backup.go), and keeps the
-// web-font types explicit for minimal containers whose stdlib mime tables
-// are sparse.
+// builtinMIME is the canonical content-type table of OMN-Go. It supersedes
+// the startup mime.AddExtensionType(...) calls that used to seed the
+// process mime table, thus those are removed from StartServer. It carries
+// JSON Lines, which is .jsonl and which the database backups in
+// db_backup.go use. It also keeps the web-font types explicit, for a
+// minimal container whose stdlib mime table is sparse.
 var builtinMIME = map[string]string{
 	".html": "text/html; charset=utf-8",
 	".css":  "text/css; charset=utf-8",
 	".js":   "text/javascript; charset=utf-8",
 	".mjs":  "text/javascript; charset=utf-8",
 	".json": "application/json",
-	// JSON Lines - database backups (db_backup.go). text/plain, NOT
-	// application/jsonl: a browser renders text/plain inline, and the
-	// Android WebView has no download handler at all, so any type it
-	// cannot render leaves the user with a link that does nothing (the
-	// "view" link on the Database Backups page is exactly that link).
-	// text/plain and not application/json either - a backup is JSON
-	// Lines, not one JSON document, so a browser JSON viewer reports a
-	// parse error on the second line instead of showing the file.
+	// JSON Lines - database backups (db_backup.go). It is text/plain, and
+	// NOT application/jsonl. A browser renders text/plain inline. The
+	// Android WebView has no download handler at all. Any type that it
+	// cannot render thus leaves the user with a link that does nothing.
+	// The "view" link on the Database Backups page is exactly that link.
+	//
+	// It is not application/json either. A backup is JSON Lines, and not
+	// one JSON document. A browser JSON viewer thus reports a parse error
+	// on the second line, instead of showing the file.
 	".jsonl": "text/plain; charset=utf-8",
 	".md":    "text/markdown; charset=utf-8",
-	// Go's own table has no ".txt" (mime/type.go, builtinTypesLower), and a
-	// phone has no /etc/mime.types for the stdlib to read at init. The
-	// consequence of the missing row was not only a guessed type:
-	// editableFileType asks this same table whether a file is text, so on
-	// Android a .txt got no edit link and the editor refused to open it,
-	// while the identical file behaved correctly on a desktop Linux with
-	// mime-support installed. A file kept beside a note (note_files.go) is
-	// a .txt, so this row is what makes such a file editable at all on the
-	// device where it matters.
+	// Go's own table has no ".txt", see mime/type.go and
+	// builtinTypesLower. A phone has no /etc/mime.types for the stdlib to
+	// read at init.
+	//
+	// The missing row cost more than a guessed type. editableFileType asks
+	// this same table whether a file is text. On Android a .txt thus got
+	// no edit link, and the editor refused to open it. The identical file
+	// behaved correctly on a desktop Linux with mime-support installed.
+	//
+	// A file kept beside a note (note_files.go) is a .txt. This row is
+	// what makes such a file editable at all, on the device where it
+	// matters.
 	".txt":   "text/plain; charset=utf-8",
 	".svg":   "image/svg+xml",
 	".png":   "image/png",
@@ -137,11 +141,11 @@ const htmlContentType = "text/html; charset=utf-8"
 //
 // The rule reads:
 //
-//	.md                     the source of a note
-//	.html                   a compiled note. An .html always has a .md source
-//	a known extension       a file under html/, for example .js or .txt
-//	an unknown extension    a note, for example "Report.2026"
-//	no extension            a note
+//	.md                     the source of a note.
+//	.html                   a compiled note. An .html always has a .md source.
+//	a known extension       a file under html/, for example .js or .txt.
+//	an unknown extension    a note, for example "Report.2026".
+//	no extension            a note.
 //
 // A note named "Draft.txt" thus has the source md/Draft.txt.md and compiles
 // to html/Draft.txt.html. The file html/Draft.txt is a different thing with
@@ -213,13 +217,15 @@ func legacyAssetURL(urlPath string) (string, bool) {
 	return moved, ok
 }
 
-// materializeAsset returns the on-disk path of the html/ asset for urlPath,
-// extracting it from the embedded frontend on first request if it is not on
-// disk yet. ok is false for a genuine 404 (present neither on disk nor
-// embedded) or when the path resolves to a directory. This is the ONE
-// implementation of the lazy embed-extraction that used to be copied between
-// the /js|/css|/json handler (server.go) and the root catch-all
-// (serveStaticAsset).
+// materializeAsset answers the on-disk path of the html/ asset for
+// urlPath. It extracts the asset from the embedded frontend on the first
+// request, when the asset is not on disk yet. ok is false for a genuine
+// 404, where the asset is neither on disk nor embedded. It is also false
+// when the path resolves to a directory.
+//
+// This is the ONE implementation of the lazy embed-extraction. It used to
+// be copied between the /js, /css and /json handler in server.go and the
+// root catch-all in serveStaticAsset.
 func (a *App) materializeAsset(urlPath string) (physPath string, ok bool) {
 	clean := filepath.Clean(urlPath)
 
@@ -251,12 +257,14 @@ func (a *App) materializeAsset(urlPath string) (physPath string, ok bool) {
 	return "", false
 }
 
-// serveEmbeddableAsset serves one static asset under html/ that may need
-// first-request extraction from the embedded frontend (see materializeAsset).
-// It backs the /js/, /css/, /json/ trees and the root catch-all. An
-// ?edit=true request is handed to the dedicated editor page, exactly as
-// before: the /js|/css|/json routes reach this with edit intent, while the
-// catch-all's edit intent is already peeled off in serveFrontend, so the
+// serveEmbeddableAsset serves one static asset under html/. That asset may
+// need a first-request extraction from the embedded frontend, see
+// materializeAsset. It backs the /js/, /css/ and /json/ trees, and the root
+// catch-all.
+//
+// An ?edit=true request is handed to the dedicated editor page, exactly as
+// before. The /js, /css and /json routes reach this with edit intent.
+// serveFrontend already peels the edit intent off the catch-all, thus the
 // check here is a harmless no-op on that path.
 func (a *App) serveEmbeddableAsset(w http.ResponseWriter, r *http.Request, urlPath string) {
 	if r.URL.Query().Get("edit") == "true" {
@@ -285,9 +293,9 @@ func (a *App) serveStorageSubdir(subDir, forcedType string) http.Handler {
 	os.MkdirAll(dirPath, 0755)
 	fsHandler := http.StripPrefix("/"+subDir+"/", http.FileServer(http.Dir(dirPath)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// "?edit=true opens any file that OMN-Go serves" holds for these two
-		// trees as well. They have their own routes, so an edit request here
-		// never reaches serveFrontend, and the documented link
+		// "?edit=true opens any file that OMN-Go serves" holds for these
+		// two trees as well. They have their own routes, thus an edit
+		// request here never reaches serveFrontend. The documented link
 		// "[Edit shared data](/user_json/inventory.json?edit=true)" used to
 		// serve the raw JSON instead of opening the editor.
 		if r.URL.Query().Get("edit") == "true" {
@@ -313,13 +321,14 @@ func (a *App) serveStorageSubdir(subDir, forcedType string) http.Handler {
 // Everything that can 404 funnels through serveNotFound so there is one
 // answer instead of net/http's bare "404 page not found" in three places.
 //
-// It content-negotiates rather than always emitting HTML. A browser
-// navigation sends "Accept: text/html,..." and gets the full themed page;
-// fetch()/XHR (Accept "*/*") and <img>/<script> loads get the same facts as
-// plain text. That distinction matters: /api/note's 404 is read as text by
-// the editor's loadContent(), which shows it to the user directly, so
-// answering that with a page of HTML would replace a readable message with
-// markup.
+// It content-negotiates, and it does not always emit HTML. A browser
+// navigation sends "Accept: text/html,..." and gets the full themed page.
+// A fetch() or XHR call sends Accept "*/*", and an <img> or <script> load
+// does the same. Each of those gets the same facts as plain text.
+//
+// That distinction matters. The 404 of /api/note is read as text by the
+// loadContent() of the editor, which shows it to the user directly. A page
+// of HTML there would replace a readable message with markup.
 
 // wantsHTMLError reports whether the caller looks like a page navigation
 // rather than a programmatic fetch. Deliberately conservative: only an
@@ -339,10 +348,10 @@ func wantsHTMLError(r *http.Request) bool {
 // an extension at all. A note may hold a dot in its name since 26.08.76,
 // thus /Report.2026 must still get its suggestion.
 //
-// Returns "" unless the lookup is provably safe and the note really exists:
-// the resolved path must stay inside StorageDir, so a crafted "/../../etc/
-// passwd" style request can neither confirm nor link to anything outside
-// the note tree.
+// It answers "" unless the lookup is provably safe and the note really
+// exists. The resolved path must stay inside StorageDir. A crafted request
+// of the "/../../etc/passwd" shape can thus neither confirm nor link to
+// anything outside the note tree.
 func (a *App) notFoundSuggestion(urlPath string) string {
 	name := strings.TrimPrefix(urlPath, "/")
 	if name == "" || strings.Contains(name, "..") || a.hasKnownAssetExtension(name) {
@@ -384,9 +393,9 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 		requested += "?" + r.URL.RawQuery
 	}
 
-	// Only a Referer pointing at this same server is shown, and only as its
-	// path: it is echoed into an href, so an off-site or malformed value is
-	// dropped rather than turned into a link out of the app.
+	// Only a Referer that points at this same server is shown, and only as
+	// its path. It is echoed into an href. An off-site or malformed value
+	// is thus dropped, and it does not become a link out of the app.
 	referer := ""
 	if raw := r.Referer(); raw != "" {
 		if ref, err := url.Parse(raw); err == nil && ref.Path != "" &&
@@ -429,13 +438,14 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 	w.Write(a.injectRuntimeVars(compiled))
 }
 
-// serveNotEditable is the one answer for "you asked an editor to open a file
-// that is not text". Same content negotiation as serveNotFound: a page for a
-// browser navigation, plain text for a fetch - the editor's loadContent()
-// shows that text to the user, so markup there would hide the reason.
+// serveNotEditable is the one answer for "you asked an editor to open a
+// file that is not text". It uses the same content negotiation as
+// serveNotFound. A browser navigation gets a page, and a fetch gets plain
+// text. The loadContent() of the editor shows that text to the user, thus
+// markup there would hide the reason.
 //
-// 415 Unsupported Media Type, not 404: the file exists and is served
-// normally. Only the editor refuses it.
+// It answers 415 Unsupported Media Type, and not 404. The file exists and
+// is served normally. Only the editor refuses it.
 func (a *App) serveNotEditable(w http.ResponseWriter, r *http.Request, relPath string) {
 	urlPath := "/" + strings.TrimPrefix(relPath, "/")
 	ct := a.resolveContentType(relPath)
@@ -485,9 +495,9 @@ func (w *notFoundInterceptor) WriteHeader(code int) {
 }
 
 func (w *notFoundInterceptor) Write(b []byte) (int, error) {
-	// Swallow FileServer's own "404 page not found" body; serveNotFound has
-	// already written a complete response. Reporting the full length keeps
-	// the wrapped handler from treating this as a short write.
+	// Swallow the own "404 page not found" body of FileServer. serveNotFound
+	// has already written a complete response. A report of the full length
+	// keeps the wrapped handler from reading this as a short write.
 	if w.replaced {
 		return len(b), nil
 	}

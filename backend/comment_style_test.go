@@ -84,8 +84,6 @@ import (
 //
 // The path is relative to the root of the repository.
 var commentStyleDebt = map[string]int{
-	"backend/templates.go":                               49,
-	"backend/handlers.go":                                44,
 	"backend/note_exchange.go":                           45,
 	"backend/frontend/html/js/OMN-Go/omn-go-search.js":   43,
 	"backend/baseline_test.go":                           35,
@@ -100,13 +98,11 @@ var commentStyleDebt = map[string]int{
 	"backend/db_backup.go":                               20,
 	"backend/search_index.go":                            19,
 	"backend/search_sections_test.go":                    17,
-	"backend/serving.go":                                 16,
 	"backend/note_exchange_test.go":                      15,
 	"backend/frontend/html/js/OMN-Go/omn-go-sync.js":     14,
 	"backend/note_files.go":                              14,
 	"backend/search_test.go":                             13,
 	"backend/sqlite.go":                                  13,
-	"backend/handlers_test.go":                           12,
 	"backend/search_highlight_test.go":                   12,
 	"backend/tags.go":                                    10,
 	"backend/header_block.go":                            9,
@@ -116,9 +112,7 @@ var commentStyleDebt = map[string]int{
 	"backend/assets.go":                                  8,
 	"backend/frontend/html/js/OMN-Go/omn-go-config.js":   8,
 	"backend/frontend/html/js/OMN-Go/omn-go-bookmark.js": 7,
-	"backend/templates_test.go":                          7,
 	"backend/search_page_test.go":                        6,
-	"backend/serving_test.go":                            6,
 	"backend/storage.go":                                 6,
 	"backend/config_port_test.go":                        5,
 	"backend/note_files_test.go":                         5,
