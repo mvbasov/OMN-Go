@@ -4,18 +4,22 @@ package backend
 // The fuzzy matcher
 // ----------------------------------------------------------------------
 //
-// Pure scoring: no I/O, no state, no dependency beyond the standard library
-// (see the note in templates.go on why this codebase is careful about what it
-// links). Everything works on []rune rather than bytes, because a byte offset
-// into Cyrillic text is a way to cut a character in half - every offset this
-// file produces or consumes is a RUNE offset.
+// Pure scoring. There is no I/O, no state, and no dependency beyond the
+// standard library. See the note in templates.go on why this codebase is
+// careful about what it links.
 //
-// The ladder, first rung that hits wins. Rungs are compared BEFORE scores (see
-// betterMatch): a verbatim hit always beats a fuzzy one, whatever the two
-// numbers happen to be. That has to be structural rather than a property of
-// the constants - with the constants below, the weakest substring hit scores 85
-// while a perfect subsequence scores 95, so ordering by score alone would put
-// "I remembered the name roughly" above "the word is right there".
+// Everything works on []rune, and not on bytes. A byte offset into Cyrillic
+// text is a way to cut a character in half. Every offset that this file
+// produces or consumes is a RUNE offset.
+//
+// The ladder, first rung that hits wins. Rungs are compared BEFORE scores,
+// see betterMatch. A verbatim hit always beats a fuzzy one, whatever the two
+// numbers happen to be.
+//
+// That has to be structural, and not a property of the constants. With the
+// constants below, the weakest substring hit scores 85 and a perfect
+// subsequence scores 95. To order by score alone would thus put "I
+// remembered the name roughly" above "the word is right there".
 //
 //	1. scoreSubstring   - the term appears verbatim (folded)
 //	2. scoreSubsequence - the term's runes appear in order, fzf-style
@@ -26,17 +30,18 @@ package backend
 // that holds every word of the query in order and next to each other. See
 // the constant and the banner of scoreDocument.
 //
-// Rungs 1 and 2 are driven from here by scoreTerm. Rung 3 is NOT: it needs a
-// set of candidate tokens to compare against, which only the caller (the index,
-// or the single-file page search) can produce - so this file exports the
-// pieces (tokenize, scoreTypo, osaDistance) and lets the caller decide which
-// tokens are worth the distance computation.
+// Rungs 1 and 2 are driven from here by scoreTerm. Rung 3 is NOT. It needs a
+// set of candidate tokens to compare against, and only the caller can
+// produce that set. The caller is the index, or the single-file page search.
+// This file thus exports the pieces, which are tokenize, scoreTypo and
+// osaDistance. The caller decides which tokens are worth the distance
+// computation.
 //
-// Why three rungs rather than one clever algorithm: they answer different
-// questions. Substring is "I know what it says"; subsequence is "I remember
-// roughly what it was called"; edit distance is "I typed it wrong". A single
-// scorer tuned to do all three does none of them predictably, and predictable
-// ordering is most of what makes a search box feel trustworthy.
+// Why three rungs rather than one clever algorithm. They answer different
+// questions. Substring is "I know what it says". Subsequence is "I remember
+// roughly what it was called". Edit distance is "I typed it wrong". One
+// scorer tuned to do all three does none of them predictably, and
+// predictable ordering is most of what makes a search box feel trustworthy.
 
 import (
 	"strings"
@@ -85,10 +90,10 @@ func (t matchTier) String() string {
 	}
 }
 
-// Scoring constants. Named rather than inlined because the worked examples in
-// the plan (and the table tests beside this file) assert exact arithmetic: a
-// change here is a change to result ordering, and should have to be typed
-// somewhere visible.
+// Scoring constants. They are named and not inlined, because the worked
+// examples in the plan assert exact arithmetic, and so do the table tests
+// beside this file. A change here is a change to result ordering, thus it
+// must be typed somewhere visible.
 const (
 	// Rung 1 - exact substring.
 	substringBase   = 100 // any verbatim hit starts here
@@ -123,14 +128,14 @@ const (
 // ----------------------------------------------------------------------
 
 // foldTable holds the only diacritic mappings applied on top of lowercasing.
-// Every entry is deliberately ONE rune to ONE rune: folding must not change
-// the length of the text, or every span this file returns would point at the
-// wrong place in the original. That rules out the expanding folds (ß -> ss,
-// æ -> ae), which are therefore absent rather than forgotten.
+// Every entry is deliberately ONE rune to ONE rune. Folding must not change
+// the length of the text. Otherwise every span that this file returns would
+// point at the wrong place in the original. That rules out an expanding
+// fold, such as ß -> ss or æ -> ae. Those are absent, and not forgotten.
 //
-// Cyrillic ё -> е is here for the same reason the Latin accents are: it is the
-// character people leave off when typing, so a note titled "Ёлка" has to be
-// findable by "елка".
+// Cyrillic ё -> е is here for the same reason as the Latin accents. It is
+// the character that people leave off when they type, thus a note titled
+// "Ёлка" has to be findable by "елка".
 var foldTable = map[rune]rune{
 	'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
 	'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
@@ -158,8 +163,8 @@ func foldRune(r rune) rune {
 	return r
 }
 
-// utf8SelfMax is the ASCII fast-path bound: below it, folding is a single
-// comparison and no map lookup, which matters because folding runs over every
+// utf8SelfMax is the ASCII fast-path bound. Below it, a fold is one
+// comparison and no map lookup. That matters, because a fold runs over every
 // line of every indexed file.
 const utf8SelfMax = 0x80
 
@@ -179,10 +184,10 @@ func foldString(s string) string {
 }
 
 // isShortTerm says whether a query term is too small to carry a line on its
-// own. One Latin or Cyrillic rune is an article or a conjunction, and it hits
-// nearly every line. One Han, Hiragana, Katakana or Hangul rune is a whole
-// word, thus it is never short: the query "猫" scored 390 in the laboratory,
-// and a rule without this guard took it to 0.
+// own. One Latin or Cyrillic rune is an article or a conjunction, and it
+// hits nearly every line. One Han, Hiragana, Katakana or Hangul rune is a
+// whole word, thus it is never short. The query "猫" scored 390 in the
+// laboratory, and a rule without this guard took it to 0.
 func isShortTerm(runes []rune) bool {
 	if len(runes) > 1 || len(runes) == 0 {
 		return false
@@ -208,14 +213,14 @@ func isWordRune(r rune) bool {
 // runeMask returns a 64-bit signature of which characters appear in rs.
 //
 // It exists to answer "could this text possibly contain that term?" without
-// touching the text: rungs 1 and 2 both require EVERY rune of the term to be
-// present, so termMask &^ candMask != 0 is a rejection that cannot produce a
-// false negative. Collisions (many runes share a bit) only ever cost a wasted
-// check, never a missed match.
+// touching the text. Rungs 1 and 2 both require EVERY rune of the term to be
+// present. termMask &^ candMask != 0 is thus a rejection that cannot produce
+// a false negative. A collision, where many runes share a bit, only ever
+// costs a wasted check. It never costs a missed match.
 //
-// Rung 3 deliberately cannot use this - a typo is precisely a rune the term
-// has and the text does not - which is why the typo rung is driven from a
-// token dictionary by the caller instead.
+// Rung 3 deliberately cannot use this. A typo is precisely a rune that the
+// term has and the text does not. That is why the caller drives the typo
+// rung from a token dictionary instead.
 func runeMask(rs []rune) uint64 {
 	var m uint64
 	for _, r := range rs {
@@ -235,19 +240,21 @@ func maskRejects(termMask, candMask uint64) bool {
 
 // tokenize splits raw text into folded tokens for the typo rung.
 //
-// A token is a run of word runes (see isWordRune). Beyond the whole run, the
-// camelCase pieces of an identifier are emitted too, so a typo of "json" can
-// still reach the "JSON" inside "loadJSON" - code is half of what these notes
-// contain, and its interesting words live inside identifiers.
+// A token is a run of word runes, see isWordRune. Beyond the whole run, the
+// camelCase pieces of an identifier are emitted too. A typo of "json" can
+// thus still reach the "JSON" inside "loadJSON". Code is half of what these
+// notes contain, and its interesting words live inside identifiers.
 //
-// Case is why this works on RAW text rather than folded text: folding destroys
-// exactly the signal camel splitting needs. The pieces come back folded.
+// Case is why this works on RAW text, and not on folded text. Folding
+// destroys exactly the signal that a camel split needs. The pieces come back
+// folded.
 //
-// Tokens outside [minTokenLen, maxTokenLen] are dropped. The lower bound is
-// not a guess: the typo rung needs terms of at least typoMinTermLen (4) runes
-// and allows at most k edits, so a token can only match if its length is
-// within k of the term's - which makes a 1- or 2-rune token unreachable at
-// every allowed k. The upper bound drops base64 blobs, which nobody types.
+// A token outside [minTokenLen, maxTokenLen] is dropped. The lower bound is
+// not a guess. The typo rung needs a term of at least typoMinTermLen runes,
+// which is 4, and it allows at most k edits. A token can thus match only
+// when its length is within k of the length of the term. That makes a 1-rune
+// or 2-rune token unreachable at every allowed k. The upper bound drops a
+// base64 blob, which nobody types.
 func tokenize(s string) []string {
 	var out []string
 	emit := func(t []rune) {
@@ -337,10 +344,10 @@ func indexRunes(hay, needle []rune, from int) int {
 
 // scoreSubstring scores a verbatim (already folded) occurrence of term in cand.
 //
-// EVERY occurrence is reported as a span - a line mentioning the term three
-// times should highlight three times - but the SCORE comes from the best one,
-// not the first. Scoring the first would rank "xjson /json" below its own
-// better second hit purely because of reading order.
+// EVERY occurrence is reported as a span. A line that mentions the term
+// three times highlights three times. The SCORE comes from the best one,
+// and not from the first. To score the first would rank "xjson /json" below
+// its own better second hit, purely because of reading order.
 func scoreSubstring(term, cand []rune) (int, []span, bool) {
 	if len(term) == 0 {
 		return 0, nil, false
@@ -382,16 +389,18 @@ func scoreSubstring(term, cand []rune) (int, []span, bool) {
 // scoreSubsequence scores term's runes appearing in order within cand, greedy
 // leftmost, with bonuses for density and word starts and penalties for gaps.
 //
-// The raw total is normalised against the IDEAL match - the same term found as
-// one consecutive run starting at a word boundary - rather than divided by the
-// term length. Dividing by length makes a longer query score lower for the same
-// quality of match, which would visibly reorder results as the user keeps
-// typing; normalising against the ideal keeps a "perfect" match worth the same
+// The raw total is normalised against the IDEAL match, and it is not divided
+// by the term length. The ideal match is the same term found as one
+// consecutive run that starts at a word boundary.
+//
+// To divide by length makes a longer query score lower for the same quality
+// of match. Results would then visibly reorder as the user keeps typing. To
+// normalise against the ideal keeps a "perfect" match worth the same,
 // whatever its length.
 //
 // Word starts are detected from separators only. A camel boundary is not
-// visible here because cand is already folded - that signal is used by
-// tokenize (for the typo rung), where the raw text is still available.
+// visible here, because cand is already folded. tokenize uses that signal
+// for the typo rung, where the raw text is still available.
 func scoreSubsequence(term, cand []rune) (int, []span, bool) {
 	if len(term) == 0 {
 		return 0, nil, false
@@ -459,13 +468,13 @@ func typoBudget(termLen int) int {
 }
 
 // osaDistance is Damerau-Levenshtein under the optimal string alignment
-// restriction, bounded by k: it returns k+1 as soon as the true distance is
-// known to exceed k, so a non-match costs almost nothing.
+// restriction, bounded by k. It returns k+1 as soon as the true distance is
+// known to be more than k, thus a non-match costs almost nothing.
 //
-// OSA rather than plain Levenshtein because an adjacent TRANSPOSITION is the
-// most common typing error and plain Levenshtein charges 2 for it - which puts
-// "fecth" out of reach of "fetch" at k=1, i.e. exactly the case this rung
-// exists to catch.
+// OSA rather than plain Levenshtein, because an adjacent TRANSPOSITION is
+// the most common typing error and plain Levenshtein charges 2 for it. That
+// charge puts "fecth" out of reach of "fetch" at k=1, and that is exactly
+// the case this rung exists to catch.
 func osaDistance(a, b []rune, k int) int {
 	la, lb := len(a), len(b)
 	if la-lb > k || lb-la > k {
@@ -516,12 +525,12 @@ func osaDistance(a, b []rune, k int) int {
 }
 
 // scoreTypo scores term against one candidate token. Both must already be
-// folded; token is expected to come from tokenize.
+// folded, and token is expected to come from tokenize.
 //
-// The caller decides WHICH tokens to try - this rung cannot use the character
-// mask (see runeMask), so handing it a whole corpus would be quadratic. The
-// index narrows by trigram signature first; page search simply tries the
-// tokens of the one file it read.
+// The caller decides WHICH tokens to try. This rung cannot use the character
+// mask, see runeMask, thus a whole corpus handed to it would be quadratic.
+// The index narrows by trigram signature first. Page search tries the tokens
+// of the one file that it read.
 func scoreTypo(term, token []rune) (int, matchTier, bool) {
 	k := typoBudget(len(term))
 	if k == 0 || len(token) < minTokenLen {
@@ -552,8 +561,8 @@ func scoreTerm(term, cand []rune) (int, []span, matchTier, bool) {
 		return s, spans, tierSubstring, true
 	}
 	if len(term) < minFuzzyTermLen {
-		// One or two runes match nearly anything as a subsequence; allowing it
-		// would fill the result list with noise on the way to the third
+		// One or two runes match nearly anything as a subsequence. To allow
+		// it would fill the result list with noise, on the way to the third
 		// keystroke.
 		return 0, nil, tierNone, false
 	}
@@ -570,10 +579,10 @@ func scoreTerm(term, cand []rune) (int, []span, matchTier, bool) {
 //  1. a lower (better) tier always wins - substring over subsequence over typo
 //  2. within a tier, the higher score wins
 //
-// Ordering by score alone is wrong and not by a small margin: a substring hit
-// buried deep in a long line with no word boundaries scores 85, and a flawless
-// subsequence match scores 95. The document that literally contains the word
-// must not lose to the one that merely suggests it.
+// To order by score alone is wrong, and not by a small margin. A substring
+// hit buried deep in a long line with no word boundaries scores 85, and a
+// flawless subsequence match scores 95. The document that literally contains
+// the word must not lose to the one that only suggests it.
 func betterMatch(aTier matchTier, aScore int, bTier matchTier, bScore int) bool {
 	if aTier != bTier {
 		if aTier == tierNone {
@@ -587,9 +596,9 @@ func betterMatch(aTier matchTier, aScore int, bTier matchTier, bScore int) bool 
 	return aScore > bScore
 }
 
-// mergeSpans sorts spans by start and merges overlapping or touching ones, so
-// a renderer can walk them in order and never has to handle a nested
-// highlight. Used when several query terms hit the same line.
+// mergeSpans sorts spans by start. It merges an overlapping or touching
+// pair, thus a renderer can walk them in order and never has to handle a
+// nested highlight. Used when several query terms hit the same line.
 func mergeSpans(spans []span) []span {
 	if len(spans) < 2 {
 		return spans

@@ -18,17 +18,20 @@ package backend
 //	folded text + mask per line ........  1.90x corpus
 //	masks only, text read on demand ....  0.53x corpus   <- this
 //
-// A per-document token dictionary was dropped for the same reason. It scaled
-// with VOCABULARY rather than with text - ~44k unique tokens per MB, so a
-// million-odd map entries at the target size - and it existed only to serve
-// the typo rung. The trigram signature does that job in 64 bytes per document,
-// whatever the document's size, by narrowing to the few documents worth
-// tokenising at query time (see scoreTypoInDocument).
+// A per-document token dictionary was dropped for the same reason. It
+// scaled with VOCABULARY rather than with text, at about 44k unique tokens
+// for each MB. That is a million-odd map entries at the target size. It
+// existed only to serve the typo rung.
 //
-// The cost that moved rather than vanished is disk reads. A query now reads the
-// candidate documents instead of consulting a copy in RAM. On note-sized files
-// that is small and, after the first query, served from the OS page cache - and
-// the masks below exist precisely to keep the candidate set small.
+// The trigram signature does that job in 64 bytes for each document,
+// whatever the size of the document. It narrows to the few documents worth
+// tokenising at query time. See scoreTypoInDocument.
+//
+// The cost that moved rather than vanished is disk reads. A query now reads
+// the candidate documents, and it does not consult a copy in RAM. On a
+// note-sized file that is small, and after the first query the OS page
+// cache serves it. The masks below exist precisely to keep the candidate
+// set small.
 
 import (
 	"io/fs"
@@ -41,11 +44,11 @@ import (
 
 const (
 	// indexStaleCheckEvery bounds how often a query pays for the stat walk.
-	// At 10 000 files that walk measured 24 ms, which is far too much to
-	// repeat on every keystroke of a debounced search box. In-process writes
-	// bypass the wait entirely (see markSearchIndexDirty), so the only thing
-	// this delays is noticing an edit made behind the server's back - by an
-	// external editor, or a git checkout.
+	// At 10 000 files that walk measured 24 ms. That is far too much to
+	// repeat on every keystroke of a debounced search box. An in-process
+	// write bypasses the wait entirely, see markSearchIndexDirty. This thus
+	// delays one thing only. That is to notice an edit made behind the back
+	// of the server, by an external editor or by a git checkout.
 	indexStaleCheckEvery = 2 * time.Second
 
 	// maxIndexBytes caps the total volume of TEXT indexed, not resident
@@ -55,9 +58,9 @@ const (
 	maxIndexBytes = 64 << 20
 )
 
-// indexedDoc is one document as the index remembers it: enough to decide
-// whether a query could match, and enough to describe a result, but not the
-// text itself.
+// indexedDoc is one document as the index remembers it. It holds enough to
+// decide whether a query could match, and enough to describe a result. It
+// does not hold the text itself.
 type indexedDoc struct {
 	Path      string // storage-relative, slash form
 	Kind      string
@@ -70,9 +73,10 @@ type indexedDoc struct {
 	Size      int64
 	Truncated bool
 
-	// FieldMask covers title/tags/path/header; LineMasks has one entry per
-	// non-blank content line. Kept apart because a term may match a field OR
-	// a line, and the two questions are asked separately.
+	// FieldMask covers the title, the tags, the path and the header.
+	// LineMasks has one entry for each non-blank content line. They are kept
+	// apart because a term may match a field OR a line, and the two
+	// questions are asked separately.
 	FieldMask uint64
 	LineMasks []uint64
 
@@ -84,11 +88,11 @@ type indexedDoc struct {
 // couldMatchTerm reports whether this document could possibly satisfy one
 // term, without reading a byte of it.
 //
-// False here means "definitely not" and is what keeps the candidate set small;
-// true means "worth reading". The mask test cannot produce a false negative
-// for the substring and subsequence rungs (both need every rune present), and
-// the trigram test covers the typo rung, which by definition matches text that
-// is missing some of the term's runes.
+// False here means "definitely not", and that is what keeps the candidate
+// set small. True means "worth reading". The mask test cannot produce a
+// false negative for the substring rung or the subsequence rung, because
+// both need every rune present. The trigram test covers the typo rung,
+// which by definition matches text that misses some runes of the term.
 func (d *indexedDoc) couldMatchTerm(t queryTerm) bool {
 	if !maskRejects(t.mask, d.FieldMask) {
 		return true
@@ -101,8 +105,9 @@ func (d *indexedDoc) couldMatchTerm(t queryTerm) bool {
 	return d.couldMatchTypo(t.runes)
 }
 
-// couldMatchTypo applies the trigram bound: a term of length L matched within
-// k edits still shares at least L-2-3k of its own trigrams with the text.
+// couldMatchTypo applies the trigram bound. A term of length L matched
+// within k edits still shares at least L-2-3k of its own trigrams with the
+// text.
 func (d *indexedDoc) couldMatchTypo(term []rune) bool {
 	k := typoBudget(len(term))
 	if k == 0 {
@@ -125,9 +130,10 @@ func (d *indexedDoc) couldMatchTypo(term []rune) bool {
 	return false
 }
 
-// trigrams hashes every 3-rune window of s. Deliberately a cheap rolling hash
-// rather than a cryptographic one: collisions cost a wasted document read, and
-// the signature is only ever used to REJECT, never to confirm.
+// trigrams hashes every 3-rune window of s. It is deliberately a cheap
+// rolling hash, and not a cryptographic one. A collision costs one wasted
+// document read, and the signature is only ever used to REJECT, never to
+// confirm.
 func trigrams(s []rune) []uint32 {
 	if len(s) < 3 {
 		return nil
@@ -139,22 +145,24 @@ func trigrams(s []rune) []uint32 {
 	return out
 }
 
-// indexStamp is the cheap fingerprint of the corpus on disk: how many files
-// there are, the newest modification time among them AND their directories,
-// and their total size.
+// indexStamp is the cheap fingerprint of the corpus on disk. It holds how
+// many files there are, the newest modification time among them AND among
+// their directories, and their total size.
 //
-// Directory times are included on purpose - adding, deleting or renaming a
-// file bumps its directory's mtime but not necessarily any surviving file's,
-// so a file-only scan would miss exactly those changes.
+// Directory times are included on purpose. To add, delete or rename a file
+// bumps the mtime of its directory, and not necessarily the mtime of any
+// file that survives. A file-only scan would miss exactly those changes.
 //
-// The size sum is here because mtime alone is not trustworthy: several
-// filesystems (notably Android's external media, where every note lives) round
-// timestamps to the second, so an edit made within a second of the previous one
-// leaves the newest mtime unchanged. Size moves for almost any real edit, and
-// costs nothing to collect - the walk is already stat-ing every file. It still
-// cannot see an external edit that keeps the byte count identical within the
-// same second; that waits for the next change. Edits made THROUGH the app do
-// not rely on any of this (see ensureSearchIndex).
+// The size sum is here because mtime alone is not trustworthy. Several
+// filesystems round a timestamp to the second, and the external media of
+// Android is one of them. Every note lives there. An edit made within a
+// second of the previous one thus leaves the newest mtime unchanged.
+//
+// Size moves for almost any real edit, and it costs nothing to collect.
+// The walk already calls stat on every file. It still cannot see an
+// external edit that keeps the byte count identical within the same second.
+// That waits for the next change. An edit made THROUGH the app relies on
+// none of this, see ensureSearchIndex.
 type indexStamp struct {
 	files  int
 	newest time.Time
@@ -247,10 +255,11 @@ func (a *App) commonWords() map[string]bool {
 // Lifecycle
 // ----------------------------------------------------------------------
 
-// markSearchIndexDirty is called from renderAndCache - the single writer of
-// compiled pages, and therefore the one place every in-process note change
-// passes through (save, quick note, bookmark, new page, sync, precompile).
-// One counter instead of a hook in each handler: fewer places to forget.
+// markSearchIndexDirty is called from renderAndCache. That is the one
+// writer of compiled pages, and thus the one place that every in-process
+// note change passes through. Those are a save, a quick note, a bookmark, a
+// new page, a sync and a precompile. One counter here means fewer places to
+// forget than a hook in each handler.
 func (a *App) markSearchIndexDirty() {
 	if a.search == nil {
 		return
@@ -260,9 +269,10 @@ func (a *App) markSearchIndexDirty() {
 	a.search.mu.Unlock()
 }
 
-// dropSearchIndex releases the index and its memory. Called when global search
-// is switched off, which is exactly what someone does when a device is short
-// of memory - so it must take effect immediately, not at the next restart.
+// dropSearchIndex releases the index and its memory. It is called when
+// global search is switched off. That is exactly what someone does when a
+// device is short of memory. It must thus take effect at once, and not at
+// the next restart.
 func (a *App) dropSearchIndex() {
 	if a.search == nil {
 		return
@@ -382,9 +392,9 @@ func (a *App) searchRoots(kinds []string) []searchRoot {
 
 // rebuildSearchIndex walks the enabled roots and replaces the index contents.
 //
-// The new map is assembled first and swapped in under the write lock, so a
-// query running concurrently sees either the whole old index or the whole new
-// one - never a half-built one.
+// The new map is assembled first and swapped in under the write lock. A
+// query that runs concurrently thus sees either the whole old index or the
+// whole new one. It never sees a half-built one.
 func (a *App) rebuildSearchIndex() {
 	cfg := a.GetConfig()
 	if !cfg.SearchEnabled {
@@ -420,7 +430,7 @@ func (a *App) rebuildSearchIndex() {
 				return nil
 			}
 			if e.IsDir() {
-				// md/local is the gitignored scratch tree; skipping it here
+				// md/local is the gitignored scratch tree. To skip it here
 				// matches buildTagIndex, which excludes it for the same
 				// reason.
 				if root.kind == SearchKindMD && p == filepath.Join(root.dir, "local") {
@@ -572,10 +582,10 @@ func addTrigrams(sig *[8]uint64, s []rune) {
 	}
 }
 
-// isBundledAsset reports whether a file is one OMN-Go ships itself. Derived
-// from versionDependentAssets (assets.go), the list that already decides what
-// gets refreshed on upgrade, so a new bundled file is excluded automatically
-// rather than needing a second list kept in step by hand.
+// isBundledAsset reports whether a file is one that OMN-Go ships itself. It
+// is derived from versionDependentAssets in assets.go. That list already
+// decides what an upgrade refreshes. A new bundled file is thus excluded
+// automatically, and no second list has to be kept in step by hand.
 func isBundledAsset(rootKind, rel string) bool {
 	if rootKind != SearchKindJS && rootKind != SearchKindJSON {
 		return false
@@ -666,12 +676,13 @@ func (a *App) ensureSearchIndex() bool {
 		a.rebuildSearchIndex()
 		return a.searchIndexBuilt()
 	}
-	// An in-process write means the CONTENT changed - we watched it happen.
-	// Re-stating to confirm is not just redundant, it is unreliable: file
-	// timestamps have coarse granularity on some filesystems (Android's
-	// external media among them), so an edit and the write before it can share
-	// an mtime to the second and the stamp below would report "nothing
-	// changed" about a file we know we just rewrote.
+	// An in-process write means the CONTENT changed. We watched it happen.
+	// A second stat call to confirm it is redundant, and it is also
+	// unreliable. A file timestamp has coarse granularity on some
+	// filesystems, and the external media of Android is one of them. An edit
+	// and the write before it can thus share an mtime to the second. The
+	// stamp below would then report "nothing changed" about a file that we
+	// know we rewrote.
 	if dirty {
 		a.rebuildSearchIndex()
 		return a.searchIndexBuilt()
