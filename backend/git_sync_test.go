@@ -934,8 +934,9 @@ func buildFlatTree(t *testing.T, repo *git.Repository, files map[string]string) 
 		}
 		entries = append(entries, object.TreeEntry{Name: name, Mode: filemode.Regular, Hash: h})
 	}
-	// go-git requires a tree's entries to be sorted by name; map iteration
-	// above is unordered, so sort before encoding or decoding rejects it.
+	// go-git requires the entries of a tree to be sorted by name. The map
+	// iteration above is unordered. Sort before the encode, or the decode
+	// rejects it.
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	tree := &object.Tree{Entries: entries}
 	enc := repo.Storer.NewEncodedObject()
@@ -953,11 +954,12 @@ func buildFlatTree(t *testing.T, repo *git.Repository, files map[string]string) 
 	return got
 }
 
-// conflictingPaths is the single source of truth for both the conflict-modal
-// file list and syncPullMerge's marker-writing loop, so its selection must be
-// exactly: a tracked file with an uncommitted local modification whose content
-// also differs from the remote copy. Everything else - identical-to-remote
-// edits, files the remote lacks, and unmodified files - must be excluded.
+// conflictingPaths is the one authority for the file list of the conflict
+// modal, and for the marker-writing loop of syncPullMerge. Its selection
+// must be exactly one thing. That thing is a tracked file with an
+// uncommitted local modification whose content also differs from the remote
+// copy. Everything else must be excluded. That covers an edit identical to
+// the remote, a file that the remote lacks, and an unmodified file.
 func TestConflictingPaths(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
 	writeAndAdd(t, a, wt, "A.md", "base A")
@@ -974,13 +976,13 @@ func TestConflictingPaths(t *testing.T) {
 		"C.md": "base C",
 	})
 
-	// Local uncommitted edits:
-	//   A.md: local != remote                 -> CONFLICT
-	//   B.md: edited to EXACTLY remote content -> not a conflict
-	//   C.md: edited locally, remote==base,
-	//         local != remote                  -> CONFLICT
-	//   D.md: edited locally, remote lacks it   -> not a conflict
-	//   E.md: NOT edited (clean)                -> never considered
+	// Local uncommitted edits.
+	//   - A.md: local != remote                 -> CONFLICT
+	//   - B.md: edited to EXACTLY remote content -> not a conflict
+	//   - C.md: edited locally, remote==base,
+	//     local != remote                       -> CONFLICT
+	//   - D.md: edited locally, remote lacks it  -> not a conflict
+	//   - E.md: NOT edited (clean)               -> never considered
 	overwrite(t, a, "A.md", "local A")
 	overwrite(t, a, "B.md", "remote B")
 	overwrite(t, a, "C.md", "local C")
@@ -1035,9 +1037,9 @@ func TestOldTrackedPathsAfterCommit(t *testing.T) {
 	}
 }
 
-// The core force-pull regression test: writeTreeToWorktree must restore or
-// overwrite exactly the files in the given tree - and must never touch a
-// file outside it, no matter what state the worktree is in.
+// The core force-pull regression test. writeTreeToWorktree must restore or
+// overwrite exactly the files of the given tree. It must never touch a file
+// outside that tree, whatever state the worktree is in.
 func TestWriteTreeToWorktreeRestoresTrackedOnly(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
 
@@ -1120,12 +1122,13 @@ func TestWriteTreeToWorktreeRestoresTrackedOnly(t *testing.T) {
 		}
 	}
 
-	// 2) Status: check MAP MEMBERSHIP directly. go-git's Status map only
-	//    contains changed/untracked files - clean files are absent - and
-	//    status.File() fabricates a default Untracked entry for absent
-	//    paths, which is what made the previous version of this assertion
-	//    misreport clean files as dirty. Absent from the map = clean =
-	//    pass; present is a failure unless explicitly Unmodified.
+	// 2) Status: check MAP MEMBERSHIP directly. The Status map of go-git
+	//    holds a changed or untracked file only, and a clean file is
+	//    absent from it. status.File() makes a default Untracked entry for
+	//    an absent path. That is what made the previous version of this
+	//    assertion report a clean file as dirty. Absent from the map means
+	//    clean, and it passes. Present is a failure, unless the entry is
+	//    explicitly Unmodified.
 	status, err := wt.Status()
 	if err != nil {
 		t.Fatalf("Status: %v", err)
@@ -1211,10 +1214,11 @@ func TestMergeParentRoundTrip(t *testing.T) {
 // aheadOfRemote: "is there anything to push?"
 // ---------------------------------------------------------------
 //
-// A clean worktree is not the same thing as nothing to upload, and conflating
-// them stranded commits in two ways users actually hit: a commit whose push
-// failed, and a git profile switched after a successful push. Both leave the
-// worktree clean and the active remote behind.
+// A clean worktree is not the same thing as nothing to upload. To read them
+// as one stranded commits in two ways that users hit. The first is a commit
+// whose push failed. The second is a git profile switched after a
+// successful push. Both leave the worktree clean and the active remote
+// behind.
 //
 // These cover the LOCAL half of the comparison, which is the half that catches
 // both. The network half - the ls-remote that confirms "nothing to push"
@@ -1251,9 +1255,9 @@ func TestAheadOfRemoteAfterAFailedPush(t *testing.T) {
 	}
 }
 
-// The other reported case: the commit was pushed to one profile, then the user
-// switched profiles. Each slot owns its own named remote, so the new one
-// simply has no master yet - which must read as "might be ahead".
+// The other reported case. The commit was pushed to one profile, and then
+// the user switched profiles. Each slot owns its own named remote, thus the
+// new one has no master yet. That must read as "might be ahead".
 func TestAheadOfRemoteAfterAProfileSwitch(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
 
@@ -1268,9 +1272,9 @@ func TestAheadOfRemoteAfterAProfileSwitch(t *testing.T) {
 	}
 }
 
-// With the local view saying level, the answer is only trustworthy if the
-// remote itself agrees - so it must NOT report "nothing to push" as verified
-// when it could not ask.
+// With the local view saying level, the answer holds only when the remote
+// itself agrees. It must NOT report "nothing to push" as verified when it
+// could not ask.
 func TestAheadOfRemoteReportsWhenItCouldNotAsk(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
 

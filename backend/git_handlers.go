@@ -27,9 +27,9 @@ import (
 // ---------------------------------------------------------------
 
 // writeSyncJSON writes a small {"status":..., "message":...} JSON body.
-// Using json.Marshal (rather than fmt.Sprintf-ing a JSON literal, as the
-// original code did) avoids producing invalid JSON when an error message
-// happens to contain a quote or backslash.
+// It uses json.Marshal, and not a JSON literal from fmt.Sprintf as the
+// original code did. An error message that holds a quote or a backslash
+// thus cannot make the body invalid.
 func writeSyncJSON(w http.ResponseWriter, status, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": status, "message": message})
@@ -52,12 +52,12 @@ func writeSyncConflictJSON(w http.ResponseWriter, message string, files []string
 }
 
 func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
-	// r.FormValue reads from both the URL query string and a POST body
-	// (application/x-www-form-urlencoded or multipart). The frontend uses
-	// both conventions in different places — omn-go-sse.js posts
-	// action/force/message in the body, while the conflict-resolution
-	// buttons in index.html hit this endpoint with a query string — so
-	// this handler needs to accept either.
+	// r.FormValue reads from both the URL query string and a POST body,
+	// which is application/x-www-form-urlencoded or multipart. The
+	// frontend uses both conventions in different places. omn-go-sse.js
+	// posts action, force and message in the body, and the
+	// conflict-resolution buttons in index.html reach this endpoint with a
+	// query string. This handler thus accepts either one.
 	if err := r.ParseForm(); err != nil {
 		writeSyncJSON(w, "error", fmt.Sprintf("bad request: %v", err))
 		return
@@ -70,9 +70,9 @@ func (a *App) handleSync(w http.ResponseWriter, r *http.Request) {
 	message := r.FormValue("message")
 	force := r.FormValue("force") == "true"
 
-	// The UI's "Force" checkbox is a separate field, not a distinct action
-	// name — translate it into the canonical *_force action here so
-	// SyncRepo only has to deal with one vocabulary.
+	// The "Force" checkbox of the UI is a separate field, and not a
+	// distinct action name. It is translated into the canonical *_force
+	// action here, thus SyncRepo reads one vocabulary only.
 	if force {
 		switch action {
 		case "pull", "pull_ff", "download":
@@ -156,24 +156,26 @@ func (a *App) handleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// A path that git still tracks but must not - a local-only name, or a
-	// .txt under html/ that is a copy of the file in md/ - leaves the
-	// repository at the next commit (see untrackLocalOnlyPaths). The status
-	// finds no such file if the content did not change, thus the index gets
-	// its own read here. The preview must show each change that the commit
-	// makes, and this one deletes a file on the other devices.
+	// A path that git still tracks but must not leaves the repository at
+	// the next commit. See untrackLocalOnlyPaths. Such a path is a
+	// local-only name, or a .txt under html/ that is a copy of the file in
+	// md/. The status finds no such file if the content did not change,
+	// thus the index gets its own read here. The preview must show each
+	// change that the commit makes, and this one deletes a file on the
+	// other devices.
 	files = append(files, a.untrackTrackedPaths(repo)...)
 
-	// No database dry-run here anymore: backups are ordinary files under
-	// html/db_backup/ written when the user presses "Backup now" (see
-	// db_backup.go), so any pending backup already shows up in the status
-	// scan above like every other changed file - the preview needs no
+	// No database dry-run here anymore. A backup is an ordinary file under
+	// html/db_backup/, written when the user presses "Backup now". See
+	// db_backup.go. A pending backup thus already shows up in the status
+	// scan above, like every other changed file. The preview needs no
 	// special database handling to stay accurate.
 
-	// A clean worktree does not mean there is nothing to upload: a commit
-	// whose push failed, or a profile switched after a successful push,
-	// leaves commits this remote has never seen. Answering only "what is
-	// pending" is what let the frontend say "Nothing to commit" and stop.
+	// A clean worktree does not mean there is nothing to upload. A commit
+	// whose push failed leaves commits that this remote has never seen,
+	// and so does a profile switched after a successful push. An answer
+	// about "what is pending" alone is what let the frontend say "Nothing
+	// to commit" and stop.
 	//
 	// Only asked when there is nothing pending anyway: with files to commit
 	// the upload proceeds regardless, and the answer would not change what

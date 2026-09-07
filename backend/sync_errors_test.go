@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestSyncErrorStatus pins the Phase 4 typed-sentinel mapping: each sync
-// sentinel maps to its wire status, an unrelated error and nil map to
-// ok=false (a plain "error"), and - the whole point of moving off string
-// comparison - the match survives wrapping with %w.
+// TestSyncErrorStatus pins the Phase 4 typed-sentinel mapping. Each sync
+// sentinel maps to its wire status. An unrelated error and nil both map to
+// ok=false, which is a plain "error". The match also survives a wrap with
+// %w, and that is the whole point of the move off string comparison.
 func TestSyncErrorStatus(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -33,7 +33,7 @@ func TestSyncErrorStatus(t *testing.T) {
 				t.Errorf("syncErrorStatus(%v) = (%q, %v), want (%q, %v)",
 					tt.err, status, ok, tt.wantStatus, tt.wantOK)
 			}
-			// A mapped error must carry a non-empty user message; an
+			// A mapped error must carry a non-empty user message. An
 			// unmapped one must not.
 			if ok && msg == "" {
 				t.Errorf("mapped error %v produced an empty message", tt.err)
@@ -46,9 +46,9 @@ func TestSyncErrorStatus(t *testing.T) {
 }
 
 // TestSyncConflictErrorWrapsSentinel pins that the file-carrying conflict
-// error still reads as ErrSyncConflict everywhere the state machine looks
-// (errors.Is / syncErrorStatus), while its file list is retrievable with
-// errors.As - and that the list survives being wrapped with %w.
+// error still reads as ErrSyncConflict everywhere the state machine looks,
+// which is errors.Is and syncErrorStatus. Its file list stays reachable
+// with errors.As, and that list survives a wrap with %w.
 func TestSyncConflictErrorWrapsSentinel(t *testing.T) {
 	ce := &syncConflictError{Files: []string{"md/A.md", "md/B.md"}}
 
@@ -69,10 +69,11 @@ func TestSyncConflictErrorWrapsSentinel(t *testing.T) {
 	}
 }
 
-// TestWriteSyncConflictJSON pins the wire shape the conflict modal consumes:
-// status "conflict", the message, and a files array that is ALWAYS present -
-// [] rather than null even when there are no per-file conflicts - so the
-// frontend can iterate it without a nil guard.
+// TestWriteSyncConflictJSON pins the wire shape that the conflict modal
+// reads. That shape is status "conflict", the message, and a files array
+// that is ALWAYS present. The array is [] and never null, also when there
+// is no per-file conflict, thus the frontend can iterate it with no nil
+// guard.
 func TestWriteSyncConflictJSON(t *testing.T) {
 	// With files.
 	rec := httptest.NewRecorder()

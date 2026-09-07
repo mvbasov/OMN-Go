@@ -100,10 +100,11 @@ func gitignoreLines(t *testing.T, a *App) map[string]int {
 	return counts
 }
 
-// A fresh install writes the .gitignore straight from gitignorePatterns. This
-// pins the exact bytes so an accidental edit to gitignorePatterns (reordering,
-// a dropped/added entry) is caught, and proves the single-source join produces
-// the same file the old hand-written literal did.
+// A fresh install writes the .gitignore straight from gitignorePatterns.
+// This pins the exact bytes, thus an accidental edit to gitignorePatterns
+// is caught. A reorder counts, and so does a dropped or an added entry. It
+// also proves that the single-source join makes the same file that the old
+// hand-written literal did.
 func TestEnsureGitignoreFreshInstall(t *testing.T) {
 	a := &App{StorageDir: t.TempDir()}
 	a.ensureGitignore()
@@ -158,12 +159,15 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 	}
 }
 
-// The backfill must add every gitignorePatterns entry missing from an existing
-// install, matching whole lines - not substrings. The regression it guards:
-// "*.woff" is a substring of "*.woff2", so a strings.Contains check would see
-// an install that already has "*.woff2" and wrongly conclude "*.woff" is
-// present, leaving raw .woff fonts committable. It must also NOT duplicate a
-// pattern that is already there.
+// The backfill must add every gitignorePatterns entry that an existing
+// install misses. It matches a whole line, and not a substring.
+//
+// The regression that it guards. "*.woff" is a substring of "*.woff2",
+// thus a strings.Contains check would see an install that already has
+// "*.woff2" and answer that "*.woff" is present. A raw .woff font would
+// then stay committable.
+//
+// It must also NOT duplicate a pattern that is already there.
 func TestEnsureGitignoreBackfillLineExact(t *testing.T) {
 	a := &App{StorageDir: t.TempDir()}
 	// An old install that predates most of the current list: it has *.woff2
@@ -195,9 +199,9 @@ func TestEnsureGitignoreBackfillLineExact(t *testing.T) {
 	}
 }
 
-// An already-complete .gitignore must be left byte-for-byte untouched: the
-// backfill finds nothing missing, so it must not rewrite (and in particular
-// must not append a duplicate trailing block).
+// An already-complete .gitignore must be left byte-for-byte untouched. The
+// backfill finds nothing missing, thus it must not rewrite the file. Above
+// all it must not append a duplicate trailing block.
 func TestEnsureGitignoreNoRewriteWhenComplete(t *testing.T) {
 	a := &App{StorageDir: t.TempDir()}
 	a.ensureGitignore() // write the canonical file
@@ -241,11 +245,11 @@ func TestEnsureGitignoreDropsTheObsoleteLocalDatabaseRule(t *testing.T) {
 	}
 }
 
-// The .gitignore pattern and isLocalOnlyPath are two forms of one rule:
-// the pattern decides for a new file, and the function decides for the
+// The .gitignore pattern and isLocalOnlyPath are two forms of one rule.
+// The pattern decides for a new file, and the function decides for the
 // index. They must agree, and the pattern must match a name at each
 // depth. This test reads the canonical list, thus it also pins the
-// position of "local-*" at the end: go-git reads the patterns from the
+// position of "local-*" at the end. go-git reads the patterns from the
 // end and stops at the first match.
 func TestGitignoreMatchesEachLocalOnlyPath(t *testing.T) {
 	patterns := make([]gitignore.Pattern, 0, len(gitignorePatterns))
@@ -385,7 +389,7 @@ func TestGitignoreExcludesDerivedTextCopies(t *testing.T) {
 }
 
 // The html/ copy can be in the index from a time before the rule. It must
-// leave the index at the next commit, and it must stay on the disk - the
+// leave the index at the next commit, and it must stay on the disk. The
 // other device rebuilds its own copy from the md/ original it already has.
 func TestCommitLocalChangesUntracksADerivedTextCopy(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
