@@ -217,10 +217,11 @@ public class ServerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
-            // The Go server has no stop API; leaving foreground state is
-            // enough - the process drops back to cached priority and the
-            // OS freezes/kills it in due course. Reopening the app starts
-            // the service (and, if the process died, the backend) again.
+            // The Go server has no stop API, and a departure from the
+            // foreground state is enough. The process drops back to cached
+            // priority, and the OS freezes or kills it in due course. A
+            // reopen of the app starts the service again, and the backend
+            // as well when the process died.
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
@@ -262,21 +263,23 @@ public class ServerService extends Service {
             releaseWakeLock();
         }
 
-        // Ensure Android OS mounts scoped storage directories for native
-        // C/Go access BEFORE the Go server first touches them.
+        // Make the Android OS mount the scoped storage directories for
+        // native C and Go access BEFORE the Go server first touches them.
         java.io.File[] mediaDirs = getExternalMediaDirs();
         if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
             mediaDirs[0].mkdirs();
         }
 
         if (!backendStarted) {
-            // storageDir(this) is resolved from the actually-running
-            // applicationId (see the field comment on storageDir above),
-            // not a hardcoded literal - correct for both the standard and
-            // fdroid flavors. DEFAULT_SERVER_PORT is likewise per-flavor
-            // (8080 standard / 8081 fdroid) so side-by-side installs
-            // don't fight over one loopback port; a user-configured
-            // server_port in config.json still wins on the Go side.
+            // storageDir(this) is resolved from the applicationId that
+            // runs, and not from a hardcoded literal. See the field
+            // comment on storageDir above. That is correct for both the
+            // standard flavor and the fdroid flavor. DEFAULT_SERVER_PORT
+            // is per-flavor as well, 8080 for standard and 8081 for
+            // fdroid, thus two side-by-side installs do not fight over one
+            // loopback port. A server_port set by the user in config.json
+            // still wins on the Go side.
+            //
             // The Go runtime cannot ask Android which applicationId it
             // runs under, and /api/status reports it. Set before the
             // server starts, so the first status request already has it.
@@ -285,9 +288,9 @@ public class ServerService extends Service {
             backendStarted = true;
         }
 
-        // Sticky so the LAN-sharing server comes back if the system
-        // reclaims it; with sharing off a restart is harmless (it comes
-        // back as a plain background service).
+        // Sticky, thus the LAN-sharing server comes back when the system
+        // reclaims it. With sharing off a restart is harmless, because the
+        // service comes back as a plain background service.
         return START_STICKY;
     }
 

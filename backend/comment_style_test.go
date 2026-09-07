@@ -84,7 +84,6 @@ import (
 //
 // The path is relative to the root of the repository.
 var commentStyleDebt = map[string]int{
-	"android/app/src/main/java/net/basov/omngo/MainActivity.java": 113,
 	"backend/git_sync.go":                                          61,
 	"backend/templates.go":                                         49,
 	"backend/handlers.go":                                          44,
@@ -121,7 +120,6 @@ var commentStyleDebt = map[string]int{
 	"backend/git_sync_test.go":                                     8,
 	"backend/frontend/html/js/OMN-Go/omn-go-bookmark.js":           7,
 	"backend/templates_test.go":                                    7,
-	"android/app/src/main/java/net/basov/omngo/ServerService.java": 6,
 	"backend/git_handlers.go":                                      6,
 	"backend/search_page_test.go":                                  6,
 	"backend/serving_test.go":                                      6,
