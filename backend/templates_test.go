@@ -676,3 +676,61 @@ func TestDocumentedCoreAPIIsExported(t *testing.T) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
+// A modal that hides by class must have a rule that shows it again
+// ----------------------------------------------------------------------
+//
+// modals.html holds four overlays. Two of them start with the .hidden
+// class, and JS shows each one with classList.remove('hidden'). The other
+// two carry no class, and JS shows each one with style.display.
+//
+// .overlay in omn-go-core.css sets display:none. A modal of the first kind
+// is thus invisible until a rule gives it a display value again.
+//
+// 26.08.58 added #push-conflict-modal with no such rule. The modal never
+// appeared. runSync found the element, so the confirm() fallback beside it
+// did not run either. The same commit took the force checkbox off the
+// header. A rejected push then gave the reader nothing, and the only
+// report was one line in the log.
+//
+// This test reads the two files. It is a source test, because a browser is
+// what applies a CSS rule, and the test suite holds no CSS engine.
+func TestAnOverlayHiddenByClassCanBeShownAgain(t *testing.T) {
+	markup, err := templatesFS.ReadFile("frontend/templates/modals.html")
+	if err != nil {
+		t.Fatalf("modals.html is not embedded: %v", err)
+	}
+	css, err := staticFS.ReadFile("frontend/html/css/OMN-Go/omn-go-core.css")
+	if err != nil {
+		t.Fatalf("omn-go-core.css is not embedded: %v", err)
+	}
+
+	divRe := regexp.MustCompile(`<div\s+id="([^"]+)"\s+class="([^"]*)"`)
+	checked := 0
+	for _, m := range divRe.FindAllStringSubmatch(string(markup), -1) {
+		overlay, hidden := false, false
+		for _, c := range strings.Fields(m[2]) {
+			switch c {
+			case "overlay":
+				overlay = true
+			case "hidden":
+				hidden = true
+			}
+		}
+		if !overlay || !hidden {
+			continue
+		}
+		checked++
+		rule := "#" + m[1] + ":not(.hidden)"
+		if !strings.Contains(string(css), rule) {
+			t.Errorf("%s starts hidden by class, and omn-go-core.css holds no "+
+				"%s rule. The overlay stays at display:none, thus the modal "+
+				"never appears.", m[1], rule)
+		}
+	}
+	if checked < 2 {
+		t.Fatalf("the scan found %d overlay that hides by class, and the file "+
+			"holds two. The pattern no longer matches the markup.", checked)
+	}
+}

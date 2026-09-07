@@ -747,10 +747,20 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     z-index: 50;
 }
 
-/* Sync conflict modal (index.html): unlike the other overlays, which JS
-   shows by setting style.display, its visibility is driven purely by the
-   .hidden class (window.runSync / window.performSync in omn-go-sse.js). */
-#conflict-modal:not(.hidden) {
+/* The two sync conflict modals (modals.html). The other overlays are shown
+   by JS with style.display. These two are driven by the .hidden class
+   alone. See window.runSync and window.performSync in omn-go-sync.js.
+
+   BOTH IDS MUST STAY IN THIS RULE. 26.08.58 added #push-conflict-modal to
+   modals.html and to the JS, and it added no rule here. .overlay sets
+   display:none, thus a removal of .hidden left that modal invisible. The
+   element was in the page, so the confirm() fallback of runSync did not run
+   either. The same commit removed the force checkbox of the header. A
+   rejected push therefore gave the reader nothing at all, from 26.08.58 to
+   26.09.55. TestAnOverlayHiddenByClassCanBeShownAgain keeps the two files
+   in agreement. */
+#conflict-modal:not(.hidden),
+#push-conflict-modal:not(.hidden) {
     display: flex;
 }
 
