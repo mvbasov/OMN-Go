@@ -536,3 +536,93 @@ func TestLogStreamKeepsItsOwnAddress(t *testing.T) {
 		t.Errorf("the two log patterns are not both registered: %d of 2", found)
 	}
 }
+
+// ----------------------------------------------------------------------
+// The Log page
+// ----------------------------------------------------------------------
+//
+// /OMNGoLogs.html holds no log line of its own. It reads
+// /api/logs/history one time, and then it adds each new line of
+// /api/logs. omn-go-logs.js does that work.
+//
+// These two tests are the pair that the Status page carries, for the same
+// two reasons. See status_test.go.
+
+// The page must reach both addresses and carry no line of its own.
+func TestLogsPageIsAReaderOfTheTwoAddresses(t *testing.T) {
+	a := newTestApp(t)
+
+	// httptest.NewRequest gives each request the address 192.0.2.1, which
+	// is another machine as far as hasRole is concerned. The owner of the
+	// device connects from the loopback address, and that is the request
+	// this test makes. See isLocalConnection in middleware.go.
+	req := httptest.NewRequest(http.MethodGet, "/OMNGoLogs.html", nil)
+	req.RemoteAddr = "127.0.0.1:41000"
+
+	rec := httptest.NewRecorder()
+	a.serveLogsPage(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"/api/logs/history", "lgReload", "lgCopy", "lgFilterToggle",
+		"lgLevels", "lgTags", "lgBody",
+		"/js/OMN-Go/omn-go-logs.js", "/css/OMN-Go/omn-go-logs.css",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page misses %q", want)
+		}
+	}
+	// The body of the page starts empty. Each line comes from an address,
+	// thus the template can carry no log line of its own.
+	if !strings.Contains(body, "Loading…") {
+		t.Error("the page does not start empty. It must read the ring.")
+	}
+	// The two sync buttons of the shell are what lets a reader start a
+	// sync here and watch it. On Android there is one screen, thus a
+	// second page is not an answer. See the banner of omn-go-logs.js.
+	if !strings.Contains(body, "syncAction('upload')") {
+		t.Error("the page lost the Upload button of the shell")
+	}
+	if !strings.Contains(body, "syncAction('download')") {
+		t.Error("the page lost the Download button of the shell")
+	}
+	// The script and the stylesheet are files. An inline script or an
+	// inline style would cost its bytes in this template alone, and the
+	// project keeps the two apart. See section 4 of CLAUDE.md.
+	if strings.Contains(logsPageTmpl, "<script>") {
+		t.Error("the template holds an inline script")
+	}
+	if strings.Contains(logsPageTmpl, "<style>") {
+		t.Error("the template holds an inline style")
+	}
+}
+
+// A guest gets a page and not a line of plain text.
+//
+// The route carries no authMiddleware for that reason, and serveLogsPage
+// asks hasRole itself. See registerRoutes in server.go.
+func TestLogsPageAnswersAGuestWithAPage(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.ShareLAN = true
+
+	req := httptest.NewRequest(http.MethodGet, "/OMNGoLogs.html", nil)
+	req.RemoteAddr = "192.168.1.44:51000" // another machine on the network
+	// A signed cookie, and not the bare word "guest". The server refuses
+	// an unsigned value since 26.09.6. See session.go.
+	req.AddCookie(sessionCookie(t, a, roleGuest))
+
+	rec := httptest.NewRecorder()
+	a.serveLogsPage(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want a page", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "for the admin of this device") {
+		t.Error("a guest did not get the refusal page")
+	}
+	if strings.Contains(body, "lgReload") {
+		t.Error("a guest got the reader script")
+	}
+}

@@ -123,6 +123,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"!/html/images/icons/*.svg\n" +
 		"/html/css/OMN-Go/omn-go-core.css\n" +
 		"/html/css/OMN-Go/Bookmarker.css\n" +
+		"/html/css/OMN-Go/omn-go-logs.css\n" +
 		"/html/css/OMN-Go/highlight.default.min.css\n" +
 		"/html/css/OMN-Go/katex.min.css\n" +
 		"/html/js/OMN-Go/omn-go-compat.js\n" +
@@ -132,6 +133,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/html/js/OMN-Go/omn-go-sync.js\n" +
 		"/html/js/OMN-Go/omn-go-bookmark.js\n" +
 		"/html/js/OMN-Go/omn-go-search.js\n" +
+		"/html/js/OMN-Go/omn-go-logs.js\n" +
 		"/html/js/OMN-Go/omn-go-editor.js\n" +
 		"/html/js/OMN-Go/auto-render.min.js\n" +
 		"/html/js/OMN-Go/katex.min.js\n" +

@@ -262,6 +262,40 @@ func (a *App) HandleLogsSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// logsDeniedBody is what a guest sees. A page answers with a page, the
+// same as the Status page and the file index do. It is not the line of
+// plain text that authMiddleware writes.
+const logsDeniedBody = `<div class="config-panel">` +
+	`<h2 class="config-title">Log</h2>` +
+	`<p class="config-hint">This page is for the admin of this device. ` +
+	`Log in as admin on a note page, then open the page again.</p>` +
+	`</div>`
+
+// serveLogsPage answers /OMNGoLogs.html. The page holds no line of its
+// own. It reads /api/logs/history one time, and then it adds each new
+// line of /api/logs. omn-go-logs.js does that work.
+//
+// WHY A PAGE AT ALL. A desktop reader has stdout. Android has no
+// terminal, thus a person there could read a fault in two ways only. One
+// is adb logcat, which needs a computer and developer mode. The other is
+// a second browser on the phone, opened at the address of the history
+// endpoint, which answers JSON. Both are bad, and a fault on a phone is
+// the case that needs the log most.
+//
+// It is registered the same way as serveStatusPage, and it asks hasRole
+// itself. See the banner of statusDeniedBody for why a page answers a
+// guest with a page.
+func (a *App) serveLogsPage(w http.ResponseWriter, r *http.Request) {
+	body := logsPageTmpl
+	if !a.hasRole(r, true) {
+		body = logsDeniedBody
+	}
+	compiled := a.compilePageWithBody("Log",
+		[]byte("Title: Log\nCategory: System\n\n"), body)
+	writeHTMLHeader(w)
+	w.Write(a.injectRuntimeVars(compiled))
+}
+
 // handleLogHistory answers the ring of the last logHistoryCap lines,
 // oldest first.
 //

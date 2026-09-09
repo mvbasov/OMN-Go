@@ -1,0 +1,37 @@
+<div class="config-panel">
+    <h2 class="config-title">Log</h2>
+    <div class="config-field">
+        <span class="config-hint">What this device wrote. The page reads <code>/api/logs/history</code> one time, and then it adds each new line from <code>/api/logs</code>. The Download and the Upload button of the header above work here, so a sync writes into this view while you watch it.</span>
+    </div>
+
+    <div class="lg-actions">
+        <button type="button" class="lg-btn" id="lgReload">Reload</button>
+        <button type="button" class="lg-btn" id="lgCopy">Copy</button>
+        <button type="button" class="lg-btn" id="lgFilterToggle">Filter</button>
+        <a class="lg-btn" href="/api/logs/history">Open as JSON</a>
+        <span class="lg-count" id="lgCount"></span>
+    </div>
+
+    <div id="lgFilter" class="lg-filter hidden">
+        <div class="lg-filter-row">
+            <span class="lg-filter-name">Level</span>
+            <span id="lgLevels"></span>
+        </div>
+        <div class="lg-filter-row">
+            <span class="lg-filter-name">Tag</span>
+            <span id="lgTags"></span>
+        </div>
+    </div>
+
+    <div id="lgBody" class="lg-body">Loading…</div>
+</div>
+<!--
+  The stylesheet and the script of this page. Neither one is inline, thus
+  each note page carries no byte of them. See section 4 of CLAUDE.md.
+
+  The link sits in the body and not in the head, the same as the Bookmarks
+  note. A browser reads it after the head, thus a rule here wins against a
+  rule of omn-go-core.css at equal specificity.
+-->
+<link rel="stylesheet" type="text/css" href="/css/OMN-Go/omn-go-logs.css" />
+<script src="/js/OMN-Go/omn-go-logs.js"></script>

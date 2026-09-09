@@ -76,10 +76,28 @@ if (window.location.protocol !== 'file:') {
     // the three log.Printf call sites that cannot reach an application -
     // always prints, because each one is a fault.
     const LOG_LINE_RE = /\[([a-z0-9-]+)\]\s+\(([a-z]+)\)\s/;
-    function logLinePrints(msg) {
+
+    // omnParseLogLine splits one server log line into its tag and its
+    // level. It answers null for a line that carries neither.
+    //
+    // THE SHAPE OF A LINE LIVES HERE ALONE. logLinePrints below reads it,
+    // and so does omn-go-logs.js for the filter of the Log page. Rule 7
+    // of CLAUDE.md section 1 asks for one authority, and a second regular
+    // expression in the other file would be a second one.
+    //
+    // A separate file reads this through window, and never as a bare
+    // name. The body of this file sits inside an if block, thus a const
+    // of that block reaches no other file. See section 4 of CLAUDE.md.
+    window.omnParseLogLine = function(msg) {
         const m = LOG_LINE_RE.exec(msg);
-        if (!m) return true;
-        const tag = m[1], level = m[2];
+        if (!m) return null;
+        return { tag: m[1], level: m[2] };
+    };
+
+    function logLinePrints(msg) {
+        const parts = window.omnParseLogLine(msg);
+        if (!parts) return true;
+        const tag = parts.tag, level = parts.level;
         if (level === 'error') return true;
         if (level === 'debug' && !window.OMN_LOG_DEBUG) return false;
         if (level === 'info' && !window.OMN_LOG_INFO) return false;

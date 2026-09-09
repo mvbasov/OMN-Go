@@ -44,6 +44,7 @@ Welcome to the OMN-Go manual. [Easy start](#easy-start) covers the two functions
 - [Send and receive one note](#send-and-receive-one-note)
 - [Database backups](#database-backups)
 - [The file index](#the-file-index)
+- [The Log page](#the-log-page)
 - [The Status page](#the-status-page)
 - [Sharing on the LAN](#sharing-on-the-lan)
 - [Raw HTML and JavaScript in pages](#raw-html-and-javascript-in-pages)
@@ -873,6 +874,22 @@ Two things never come into the file index. The page templates are a part of OMN-
 Your notes are not in the Served tree. A note is not served from `html/`. Its page is, and that page says *compiled*.
 
 The page deletes nothing and moves nothing. One action on it creates a file. A row can say *not extracted*. Open the edit link of that row, and OMN-Go writes the file to the device.
+
+## The Log page
+
+The Log page shows what this device wrote. Open it from the Log line of the [Config](Config) menu, or open [Log](OMNGoLogs) here. The page is for the admin of the device. A guest sees a short note instead.
+
+The page reads the last 500 lines one time. It then adds each new line as the server writes it. The Download and the Upload button of the page header work here, so a sync writes into the view while you watch it. That is how you read a sync on a phone, where there is one screen and no terminal.
+
+Three buttons sit above the log.
+
+- **Reload** reads the last 500 lines again. It replaces what the page holds, so no line comes twice.
+- **Copy** puts what you SEE on the clipboard. A line that the filter hides stays out.
+- **Filter** opens two rows of boxes. The first row is the three levels. The second row is one box for each tag that has written a line. Each box starts ticked. Untick a box to hide those lines.
+
+The filter changes what this page draws and nothing else. It does not change the Logging settings of the Config page, and it does not change what the device writes.
+
+A line that carries no level always shows. Three places in the application write such a line, and each one is a fault.
 
 ## The Status page
 

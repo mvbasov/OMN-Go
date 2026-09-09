@@ -163,6 +163,7 @@ what its own page shows and gets no permission.
 | `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/api/export/note`, `/api/import/note`, `/db_backups` | admin (local bypass applies) |
 | `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | `GET /OMNGoStatus.html` | admin (local bypass applies) — answers a **page**, not a 401 |
+| `GET /OMNGoLogs.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | All page and static routes (`/`, `*.html`, `/js/`, `/css/`, `/json/`, `/images/`, `/user_json/`) | none |
 
 ---
@@ -197,6 +198,7 @@ what its own page shows and gets no permission.
 | GET | `/OMNGoSearch.html` | no | none | HTML (explains how to turn global search on when it is off; used to 404) |
 | GET | `/OMNGoFiles.html` | no | admin | HTML (a page for a guest, not a 401) |
 | GET | `/OMNGoStatus.html` | no | admin | HTML (a page for a guest, not a 401) |
+| GET | `/OMNGoLogs.html` | no | admin | HTML (a page for a guest, not a 401) |
 | GET | `/`, `/<name>.html`, `/<asset>` | no | none | HTML / asset |
 | GET | `/js/…`, `/css/…`, `/json/…` | no | none | asset |
 | GET | `/images/…`, `/user_json/…` | no | none | asset |

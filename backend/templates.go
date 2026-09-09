@@ -136,6 +136,7 @@ var (
 	notFoundTmpl      = loadTemplate("not_found.html")
 	notEditableTmpl   = loadTemplate("not_editable.html")
 	statusPageTmpl    = loadTemplate("status_page.html")
+	logsPageTmpl      = loadTemplate("logs_page.html")
 	searchPageTmpl    = loadTemplate("search_page.html")
 	filesPageTmpl     = loadTemplate("files_page.html")
 	// modalsHTML is the block of server-only modals. Those are login,

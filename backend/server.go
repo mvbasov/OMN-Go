@@ -389,4 +389,8 @@ func (a *App) registerRoutes(mux routeTable) {
 	// reason as /OMNGoFiles.html above. The handler asks hasRole
 	// itself, thus a guest gets a page and not a line of plain text.
 	mux.HandleFunc("/OMNGoStatus.html", a.serveStatusPage)
+	// The Log page. It reads /api/logs/history and /api/logs, and both
+	// are admin only. It is registered the same way as the Status page,
+	// thus a guest gets a page and not a line of plain text.
+	mux.HandleFunc("/OMNGoLogs.html", a.serveLogsPage)
 }

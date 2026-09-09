@@ -56,6 +56,10 @@ package backend
 //     which stays an exact pattern as well. A trailing slash on either one
 //     would make it a subtree and take the other address. Both are admin
 //     only since 26.09.59, and handleLogHistory says why.
+//   - 26.09.60 adds /OMNGoLogs.html to TestBaseline_RouteSet (done). The
+//     Log page. It is registered with no authMiddleware, the same as the
+//     Status page, and serveLogsPage asks hasRole itself. A guest thus
+//     reads a page that explains, and not a line of plain text.
 //
 // A baseline test failing for any other reason means the change under it was
 // not as behaviour-preserving as it looked.
@@ -408,6 +412,8 @@ func TestBaseline_RouteSet(t *testing.T) {
 		// 26.08.16: the Status page. An exact pattern, like the file index
 		// above, and admin-only through hasRole inside the handler.
 		"/OMNGoStatus.html",
+		// 26.09.60: the Log page. The same shape as the Status page above.
+		"/OMNGoLogs.html",
 	}
 	sort.Strings(want)
 
