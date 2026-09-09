@@ -504,6 +504,7 @@ func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 	for _, want := range []string{
 		"/api/status", "stStorage", "stDirty", "stCopy", "stReload",
 		"sections=all&amp;format=md",
+		"/js/OMN-Go/omn-go-status.js", "/css/OMN-Go/omn-go-status.css",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page misses %q", want)
@@ -514,8 +515,19 @@ func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 	if !strings.Contains(body, "Loading…") {
 		t.Error("the page does not start empty; it must read /api/status")
 	}
-	if !strings.Contains(body, "execCommand") {
-		t.Error("copy must use select + execCommand, which is what the Android WebView has")
+	// The script and the stylesheet are files since 26.09.61. This
+	// template was the one page template that held them inline.
+	//
+	// The check here used to look for the word execCommand in the page. It
+	// matched a COMMENT of the inline script and never the code, thus it
+	// proved nothing about the clipboard. TestClipboardHasOneAuthority in
+	// templates_test.go is what holds that rule, and it reads every
+	// embedded script and template.
+	if strings.Contains(statusPageTmpl, "<script>") {
+		t.Error("the template holds an inline script")
+	}
+	if strings.Contains(statusPageTmpl, "<style>") {
+		t.Error("the template holds an inline style")
 	}
 }
 

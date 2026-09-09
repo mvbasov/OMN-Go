@@ -1,0 +1,36 @@
+/* The Status page, /OMNGoStatus.html.
+
+   Only templates/status_page.html loads this file, and a note page never
+   does. That is the same arrangement as omn-go-logs.css and
+   Bookmarker.css.
+
+   It was inline in that template until 26.09.61. */
+
+/* Each color comes from the design tokens in omn-go-core.css. This page
+   therefore follows the light, dark and auto theme, like each other page. */
+.st-actions { display:flex; flex-wrap:wrap; gap:0.5em; margin:0.6em 0 1em 0; }
+.st-btn {
+    display:inline-flex; align-items:center; min-height:2.4em;
+    padding:0.3em 0.9em; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); background:var(--bg-inset);
+    color:var(--text); font-size:0.95em; text-decoration:none;
+}
+.st-btn:hover { background:var(--bg-hover); border-color:var(--border-strong); }
+.st-btn[disabled] { opacity:0.5; cursor:default; }
+.st-section { margin:0 0 1.2em 0; }
+.st-section h3 { margin:0 0 0.3em 0; color:var(--text-strong); font-size:1.05em; }
+/* The page body renders inside #preview, where a table gets the markdown
+   look: a 2px blue border and striped rows. Those rules carry an id, so
+   these carry #preview too. */
+#preview .st-table { width:100%; border-collapse:collapse; border:0; }
+#preview .st-table td {
+    padding:0.3em 0.4em; vertical-align:top; font-size:0.95em;
+    border:0; border-bottom:1px solid var(--border-soft);
+}
+#preview .st-table tr:nth-child(odd),
+#preview .st-table tr:nth-child(even) { background:transparent; color:var(--text); }
+#preview .st-table .st-key { color:var(--text-faint); width:38%; }
+#preview .st-table .st-val { color:var(--text); overflow-wrap:anywhere; }
+.st-code, .st-val code { font-family:monospace; background:var(--bg-inset); padding:0.1em 0.35em; border-radius:4px; }
+.st-note { color:var(--text-faint); font-size:0.9em; margin:0.2em 0 0 0; }
+.st-error { color:var(--danger); }
