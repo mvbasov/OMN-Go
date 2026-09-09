@@ -4,11 +4,11 @@ package backend
 // and scrolls to the first.
 //
 // The thing worth pinning here is not "does the parameter appear". It is that
-// the terms are the ones the reader will actually SEE in the rendered page:
-// unfolded, prefix-free, and long enough to be worth marking. Every one of
-// those is a way to link to a page where nothing highlights, which is worse
-// than not linking at all - the reader is told there is a match and then left
-// to find it by eye.
+// the terms are the ones that the reader will actually SEE in the rendered
+// page. They must be unfolded, prefix-free, and long enough to be worth
+// marking. A fault in any one of those is a link to a page where nothing
+// highlights. That is worse than no link at all. The reader is told there is
+// a match, and is then left to find it by eye.
 
 import (
 	"net/url"
@@ -32,7 +32,7 @@ func TestHighlightTerms(t *testing.T) {
 	}{
 		{"plain", "fetch json", []string{"fetch", "json"}},
 
-		// A field prefix restricts WHERE a term is looked for; it is not part
+		// A field prefix restricts WHERE a term is looked for. It is not part
 		// of the term. Marking the literal "tag:hydro" would find nothing on
 		// any page, because no page contains that text.
 		{"field prefixes stripped", "tag:hydro title:manual json",
@@ -113,8 +113,8 @@ func TestHighlightURL(t *testing.T) {
 	}
 }
 
-// Repeated parameters rather than one comma-joined value: a term may contain a
-// comma, and re-splitting on it at the far end would silently cut a search for
+// Repeated parameters, and not one comma-joined value. A term may contain a
+// comma. To re-split on it at the far end would silently cut a search for
 // "1,000" into two searches that both fail.
 func TestHighlightURLKeepsCommasInsideOneTerm(t *testing.T) {
 	got := highlightURL("/Note.html", []string{"1,000"})
@@ -169,9 +169,9 @@ func TestSearchAPIHighlightInPageScope(t *testing.T) {
 	}
 }
 
-// A query that matched nothing still reports its terms rather than omitting
-// them: the field describes the query, and a client that reads it as "these
-// are the terms that matched" would be reading it wrong.
+// A query that matched nothing still reports its terms, and does not omit
+// them. The field describes the query. A client that reads it as "these are
+// the terms that matched" would be reading it wrong.
 func TestSearchAPIHighlightSurvivesNoResults(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: Note\n\nsomething\n")
@@ -186,8 +186,9 @@ func TestSearchAPIHighlightSurvivesNoResults(t *testing.T) {
 }
 
 // Every link on the results page carries the query, and the parameter is
-// escaped for the attribute it lands in - the query is attacker-controlled in
-// the LAN-sharing case, and this page is assembled by hand.
+// escaped for the attribute that it lands in. The query is
+// attacker-controlled in the LAN-sharing case, and this page is assembled by
+// hand.
 func TestSearchPage_LinksCarryHighlight(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Fetch.md", "Title: Fetch\n\nawait fetch('/json/a.json');\n")
@@ -218,9 +219,9 @@ func TestSearchPage_LinksCarryHighlight(t *testing.T) {
 	}
 }
 
-// Every matching LINE is its own link, and each one carries THAT line's text
-// as ?hlt=. Without it each snippet under a result went to the same place, and
-// a reader who chose the second line arrived at the first match in the note.
+// Every matching LINE is its own link, and each one carries THAT line of text
+// as ?hlt=. Without it, each snippet under a result went to the same place. A
+// reader who chose the second line arrived at the first match in the note.
 func TestSearchPage_SnippetLinksCarryTheirOwnLine(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Many.md", "Title: Many\n\nfirst needle line\nfiller\nsecond needle line\n")
@@ -239,13 +240,13 @@ func TestSearchPage_SnippetLinksCarryTheirOwnLine(t *testing.T) {
 	}
 }
 
-// A note's own text reaches an href through ?hlt=, so it passes the same two
-// encoders the query does: percent-encoding for the query string, then
-// HTML-escaping for the attribute.
+// The own text of a note reaches an href through ?hlt=. It thus passes the
+// same two encoders that the query passes. Those are percent-encoding for the
+// query string, and then HTML-escaping for the attribute.
 //
 // The payload holds no "<script", on purpose. classifyContexts labels each
-// line that contains it "script", and such a line gets no ?hlt= at all (the
-// test below), so a payload built around one would test nothing here.
+// line that contains it "script". Such a line gets no ?hlt= at all, which is
+// the test below. A payload built around one would thus test nothing here.
 func TestSearchPage_SnippetLineInLinkIsEscaped(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: Note\n\nthe \"><img src=x onerror=alert(1)> payload sits here\n")
@@ -254,16 +255,17 @@ func TestSearchPage_SnippetLineInLinkIsEscaped(t *testing.T) {
 	if !strings.Contains(link, `hlt=the+%22%3E%3Cimg`) {
 		t.Errorf("the line was not percent-encoded into the link:\n%s", link)
 	}
-	// The visible snippet shows this as "&lt;img", so the tag can only be here
-	// if the line closed the attribute it travelled in.
+	// The visible snippet shows this as "&lt;img" (the escaped form). The tag
+	// can thus be here only when the line closed the attribute that it
+	// traveled in.
 	if strings.Contains(link, `<img`) {
 		t.Errorf("the line broke out of the href:\n%s", link)
 	}
 }
 
-// A hit inside a <script> block gets no ?hlt=. The text is in the index but
-// the page never renders it, so there is no word to go to and a search of the
-// page for that text could only find a coincidence somewhere else.
+// A hit inside a <script> block gets no ?hlt=. The text is in the index, but
+// the page never renders it. There is thus no word to go to. A search of the
+// page for that text could find only a coincidence somewhere else.
 func TestSearchPage_ScriptLineGetsNoTarget(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Script.md", "Title: Script\n\n<script>\nvar payload = 1;\n</script>\n")
@@ -320,8 +322,8 @@ func excerpt(page, needle string) string {
 // marked after a search for "елка". It did exactly that until 26.08.79.
 //
 // The table therefore exists twice, in Go and in JavaScript. That is the
-// same arrangement as isHeaderFirstLine, and it needs the same guard: a
-// test that fails when one copy moves and the other does not.
+// same arrangement as isHeaderFirstLine, and it needs the same guard. That
+// guard is a test that fails when one copy moves and the other does not.
 // ---------------------------------------------------------------------
 
 // jsFoldTableRe reads the body of OMN_FOLD_TABLE from omn-go-core.js.

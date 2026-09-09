@@ -288,9 +288,9 @@ func TestTierSeparation(t *testing.T) {
 	}
 }
 
-// scoreSubsequenceTier is a thin test shim: scoreTerm tries substring first, so
-// there is no way through the public entry point to obtain a subsequence score
-// for text that also contains the term verbatim.
+// scoreSubsequenceTier is a thin test shim. scoreTerm tries the substring
+// first. There is thus no way through the public entry point to get a
+// subsequence score for text that also holds the term verbatim.
 func scoreSubsequenceTier(term, cand []rune) (int, []span, matchTier, bool) {
 	s, spans, ok := scoreSubsequence(term, cand)
 	if !ok {
@@ -299,9 +299,10 @@ func scoreSubsequenceTier(term, cand []rune) (int, []span, matchTier, bool) {
 	return s, spans, tierSubsequence, true
 }
 
-// A longer query must not score lower for an equally good match - otherwise
-// results visibly reorder while the user is still typing. This is the property
-// the ideal-normalisation exists for; dividing by term length breaks it.
+// A longer query must not score lower for an equally good match. The results
+// then visibly reorder while the user is still typing. The ideal
+// normalization exists for that property. A division by the term length
+// breaks it.
 func TestSubsequenceNormalisationIsLengthStable(t *testing.T) {
 	// Same shape of match at three lengths: every rune consecutive, at a word
 	// start. All three should be the maximum score.
@@ -317,9 +318,9 @@ func TestSubsequenceNormalisationIsLengthStable(t *testing.T) {
 	}
 }
 
-// The mask may never reject something that actually matches. Fuzzed against
-// the real scorer, because a false negative here is invisible: the result
-// simply never appears.
+// The mask may never reject something that actually matches. This test
+// fuzzes against the real scorer, because a false negative here is
+// invisible. The result never appears at all.
 func TestMaskNeverRejectsARealMatch(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	alphabet := []rune("abcdefgпривет_-/. 1234")

@@ -190,9 +190,9 @@ func TestJavaUnitTests(t *testing.T) {
 	// byte above 127. Version 26.09.28 failed the build that way.
 	//
 	// The Gradle build never had that fault. The Android Gradle Plugin
-	// sets options.encoding to UTF-8 for each JavaCompile task, thus
-	// MainActivity.java has carried a character above 127 in a comment
-	// for a long time. This line makes the two compilers agree.
+	// sets options.encoding to UTF-8 for each JavaCompile task.
+	// MainActivity.java has thus carried a character above 127 in a
+	// comment for a long time. This line makes the two compilers agree.
 	out := t.TempDir()
 	build := exec.Command(javac, "-encoding", "UTF-8", "-d", out,
 		filepath.Join("..", filepath.FromSlash(mainSrc)),

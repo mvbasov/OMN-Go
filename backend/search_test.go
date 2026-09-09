@@ -2,10 +2,11 @@ package backend
 
 // Tests for page-scope search: the always-on half of the feature.
 //
-// The point of most of these is not "does it find things" but "does it find
-// them without needing anything" - no index, no config, no state left behind.
-// That is what lets the search button exist on a device that will never turn
-// global search on, so it is worth asserting rather than assuming.
+// The point of most of these is not "does it find things". It is "does it find
+// them without needing anything". That means no index, no config, and no state
+// left behind. That is what lets the search button exist on a device that will
+// never turn global search on. It is thus worth an assertion, and not an
+// assumption.
 
 import (
 	"encoding/json"
@@ -58,10 +59,10 @@ func searchReq(t *testing.T, a *App, query url.Values) (*httptest.ResponseRecord
 	return rec, resp
 }
 
-// The end-to-end version of the plan's worked example E4: two terms, one
-// matched in the title and one in the body, scored through the field weights.
-// The matcher tests pin the per-term arithmetic; this pins that the document
-// layer multiplies and sums it the way the plan says.
+// The end-to-end version of the worked example E4 of the plan. It has two
+// terms. One matched in the title and one in the body, scored through the
+// field weights. The matcher tests pin the arithmetic of each term. This test
+// pins that the document layer multiplies and sums it the way the plan says.
 func TestPageSearch_E4EndToEnd(t *testing.T) {
 	a := newTestApp(t)
 	writeSearchNote(t, a, "Test/OMN-Go/Fetch.md", fetchNote)
@@ -209,8 +210,9 @@ func TestPageSearch_HeaderIsFieldsNotContent(t *testing.T) {
 	}
 }
 
-// A query for something that is not there is an empty result, not an error -
-// and never a way to find out what exists outside the storage directory.
+// A query for something that is not there is an empty result, and not an
+// error. It is never a way to find out what exists outside the storage
+// directory.
 func TestPageSearch_MissingAndTraversal(t *testing.T) {
 	a := newTestApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: A Note\n\nsecret sauce\n")
@@ -450,10 +452,10 @@ func TestParseQuery(t *testing.T) {
 
 // The dialog is reachable from the page chrome, and reachable by everyone.
 //
-// Search is read-only, so unlike create/quick-note/bookmark the button is NOT
-// .admin-only: a guest on the LAN can already read every page, and being
+// Search is read-only. Unlike create, quick-note and bookmark, the button is
+// thus NOT .admin-only. A guest on the LAN can already read every page. To be
 // unable to search what you are allowed to read is a strange place to draw a
-// line. It IS .server-only, because an exported page has no /api/search - the
+// line. It IS .server-only, because an exported page has no /api/search. The
 // existing applyOfflineUI() hides it there with no extra code.
 func TestSearchButtonIsInTheRenderedPage(t *testing.T) {
 	a := newTestApp(t)
@@ -492,21 +494,21 @@ func writeSearchNote(t *testing.T, a *App, rel, content string) {
 // The search box must not describe itself to the keyboard at all.
 //
 // spellcheck="false", autocorrect="off", autocapitalize and autocomplete all
-// read like housekeeping on a search field. On Android they are not cosmetic:
-// each is a hint the soft keyboard reads when it attaches, and several fold
-// into the IME's NO_SUGGESTIONS flag, which disables the COMPOSING region -
-// the mechanism every non-Latin layout uses to enter text. Cyrillic input then
-// silently produces nothing while Latin typing works, so the field looks fine
-// and simply refuses half the world's scripts.
+// read like housekeeping on a search field. On Android they are not cosmetic.
+// Each is a hint that the soft keyboard reads when it attaches. Several fold
+// into the NO_SUGGESTIONS flag of the IME, which disables the COMPOSING
+// region. That region is the mechanism that every non-Latin layout uses to
+// enter text. Cyrillic input then silently produces nothing while Latin typing
+// works. The field looks fine, and it refuses half the scripts of the world.
 //
-// None of them buys anything here: the field is not in a <form> and has no
-// name, so autofill never engages; matching is case-folded, so
-// auto-capitalisation is harmless; and a red squiggle under a query is
-// cosmetic. So the rule is the simple one - a plain text field, nothing else.
+// None of them buys anything here. The field is not in a <form> and has no
+// name, thus autofill never engages. Matching is case-folded, thus
+// auto-capitalization is harmless. A red squiggle under a query is cosmetic.
+// So the rule is the plain one. It is a plain text field, and nothing else.
 //
-// This is a shape test on the shipped asset rather than a behaviour test
-// because the behaviour needs a physical Android keyboard to observe, and
-// these attributes are exactly what a later tidy-up puts back.
+// This is a shape test on the shipped asset, and not a behavior test. To
+// observe the behavior needs a physical Android keyboard. These attributes are
+// also exactly what a later tidy-up puts back.
 func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
 	// The overlay moved to a file of its own in 26.09.24. It loads at the
 	// first press of the magnifier, and not with each note page.
@@ -536,10 +538,10 @@ func TestSearchInputDoesNotDisableTheIME(t *testing.T) {
 	}
 }
 
-// Focus is handed to the field twice on open, and the second pass is the fix
-// for the same class of bug: the overlay goes from display:none to
-// display:flex and takes focus in one tick, so the keyboard can attach to an
-// element with no layout yet and come up without a composing region.
+// Focus is handed to the field twice on open. The second pass is the fix for
+// the same class of bug. The overlay goes from display:none to display:flex,
+// and takes focus in one tick. The keyboard can thus attach to an element with
+// no layout yet, and come up with no composing region.
 //
 // A synchronous focus() alone is what the intermittent "cannot type Cyrillic
 // until I open and close another panel" report was. Pinned as a shape test for
@@ -566,10 +568,10 @@ func TestSearchOverlayReattachesFocusAfterLayout(t *testing.T) {
 
 // The editor's find and replace fields carry no keyboard hints either.
 //
-// Same rule and same reason as the search overlay above: on Android those
-// attributes fold into the IME's NO_SUGGESTIONS flag, which disables the
-// composing region every non-Latin layout needs. A find field that cannot
-// accept Cyrillic is a find field that cannot search a Russian note.
+// Same rule and same reason as the search overlay above. On Android those
+// attributes fold into the NO_SUGGESTIONS flag of the IME. That flag disables
+// the composing region that every non-Latin layout needs. A find field that
+// cannot accept Cyrillic is a find field that cannot search a Russian note.
 func TestEditorFindInputsDoNotDisableTheIME(t *testing.T) {
 	src, err := templatesFS.ReadFile("frontend/templates/editor.html")
 	if err != nil {
@@ -596,9 +598,9 @@ func TestEditorFindInputsDoNotDisableTheIME(t *testing.T) {
 // The phrase rung
 //
 // A reader who types a whole sentence wants the note that holds that
-// sentence. Before 26.08.80 the sum decided, and the sum favors a title:
-// five loose query words in one title scored 2001, against 718 for the note
-// that held the sentence in a body line. tierPhrase answers that, and the
+// sentence. Before 26.08.80 the sum decided, and the sum favors a title.
+// Five loose query words in one title scored 2001. The note that held the
+// sentence in a body line scored 718. tierPhrase answers that, and the
 // tests below pin each edge of the rule.
 // ---------------------------------------------------------------------
 

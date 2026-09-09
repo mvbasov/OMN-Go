@@ -2,11 +2,12 @@ package backend
 
 // Tests for the search configuration and the gating it drives.
 //
-// The property under nearly all of them is the same one: **the setting governs
-// global search and nothing else**. Page search has to keep working with the
-// config off, with every kind unticked, and with a config file written before
-// any of these fields existed - because that is what makes it safe to leave the
-// search button in the header of a device that will never turn the index on.
+// The property under nearly all of them is the same one. **The setting governs
+// global search and nothing else**. Page search must keep working with the
+// config off, and with every kind unticked. It must also keep working with a
+// config file written before any of these fields existed. That is what makes
+// it safe to leave the search button in the header of a device that will never
+// turn the index on.
 
 import (
 	"encoding/json"
@@ -19,8 +20,8 @@ import (
 )
 
 func TestNormalizeSearchKinds(t *testing.T) {
-	// Absent (nil) and empty are NOT the same thing, and the difference is
-	// what stands between "this config predates the feature" and "the user
+	// Absent (nil) and empty are NOT the same thing. The difference is what
+	// stands between "this config predates the feature" and "the user
 	// unticked everything on purpose".
 	if got := normalizeSearchKinds(nil); strings.Join(got, ",") != "md,bookmarks" {
 		t.Errorf("nil -> %v, want the default md,bookmarks", got)
@@ -62,8 +63,8 @@ func TestNormalizeSearchScope(t *testing.T) {
 }
 
 // A config.json from before this feature must load with global search off and
-// the default kinds - not with search silently enabled, and not with an empty
-// kind list that would index nothing once enabled.
+// the default kinds. It must not load with search silently enabled. It must
+// not load with an empty kind list, which would index nothing once enabled.
 func TestLoadConfig_PreSearchConfigFile(t *testing.T) {
 	a := &App{StorageDir: t.TempDir()}
 	old := `{"server_port":8080,"author":"Ann","theme":"dark"}`
@@ -100,7 +101,7 @@ func TestLoadConfig_FreshInstallDefaults(t *testing.T) {
 		t.Errorf("SearchKinds = %v", cfg.SearchKinds)
 	}
 
-	// And it round-trips through the file it just wrote.
+	// And it round-trips through the file that it wrote.
 	data, err := os.ReadFile(filepath.Join(a.StorageDir, "config.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -114,10 +115,10 @@ func TestLoadConfig_FreshInstallDefaults(t *testing.T) {
 	}
 }
 
-// Unticking every kind must survive a save. This is the case the nil/empty
-// distinction exists for: a POST with no search_kinds values means "none",
-// and if that were stored as nil the next load would helpfully restore the
-// default the user had just removed.
+// Unticking every kind must survive a save. The nil and empty distinction
+// exists for this case. A POST with no search_kinds value means "none". If
+// that were stored as nil, the next load would helpfully restore the default
+// that the user removed.
 func TestConfigPost_SearchKinds(t *testing.T) {
 	a := newTestApp(t)
 	a.WithConfig(func(c *Config) {
@@ -141,8 +142,8 @@ func TestConfigPost_SearchKinds(t *testing.T) {
 		t.Errorf("SearchScope = %q", cfg.SearchScope)
 	}
 
-	// Now untick everything: the form DECLARES search_kinds (config_fields),
-	// so no value at all means none, not "reset to default" - and it has to
+	// Now untick everything. The form DECLARES search_kinds (config_fields),
+	// thus no value at all means none, and not "reset to default". It has to
 	// persist that way.
 	postForm(t, a.handleConfig, "/api/config", url.Values{
 		"config_fields":  {configFormFields},
@@ -241,8 +242,8 @@ func TestDefaultSearchScope(t *testing.T) {
 	a := newTestApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: A Note\n\nneedle here\n")
 
-	// Config says "all", but global search cannot answer, so an unscoped
-	// query falls back to the page rather than 503-ing a caller who
+	// Config says "all", but global search cannot answer. An unscoped query
+	// thus falls back to the page. It does not answer 503 to a caller who
 	// expressed no preference.
 	a.WithConfig(func(c *Config) { c.SearchScope = SearchScopeAll; c.SearchEnabled = true })
 	rec, resp := searchReq(t, a, url.Values{"q": {"needle"}, "on": {"Note"}})
@@ -264,9 +265,9 @@ func TestDefaultSearchScope(t *testing.T) {
 	}
 }
 
-// OMN_SEARCH_GLOBAL means "the dialog may offer All notes", which is the
-// config flag AND an index to answer from - never the flag alone, or the
-// dialog would present a scope that fails.
+// OMN_SEARCH_GLOBAL means "the dialog may offer All notes". That is the config
+// flag AND an index to answer from. It is never the flag alone, or the dialog
+// would present a scope that fails.
 func TestGlobalSearchAvailableRuntimeVar(t *testing.T) {
 	a := newTestApp(t)
 

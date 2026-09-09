@@ -5,9 +5,9 @@ package backend
 //
 // One line goes to two destinations. stdout is the destination a desktop
 // user and `adb logcat` read. The /api/logs SSE stream is the destination
-// every open page reads: omn-go-sse.js mirrors each line into the browser
-// console, and the sync progress overlay reads the same stream for its
-// stage text.
+// that every open page reads. omn-go-sse.js mirrors each line into the
+// browser console, and the sync progress overlay reads the same stream for
+// its stage text.
 //
 // broadcastLogLine is the only fan-out. It has THREE destinations since
 // 26.09.38: stdout, the SSE stream, and the history ring below. Two

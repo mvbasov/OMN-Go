@@ -340,11 +340,11 @@ func TestUploadLimitHasAJavaCopy(t *testing.T) {
 			"paths then accept different files.", m[1], want)
 	}
 
-	// maxUploadMB answers the constant for a missing file, for a missing
-	// key, for a value of the wrong type and for a number at zero or
-	// below. A bare number in that method is a fourth default waiting to
-	// go out of step, which is what the three readers of MainActivity
-	// were until 26.09.25.
+	// maxUploadMB answers the constant in four cases. Those are a missing
+	// file, a missing key, a value of the wrong type, and a number at zero
+	// or below. A bare number in that method is a fourth default that
+	// waits to go out of step. The three readers of MainActivity were
+	// exactly that until 26.09.25.
 	inside := java
 	if at := strings.Index(java, "static int maxUploadMB("); at != -1 {
 		if end := strings.Index(java[at:], "\n    }"); end != -1 {

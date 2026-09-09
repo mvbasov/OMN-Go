@@ -83,22 +83,7 @@ import (
 // lowers the number here.
 //
 // The path is relative to the root of the repository.
-var commentStyleDebt = map[string]int{
-	"backend/search_test.go":           13,
-	"backend/search_highlight_test.go": 12,
-	"backend/tags.go":                  10,
-	"backend/search_config_test.go":    9,
-	"backend/search_index_test.go":     9,
-	"backend/search_page_test.go":      6,
-	"backend/middleware_test.go":       3,
-	"backend/search_match_test.go":     3,
-	"backend/hostname.go":              2,
-	"backend/paths.go":                 2,
-	"backend/ports_test.go":            2,
-	"main_desktop.go":                  2,
-	"backend/java_test.go":             1,
-	"backend/logger.go":                1,
-}
+var commentStyleDebt = map[string]int{}
 
 // The marker that keeps its contraction. See the header above.
 const styleMarkerException = "<!-- Don't edit body below this line -->"

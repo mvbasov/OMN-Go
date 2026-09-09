@@ -2,11 +2,11 @@ package backend
 
 // Tests for the results page.
 //
-// It shares the query path with the API, so what needs proving here is not
-// "does it find things" - that is covered - but that the HTML it builds is
-// safe and honest: every value escaped for the context it lands in, and an
-// empty result that says what was actually searched rather than leaving the
-// reader to guess.
+// It shares the query path with the API. What needs proving here is thus not
+// "does it find things", which is covered elsewhere. It is that the HTML that
+// the page builds is safe and honest. Every value is escaped for the context
+// that it lands in. An empty result says what was actually searched, and it
+// does not leave the reader to guess.
 
 import (
 	"net/http"
@@ -58,7 +58,7 @@ func TestSearchPage_RendersResults(t *testing.T) {
 	}
 
 	// Tag pills use the same markup and the same anchor contract as a page
-	// header, so a tag goes to the same place wherever it is shown.
+	// header. A tag thus goes to the same place wherever it is shown.
 	if !strings.Contains(body, `href="/OMNGoTags.html#Test"`) {
 		t.Error("tag pill does not link into the Tags page")
 	}
@@ -69,10 +69,10 @@ func TestSearchPage_RendersResults(t *testing.T) {
 	}
 }
 
-// Everything on this page comes from either the user's URL or the user's
-// notes. Both are attacker-controlled in the LAN-sharing case, and the page is
-// assembled by hand rather than by html/template (see the note at the top of
-// templates.go), so the escaping is this test's business.
+// Everything on this page comes from either the URL of the user or the notes
+// of the user. Both are attacker-controlled in the LAN-sharing case. The page
+// is assembled by hand, and not by html/template. See the note at the top of
+// templates.go. The escaping is thus the business of this test.
 func TestSearchPage_Escaping(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Evil.md",
@@ -149,8 +149,8 @@ func TestSearchPage_EmptyStateNamesTheCorpus(t *testing.T) {
 // why it cannot do anything.
 //
 // It answered 404 until someone put a "Search" link on their Welcome note. The
-// address is legitimate and permanent, so a miss is a dead end that names
-// neither the cause nor the cure - and the cure is one settings toggle away.
+// address is legitimate and permanent. A miss is thus a dead end that names
+// neither the cause nor the cure. The cure is one settings toggle away.
 func TestSearchPage_ExplainsHowToEnableGlobalSearch(t *testing.T) {
 	a := newTestApp(t)
 	a.search = &searchIndex{}
@@ -190,8 +190,8 @@ func TestSearchPage_ExplainsHowToEnableGlobalSearch(t *testing.T) {
 	}
 }
 
-// A query typed into the URL while search is off gets the same explanation
-// rather than an empty result list, which would read as "nothing matched".
+// A query typed into the URL while search is off gets the same explanation.
+// It does not get an empty result list, which would read as "nothing matched".
 func TestSearchPage_DisabledIgnoresTheQuery(t *testing.T) {
 	a := newTestApp(t)
 	a.search = &searchIndex{}
@@ -203,9 +203,9 @@ func TestSearchPage_DisabledIgnoresTheQuery(t *testing.T) {
 	if !strings.Contains(body, "Global search is off") {
 		t.Error("the explanation is missing when a query is present")
 	}
-	// The query is attacker-controlled and is not echoed at all here, so there
-	// is nothing to escape - assert that it really is absent rather than
-	// trusting it.
+	// The query is attacker-controlled, and it is not echoed at all here.
+	// There is thus nothing to escape. Assert that it really is absent, and
+	// do not trust that it is.
 	body = getSearchPage(t, a, "%3Cscript%3Ealert(1)%3C/script%3E").Body.String()
 	if strings.Contains(body, "alert(1)") {
 		t.Error("the query reached a page that does not display queries")

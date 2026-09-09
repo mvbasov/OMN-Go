@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-// hostnameUnsafeRe strips anything that cannot appear in a database backup
-// filename (see db_backup.go): the hostname is embedded verbatim in
-// <timestamp>_<hostname>.jsonl, so it shares the same [A-Za-z0-9_-]
-// alphabet the db names already use.
+// hostnameUnsafeRe strips anything that cannot appear in the filename of a
+// database backup. See db_backup.go. The hostname is embedded verbatim in
+// <timestamp>_<hostname>.jsonl, thus it shares the same [A-Za-z0-9_-]
+// alphabet that the database names already use.
 var hostnameUnsafeRe = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
 // sanitizeHostname maps an arbitrary user-supplied device label to a
@@ -24,9 +24,9 @@ func sanitizeHostname(s string) string {
 }
 
 // defaultHostname derives a device label from the OS hostname. On Android
-// this is usually a useless "localhost" - the Config page's Hostname
-// field exists precisely so the user can set a meaningful label
-// ("pixel7") once per device.
+// that is usually a useless "localhost". The Hostname field of the Config
+// page exists exactly so the user can set a meaningful label, such as
+// "pixel7". A device needs that one time.
 func defaultHostname() string {
 	h, err := os.Hostname()
 	if err != nil || sanitizeHostname(h) == "" || strings.EqualFold(h, "localhost") {

@@ -6,9 +6,10 @@ import (
 	"strings"
 )
 
-// resolvePageName is the single place that decides, given a user- or
-// URL-supplied "name", whether it refers to a markdown page and where that
-// page's source (.md) and compiled (.html) files live on disk.
+// resolvePageName is the single place that answers two questions about a
+// "name" that comes from a user or a URL. The first is whether the name
+// refers to a markdown page. The second is where the source (.md) and the
+// compiled (.html) file of that page live on disk.
 //
 // Three shapes of "name" are accepted, matching how the frontend and the
 // various handlers refer to pages:
@@ -64,8 +65,8 @@ func (a *App) resolvePageName(name string) (mdPath, htmlPath, baseName string, i
 // It lived in files_index.go until 26.08.55, where the file index used it to
 // find the note behind a compiled page. That state ("compiled") went away
 // when the page stopped naming the ordinary case, and the helper went with
-// it - but note_exchange.go calls it three times, and the build broke. It
-// belongs here instead: this file is about paths on disk, and no caller of
+// it. But note_exchange.go calls it three times, and the build broke. It
+// belongs here instead. This file is about paths on disk, and no caller of
 // this helper owns it.
 func fileExists(p string) bool {
 	st, err := os.Stat(p)

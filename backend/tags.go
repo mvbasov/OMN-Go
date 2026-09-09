@@ -16,25 +16,26 @@ import (
 // Auto-generated Tags page (OMNGoTags)
 // ----------------------------------------------------------------------
 //
-// OMNGoTags is a single, root-level, generated note that indexes every other
-// note by its Tags: header. It is Format A - "prepared links": the page is
-// static HTML (a cloud of jump-links plus one section per tag with relative
-// links to the tagged pages), so it works with JavaScript disabled and when the
-// compiled html/ tree is opened offline (file://). See
+// OMNGoTags is a single, root-level, generated note. It indexes every other
+// note by its Tags: header. It is Format A, which is "prepared links". The
+// page is static HTML. It holds a cloud of jump-links, and one section per tag
+// with relative links to the tagged pages. It thus works with JavaScript
+// disabled, and when the compiled html/ tree is opened offline (file://). See
 // claude/tags-page-plan.md for the full design.
 //
-// generateTagsPage is a sanctioned writer of md/OMNGoTags.md (the general cache
-// contract in render_cache.go reserves md writes for the save/edit paths; this
-// generated page is the documented exception) and produces html/OMNGoTags.html
-// through renderAndCache like any other page.
+// generateTagsPage is a sanctioned writer of md/OMNGoTags.md. The general
+// cache contract in render_cache.go reserves an md write for the save and edit
+// paths. This generated page is the documented exception. generateTagsPage
+// produces html/OMNGoTags.html through renderAndCache, like any other page.
 
-// tagSlug turns a tag into an HTML id / URL-fragment. It is the single source
-// of the anchor contract shared by the tag pills (renderIndexPage) and this
-// generator, so a pill's "#slug" always matches a section's id - both are
-// server-side Go, so they can never drift. Unicode letters and digits are
-// kept (so Cyrillic tags slug sanely too); every other run collapses to a
-// single '-', trimmed at the ends. Case is preserved to minimise the chance of
-// two distinct tags colliding to one slug (an accepted, rare v1 limitation).
+// tagSlug turns a tag into an HTML id, which is also a URL fragment. It is the
+// single source of the anchor contract that the tag pills (renderIndexPage)
+// and this generator share. A "#slug" of a pill thus always matches the id of
+// a section. Both are server-side Go, thus they can never drift. Unicode
+// letters and digits are kept, thus a Cyrillic tag slugs sanely too. Every
+// other run collapses to a single '-', trimmed at the ends. Case is preserved
+// to minimize the chance that two distinct tags collide to one slug. That is
+// an accepted and rare v1 limitation.
 func tagSlug(tag string) string {
 	var b strings.Builder
 	prevDash := false
@@ -50,12 +51,13 @@ func tagSlug(tag string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// extractTitleTags reads a note's Title and Tags out of its header block,
-// using the exact same rules as compilePageWithBody (which now calls
-// this too, so the two cannot drift): the last "Title:" wins; "Tags:" is a
-// comma-separated list, trimmed, empties dropped. title is "" when absent (the
-// caller decides the fallback); tags preserves order and, like the pill path,
-// is NOT de-duplicated here - the tags-page generator de-dupes per page itself.
+// extractTitleTags reads the Title and the Tags of a note out of its header
+// block. It uses exactly the same rules as compilePageWithBody, which now
+// calls this too, thus the two cannot drift. The last "Title:" wins. "Tags:"
+// is a comma-separated list, trimmed, with each empty entry dropped. title is
+// "" when the note has none, and the caller decides the fallback. tags keeps
+// the order and, like the pill path, is NOT de-duplicated here. The tags-page
+// generator de-dupes per page itself.
 func extractTitleTags(content string) (title string, tags []string) {
 	hb := parseHeaderBlock(content)
 	if !hb.HasHeader {
@@ -138,13 +140,14 @@ func (a *App) buildTagIndex() map[string][]tagPageRef {
 	return index
 }
 
-// renderTagsMarkdown builds the OMNGoTags note content from a tag index: a
-// header, a "do not edit" comment, a cloud of jump-links, and one section per
-// tag. Tags are ordered case-insensitively; pages within a tag by title then
-// path. The body is raw HTML (notes render with html.WithUnsafe()) so the
-// section ids exactly match tagSlug; page links are relative ".html" paths that
-// resolve from the root-level page both online and offline. Every tag/title is
-// HTML-escaped for its context.
+// renderTagsMarkdown builds the OMNGoTags note content from a tag index. The
+// content is a header, a "do not edit" comment, a cloud of jump-links, and one
+// section per tag. Tags are ordered case-insensitively. Pages within a tag are
+// ordered by title, and then by path. The body is raw HTML, because a note
+// renders with html.WithUnsafe(). The section ids thus match tagSlug exactly.
+// A page link is a relative ".html" path, which resolves from the root-level
+// page both online and offline. Every tag and title is HTML-escaped for its
+// context.
 func renderTagsMarkdown(index map[string][]tagPageRef) []byte {
 	tagNames := make([]string, 0, len(index))
 	for t := range index {
@@ -199,13 +202,14 @@ func renderTagsMarkdown(index map[string][]tagPageRef) []byte {
 // replaces both files). Wiring - when it runs (startup, and lazily on a stale
 // view) - is Phase T2; this is the generator itself.
 func (a *App) generateTagsPage() error {
-	// Rebuilding reads and parses every note, so on a large collection this
-	// is a real wait - and when it happens lazily it is inside a page
-	// navigation (serveTagsPage), where no in-page progress UI can run.
-	// Logging start and end at least surfaces it on the /api/logs stream and
-	// in the JS console; the user-visible indicator for the navigation
-	// itself is the Android ProgressBar (MainActivity.onPageStarted) and the
-	// delayed overlay in omn-go-core.js.
+	// A rebuild reads and parses every note. On a large collection that is a
+	// real wait. When it happens lazily, it is inside a page navigation
+	// (serveTagsPage), where no in-page progress UI can run. A log of the
+	// start and the end at least surfaces the wait on the /api/logs stream,
+	// and in the JS console. The indicator that the reader sees for the
+	// navigation itself is the Android ProgressBar
+	// (MainActivity.onPageStarted), and the delayed overlay in
+	// omn-go-core.js.
 	a.logDebugf(logTags, "Rebuilding tags index")
 	started := time.Now()
 	index := a.buildTagIndex()
@@ -229,12 +233,13 @@ func (a *App) generateTagsPage() error {
 }
 
 // newestNoteMtime returns the most recent modification time among the note
-// sources the Tags page is built from: every md/**.md file AND its containing
-// directories. Directory mtimes are included on purpose - a file added, deleted
-// or renamed bumps its directory's mtime but not necessarily any surviving
-// file's, so scanning files alone would miss those. The generated OMNGoTags.md
-// (a derived file) and the md/local scratch tree are excluded. Stat-only walk,
-// no parsing. Returns the zero time if md/ cannot be walked.
+// sources that the Tags page is built from. Those are every md/**.md file AND
+// its containing directories. A directory mtime is included on purpose. A file
+// added, deleted or renamed bumps the mtime of its directory, and not
+// necessarily the mtime of any surviving file. A scan of files alone would
+// thus miss those. The generated OMNGoTags.md, which is a derived file, and
+// the md/local scratch tree are excluded. It is a stat-only walk, with no
+// parsing. It returns the zero time when md/ cannot be walked.
 func (a *App) newestNoteMtime() time.Time {
 	mdRoot := filepath.Join(a.StorageDir, "md")
 	var newest time.Time

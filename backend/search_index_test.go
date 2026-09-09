@@ -5,8 +5,8 @@ package backend
 // Two of these matter more than the rest:
 //
 //   - TestIndexFilterHasNoFalseNegatives, because a document wrongly rejected
-//     by the mask/trigram filter does not fail loudly - it silently never
-//     appears in results, which is indistinguishable from "you have no note
+//     by the mask/trigram filter does not fail loudly. It silently never
+//     appears in results. That is indistinguishable from "you have no note
 //     about that". It is checked against a brute-force scan that reads and
 //     scores every document, over a fuzzed corpus.
 //   - TestIndexHoldsNoText, because the entire memory argument for this design
@@ -178,9 +178,9 @@ func TestIndexHoldsNoText(t *testing.T) {
 // ---------------------------------------------------------------------
 
 // A document wrongly rejected here never appears in any result, and nothing
-// fails - so this compares the filtered path against a brute-force scan that
-// reads and scores every document, over a corpus built to produce plenty of
-// near misses.
+// fails. This test thus compares the filtered path against a brute-force scan
+// that reads and scores every document. The corpus is built to produce plenty
+// of near misses.
 func TestIndexFilterHasNoFalseNegatives(t *testing.T) {
 	a := enabledSearchApp(t)
 
@@ -273,8 +273,8 @@ func TestGlobalSearchEndToEnd(t *testing.T) {
 	if resp.Total != 2 {
 		t.Fatalf("total = %d, want 2: %+v", resp.Total, resp.Results)
 	}
-	// Both matched in content; the note whose line carries it earlier and as a
-	// whole word ranks first. What matters here is that ordering happens at
+	// Both matched in content. The note whose line carries it earlier, and as
+	// a whole word, ranks first. What matters here is that ordering happens at
 	// all and is stable.
 	if resp.Results[0].Score < resp.Results[1].Score {
 		t.Errorf("results are not ordered by score: %d then %d",
@@ -297,8 +297,8 @@ func TestGlobalSearchEndToEnd(t *testing.T) {
 }
 
 // The rung that gives the feature its name. Nothing tested it end to end
-// before: page search never called it either, which is why this phase wired it
-// into scoreDocument rather than leaving it available but unused.
+// before. Page search never called it either. That is why this phase wired it
+// into scoreDocument, and did not leave it available but unused.
 func TestTypoRungFindsMisspelledWord(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Fetch.md", "Title: Notes\n\nconst r = await fetch(url);\n")
@@ -355,7 +355,7 @@ func TestGlobalSearchLimits(t *testing.T) {
 
 func TestIndexPicksUpEdits(t *testing.T) {
 	a := enabledSearchApp(t)
-	// The two bodies are the SAME LENGTH on purpose: the stat stamp counts
+	// The two bodies are the SAME LENGTH on purpose. The stat stamp counts
 	// bytes as well as times, and this test is about the other mechanism.
 	writeSearchNote(t, a, "Note.md", "Title: A Note\n\noriginal wording\n")
 
@@ -367,12 +367,12 @@ func TestIndexPicksUpEdits(t *testing.T) {
 	// the change is visible without waiting out the stat-walk interval.
 	//
 	// The mtime is deliberately forced BACK to what it was before the edit.
-	// That is not a contrived case: filesystems with second-granularity
-	// timestamps - Android's external media, where every note lives - produce
-	// exactly this when two writes land in the same second. An index that
-	// re-stats to "confirm" an edit it was told about would conclude nothing
-	// changed and serve the old text. This is the regression that reached a
-	// build machine before it was caught.
+	// That is not a contrived case. A filesystem with second-granularity
+	// timestamps produces exactly this when two writes land in the same
+	// second. The external media of Android, where every note lives, is such
+	// a filesystem. An index that re-stats to "confirm" an edit it was told
+	// about would conclude nothing changed and serve the old text. This is
+	// the regression that reached a build machine before it was caught.
 	before, err := os.Stat(filepath.Join(a.StorageDir, "md", "Note.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -393,10 +393,10 @@ func TestIndexPicksUpEdits(t *testing.T) {
 	}
 }
 
-// The other half: a change made BEHIND the server's back, with a timestamp too
-// coarse to move. Nothing marks the index dirty here, so the stat walk is the
-// only thing that can notice - which is why the stamp counts bytes as well as
-// times.
+// The other half. A change made BEHIND the back of the server, with a
+// timestamp too coarse to move. Nothing marks the index dirty here. The stat
+// walk is thus the only thing that can notice. That is why the stamp counts
+// bytes as well as times.
 func TestIndexNoticesExternalEditWithUnchangedMtime(t *testing.T) {
 	a := enabledSearchApp(t)
 	writeSearchNote(t, a, "Note.md", "Title: A Note\n\noriginal text\n")
@@ -407,7 +407,7 @@ func TestIndexNoticesExternalEditWithUnchangedMtime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// An external editor rewrites the file; the clock has not visibly moved.
+	// An external editor rewrites the file. The clock has not visibly moved.
 	if err := os.WriteFile(path, []byte("Title: A Note\n\nquite different wording here\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -572,9 +572,9 @@ func indexedPaths(a *App) []string {
 	return out
 }
 
-// containsPath is a slice membership test. Named for what it holds rather than
-// the obvious "contains", because sync_errors_test.go already has a function of
-// that name with a different signature - and every _test.go file in a package
+// containsPath is a slice membership test. It is named for what it holds, and
+// not the obvious "contains". sync_errors_test.go already has a function of
+// that name with a different signature. Every _test.go file in a package
 // shares one namespace.
 func containsPath(list []string, want string) bool {
 	for _, s := range list {

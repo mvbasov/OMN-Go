@@ -34,9 +34,9 @@ func TestConnectionMiddlewareSetsCacheControl(t *testing.T) {
 }
 
 // A page must say "no-store". Chromium does not ask the server on a Back
-// load, thus "no-cache" gave the old copy of a page that OMN-Go changed
-// while that page waited in the history. The + button showed this: the
-// link it writes into the page you started from was absent after Back.
+// load. "no-cache" thus gave the old copy of a page that OMN-Go changed
+// while that page waited in the history. The + button showed this. The link
+// that it writes into the page you started from was absent after Back.
 func TestConnectionMiddlewareUsesNoStoreForAPage(t *testing.T) {
 	// htmlContentType is the value that writeHTMLHeader writes for each
 	// page. A change of it that loses the prefix "text/html" makes each
@@ -111,9 +111,9 @@ func TestConnectionMiddlewareLetsAHandlerReplaceCacheControl(t *testing.T) {
 }
 
 // A 64-bit atomic needs an 8-byte-aligned address. A 32-bit build aligns a
-// struct to 4, and the rule that usually saves you - "the first word in an
-// allocated struct can be relied upon to be 64-bit aligned" - only covers
-// the FIRST word. App.ActiveConns sits after Config and a RWMutex, which on
+// struct to 4. The rule that usually saves you is this: "the first word in
+// an allocated struct can be relied upon to be 64-bit aligned". It covers
+// the FIRST word alone. App.ActiveConns sits after Config and a RWMutex, on
 // GOARCH=386 and armeabi-v7a puts it at an offset of 164: a multiple of 4
 // and not of 8. connectionMiddleware wraps every route, so the first request
 // on such a build panicked with "unaligned 64-bit atomic operation" and the
@@ -121,8 +121,9 @@ func TestConnectionMiddlewareLetsAHandlerReplaceCacheControl(t *testing.T) {
 // the whole 32-bit half of the ABI split was broken and nothing said so.
 //
 // atomic.Int64 carries its own alignment guarantee. This test keeps it that
-// way, and keeps anyone from reintroducing the pattern somewhere else - the
-// architecture that catches it is not the one this test runs on.
+// way. It also stops a person who introduces the pattern again somewhere
+// else. The architecture that catches the fault is not the one that this
+// test runs on.
 func TestNoBare64BitAtomics(t *testing.T) {
 	field, ok := reflect.TypeOf(App{}).FieldByName("ActiveConns")
 	if !ok {
