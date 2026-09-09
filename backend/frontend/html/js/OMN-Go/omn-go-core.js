@@ -1234,7 +1234,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // --- Sending this note to someone ---
 //
 // The controls live on the metadata panel's "File:" line and not in the
-// header actions, which is full. See claude/note-exchange-plan.md.
+// header actions, which is full.
 //
 // Both fetch the SAME URL, /api/export/note. That endpoint answers the
 // source of the note, and it adds a "FileName:" line to the header block.

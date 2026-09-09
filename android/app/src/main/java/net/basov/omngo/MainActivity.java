@@ -669,7 +669,7 @@ public class MainActivity extends Activity {
                             | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                             // STICKY, not plain IMMERSIVE: the bars come back
                             // for a moment on a swipe and then re-hide by
-                            // themselves, matching the API 30+ behaviour above.
+                            // themselves, matching the API 30+ behavior above.
                             | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
             decor.setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN);
@@ -982,7 +982,7 @@ public class MainActivity extends Activity {
      * Telegram is not worth throwing it away. The toast has already named
      * the note, and the incoming index lists it when the user is ready.
      *
-     * The editor is recognised by its URL: ?edit=true is served by the
+     * The editor is recognized by its URL: ?edit=true is served by the
      * standalone editor page (see serveEditor in backend/handlers.go), and
      * the query stays in the address.
      */

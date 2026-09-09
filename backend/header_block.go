@@ -32,8 +32,7 @@ import "strings"
 //
 // parseHeaderBlock is now the ONE authority. Every Go caller goes through
 // it, and the firstLineAfterHeader of the editor mirrors isHeaderFirstLine
-// exactly. See backend/frontend/html/js/OMN-Go/omn-go-editor.js, and
-// CODE_REVIEW.md Phase 1.
+// exactly. See backend/frontend/html/js/OMN-Go/omn-go-editor.js.
 
 // headerBlock is the parsed split of note content into its optional header
 // and its body.

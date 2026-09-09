@@ -73,8 +73,8 @@
     --info:          #17a2b8;   /* create / note / bookmark teal */
     --secondary:     #6c757d;   /* refresh / settings gray */
 
-    /* File-index state colours (see files_index.go: the word says what a file
-       is, the colour says what happens to it). Each value is measured at
+    /* File-index state colors (see files_index.go: the word says what a file
+       is, the color says what happens to it). Each value is measured at
        4.5:1 or better against BOTH backgrounds of its own theme - the page
        --bg and the card --bg-surface - because the words are 11px. The
        semantic accents above do not reach that on one theme each, so this
@@ -599,7 +599,7 @@ a.taglink {
     flex-direction: column;
     gap: 6px;
 }
-/* The "File:" line, and the status text of the controls. The colour and the
+/* The "File:" line, and the status text of the controls. The color and the
    rule under it were inline "#0056b3" and "#ccc" until 26.08.37 - unthemed,
    so the line was nearly invisible on the dark theme. */
 .metadata-file-row {
@@ -1227,7 +1227,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 }
 /* A snippet is an <a> that opens the note at this line (snippetURL in
    search.go). It must read as the line it shows, not as a blue underlined
-   link: the <mark> on the matched word is the only colour that belongs here.
+   link: the <mark> on the matched word is the only color that belongs here.
    The hover band is the row's affordance, and it is the same one the search
    dialog gives its rows. */
 a.search-snippet {
@@ -1374,7 +1374,7 @@ li.omn-search-hit-current {
 }
 
 /* The one that was scrolled to on arrival. A ring rather than a different
-   colour: the reader landed mid-page and needs to know which of several
+   color: the reader landed mid-page and needs to know which of several
    identical-looking marks the scroll was aimed at, without that mark reading
    as a different KIND of match. currentColor picks up the surrounding text, so
    it stays legible in every theme without a token of its own. */
@@ -1385,7 +1385,7 @@ mark.omn-search-hit.omn-search-hit-current {
 
 /* -- Directory index (/OMNGoFiles.html) --
    Built to read like a browser's file:/// listing: one directory at a time, a
-   breadcrumb above it, one row per entry. Every colour comes from a token, so
+   breadcrumb above it, one row per entry. Every color comes from a token, so
    the page follows the theme without a dark-mode block of its own. */
 .files-page {
     padding: 4px 0 16px;
@@ -1575,7 +1575,7 @@ mark.omn-search-hit.omn-search-hit-current {
 
 /* Colour says what HAPPENS to a file, and only that. The word beside it says
    what the file is, and "app-owned" is written out on the second line of every
-   row it applies to - colour is a hint, never the carrier. */
+   row it applies to - color is a hint, never the carrier. */
 .files-c-app     { color: var(--file-app); }
 .files-c-alert   { color: var(--file-alert); }
 .files-c-keep    { color: var(--file-keep); }

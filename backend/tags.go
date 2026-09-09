@@ -20,8 +20,7 @@ import (
 // note by its Tags: header. It is Format A, which is "prepared links". The
 // page is static HTML. It holds a cloud of jump-links, and one section per tag
 // with relative links to the tagged pages. It thus works with JavaScript
-// disabled, and when the compiled html/ tree is opened offline (file://). See
-// claude/tags-page-plan.md for the full design.
+// disabled, and when the compiled html/ tree is opened offline (file://).
 //
 // generateTagsPage is a sanctioned writer of md/OMNGoTags.md. The general
 // cache contract in render_cache.go reserves an md write for the save and edit

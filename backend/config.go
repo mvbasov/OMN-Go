@@ -50,7 +50,7 @@ func normalizeTheme(s string) string {
 // how normalizeTheme maps absent onto auto.
 const (
 	FullscreenOff       = "off"        // status and navigation bars visible
-	FullscreenOn        = "fullscreen" // status bar hidden (historic behaviour)
+	FullscreenOn        = "fullscreen" // status bar hidden (historic behavior)
 	FullscreenImmersive = "immersive"  // status AND navigation bars hidden
 )
 

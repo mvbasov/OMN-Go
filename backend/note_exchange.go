@@ -18,8 +18,6 @@ package backend
 //
 // AN EXPORT IS A READ. The header line is added to the copy that leaves. The
 // stored note is never written to by an export.
-//
-// See claude/note-exchange-plan.md for the decisions behind this.
 
 import (
 	"encoding/base64"
@@ -676,7 +674,7 @@ func (a *App) ensureIncomingIndex(now time.Time) error {
 // Small shared helpers
 // ----------------------------------------------------------------------
 
-// normalizeNewlines makes CRLF and CR into LF. A note that travelled through
+// normalizeNewlines makes CRLF and CR into LF. A note that traveled through
 // a mail client or a Windows machine arrives with whatever that leg used.
 // Every rule in this file counts lines.
 func normalizeNewlines(s string) string {

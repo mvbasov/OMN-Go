@@ -253,7 +253,7 @@ func TestFilesPage_OneNameOneRow(t *testing.T) {
 	}
 }
 
-// The words that survive, and the colour that says what happens to the file.
+// The words that survive, and the color that says what happens to the file.
 //
 // The rule since 26.08.55: a row speaks only when the application is
 // involved. On a real installation nearly every file is the user's, and a
@@ -274,7 +274,7 @@ func TestFilesPage_StatesAndColours(t *testing.T) {
 	writeDiskFile(t, a, "js/mine.js", "// mine")
 
 	// 26.09.12 moved each app-owned file into js/OMN-Go/, thus one
-	// listing no longer holds each of the three colours. The app states
+	// listing no longer holds each of the three colors. The app states
 	// are in the OMN-Go directory, and the plain state is above it.
 	body := served(t, a, "js%2FOMN-Go%2F")
 	for _, want := range []string{
@@ -288,7 +288,7 @@ func TestFilesPage_StatesAndColours(t *testing.T) {
 	if plain := served(t, a, "js%2F"); !strings.Contains(plain, filesColorPlain) {
 		t.Errorf("the js listing never says %q", filesColorPlain)
 	}
-	// The word is the fact, and the colour is a hint. app-owned is a word.
+	// The word is the fact, and the color is a hint. app-owned is a word.
 	if !strings.Contains(body, ">app-owned<") {
 		t.Error("no row spells out app-owned")
 	}
@@ -425,7 +425,7 @@ func TestFilesPage_SameSizeEditIsFound(t *testing.T) {
 		t.Error("Editor.md is in versionDependentAssets, thus the change is the one that is lost")
 	}
 	if row.StateColor != filesColorAlert {
-		t.Errorf("an app-owned file that was changed reads %q, want the alert colour", row.StateColor)
+		t.Errorf("an app-owned file that was changed reads %q, want the alert color", row.StateColor)
 	}
 }
 
@@ -519,7 +519,7 @@ func TestFilesPage_BundledSpellsOutAppOwned(t *testing.T) {
 		t.Error("the Bundled tree never spells out app-owned")
 	}
 	if !strings.Contains(body, filesColorApp) {
-		t.Error("the Bundled tree carries no app colour")
+		t.Error("the Bundled tree carries no app color")
 	}
 	// A shipped file that the application does not own carries no such word,
 	// and there is at least one in js/.
@@ -766,7 +766,7 @@ func TestFilesLegend_NamesOnlyWhatIsUsed(t *testing.T) {
 	if len(legend) != 1 || legend[0].Color != filesColorKeep || legend[0].Word != "changed here" {
 		t.Errorf("legend = %+v, want the green changed-here line only", legend)
 	}
-	// The same word in the other colour is a different line, because the two
+	// The same word in the other color is a different line, because the two
 	// outcomes differ.
 	red := filesLegend(filesTreeServed, []filesFileRow{
 		{State: "changed here", StateColor: filesColorAlert, AppOwned: true, OwnerColor: filesColorAlert},

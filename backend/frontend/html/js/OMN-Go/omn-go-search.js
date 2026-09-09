@@ -532,7 +532,7 @@ if (window.location.protocol !== 'file:') {
                 // Each row is one LINE, so each row opens the document AT that
                 // line. Passing only r sent every row of a result to the same
                 // place - the first match in the note - whichever line the
-                // reader chose. The heading row above keeps that behaviour,
+                // reader chose. The heading row above keeps that behavior,
                 // because it names the document and no line in it.
                 (r.matches || []).forEach(function (m) {
                     list.appendChild(buildSnippetRow(m, function () { openResult(r, m); }));

@@ -207,7 +207,7 @@ if (window.location.protocol !== 'file:') {
                 ? (window.prompt('Force push requires a commit message.\n\nDescribe what this push changes on the remote:') || '').trim()
                 : '';
             if (!message) {
-                alert('Force push cancelled — no commit message.');
+                alert('Force push canceled — no commit message.');
                 return;
             }
         }

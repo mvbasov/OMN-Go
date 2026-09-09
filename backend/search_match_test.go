@@ -72,7 +72,7 @@ func TestScore_E2_Subsequence(t *testing.T) {
 	}
 
 	// The same query against the path form scores the same: different gaps,
-	// same normalised quality. (What separates them downstream is the field
+	// same normalized quality. (What separates them downstream is the field
 	// weight, not this number.)
 	if got, _, _, ok := scoreTerm(term, fold("AndroidIntents")); !ok || got != 78 {
 		t.Errorf("path score %d (ok=%v), want 78", got, ok)

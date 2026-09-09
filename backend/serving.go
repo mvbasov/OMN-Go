@@ -30,7 +30,7 @@ import (
 // ONE MIME resolver. It folds together what used to be three separate
 // sources. Those are the per-install Config.MimeTypes map, the startup
 // mime.AddExtensionType(...) registrations, and the implicit stdlib lookup
-// of http.FileServer. See CODE_REVIEW.md Phase 3.
+// of http.FileServer.
 
 // builtinMIME is the canonical content-type table of OMN-Go. It supersedes
 // the startup mime.AddExtensionType(...) calls that used to seed the

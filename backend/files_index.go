@@ -38,7 +38,7 @@ package backend
 // A file with no word is yours, or is one OMN-Go makes again when it needs
 // to. Neither costs you anything, so neither needs a word.
 //
-// TWO CHANNELS PER ROW. The word says what the file IS. The colour says what
+// TWO CHANNELS PER ROW. The word says what the file IS. The color says what
 // HAPPENS to it:
 //
 //	orange  the next version of the application replaces this file
@@ -369,7 +369,7 @@ func (d *filesDirRow) note(e filesEntry) {
 // What a row says
 // ----------------------------------------------------------------------
 
-// The five colour classes. The CSS holds one token for each, with a value per
+// The five color classes. The CSS holds one token for each, with a value per
 // theme (omn-go-core.css, section 1).
 const (
 	filesColorApp     = "files-c-app"     // the next version replaces this file
@@ -621,7 +621,7 @@ func filesEmbeddedPath(tree, logical string) string {
 	return "frontend/html/" + logical
 }
 
-// filesState fills in the word on the first line, its colour, and the
+// filesState fills in the word on the first line, its color, and the
 // remaining facts. This is where the two channels of the page are decided,
 // and where most rows are decided to say nothing at all.
 func (a *App) filesState(tree string, e filesEntry, row *filesFileRow) {
@@ -871,7 +871,7 @@ func filesLegend(tree string, rows []filesFileRow, dirs []filesDirRow) []filesLe
 			Text: "you changed a file that came with OMN-Go. OMN-Go keeps your copy"},
 		{Color: filesColorApp, Word: "app-owned",
 			Text: "the next version of OMN-Go replaces this file"},
-		// The same word in the alert colour: filesState paints BOTH words of
+		// The same word in the alert color: filesState paints BOTH words of
 		// such a row red, because both describe the one outcome. A directory
 		// whose only app-owned rows were changed would otherwise leave the
 		// red "app-owned" with no line at all.

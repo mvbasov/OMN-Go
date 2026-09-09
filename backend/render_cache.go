@@ -20,8 +20,8 @@ import (
 // Before this existed, six call sites each open-coded "compilePage +
 // MkdirAll + WriteFile" against html/<name>.html (handleSaveNote,
 // handleQuickNote, handleBookmark, handleNewPage, recompileMarkdownPage,
-// precompileAllPages). They agreed by luck; consolidating them here means
-// the cache-write behavior is defined once. See CODE_REVIEW.md Phase 2.
+// precompileAllPages). They agreed by luck. To hold them here means that
+// the cache-write behavior is defined one time.
 //
 // The cached HTML is deliberately an INCOMPLETE template. It carries a
 // runtimeVarsMarker (see templates.go). injectRuntimeVars fills that marker

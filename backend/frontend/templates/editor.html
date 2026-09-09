@@ -74,7 +74,7 @@
             font-family: inherit; font-size: 13px;
         }
         .omn-editor-find input:focus { outline: 1px solid var(--accent); }
-        /* A query that cannot compile: said with colour as well as words,
+        /* A query that cannot compile: said with color as well as words,
            because the count text is small and easy to miss mid-typing. */
         .omn-editor-find input.is-invalid { border-color: var(--danger); }
         .omn-editor-find button {
@@ -125,7 +125,7 @@
             user-select: none; -webkit-user-select: none;
         }
         body.ln-on .omn-editor-gutter { display: block; }
-        /* The pane carries the surface colour so the textarea above it can be
+        /* The pane carries the surface color so the textarea above it can be
            transparent, letting the mirror's marks show through. */
         .omn-editor-pane {
             position: relative; display: flex;
@@ -171,7 +171,7 @@
             border-radius: 2px;
         }
         /* The one the counter is pointing at. A ring rather than a different
-           colour, so it reads as "this one of them", not "a different kind". */
+           color, so it reads as "this one of them", not "a different kind". */
         .omn-editor-mirror mark.is-current {
             outline: 2px solid var(--accent);
             outline-offset: 1px;
@@ -254,7 +254,7 @@
     <div class="omn-editor-main">
         <div id="editorGutter" class="omn-editor-gutter" aria-hidden="true"></div>
         <!-- The textarea sits on a mirror layer that paints the find matches.
-             A <textarea> cannot colour its own contents, and Chromium does not
+             A <textarea> cannot color its own contents, and Chromium does not
              draw a selection in a textarea that is not focused - which it never
              is while you are typing in the find field. So the matches are drawn
              underneath: same text, same metrics, invisible ink, and a <mark>

@@ -99,7 +99,7 @@ const configFormMaxMemory = 32 << 20
 // A name in that list counts as sent even when the form carries no value for
 // it, which is exactly what an unticked box means. A caller that sends no
 // config_fields governs only what it actually names - the safe default, and
-// the behaviour a note or a script wants.
+// the behavior a note or a script wants.
 //
 // A field that IS sent is applied even when its value is empty. A person
 // must be able to clear the author name or a password from the Config page.

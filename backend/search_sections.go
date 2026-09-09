@@ -175,7 +175,7 @@ func newHeadingIDGen() *headingIDGen {
 // not returned. It is the fallback "heading" of goldmark for a heading with
 // no ASCII alphanumerics, which is what a wholly Cyrillic heading produces.
 // "heading", "heading-1" and "heading-2" address nothing that a reader would
-// recognise. A link to the page is the more honest answer (§5.5).
+// recognize. A link to the page is the more honest answer (§5.5).
 func (h *headingIDGen) next(text string) string {
 	if h.poisoned || !h.anchorsOK {
 		return ""

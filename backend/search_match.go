@@ -389,13 +389,13 @@ func scoreSubstring(term, cand []rune) (int, []span, bool) {
 // scoreSubsequence scores term's runes appearing in order within cand, greedy
 // leftmost, with bonuses for density and word starts and penalties for gaps.
 //
-// The raw total is normalised against the IDEAL match, and it is not divided
+// The raw total is normalized against the IDEAL match, and it is not divided
 // by the term length. The ideal match is the same term found as one
 // consecutive run that starts at a word boundary.
 //
 // To divide by length makes a longer query score lower for the same quality
 // of match. Results would then visibly reorder as the user keeps typing. To
-// normalise against the ideal keeps a "perfect" match worth the same,
+// normalize against the ideal keeps a "perfect" match worth the same,
 // whatever its length.
 //
 // Word starts are detected from separators only. A camel boundary is not
