@@ -308,10 +308,16 @@ type routeTable interface {
 func (a *App) registerRoutes(mux routeTable) {
 	// The log stream of /api/logs. logger.go holds the handler, and
 	// initLogger there sends the standard logger into it.
-	mux.HandleFunc("/api/logs", a.HandleLogsSSE)
+	//
+	// IT IS ADMIN ONLY SINCE 26.09.59. It carried every line to any
+	// caller before that, and the history ring beside it was admin only.
+	// A LAN guest could thus read the whole transcript as it happened,
+	// and only the part before the arrival of that guest was protected.
+	// The pair agrees now. See the banner of handleLogHistory.
+	mux.HandleFunc("/api/logs", a.authMiddleware(a.HandleLogsSSE, true))
 
-	// The history ring of /api/logs/history. It is admin only, and the
-	// stream above is not. See the banner of handleLogHistory.
+	// The history ring of /api/logs/history. It is admin only, the same
+	// as the stream above. See the banner of handleLogHistory.
 	mux.HandleFunc("/api/logs/history", a.authMiddleware(a.handleLogHistory, true))
 	mux.HandleFunc("/", a.serveFrontend)
 

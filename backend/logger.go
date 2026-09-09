@@ -269,11 +269,15 @@ func (a *App) HandleLogsSSE(w http.ResponseWriter, r *http.Request) {
 // banner of the ring above. A replay on the stream breaks the sync
 // progress overlay.
 //
-// IT IS ADMIN ONLY, and /api/logs is not. That looks inconsistent, and
-// it is the right pair. The stream carries what happens while a person
-// watches. The ring carries what happened before the person arrived,
-// which is the shape that a reader of another device would want. A LAN
-// share therefore hands out no transcript.
+// IT IS ADMIN ONLY, and so is /api/logs since 26.09.59.
+//
+// The stream was open until then. The reasoning was that it carries what
+// happens while a person watches, and that the ring carries what
+// happened before that person arrived.
+//
+// That reasoning was wrong. A guest who opens a page holds the stream
+// open, thus the guest reads the transcript as it is written. To protect
+// the ring alone hid nothing. A LAN share now hands out no log line.
 //
 // The answer follows section 1.4 of doc/API.md: JSON with a status word.
 func (a *App) handleLogHistory(w http.ResponseWriter, r *http.Request) {

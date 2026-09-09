@@ -159,7 +159,7 @@ what its own page shows and gets no permission.
 | `POST /login` | none (it is the login) |
 | `GET /api/note` | **none — deliberately open** |
 | `GET /api/search` | **none — deliberately open** |
-| `GET /api/logs` | **none** |
+| `GET /api/logs` | admin (local bypass applies) |
 | `/api/quick`, `/api/bookmark`, `/api/upload`, `/api/upload_json`, `/api/save`, `/api/newpage`, `/api/config`, `/api/restart`, `/api/sql`, `/api/db/backup`, `/api/db/backups`, `/api/db/restore`, `/api/sync`, `/api/sync/preview`, `/api/edit-external`, `/api/status`, `/api/export/note`, `/api/import/note`, `/db_backups` | admin (local bypass applies) |
 | `GET /OMNGoFiles.html` | admin (local bypass applies) — answers a **page**, not a 401 |
 | `GET /OMNGoStatus.html` | admin (local bypass applies) — answers a **page**, not a 401 |
@@ -191,7 +191,7 @@ what its own page shows and gets no permission.
 | GET | `/api/export/note` | yes (405 otherwise) | admin | Markdown download |
 | POST | `/api/import/note` | yes (405 otherwise) | admin | JSON |
 | GET | `/api/edit-external` | no | admin | HTML or 303 |
-| GET | `/api/logs` | no | none | SSE |
+| GET | `/api/logs` | no | admin | SSE |
 | GET | `/api/status` | yes (405 otherwise) | admin | JSON / Markdown |
 | GET | `/db_backups` | no | admin | HTML |
 | GET | `/OMNGoSearch.html` | no | none | HTML (explains how to turn global search on when it is off; used to 404) |
@@ -1223,8 +1223,12 @@ Server-Sent Events stream of every log line the backend writes. The
 progress overlay of the frontend (`omn-go-sse.js`) reads this stream, so the
 sync progress shows the real stages of the backend.
 
-No parameters. **No authentication.** Any client that can reach the port can
-read every log line that the server writes.
+No parameters. **Admin only since 26.09.59**, and the local bypass applies. It
+carried every line to any caller before that, while `/api/logs/history` beside
+it was already admin only. A guest of a LAN share held the stream open and read
+each line as it was written, thus the guard on the history ring protected
+nothing. A guest now gets `401`, and `omn-go-sse.js` does not open the stream
+at all when the role hint says guest.
 
 **The stream always carries every line.** The `log_debug`, `log_info` and
 `log_tags` settings of `config.json` control what the server prints to

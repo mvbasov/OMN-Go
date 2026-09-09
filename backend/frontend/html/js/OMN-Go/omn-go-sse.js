@@ -571,6 +571,12 @@ if (window.location.protocol !== 'file:') {
     // line. It does mean that the stream must never drive state that has to
     // see every event.
     document.addEventListener('DOMContentLoaded', () => {
+        // A guest gets 401 from the stream since 26.09.59. To open it
+        // anyway writes a console fault on each page load, and the
+        // EventSource does not retry after an HTTP status. roleHint()
+        // answers "" when no cookie is there, which is the local admin,
+        // thus the test is against "guest" alone.
+        if (roleHint() === 'guest') { return; }
         try {
             const logSource = new EventSource('/api/logs');
 	    // stream is released before the document is cached

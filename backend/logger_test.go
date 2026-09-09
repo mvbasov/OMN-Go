@@ -10,6 +10,7 @@ package backend
 // ---------------------------------------------------------------------
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -426,11 +427,11 @@ func TestLogHistoryEndpointRefusesAnotherMethod(t *testing.T) {
 	}
 }
 
-// The endpoint is ADMIN ONLY, and the stream beside it is not.
+// The endpoint is ADMIN ONLY, and so is the stream beside it.
 //
-// The stream carries what happens while a person watches. The ring
-// carries what happened before that person arrived, and a LAN share
-// hands out no transcript of it.
+// A LAN share hands out no log line, live or held. The stream was open
+// until 26.09.59, which made the guard on the ring useless. A guest who
+// held the stream open read the same lines as they were written.
 //
 // This test drives the REAL registration through a real mux. A guard
 // that registerRoutes forgets to wrap is then a failure here, and a test
@@ -461,6 +462,53 @@ func TestLogHistoryEndpointIsAdminOnly(t *testing.T) {
 			t.Errorf("%s with the cookie %q answered %d, want %d",
 				c.remote, c.cookie, rec.Code, c.want)
 		}
+	}
+}
+
+// The stream is ADMIN ONLY as well, since 26.09.59.
+//
+// A log line names a note, a remote, a path and a fault. A guest of a LAN
+// share reads none of them now.
+//
+// This test drives the REAL registration through a real mux, the same as
+// the history test above. The request of each allowed case carries a
+// context that is already canceled, because HandleLogsSSE blocks until
+// the context ends.
+func TestLogStreamIsAdminOnly(t *testing.T) {
+	a := newTestApp(t)
+	mux := http.NewServeMux()
+	a.registerRoutes(mux)
+
+	cases := []struct {
+		remote, cookie string
+		want           int
+	}{
+		{"127.0.0.1:1", "", http.StatusOK},        // the local bypass
+		{"192.168.1.9:1", "admin", http.StatusOK}, // an admin of the LAN
+		{"192.168.1.9:1", "guest", http.StatusUnauthorized},
+		{"192.168.1.9:1", "", http.StatusUnauthorized},
+	}
+	before := countLogClients()
+	for _, c := range cases {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		req := httptest.NewRequest(http.MethodGet, "/api/logs", nil).WithContext(ctx)
+		req.RemoteAddr = c.remote
+		if c.cookie != "" {
+			req.AddCookie(sessionCookie(t, a, c.cookie))
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != c.want {
+			t.Errorf("%s with the cookie %q answered %d, want %d",
+				c.remote, c.cookie, rec.Code, c.want)
+		}
+	}
+
+	// A refused request must never reach the handler, thus it must
+	// register no client of the stream.
+	if got := countLogClients(); got != before {
+		t.Errorf("the stream holds %d clients and it held %d before", got, before)
 	}
 }
 

@@ -153,6 +153,10 @@ Two statements in the tree are wrong. Do not trust them.
     control stdout, and they control what `omn-go-sse.js` mirrors into the
     browser console. The sync progress overlay reads `[sync] (debug)` lines off
     the raw stream, and it must work when debug is off.
+  * **`/api/logs` is admin only since 26.09.59**, and the local bypass applies.
+    It was open until then, while `/api/logs/history` beside it was already
+    admin only. A guest of a LAN share now reads no log line, live or held.
+    `omn-go-sse.js` does not open the stream when the role hint says guest.
   * `applySyncLogLine` in `omn-go-sse.js` removes the level word before it
     matches a sync stage. Keep the two in agreement, or the progress overlay
     loses a stage. That file exports it as `window.applySyncLogLine`, because
