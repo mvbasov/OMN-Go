@@ -1,7 +1,7 @@
 package backend
 
 // ----------------------------------------------------------------------
-// The comment style gate
+// The source style gate
 // ----------------------------------------------------------------------
 //
 // Section 10 of CLAUDE.md applies Simplified Technical English to every
@@ -9,27 +9,28 @@ package backend
 // rule 7 asks the writer to check the text before the patch arrives.
 //
 // A check by eye fails. A long sentence and a word from the "do not use"
-// list are both hard to see and easy to count. This test counts them.
+// list are both hard to see and easy to count. This file counts them.
 //
-// WHY A TABLE OF NUMBERS, AND NOT A DEMAND FOR ZERO.
+// It also holds the gofmt check. See TestEveryGoFileIsGofmtClean below.
 //
-// The tree carried more than one thousand faults on the day of this
-// test. A test that asks for zero fails on the first run. It then stays
-// red for many patches, and a red gate teaches the reader to pass the
-// gate by hand. The table below records what each file owes today.
+// THE RULE IS ZERO. A file that holds one comment style fault fails.
 //
-// The test fails in TWO directions:
+// IT WAS A RATCHET UNTIL 26.09.57.
 //
-//   - A file ABOVE its number holds a new fault. Repair the comment.
-//   - A file BELOW its number had a repair, and the number is now
-//     wrong. Lower the number in the same patch.
+// The tree carried 1070 faults in 62 files on the day of 26.09.33. A
+// test that asks for zero fails on the first run. It then stays red for
+// many patches, and a red gate teaches the reader to pass the gate by
+// hand.
 //
-// The second direction matters as much as the first. It turns each
-// style pass into a number that must go down, which is a check on the
-// pass itself. It also keeps the table true.
+// So a table named commentStyleDebt recorded what each file owed. The
+// test failed when a count went up. It also failed when a count went
+// down with no change to the table. Each style pass thus lowered a
+// number, and a new comment could never raise one.
 //
-// A file that reaches zero leaves the table. A file that is absent from
-// the table must hold no fault, thus a new file starts clean.
+// Eleven patches paid the table down, from 26.09.46 to 26.09.57. The
+// table is gone, and the demand for zero replaces it. See
+// claude/style-debt-plan-2026-09-06.md for the record of that work, and
+// for the traps that each batch met.
 //
 // WHAT IT READS.
 //
@@ -64,10 +65,11 @@ package backend
 // storage.go. The scanner removes that exact string before it looks for
 // a contraction.
 //
-// THIS FILE READS ITSELF. It is absent from the table below, thus it
-// must hold no fault. A rule that the author breaks is not a rule.
+// THIS FILE READS ITSELF. It must hold no fault, the same as every
+// other file. A rule that the author breaks is not a rule.
 
 import (
+	"go/format"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -75,15 +77,6 @@ import (
 	"strings"
 	"testing"
 )
-
-// The count of each file today.
-//
-// A number that goes UP is a new comment that breaks a rule. A number
-// that goes DOWN is a style pass, and the commit that does the pass
-// lowers the number here.
-//
-// The path is relative to the root of the repository.
-var commentStyleDebt = map[string]int{}
 
 // The marker that keeps its contraction. See the header above.
 const styleMarkerException = "<!-- Don't edit body below this line -->"
@@ -319,41 +312,62 @@ func commentStyleFiles(t *testing.T) []string {
 	return out
 }
 
-// No file may hold more comment style faults than the table allows, and
-// no file may hold fewer without a change to the table.
+// No file may hold a comment style fault.
 //
-// A failure reads in one of three ways. A number went up, thus a new
-// comment breaks a rule. A number went down, thus a style pass landed
-// and the table needs the new number. A path left the tree, thus the
-// table holds a dead line.
-func TestCommentStyleDoesNotGetWorse(t *testing.T) {
-	seen := make(map[string]bool)
+// The failure names the file and the count. Repair the comment. The
+// header above says what this scan reads as one paragraph, and section
+// 10 of CLAUDE.md holds the four rules.
+func TestNoCommentStyleFault(t *testing.T) {
+	read := 0
 	for _, rel := range commentStyleFiles(t) {
 		src, err := readRepoFile(rel)
 		if err != nil {
 			t.Fatalf("cannot read %s: %v", rel, err)
 		}
-		seen[rel] = true
-		got := countCommentStyle(src).total()
-		want := commentStyleDebt[rel]
-		switch {
-		case got > want:
-			t.Errorf("%s holds %d comment style faults and the table allows %d.\n"+
+		read++
+		if got := countCommentStyle(src).total(); got > 0 {
+			t.Errorf("%s holds %d comment style faults.\n"+
 				"  A comment breaks a rule of CLAUDE.md section 10.\n"+
-				"  Repair the comment. Do not raise the number in commentStyleDebt.",
-				rel, got, want)
-		case got < want:
-			t.Errorf("%s holds %d comment style faults and the table says %d.\n"+
-				"  A repair landed and the table is now wrong.\n"+
-				"  Set the number to %d, or delete the line when the number is zero.",
-				rel, got, want, got)
+				"  Repair the comment.", rel, got)
 		}
 	}
-	for rel := range commentStyleDebt {
-		if !seen[rel] {
-			t.Errorf("commentStyleDebt names %s and the scan did not reach it.\n"+
-				"  Delete the line, or repair the path.", rel)
+	if read == 0 {
+		t.Fatal("no file was read, thus this test proves nothing")
+	}
+}
+
+// Each Go file must be gofmt clean.
+//
+// go vet does not read the formatting of a file. The gate therefore let
+// backend/comment_style_test.go stay gofmt-unclean through 26.09.46,
+// 26.09.47 and 26.09.48. A key deleted from a map literal left the
+// column padding of the other keys behind, and nothing said so.
+//
+// It uses go/format and not the gofmt command. format.Source gives the
+// canonical gofmt style, thus this test needs no binary on the path and
+// it can never skip.
+func TestEveryGoFileIsGofmtClean(t *testing.T) {
+	read := 0
+	for _, rel := range commentStyleFiles(t) {
+		if filepath.Ext(rel) != ".go" {
+			continue
 		}
+		src, err := readRepoFile(rel)
+		if err != nil {
+			t.Fatalf("cannot read %s: %v", rel, err)
+		}
+		want, fErr := format.Source([]byte(src))
+		if fErr != nil {
+			t.Errorf("%s does not parse: %v", rel, fErr)
+			continue
+		}
+		read++
+		if string(want) != src {
+			t.Errorf("%s is not gofmt clean. Run gofmt -w on it.", rel)
+		}
+	}
+	if read == 0 {
+		t.Fatal("no Go file was read, thus this test proves nothing")
 	}
 }
 

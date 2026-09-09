@@ -480,12 +480,16 @@ Check your own text before you give a patch. A sentence over the limit and a
 banned word are both easy to find with a search, and both are easy to miss by
 eye.
 
-**`TestCommentStyleDoesNotGetWorse` in `backend/comment_style_test.go` counts
-them.** It reads each whole line comment of every Go, JavaScript and Java file.
-`commentStyleDebt` in that file records what each file owes today. The test
-fails when a count goes up, and it fails when a count goes down with no change
-to the table. A style pass therefore lowers a number, and a new comment can
-never raise one.
+**`TestNoCommentStyleFault` in `backend/comment_style_test.go` counts them.** It
+reads each whole line comment of every Go, JavaScript and Java file, and it
+demands zero. A comment that breaks a rule fails the gate.
+
+It was a ratchet from 26.09.33 to 26.09.57. A table named `commentStyleDebt`
+held what each file owed, and eleven patches paid it down from 1070 faults to
+none. See `claude/style-debt-plan-2026-09-06.md`.
+
+**`TestEveryGoFileIsGofmtClean` in the same file** checks the formatting that
+`go vet` does not read.
 
 * Write each new document in ASD-STE100 Simplified Technical English. The
   `ste-writing` skill does this.
