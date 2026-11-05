@@ -12,7 +12,7 @@
      8. External editor page
      9. JS console
     10. Markdown content (tables, TOC, paragraph style)
-    11. Utilities & legacy compatibility
+    11. Utilities
     12. Responsive
 
    Theming model:
@@ -297,19 +297,7 @@
     direction: ltr;
     -webkit-font-feature-settings: 'liga';
     -webkit-font-smoothing: antialiased;
-}
-
-/* Both of these are display:inline-block, which makes them block containers
-   in their own right. text-indent is INHERITED and applies to the first line
-   of any block container, so inside a note paragraph - "#preview p" sets
-   text-indent: 1em, the legacy paragraph indent - each one indented its own
-   contents by another 1em, leaving a body-em of dead space to the LEFT of
-   every icon and a paragraph that starts with one indented twice.
-   Elsewhere (page header, config, editor) the inherited value is already 0
-   and this declaration changes nothing. KaTeX ships the same guard for the
-   same reason: .katex { text-indent: 0 }. */
-.material-icons,
-.title-arrow {
+    /* An inline block inherits the paragraph indent of a note. */
     text-indent: 0;
 }
 
@@ -401,16 +389,6 @@ body {
     background: var(--bg-hover);
 }
 
-.header-info {
-    font-size: 0.9em;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-}
-.header-info span {
-    font-weight: bold;
-    color: var(--text-strong);
-}
-
 .page-title {
     margin: 0.4em 0 0.5em 0;
     width: 100%;
@@ -426,6 +404,7 @@ body {
 
 .title-arrow {
     display: inline-block;
+    text-indent: 0;
     border: 1px solid var(--text-faint);
     border-radius: 6px;
     padding: 0.1em 0.4em;
@@ -808,11 +787,18 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     box-shadow: 0 4px 6px var(--shadow);
     width: 300px;
 }
-.modal input, .modal button, .modal textarea {
+.modal input, .modal button, .modal textarea,
+.panel input, .panel textarea, .panel button {
     width: 100%;
     box-sizing: border-box;
     margin-bottom: 10px;
     padding: 8px;
+}
+.modal input, .modal textarea,
+.panel input, .panel textarea {
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border);
 }
 .modal button {
     background: var(--accent);
@@ -834,12 +820,6 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     z-index: 40;
 }
 .panel h3 { margin-top: 0; }
-.panel input, .panel textarea, .panel button {
-    width: 100%;
-    box-sizing: border-box;
-    margin-bottom: 10px;
-    padding: 8px;
-}
 .panel button {
     background: var(--success);
     color: white;
@@ -854,14 +834,6 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 }
 .btn-cancel {
     background: var(--danger);
-}
-
-/* -- Form controls pick up theme colors (inputs inside modals/panels) -- */
-.modal input, .modal textarea,
-.panel input, .panel textarea {
-    background: var(--bg-surface);
-    color: var(--text);
-    border: 1px solid var(--border);
 }
 
 /* -- Bookmark "Tags" autocomplete (see wireBookmarkTagAutocomplete in
@@ -1602,22 +1574,26 @@ mark.omn-search-hit.omn-search-hit-current {
     border-color: var(--accent);
 }
 
-/* -- Header action button accents --
-   Semantic colors stay identical in both themes; !important preserved
-   from the pre-token version to keep specificity behavior unchanged. */
-.btn-create-page,
-.btn-quick-note,
-.btn-add-bookmark,
-.btn-add-shortcut {
-    background: var(--info) !important;
-    border-color: var(--info) !important;
-    color: white !important;
+/* -- Header action button accents. The hover keeps the color. -- */
+.header-actions .btn-create-page,
+.header-actions .btn-quick-note,
+.header-actions .btn-add-bookmark,
+.header-actions .btn-add-shortcut,
+.header-actions .btn-create-page:hover,
+.header-actions .btn-quick-note:hover,
+.header-actions .btn-add-bookmark:hover,
+.header-actions .btn-add-shortcut:hover {
+    background: var(--info);
+    border-color: var(--info);
+    color: white;
 }
-.btn-refresh,
-.btn-settings {
-    background: var(--secondary) !important;
-    border-color: var(--secondary) !important;
-    color: white !important;
+.header-actions .btn-refresh,
+.header-actions .btn-settings,
+.header-actions .btn-refresh:hover,
+.header-actions .btn-settings:hover {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    color: white;
 }
 
 /* -- Android-only controls (e.g. "add to home screen" shortcut) --
@@ -1644,12 +1620,6 @@ mark.omn-search-hit.omn-search-hit-current {
 .btn-metadata-toggle {
     display: block;
     background: var(--info);
-    color: white;
-    border: none;
-}
-#saveBtn.btn-save-note {
-    display: none;                   /* hidden in view mode; inline style takes over in edit */
-    background: var(--success);
     color: white;
     border: none;
 }
@@ -2048,16 +2018,6 @@ mark.omn-search-hit.omn-search-hit-current {
     align-items: center;
     gap: 10px;
 }
-.config-checkbox {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-}
-.config-checkbox-label {
-    font-weight: 600;
-    color: var(--text-heading);
-    cursor: pointer;
-}
 .config-hint {
     color: var(--text-faint);
     display: block;
@@ -2275,11 +2235,15 @@ mark.omn-search-hit.omn-search-hit-current {
 }
 .btn-console-clear { background: #888; }
 .btn-console-close { background: #ff5555; }
+.btn-console-main,
+.header-actions .btn-console-main,
+.header-actions .btn-console-main:hover {
+    background: #ff9800;
+    color: #fff;
+}
 .btn-console-main {
     margin-left: 8px;
     padding: 4px 8px;
-    background: #ff9800 !important;
-    color: #fff !important;
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -2323,29 +2287,22 @@ mark.omn-search-hit.omn-search-hit-current {
 .TOCLevel6 { font-weight: bold; margin-left: 1.5em; }
 
 /* -- Tables (legacy common.css look, tokenized) -- */
-#preview table,
 #content table {
     border-collapse: collapse;
 }
-#preview table,
-#preview th,
-#preview td,
 #content table,
 #content th,
 #content td {
     border: 2px solid var(--table-border);
 }
-#preview th,
 #content th {
     background-color: var(--table-th-bg);
     color: var(--table-th-text);
 }
-#preview tr:nth-child(odd),
 #content tr:nth-child(odd) {
     background-color: var(--table-row-odd);
     color: var(--table-text);
 }
-#preview tr:nth-child(even),
 #content tr:nth-child(even) {
     background-color: var(--table-row-even);
     color: var(--table-text);
@@ -2403,7 +2360,7 @@ mark.omn-search-hit.omn-search-hit-current {
 #preview pre code.hljs .hljs-meta .hljs-string { color: var(--code-meta-string); }
 
 /* ==========================================================================
-   11. Utilities & legacy compatibility
+   11. Utilities
    ========================================================================== */
 
 /* Explicit color utilities used inside user notes: these are content
@@ -2414,66 +2371,11 @@ mark.omn-search-hit.omn-search-hit-current {
 .fg-red    { color: red; }
 .fg-green  { color: green; }
 
-/* Deprecated selectors kept so old exported pages don't break. */
-.header {
-    display: none;  /* replaced by .page-header */
-}
-.header a, .header button {
-    color: #fff;
-    text-decoration: none;
-    cursor: pointer;
-    background: transparent;
-    border: 1px solid #555;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-}
-.header a:hover, .header button:hover {
-    background: #555;
-}
-.content-area {
-    /* deprecated, kept for compatibility */
-}
-.toolbar {
-    display: none;  /* integrated into .header-actions */
-}
-.toolbar button {
-    padding: 5px 15px;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-}
-.btn-metadata-toggle,
-.btn-save-note {
-    /* inherit from .header-actions styling */
-}
-.version-footer {
-    position: static;   /* was fixed; now inline in #status */
-    font-size: inherit;
-    color: inherit;
-    z-index: auto;
-    opacity: 1;
-    pointer-events: auto;
-}
-
 /* ==========================================================================
    12. Responsive
    ========================================================================== */
 
 @media (max-width: 600px) {
-    .header {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 5px;
-        padding: 5px;
-    }
-    .header strong { width: 100%; text-align: center; margin-bottom: 5px; }
-    .header a, .header button { padding: 5px; }
-    .content-area { padding: 10px; }
     .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
     .modal { width: 90%; }
     .git-server-grid { grid-template-columns: 1fr; }
