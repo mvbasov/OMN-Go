@@ -33,6 +33,16 @@ func AssetsRefreshed() bool {
 func (a *App) refreshEmbeddedAssets() {
 	// The flag reports the work of this start only.
 	assetsRefreshed.Store(false)
+	if storage.AssetsVersion(a.layout()) != version {
+		// Each page compiles again with the page shell of this build.
+		n, err := storage.DropCompiledPages(a.layout())
+		if err != nil {
+			a.log(logx.Assets).Errf("cannot remove the compiled pages: %v", err)
+		}
+		if n > 0 {
+			a.log(logx.Assets).Infof("removed %d compiled page(s) of the previous version", n)
+		}
+	}
 	if storage.RefreshEmbeddedAssets(a.layout(), version, a.log(logx.Assets)) > 0 {
 		// AssetsRefreshed tells the Android layer to clear the WebView cache
 		// one time.

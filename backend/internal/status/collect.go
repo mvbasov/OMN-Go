@@ -214,10 +214,7 @@ func (svc Service) statusRuntimeSection() *statusRuntime {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
-	stamp := ""
-	if raw, err := os.ReadFile(svc.Layout.File(storage.AssetsVersionFilename)); err == nil {
-		stamp = strings.TrimSpace(string(raw))
-	}
+	stamp := storage.AssetsVersion(svc.Layout)
 	return &statusRuntime{
 		GoVersion:       runtime.Version(),
 		Goroutines:      runtime.NumGoroutine(),

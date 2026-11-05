@@ -15,8 +15,11 @@ import (
 //	- md/<name>.md is the SOURCE. Only a save or an edit writes it,
 //	  and the Tags page of tags.go is the one exception.
 //	- html/<name>.html is a CACHE. RenderAndCache is its ONLY writer.
-//	- The mtime test of serveHTMLPage is its ONLY invalidator: md newer
+//	- The mtime test of serveHTMLPage is its invalidator: md newer
 //	  than html, html missing, or ?refresh.
+//	- A new version calls storage.DropCompiledPages. The cached page holds
+//	  the page shell of the templates, thus each page must compile again. See
+//	  doc/decisions/0026-compile-each-page-again-after-a-new-version.md.
 //
 // The cached HTML is an INCOMPLETE page on purpose. It holds
 // RuntimeVarsMarker, and InjectRuntimeVars fills the marker for each request

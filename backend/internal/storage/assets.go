@@ -39,6 +39,16 @@ import (
 // send it and the sync would carry it.
 const AssetsVersionFilename = "assets_version"
 
+// AssetsVersion answers the version of the last refresh, or "" when the
+// storage directory has no stamp.
+func AssetsVersion(l Layout) string {
+	raw, err := os.ReadFile(l.File(AssetsVersionFilename))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(raw))
+}
+
 // backupLabelSanitizer keeps a backup directory name safe, whatever an old
 // version stamp holds.
 var backupLabelSanitizer = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -210,8 +220,7 @@ func embeddedTwinOf(rel string) []byte {
 // and it does nothing when the stamp holds version.
 func RefreshEmbeddedAssets(l Layout, version string, log logx.Logger) int {
 	verFile := l.File(AssetsVersionFilename)
-	prevRaw, _ := os.ReadFile(verFile) // missing file => "" => first run
-	prev := strings.TrimSpace(string(prevRaw))
+	prev := AssetsVersion(l) // "" on the first run
 	if prev == version {
 		return 0
 	}

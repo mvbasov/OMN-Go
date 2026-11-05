@@ -97,3 +97,4 @@ the status of the old record to `replaced by NNNN`.
 | [0023](0023-write-each-time-in-utc.md) | Write each time in UTC. | `internal/noteheader/noteheader.go`, `internal/logx/hub.go`, `log_app.go`, `omn-go-editor.js` |
 | [0024](0024-read-the-backup-state-from-the-created-time.md) | Read the backup state from the Created time. | `internal/db/backup_state.go`, `internal/db/backup_create.go`, `internal/db/backup_restore.go`, `internal/db/backup_http.go` |
 | [0025](0025-serve-a-contact-and-a-calendar-as-plain-text.md) | Serve a contact and a calendar as plain text. | `internal/config/content_types.go`, `internal/config/user_files.go` |
+| [0026](0026-compile-each-page-again-after-a-new-version.md) | Compile each page again after a new version. | `internal/storage/paths.go`, `storage_app.go` |

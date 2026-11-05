@@ -437,8 +437,12 @@ fail when you skip one of these steps.
   `render.EscapeHTML(render.EscapeJS(v))` for a JS literal inside an HTML
   attribute. Splice trusted pre-rendered HTML raw.
 * The server injects the runtime variables **when it serves the page**. It replaces
-  the marker `<meta id="omn-go-runtime-vars-marker">`. A version bump therefore does
-  not invalidate the HTML cache on disk. Do not "repair" this.
+  the marker `<meta id="omn-go-runtime-vars-marker">`. A change of a setting
+  therefore needs no new compile. Do not "repair" this.
+* **A new version compiles each page again.** The compiled page holds the page
+  shell of the templates. At a start with a new version, `storage.DropCompiledPages` removes
+  each compiled page. See
+  `doc/decisions/0026-compile-each-page-again-after-a-new-version.md`.
 
 ---
 

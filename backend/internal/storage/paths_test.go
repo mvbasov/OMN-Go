@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -108,5 +109,49 @@ func TestContainedName(t *testing.T) {
 		if got := ContainedName(tc.in); got != tc.want {
 			t.Errorf("ContainedName(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+// A new version drops each compiled page, and it keeps each other .html
+// file. A compiled page holds the page shell of the old templates. An .html
+// file with no .md source is a file of the user, and nothing compiles it
+// again.
+func TestDropCompiledPagesRemovesOnlyCompiledPages(t *testing.T) {
+	l := Layout(t.TempDir())
+	write := func(p, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"Doc", "sub/Deep"} {
+		write(l.MD(filepath.FromSlash(name+".md")), "Title: X\n\nbody")
+		write(l.PageHTML(name), "<html>old shell</html>")
+	}
+	own := l.HTML("js", "demo.html")
+	write(own, "<p>mine</p>")
+
+	n, err := DropCompiledPages(l)
+	if err != nil || n != 2 {
+		t.Fatalf("DropCompiledPages = %d, %v, want 2, nil", n, err)
+	}
+	for _, name := range []string{"Doc", "sub/Deep"} {
+		if FileExists(l.PageHTML(name)) {
+			t.Errorf("the compiled page of %s is still there", name)
+		}
+		if !FileExists(l.MD(filepath.FromSlash(name + ".md"))) {
+			t.Errorf("md/%s.md went away", name)
+		}
+	}
+	if !FileExists(own) {
+		t.Error("the .html file of the user went away")
+	}
+
+	// A storage directory with no html/ is not a fault.
+	if n, err := DropCompiledPages(Layout(t.TempDir())); n != 0 || err != nil {
+		t.Errorf("an empty storage directory: %d, %v", n, err)
 	}
 }
