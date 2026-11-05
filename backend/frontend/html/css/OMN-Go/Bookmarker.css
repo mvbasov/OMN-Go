@@ -57,7 +57,7 @@ div#preview button.tag {
   outline: none;
 }
 div#preview button.tagSpecial {
-  background: #f002;
+  background: var(--bookmark-special-bg);
 }
 div#preview button.details {
   border: none;
@@ -67,7 +67,7 @@ div#preview button.details {
 }
 span#counter {
   cursor:pointer;
-  color: var(--accent, blue);
+  color: var(--accent);
   text-decoration:underline;
 }
 span.spanDate {

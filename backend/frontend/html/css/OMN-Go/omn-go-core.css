@@ -15,259 +15,465 @@
     11. Responsive
 
    Theming model:
-     - All colors live in custom properties defined in section 1.
-     - The server sets  <html data-theme="auto|light|dark">  at runtime via
-       an injected head script (see render.Renderer.InjectRuntimeVars
-       in internal/render/pages.go), so cached pages pick up config
-       changes without recompiling.
-     - "light" and "dark" pin the palette explicitly. "auto" - or NO
-       attribute at all, e.g. an exported page opened via file:// where the
-       runtime script is never injected - follows the OS/browser setting
-       through the prefers-color-scheme media query. No JS is involved in
-       the auto case.
-     - IMPORTANT: the dark palette is defined TWICE below (once for
-       [data-theme="dark"], once inside the media query for auto). Plain
-       CSS has no way to share a declaration block between an attribute
-       selector and a media query, so when you touch a dark token, update
-       BOTH copies.
+     - The palette in section 1 holds each color value. The theme maps
+       below it give each token a palette value.
+     - The server sets <html data-theme="auto|light|dark"> for each request.
+       See render.Renderer.InjectRuntimeVars.
+     - "auto", and a page with no data-theme, follow the device through
+       prefers-color-scheme.
+     - The dark map is written two times: for [data-theme="dark"] and in the
+       media query of auto. CSS cannot share one block between the two. Keep
+       the two lists the same. TestDarkMapsAreTheSame holds this.
    ========================================================================== */
 
 /* ==========================================================================
    1. Design tokens
    ========================================================================== */
 
+/* The palette holds each color value of OMN-Go, and no other rule holds one.
+   A color scheme in omn-go-custom.css sets new palette values. */
 :root {
-    /* -- Light palette (default) -- */
-    color-scheme: light;
+    --omn-light-bg:                   #f9f9f9;   /* page background */
+    --omn-light-bg-surface:           #ffffff;   /* cards, modals, preview */
+    --omn-light-bg-band:              #e8e8e8;   /* page header / footer strips */
+    --omn-light-bg-inset:             #f5f5f5;   /* pre blocks, title arrow, subtle fills */
+    --omn-light-bg-metadata:          #e9ecef;   /* metadata panel */
+    --omn-light-bg-toc:               #fafafa;   /* table of contents box */
+    --omn-light-bg-hover:             #d0d0d0;   /* header button / tag hover */
+    --omn-light-text:                 #333333;   /* body text */
+    --omn-light-text-strong:          #1a1a1a;   /* titles, headings */
+    --omn-light-text-heading:         #444444;   /* labels, secondary headings */
+    --omn-light-text-muted:           #555555;   /* hints, descriptions */
+    --omn-light-text-faint:           #666666;   /* footer, minor hints */
+    --omn-light-text-dim:             #888888;   /* version footer */
+    --omn-light-border:               #cccccc;   /* inputs, general borders */
+    --omn-light-border-soft:          #dddddd;   /* editor, cards */
+    --omn-light-border-card:          #e1e4e8;   /* config / ext-edit panels */
+    --omn-light-border-strong:        #999999;   /* header action buttons */
+    --omn-light-border-title:         #eaecef;   /* config title underline */
+    --omn-light-accent:               #0056b3;   /* primary blue */
+    --omn-light-accent-hover:         #004494;
+    --omn-light-success:              #28a745;   /* save / confirm green */
+    --omn-light-success-hover:        #218838;
+    --omn-light-danger:               #dc3545;   /* cancel / destructive red */
+    --omn-light-info:                 #17a2b8;   /* create / note / bookmark teal */
+    --omn-light-secondary:            #6c757d;   /* refresh / settings gray */
+    --omn-light-file-app:             #9a5b00;   /* the next version replaces this file 5.2:1 */
+    --omn-light-file-alert:           #b3261e;   /* ... and the device copy differs 6.2:1 */
+    --omn-light-file-keep:            #1f7a35;   /* yours - OMN-Go keeps it 5.1:1 */
+    --omn-light-file-derived:         #12798a;   /* OMN-Go makes it again 4.8:1 */
+    --omn-light-file-plain:           #6b6b6b;   /* nothing at stake 5.1:1 */
+    --omn-light-start-notes-bg:       #0056b3;   /* "My Quick Notes" card */
+    --omn-light-start-bookmarks-bg:   #17a2b8;   /* "My Bookmarks" card */
+    --omn-light-start-btn-text:       #ffffff;   /* label on both cards */
+    --omn-light-tag-bg:               #e7e7e7;
+    --omn-light-tag-border:           #505050;
+    --omn-light-tag-selected:         #888888;
+    --omn-light-table-border:         #4d6bfe;
+    --omn-light-table-th-bg:          #cccccc;
+    --omn-light-table-th-text:        #000000;
+    --omn-light-table-row-odd:        #eeeeee;
+    --omn-light-table-row-even:       #ffffff;
+    --omn-light-table-text:           #000000;
+    --omn-light-search-hit-bg:        #ffe08a;   /* matched text in results and in the page */
+    --omn-light-search-hit-text:      #1a1a1a;
+    --omn-light-overlay-bg:           rgba(0, 0, 0, 0.7);
+    --omn-light-shadow:               rgba(0, 0, 0, 0.1);
+    --omn-light-shadow-soft:          rgba(0, 0, 0, 0.05);
+    --omn-light-shadow-strong:        rgba(0, 0, 0, 0.2);
+    --omn-light-code-bg:              #f3f3f3;
+    --omn-light-code-text:            #444;
+    --omn-light-code-comment:         #697070;
+    --omn-light-code-punctuation:     #444a;
+    --omn-light-code-string:          #800;
+    --omn-light-code-variable:        #ab5656;
+    --omn-light-code-literal:         #695;
+    --omn-light-code-built-in:        #397300;
+    --omn-light-code-meta:            #1f7199;
+    --omn-light-code-meta-string:     #38a;
+    --omn-light-code-tag-name:        #444444;   /* tag name in a code block */
+    --omn-light-code-tag-attr:        #444444;   /* attribute name in a code block */
+    --omn-light-on-accent:            #ffffff;   /* text on a filled button */
+    --omn-light-files-source-bg:      #4c6b8a;   /* Source card of the Files page */
+    --omn-light-state-ok:             #3fb950;   /* state dots: in sync, saved */
+    --omn-light-state-warn:           #d29922;   /* state dots: changed */
+    --omn-light-state-info:           #4d9fff;   /* state dots: backup newer, missing */
+    --omn-light-state-off:            #8b949e;   /* state dots: no backup */
+    --omn-light-state-error:          #f85149;   /* state dots: damaged backup */
+    --omn-light-state-alert:          #ff5555;   /* editor: unsaved, error */
+    --omn-light-console-bg:           #1e1e1e;   /* JS console: the same in both themes */
+    --omn-light-console-text:         #00ff00;
+    --omn-light-console-line:         #f8f8f2;
+    --omn-light-console-warn:         #ffb86c;
+    --omn-light-console-error:        #ff5555;
+    --omn-light-console-border:       #555555;
+    --omn-light-console-head-bg:      #333333;
+    --omn-light-console-head-text:    #ffffff;
+    --omn-light-console-clear:        #888888;
+    --omn-light-console-button:       #ff9800;   /* console button and footer dot */
+    --omn-light-console-shadow:       rgba(0, 0, 0, 0.5);
+    --omn-light-bookmark-special-bg:  #ff000022;   /* special tag buttons of the Bookmarks page */
+    --omn-light-mark-yellow:          #ffff00;   /* .bg-yellow and the other note utilities */
+    --omn-light-mark-aqua:            #00ffff;
+    --omn-light-mark-red:             #ff0000;
+    --omn-light-mark-green:           #008000;
+    --omn-light-mark-ink:             #000000;
 
-    /* Surfaces */
-    --bg:            #f9f9f9;   /* page background */
-    --bg-surface:    #ffffff;   /* cards, modals, preview */
-    --bg-band:       #e8e8e8;   /* page header / footer strips */
-    --bg-inset:      #f5f5f5;   /* pre blocks, title arrow, subtle fills */
-    --bg-metadata:   #e9ecef;   /* metadata panel */
-    --bg-toc:        #fafafa;   /* table of contents box */
-    --bg-hover:      #d0d0d0;   /* header button / tag hover */
-
-    /* Text */
-    --text:          #333333;   /* body text */
-    --text-strong:   #1a1a1a;   /* titles, headings */
-    --text-heading:  #444444;   /* labels, secondary headings */
-    --text-muted:    #555555;   /* hints, descriptions */
-    --text-faint:    #666666;   /* footer, minor hints */
-    --text-dim:      #888888;   /* version footer */
-
-    /* Borders */
-    --border:        #cccccc;   /* inputs, general borders */
-    --border-soft:   #dddddd;   /* editor, cards */
-    --border-card:   #e1e4e8;   /* config / ext-edit panels */
-    --border-strong: #999999;   /* header action buttons */
-    --border-title:  #eaecef;   /* config title underline */
-
-    /* Semantic accents (shared by both themes unless overridden) */
-    --accent:        #0056b3;   /* primary blue */
-    --accent-hover:  #004494;
-    --success:       #28a745;   /* save / confirm green */
-    --success-hover: #218838;
-    --danger:        #dc3545;   /* cancel / destructive red */
-    --info:          #17a2b8;   /* create / note / bookmark teal */
-    --secondary:     #6c757d;   /* refresh / settings gray */
-
-    /* File-index state colors (see internal/files/index.go: the word says
-       what a file is, the color says what happens to it). Each value is measured at
-       4.5:1 or better against BOTH backgrounds of its own theme - the page
-       --bg and the card --bg-surface - because the words are 11px. The
-       semantic accents above do not reach that on one theme each, so this
-       page does not borrow them. */
-    --file-app:      #9a5b00;   /* the next version replaces this file  5.2:1 */
-    --file-alert:    #b3261e;   /* ... and the device copy differs      6.2:1 */
-    --file-keep:     #1f7a35;   /* yours - OMN-Go keeps it              5.1:1 */
-    --file-derived:  #12798a;   /* OMN-Go makes it again                4.8:1 */
-    --file-plain:    #6b6b6b;   /* nothing at stake                     5.1:1 */
-
-    /* Start-page buttons (see .omn-start-buttons in section 6) */
-    --start-notes-bg:     #0056b3;   /* "My Quick Notes" card */
-    --start-bookmarks-bg: #17a2b8;   /* "My Bookmarks" card */
-    --start-btn-text:     #ffffff;   /* label on both cards */
-
-    /* Tags */
-    --tag-bg:        #E7E7E7;
-    --tag-border:    #505050;
-    --tag-selected:  #888888;
-
-    /* Markdown tables */
-    --table-border:  #4d6bfe;
-    --table-th-bg:   #CCCCCC;
-    --table-th-text: #000000;
-    --table-row-odd: #EEEEEE;
-    --table-row-even:#FFFFFF;
-    --table-text:    #000000;
-
-    /* Search */
-    --search-hit-bg:   #ffe08a;   /* matched text in results and in the page */
-    --search-hit-text: #1a1a1a;
-
-    /* Effects */
-    --overlay-bg:    rgba(0, 0, 0, 0.7);
-    --shadow:        rgba(0, 0, 0, 0.1);
-    --shadow-soft:   rgba(0, 0, 0, 0.05);
-    --shadow-strong: rgba(0, 0, 0, 0.2);
-
-    /* Code blocks (hljs) - see section 10. Light values equal the vendor
-       highlight theme (highlight.default.min.css), so the light look is
-       unchanged. */
-    --code-bg:           #f3f3f3;
-    --code-text:         #444;
-    --code-comment:      #697070;
-    --code-punctuation:  #444a;
-    --code-string:       #800;
-    --code-variable:     #ab5656;
-    --code-literal:      #695;
-    --code-built-in:     #397300;
-    --code-meta:         #1f7199;
-    --code-meta-string:  #38a;
+    --omn-dark-bg:                    #1b1d1e;
+    --omn-dark-bg-surface:            #25282a;
+    --omn-dark-bg-band:               #2a2d2f;
+    --omn-dark-bg-inset:              #303336;
+    --omn-dark-bg-metadata:           #2e3235;
+    --omn-dark-bg-toc:                #232628;
+    --omn-dark-bg-hover:              #3a3e41;
+    --omn-dark-text:                  #d4d4d4;
+    --omn-dark-text-strong:           #e8eaed;
+    --omn-dark-text-heading:          #c4c7cb;
+    --omn-dark-text-muted:            #9aa0a6;
+    --omn-dark-text-faint:            #8a9096;
+    --omn-dark-text-dim:              #7a8086;
+    --omn-dark-border:                #45494d;
+    --omn-dark-border-soft:           #3a3e41;
+    --omn-dark-border-card:           #3a3e41;
+    --omn-dark-border-strong:         #5a5f63;
+    --omn-dark-border-title:          #3a3e41;
+    --omn-dark-accent:                #4d9fff;
+    --omn-dark-accent-hover:          #6cb0ff;
+    --omn-dark-success:               #28a745;
+    --omn-dark-success-hover:         #218838;
+    --omn-dark-danger:                #dc3545;
+    --omn-dark-info:                  #17a2b8;
+    --omn-dark-secondary:             #6c757d;
+    --omn-dark-file-app:              #f0a13c;
+    --omn-dark-file-alert:            #ff8a80;
+    --omn-dark-file-keep:             #5ec97a;
+    --omn-dark-file-derived:          #4fc3d7;
+    --omn-dark-file-plain:            #9aa0a6;
+    --omn-dark-start-notes-bg:        #1c5ea8;
+    --omn-dark-start-bookmarks-bg:    #14707e;
+    --omn-dark-start-btn-text:        #eef3f8;
+    --omn-dark-tag-bg:                #3a3d40;
+    --omn-dark-tag-border:            #808080;
+    --omn-dark-tag-selected:          #5a5f63;
+    --omn-dark-table-border:          #4d6bfe;
+    --omn-dark-table-th-bg:           #3a3d40;
+    --omn-dark-table-th-text:         #e8eaed;
+    --omn-dark-table-row-odd:         #2a2d2f;
+    --omn-dark-table-row-even:        #25282a;
+    --omn-dark-table-text:            #d4d4d4;
+    --omn-dark-search-hit-bg:         #7a5c14;
+    --omn-dark-search-hit-text:       #ffeab0;
+    --omn-dark-overlay-bg:            rgba(0, 0, 0, 0.7);
+    --omn-dark-shadow:                rgba(0, 0, 0, 0.4);
+    --omn-dark-shadow-soft:           rgba(0, 0, 0, 0.25);
+    --omn-dark-shadow-strong:         rgba(0, 0, 0, 0.6);
+    --omn-dark-code-bg:               #303336;
+    --omn-dark-code-text:             #c9d1d9;
+    --omn-dark-code-comment:          #8b949e;
+    --omn-dark-code-punctuation:      #c9d1d966;
+    --omn-dark-code-string:           #a5d6ff;
+    --omn-dark-code-variable:         #ffa657;
+    --omn-dark-code-literal:          #79c0ff;
+    --omn-dark-code-built-in:         #7ee787;
+    --omn-dark-code-meta:             #79c0ff;
+    --omn-dark-code-meta-string:      #a5d6ff;
+    --omn-dark-code-tag-name:         #7ee787;
+    --omn-dark-code-tag-attr:         #79c0ff;
+    --omn-dark-on-accent:             #ffffff;
+    --omn-dark-files-source-bg:       #3f5a75;
+    --omn-dark-state-ok:              #3fb950;
+    --omn-dark-state-warn:            #d29922;
+    --omn-dark-state-info:            #4d9fff;
+    --omn-dark-state-off:             #8b949e;
+    --omn-dark-state-error:           #f85149;
+    --omn-dark-state-alert:           #ff5555;
+    --omn-dark-console-bg:            #1e1e1e;
+    --omn-dark-console-text:          #00ff00;
+    --omn-dark-console-line:          #f8f8f2;
+    --omn-dark-console-warn:          #ffb86c;
+    --omn-dark-console-error:         #ff5555;
+    --omn-dark-console-border:        #555555;
+    --omn-dark-console-head-bg:       #333333;
+    --omn-dark-console-head-text:     #ffffff;
+    --omn-dark-console-clear:         #888888;
+    --omn-dark-console-button:        #ff9800;
+    --omn-dark-console-shadow:        rgba(0, 0, 0, 0.5);
+    --omn-dark-bookmark-special-bg:   #ff000022;
+    --omn-dark-mark-yellow:           #ffff00;
+    --omn-dark-mark-aqua:             #00ffff;
+    --omn-dark-mark-red:              #ff0000;
+    --omn-dark-mark-green:            #008000;
+    --omn-dark-mark-ink:              #000000;
 }
 
-/* -- Dark palette, explicit: <html data-theme="dark"> --
-   (Keep in sync with the auto copy inside the media query below.) */
+/* The light theme. */
+:root {
+    color-scheme: light;
+    --bg: var(--omn-light-bg);
+    --bg-surface: var(--omn-light-bg-surface);
+    --bg-band: var(--omn-light-bg-band);
+    --bg-inset: var(--omn-light-bg-inset);
+    --bg-metadata: var(--omn-light-bg-metadata);
+    --bg-toc: var(--omn-light-bg-toc);
+    --bg-hover: var(--omn-light-bg-hover);
+    --text: var(--omn-light-text);
+    --text-strong: var(--omn-light-text-strong);
+    --text-heading: var(--omn-light-text-heading);
+    --text-muted: var(--omn-light-text-muted);
+    --text-faint: var(--omn-light-text-faint);
+    --text-dim: var(--omn-light-text-dim);
+    --border: var(--omn-light-border);
+    --border-soft: var(--omn-light-border-soft);
+    --border-card: var(--omn-light-border-card);
+    --border-strong: var(--omn-light-border-strong);
+    --border-title: var(--omn-light-border-title);
+    --accent: var(--omn-light-accent);
+    --accent-hover: var(--omn-light-accent-hover);
+    --success: var(--omn-light-success);
+    --success-hover: var(--omn-light-success-hover);
+    --danger: var(--omn-light-danger);
+    --info: var(--omn-light-info);
+    --secondary: var(--omn-light-secondary);
+    --file-app: var(--omn-light-file-app);
+    --file-alert: var(--omn-light-file-alert);
+    --file-keep: var(--omn-light-file-keep);
+    --file-derived: var(--omn-light-file-derived);
+    --file-plain: var(--omn-light-file-plain);
+    --start-notes-bg: var(--omn-light-start-notes-bg);
+    --start-bookmarks-bg: var(--omn-light-start-bookmarks-bg);
+    --start-btn-text: var(--omn-light-start-btn-text);
+    --tag-bg: var(--omn-light-tag-bg);
+    --tag-border: var(--omn-light-tag-border);
+    --tag-selected: var(--omn-light-tag-selected);
+    --table-border: var(--omn-light-table-border);
+    --table-th-bg: var(--omn-light-table-th-bg);
+    --table-th-text: var(--omn-light-table-th-text);
+    --table-row-odd: var(--omn-light-table-row-odd);
+    --table-row-even: var(--omn-light-table-row-even);
+    --table-text: var(--omn-light-table-text);
+    --search-hit-bg: var(--omn-light-search-hit-bg);
+    --search-hit-text: var(--omn-light-search-hit-text);
+    --overlay-bg: var(--omn-light-overlay-bg);
+    --shadow: var(--omn-light-shadow);
+    --shadow-soft: var(--omn-light-shadow-soft);
+    --shadow-strong: var(--omn-light-shadow-strong);
+    --code-bg: var(--omn-light-code-bg);
+    --code-text: var(--omn-light-code-text);
+    --code-comment: var(--omn-light-code-comment);
+    --code-punctuation: var(--omn-light-code-punctuation);
+    --code-string: var(--omn-light-code-string);
+    --code-variable: var(--omn-light-code-variable);
+    --code-literal: var(--omn-light-code-literal);
+    --code-built-in: var(--omn-light-code-built-in);
+    --code-meta: var(--omn-light-code-meta);
+    --code-meta-string: var(--omn-light-code-meta-string);
+    --code-tag-name: var(--omn-light-code-tag-name);
+    --code-tag-attr: var(--omn-light-code-tag-attr);
+    --on-accent: var(--omn-light-on-accent);
+    --files-source-bg: var(--omn-light-files-source-bg);
+    --state-ok: var(--omn-light-state-ok);
+    --state-warn: var(--omn-light-state-warn);
+    --state-info: var(--omn-light-state-info);
+    --state-off: var(--omn-light-state-off);
+    --state-error: var(--omn-light-state-error);
+    --state-alert: var(--omn-light-state-alert);
+    --console-bg: var(--omn-light-console-bg);
+    --console-text: var(--omn-light-console-text);
+    --console-line: var(--omn-light-console-line);
+    --console-warn: var(--omn-light-console-warn);
+    --console-error: var(--omn-light-console-error);
+    --console-border: var(--omn-light-console-border);
+    --console-head-bg: var(--omn-light-console-head-bg);
+    --console-head-text: var(--omn-light-console-head-text);
+    --console-clear: var(--omn-light-console-clear);
+    --console-button: var(--omn-light-console-button);
+    --console-shadow: var(--omn-light-console-shadow);
+    --bookmark-special-bg: var(--omn-light-bookmark-special-bg);
+    --mark-yellow: var(--omn-light-mark-yellow);
+    --mark-aqua: var(--omn-light-mark-aqua);
+    --mark-red: var(--omn-light-mark-red);
+    --mark-green: var(--omn-light-mark-green);
+    --mark-ink: var(--omn-light-mark-ink);
+}
+
+/* The dark theme. The auto theme on a dark device uses the same list. */
 :root[data-theme="dark"] {
     color-scheme: dark;
-
-    --bg:            #1b1d1e;
-    --bg-surface:    #25282a;
-    --bg-band:       #2a2d2f;
-    --bg-inset:      #303336;
-    --bg-metadata:   #2e3235;
-    --bg-toc:        #232628;
-    --bg-hover:      #3a3e41;
-
-    --text:          #d4d4d4;
-    --text-strong:   #e8eaed;
-    --text-heading:  #c4c7cb;
-    --text-muted:    #9aa0a6;
-    --text-faint:    #8a9096;
-    --text-dim:      #7a8086;
-
-    --border:        #45494d;
-    --border-soft:   #3a3e41;
-    --border-card:   #3a3e41;
-    --border-strong: #5a5f63;
-    --border-title:  #3a3e41;
-
-    --accent:        #4d9fff;
-    --accent-hover:  #6cb0ff;
-
-    --file-app:      #f0a13c;   /* 7.0:1 */
-    --file-alert:    #ff8a80;   /* 6.5:1 */
-    --file-keep:     #5ec97a;   /* 7.1:1 */
-    --file-derived:  #4fc3d7;   /* 7.2:1 */
-    --file-plain:    #9aa0a6;   /* 5.4:1 */
-
-    --start-notes-bg:     #1c5ea8;
-    --start-bookmarks-bg: #14707e;
-    --start-btn-text:     #eef3f8;
-
-    --tag-bg:        #3a3d40;
-    --tag-border:    #808080;
-    --tag-selected:  #5a5f63;
-
-    --search-hit-bg:   #7a5c14;
-    --search-hit-text: #ffeab0;
-
-    --table-th-bg:   #3a3d40;
-    --table-th-text: #e8eaed;
-    --table-row-odd: #2a2d2f;
-    --table-row-even:#25282a;
-    --table-text:    #d4d4d4;
-
-    --shadow:        rgba(0, 0, 0, 0.4);
-    --shadow-soft:   rgba(0, 0, 0, 0.25);
-    --shadow-strong: rgba(0, 0, 0, 0.6);
-
-    /* Code blocks (hljs) - dark (github-dark palette) */
-    --code-bg:           #303336;   /* equals --bg-inset */
-    --code-text:         #c9d1d9;
-    --code-comment:      #8b949e;
-    --code-punctuation:  #c9d1d966;
-    --code-string:       #a5d6ff;
-    --code-variable:     #ffa657;
-    --code-literal:      #79c0ff;
-    --code-built-in:     #7ee787;
-    --code-meta:         #79c0ff;
-    --code-meta-string:  #a5d6ff;
+    --bg: var(--omn-dark-bg);
+    --bg-surface: var(--omn-dark-bg-surface);
+    --bg-band: var(--omn-dark-bg-band);
+    --bg-inset: var(--omn-dark-bg-inset);
+    --bg-metadata: var(--omn-dark-bg-metadata);
+    --bg-toc: var(--omn-dark-bg-toc);
+    --bg-hover: var(--omn-dark-bg-hover);
+    --text: var(--omn-dark-text);
+    --text-strong: var(--omn-dark-text-strong);
+    --text-heading: var(--omn-dark-text-heading);
+    --text-muted: var(--omn-dark-text-muted);
+    --text-faint: var(--omn-dark-text-faint);
+    --text-dim: var(--omn-dark-text-dim);
+    --border: var(--omn-dark-border);
+    --border-soft: var(--omn-dark-border-soft);
+    --border-card: var(--omn-dark-border-card);
+    --border-strong: var(--omn-dark-border-strong);
+    --border-title: var(--omn-dark-border-title);
+    --accent: var(--omn-dark-accent);
+    --accent-hover: var(--omn-dark-accent-hover);
+    --success: var(--omn-dark-success);
+    --success-hover: var(--omn-dark-success-hover);
+    --danger: var(--omn-dark-danger);
+    --info: var(--omn-dark-info);
+    --secondary: var(--omn-dark-secondary);
+    --file-app: var(--omn-dark-file-app);
+    --file-alert: var(--omn-dark-file-alert);
+    --file-keep: var(--omn-dark-file-keep);
+    --file-derived: var(--omn-dark-file-derived);
+    --file-plain: var(--omn-dark-file-plain);
+    --start-notes-bg: var(--omn-dark-start-notes-bg);
+    --start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
+    --start-btn-text: var(--omn-dark-start-btn-text);
+    --tag-bg: var(--omn-dark-tag-bg);
+    --tag-border: var(--omn-dark-tag-border);
+    --tag-selected: var(--omn-dark-tag-selected);
+    --table-border: var(--omn-dark-table-border);
+    --table-th-bg: var(--omn-dark-table-th-bg);
+    --table-th-text: var(--omn-dark-table-th-text);
+    --table-row-odd: var(--omn-dark-table-row-odd);
+    --table-row-even: var(--omn-dark-table-row-even);
+    --table-text: var(--omn-dark-table-text);
+    --search-hit-bg: var(--omn-dark-search-hit-bg);
+    --search-hit-text: var(--omn-dark-search-hit-text);
+    --overlay-bg: var(--omn-dark-overlay-bg);
+    --shadow: var(--omn-dark-shadow);
+    --shadow-soft: var(--omn-dark-shadow-soft);
+    --shadow-strong: var(--omn-dark-shadow-strong);
+    --code-bg: var(--omn-dark-code-bg);
+    --code-text: var(--omn-dark-code-text);
+    --code-comment: var(--omn-dark-code-comment);
+    --code-punctuation: var(--omn-dark-code-punctuation);
+    --code-string: var(--omn-dark-code-string);
+    --code-variable: var(--omn-dark-code-variable);
+    --code-literal: var(--omn-dark-code-literal);
+    --code-built-in: var(--omn-dark-code-built-in);
+    --code-meta: var(--omn-dark-code-meta);
+    --code-meta-string: var(--omn-dark-code-meta-string);
+    --code-tag-name: var(--omn-dark-code-tag-name);
+    --code-tag-attr: var(--omn-dark-code-tag-attr);
+    --on-accent: var(--omn-dark-on-accent);
+    --files-source-bg: var(--omn-dark-files-source-bg);
+    --state-ok: var(--omn-dark-state-ok);
+    --state-warn: var(--omn-dark-state-warn);
+    --state-info: var(--omn-dark-state-info);
+    --state-off: var(--omn-dark-state-off);
+    --state-error: var(--omn-dark-state-error);
+    --state-alert: var(--omn-dark-state-alert);
+    --console-bg: var(--omn-dark-console-bg);
+    --console-text: var(--omn-dark-console-text);
+    --console-line: var(--omn-dark-console-line);
+    --console-warn: var(--omn-dark-console-warn);
+    --console-error: var(--omn-dark-console-error);
+    --console-border: var(--omn-dark-console-border);
+    --console-head-bg: var(--omn-dark-console-head-bg);
+    --console-head-text: var(--omn-dark-console-head-text);
+    --console-clear: var(--omn-dark-console-clear);
+    --console-button: var(--omn-dark-console-button);
+    --console-shadow: var(--omn-dark-console-shadow);
+    --bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+    --mark-yellow: var(--omn-dark-mark-yellow);
+    --mark-aqua: var(--omn-dark-mark-aqua);
+    --mark-red: var(--omn-dark-mark-red);
+    --mark-green: var(--omn-dark-mark-green);
+    --mark-ink: var(--omn-dark-mark-ink);
 }
-
-/* -- Dark palette, automatic: theme "auto" (or no data-theme attribute,
-   e.g. exported pages opened via file://) follows the system setting.
-   This block is a byte-for-byte copy of [data-theme="dark"] above -
-   update BOTH when changing a dark token. -- */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]):not([data-theme="dark"]),
     :root[data-theme="auto"] {
         color-scheme: dark;
-
-        --bg:            #1b1d1e;
-        --bg-surface:    #25282a;
-        --bg-band:       #2a2d2f;
-        --bg-inset:      #303336;
-        --bg-metadata:   #2e3235;
-        --bg-toc:        #232628;
-        --bg-hover:      #3a3e41;
-
-        --text:          #d4d4d4;
-        --text-strong:   #e8eaed;
-        --text-heading:  #c4c7cb;
-        --text-muted:    #9aa0a6;
-        --text-faint:    #8a9096;
-        --text-dim:      #7a8086;
-
-        --border:        #45494d;
-        --border-soft:   #3a3e41;
-        --border-card:   #3a3e41;
-        --border-strong: #5a5f63;
-        --border-title:  #3a3e41;
-
-        --accent:        #4d9fff;
-        --accent-hover:  #6cb0ff;
-
-        --file-app:      #f0a13c;   /* 7.0:1 */
-        --file-alert:    #ff8a80;   /* 6.5:1 */
-        --file-keep:     #5ec97a;   /* 7.1:1 */
-        --file-derived:  #4fc3d7;   /* 7.2:1 */
-        --file-plain:    #9aa0a6;   /* 5.4:1 */
-
-        --start-notes-bg:     #1c5ea8;
-        --start-bookmarks-bg: #14707e;
-        --start-btn-text:     #eef3f8;
-
-        --tag-bg:        #3a3d40;
-        --tag-border:    #808080;
-        --tag-selected:  #5a5f63;
-
-        --search-hit-bg:   #7a5c14;
-        --search-hit-text: #ffeab0;
-
-        --table-th-bg:   #3a3d40;
-        --table-th-text: #e8eaed;
-        --table-row-odd: #2a2d2f;
-        --table-row-even:#25282a;
-        --table-text:    #d4d4d4;
-
-        --shadow:        rgba(0, 0, 0, 0.4);
-        --shadow-soft:   rgba(0, 0, 0, 0.25);
-        --shadow-strong: rgba(0, 0, 0, 0.6);
-
-        /* Code blocks (hljs) - dark (github-dark palette) */
-        --code-bg:           #303336;   /* equals --bg-inset */
-        --code-text:         #c9d1d9;
-        --code-comment:      #8b949e;
-        --code-punctuation:  #c9d1d966;
-        --code-string:       #a5d6ff;
-        --code-variable:     #ffa657;
-        --code-literal:      #79c0ff;
-        --code-built-in:     #7ee787;
-        --code-meta:         #79c0ff;
-        --code-meta-string:  #a5d6ff;
+        --bg: var(--omn-dark-bg);
+        --bg-surface: var(--omn-dark-bg-surface);
+        --bg-band: var(--omn-dark-bg-band);
+        --bg-inset: var(--omn-dark-bg-inset);
+        --bg-metadata: var(--omn-dark-bg-metadata);
+        --bg-toc: var(--omn-dark-bg-toc);
+        --bg-hover: var(--omn-dark-bg-hover);
+        --text: var(--omn-dark-text);
+        --text-strong: var(--omn-dark-text-strong);
+        --text-heading: var(--omn-dark-text-heading);
+        --text-muted: var(--omn-dark-text-muted);
+        --text-faint: var(--omn-dark-text-faint);
+        --text-dim: var(--omn-dark-text-dim);
+        --border: var(--omn-dark-border);
+        --border-soft: var(--omn-dark-border-soft);
+        --border-card: var(--omn-dark-border-card);
+        --border-strong: var(--omn-dark-border-strong);
+        --border-title: var(--omn-dark-border-title);
+        --accent: var(--omn-dark-accent);
+        --accent-hover: var(--omn-dark-accent-hover);
+        --success: var(--omn-dark-success);
+        --success-hover: var(--omn-dark-success-hover);
+        --danger: var(--omn-dark-danger);
+        --info: var(--omn-dark-info);
+        --secondary: var(--omn-dark-secondary);
+        --file-app: var(--omn-dark-file-app);
+        --file-alert: var(--omn-dark-file-alert);
+        --file-keep: var(--omn-dark-file-keep);
+        --file-derived: var(--omn-dark-file-derived);
+        --file-plain: var(--omn-dark-file-plain);
+        --start-notes-bg: var(--omn-dark-start-notes-bg);
+        --start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
+        --start-btn-text: var(--omn-dark-start-btn-text);
+        --tag-bg: var(--omn-dark-tag-bg);
+        --tag-border: var(--omn-dark-tag-border);
+        --tag-selected: var(--omn-dark-tag-selected);
+        --table-border: var(--omn-dark-table-border);
+        --table-th-bg: var(--omn-dark-table-th-bg);
+        --table-th-text: var(--omn-dark-table-th-text);
+        --table-row-odd: var(--omn-dark-table-row-odd);
+        --table-row-even: var(--omn-dark-table-row-even);
+        --table-text: var(--omn-dark-table-text);
+        --search-hit-bg: var(--omn-dark-search-hit-bg);
+        --search-hit-text: var(--omn-dark-search-hit-text);
+        --overlay-bg: var(--omn-dark-overlay-bg);
+        --shadow: var(--omn-dark-shadow);
+        --shadow-soft: var(--omn-dark-shadow-soft);
+        --shadow-strong: var(--omn-dark-shadow-strong);
+        --code-bg: var(--omn-dark-code-bg);
+        --code-text: var(--omn-dark-code-text);
+        --code-comment: var(--omn-dark-code-comment);
+        --code-punctuation: var(--omn-dark-code-punctuation);
+        --code-string: var(--omn-dark-code-string);
+        --code-variable: var(--omn-dark-code-variable);
+        --code-literal: var(--omn-dark-code-literal);
+        --code-built-in: var(--omn-dark-code-built-in);
+        --code-meta: var(--omn-dark-code-meta);
+        --code-meta-string: var(--omn-dark-code-meta-string);
+        --code-tag-name: var(--omn-dark-code-tag-name);
+        --code-tag-attr: var(--omn-dark-code-tag-attr);
+        --on-accent: var(--omn-dark-on-accent);
+        --files-source-bg: var(--omn-dark-files-source-bg);
+        --state-ok: var(--omn-dark-state-ok);
+        --state-warn: var(--omn-dark-state-warn);
+        --state-info: var(--omn-dark-state-info);
+        --state-off: var(--omn-dark-state-off);
+        --state-error: var(--omn-dark-state-error);
+        --state-alert: var(--omn-dark-state-alert);
+        --console-bg: var(--omn-dark-console-bg);
+        --console-text: var(--omn-dark-console-text);
+        --console-line: var(--omn-dark-console-line);
+        --console-warn: var(--omn-dark-console-warn);
+        --console-error: var(--omn-dark-console-error);
+        --console-border: var(--omn-dark-console-border);
+        --console-head-bg: var(--omn-dark-console-head-bg);
+        --console-head-text: var(--omn-dark-console-head-text);
+        --console-clear: var(--omn-dark-console-clear);
+        --console-button: var(--omn-dark-console-button);
+        --console-shadow: var(--omn-dark-console-shadow);
+        --bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+        --mark-yellow: var(--omn-dark-mark-yellow);
+        --mark-aqua: var(--omn-dark-mark-aqua);
+        --mark-red: var(--omn-dark-mark-red);
+        --mark-green: var(--omn-dark-mark-green);
+        --mark-ink: var(--omn-dark-mark-ink);
     }
 }
 
@@ -475,7 +681,7 @@ a.taglink {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #ff9800;
+    background: var(--console-button);
     cursor: pointer;
     flex: 0 0 auto;
     margin-left: 8px;
@@ -690,7 +896,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border: none;
     border-radius: 4px;
@@ -801,7 +1007,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 }
 .modal button {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     cursor: pointer;
     border-radius: 4px;
@@ -821,7 +1027,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 .panel h3 { margin-top: 0; }
 .panel button {
     background: var(--success);
-    color: white;
+    color: var(--on-accent);
     border: none;
     cursor: pointer;
     border-radius: 4px;
@@ -910,7 +1116,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .header-actions .btn-add-shortcut:hover {
     background: var(--info);
     border-color: var(--info);
-    color: white;
+    color: var(--on-accent);
 }
 .header-actions .btn-refresh,
 .header-actions .btn-settings,
@@ -918,7 +1124,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .header-actions .btn-settings:hover {
     background: var(--secondary);
     border-color: var(--secondary);
-    color: white;
+    color: var(--on-accent);
 }
 
 /* -- Android-only controls (e.g. "add to home screen" shortcut) --
@@ -945,7 +1151,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .btn-metadata-toggle {
     display: block;
     background: var(--info);
-    color: white;
+    color: var(--on-accent);
     border: none;
 }
 
@@ -1244,7 +1450,7 @@ mark.omn-search-hit.omn-search-hit-current {
 }
 .config-save-btn {
     background: var(--success);
-    color: white;
+    color: var(--on-accent);
     border: none;
     padding: 12px 20px;
     border-radius: 4px;
@@ -1272,23 +1478,23 @@ mark.omn-search-hit.omn-search-hit-current {
     position: fixed;
     top: 10%; left: 10%;
     width: 80%; height: 80%;
-    background: #1e1e1e;
-    color: #00ff00;
+    background: var(--console-bg);
+    color: var(--console-text);
     z-index: 10000;
-    border: 2px solid #555;
+    border: 2px solid var(--console-border);
     border-radius: 8px;
     flex-direction: column;
     font-family: monospace;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px var(--console-shadow);
 }
 .console-header {
     padding: 10px;
-    background: #333;
-    color: #fff;
+    background: var(--console-head-bg);
+    color: var(--console-head-text);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #555;
+    border-bottom: 1px solid var(--console-border);
     font-weight: bold;
 }
 .console-actions {
@@ -1305,7 +1511,7 @@ mark.omn-search-hit.omn-search-hit-current {
     line-height: 1.4;
 }
 .btn-console {
-    color: white;
+    color: var(--on-accent);
     border: none;
     border-radius: 4px;
     padding: 4px 8px;
@@ -1314,13 +1520,21 @@ mark.omn-search-hit.omn-search-hit-current {
     align-items: center;
     justify-content: center;
 }
-.btn-console-clear { background: #888; }
-.btn-console-close { background: #ff5555; }
+.console-line {
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--console-head-bg);
+    color: var(--console-line);
+}
+.console-line-error { color: var(--console-error); }
+.console-line-warn { color: var(--console-warn); }
+.btn-console-clear { background: var(--console-clear); }
+.btn-console-close { background: var(--console-error); }
 .btn-console-main,
 .header-actions .btn-console-main,
 .header-actions .btn-console-main:hover {
-    background: #ff9800;
-    color: #fff;
+    background: var(--console-button);
+    color: var(--on-accent);
 }
 .btn-console-main {
     margin-left: 8px;
@@ -1439,6 +1653,8 @@ mark.omn-search-hit.omn-search-hit-current {
 #preview pre code.hljs .hljs-code { color: var(--code-built-in); }
 #preview pre code.hljs .hljs-meta { color: var(--code-meta); }
 #preview pre code.hljs .hljs-meta .hljs-string { color: var(--code-meta-string); }
+#preview pre code.hljs .hljs-tag .hljs-name { color: var(--code-tag-name); }
+#preview pre code.hljs .hljs-tag .hljs-attr { color: var(--code-tag-attr); }
 
 /* ==========================================================================
    10. Utilities
@@ -1447,10 +1663,10 @@ mark.omn-search-hit.omn-search-hit-current {
 /* Explicit color utilities used inside user notes: these are content
    semantics (highlighting), not chrome, so they intentionally keep their
    literal colors in both themes. */
-.bg-yellow { background-color: yellow; color: #000; }
-.bg-aqua   { background-color: aqua;   color: #000; }
-.fg-red    { color: red; }
-.fg-green  { color: green; }
+.bg-yellow { background-color: var(--mark-yellow); color: var(--mark-ink); }
+.bg-aqua   { background-color: var(--mark-aqua);   color: var(--mark-ink); }
+.fg-red    { color: var(--mark-red); }
+.fg-green  { color: var(--mark-green); }
 
 /* ==========================================================================
    11. Responsive

@@ -56,7 +56,7 @@
     width: 28px;
     height: 28px;
     padding: 0;
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border: none;
     border-radius: 50%;
@@ -307,7 +307,7 @@
 .search-page-submit {
     flex: 0 0 auto;
     padding: 6px 12px;
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border: none;
     border-radius: 4px;
@@ -453,7 +453,7 @@ a.search-snippet:focus-visible {
 
 .search-page-cta:hover {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
 }
 
 .search-page-notice .search-page-note {

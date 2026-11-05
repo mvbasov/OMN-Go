@@ -80,7 +80,7 @@
 .config-menu-dirty-save {
     margin-left: auto;
     background: var(--success);
-    color: white;
+    color: var(--on-accent);
     border: none;
     padding: 8px 16px;
     border-radius: 4px;

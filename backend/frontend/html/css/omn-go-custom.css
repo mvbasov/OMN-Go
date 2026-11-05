@@ -7,10 +7,11 @@
  * over it again. An update keeps your version of it. Git
  * synchronization copies it to your other devices.
  *
- * To change one color everywhere, set the design token. The tokens are
- * at the top of css/omn-go-core.css.
+ * To change one color everywhere, set its palette value. The palette is
+ * at the top of css/OMN-Go/omn-go-core.css. Each color has a light value
+ * and a dark value.
  *
- *   :root { --accent: #8e44ad; }
+ *   :root { --omn-light-accent: #8e44ad; --omn-dark-accent: #c39bd3; }
  *
  * To change the page, write ordinary rules.
  *

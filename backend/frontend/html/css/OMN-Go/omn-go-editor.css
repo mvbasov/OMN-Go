@@ -24,7 +24,7 @@ body {
 }
 .omn-editor-bar button:hover { background: var(--bg-hover); }
 .omn-editor-bar button.active {
-    background: var(--accent); color: #fff; border-color: var(--accent);
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
 }
 .omn-editor-bar button:disabled { opacity: 0.4; cursor: default; }
 .omn-editor-bar button:disabled:hover { background: var(--bg-surface); }
@@ -69,7 +69,7 @@ body {
 }
 .omn-editor-find button:hover { background: var(--bg-hover); }
 .omn-editor-find button.active {
-    background: var(--accent); color: #fff; border-color: var(--accent);
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
 }
 .omn-editor-find .material-icons { font-size: 20px; }
 /* The three mode flags are labelled with text, not icons - "Aa",
@@ -88,7 +88,7 @@ body {
 .omn-find-chevron-space { width: 30px; flex: 0 0 auto; }
 
 #editorSave { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-#editorSave:hover { background: var(--accent); color: #fff; }
+#editorSave:hover { background: var(--accent); color: var(--on-accent); }
 /* Editing area: a horizontal row of [line-number gutter][textarea].
    The gutter shows only when line numbers are on AND word wrap is
    off (body.ln-on) - under wrapping the two can't stay aligned, so
@@ -171,15 +171,15 @@ body.ln-on .omn-editor-gutter { display: block; }
     flex: 1 1 auto; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
-.editor-status-error { color: #ff5555; }
-.editor-status-ok    { color: #3fb950; }
+.editor-status-error { color: var(--state-alert); }
+.editor-status-ok    { color: var(--state-ok); }
 /* State dot at the right: green = saved, red = unsaved changes.
    Pure CSS circle (border-radius:50%), no image asset. */
 .omn-editor-dot {
     flex: 0 0 auto; width: 10px; height: 10px;
     border-radius: 50%; background: var(--text-dim);
 }
-.omn-editor-dot.clean   { background: #3fb950; }
-.omn-editor-dot.dirty   { background: #ff5555; }
+.omn-editor-dot.clean   { background: var(--state-ok); }
+.omn-editor-dot.dirty   { background: var(--state-alert); }
 .omn-editor-dot.loading { background: var(--text-dim); }
-.omn-editor-dot.error   { background: #ff5555; }
+.omn-editor-dot.error   { background: var(--state-alert); }

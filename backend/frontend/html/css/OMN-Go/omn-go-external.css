@@ -32,7 +32,7 @@
 
 .ext-edit-btn {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     padding: 15px 30px;
     border-radius: 6px;

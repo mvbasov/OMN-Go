@@ -18,12 +18,12 @@
 /* State dots. Mid-tone hues chosen to stay legible on both the light and
    the dark surface; each dot is labelled by the adjacent .dbb-state pill
    anyway, so they carry no meaning on their own. */
-.dbb-dot.st-insync       { background:#3fb950; }
-.dbb-dot.st-dirty        { background:#d29922; }
-.dbb-dot.st-backup_newer { background:#4d9fff; }
-.dbb-dot.st-missing      { background:#4d9fff; }
-.dbb-dot.st-none         { background:#8b949e; }
-.dbb-dot.st-invalid      { background:#f85149; }
+.dbb-dot.st-insync       { background:var(--state-ok); }
+.dbb-dot.st-dirty        { background:var(--state-warn); }
+.dbb-dot.st-backup_newer { background:var(--state-info); }
+.dbb-dot.st-missing      { background:var(--state-info); }
+.dbb-dot.st-none         { background:var(--state-off); }
+.dbb-dot.st-invalid      { background:var(--state-error); }
 
 /* Buttons: plain <button>s inherited the UA style, which ignores the
    app theme. */
@@ -42,7 +42,7 @@
     font-weight:bold;
     background:var(--accent);
     border-color:var(--accent);
-    color:#fff;
+    color:var(--on-accent);
 }
 .dbb-btn-primary:hover { background:var(--accent-hover); }
 /* Restore replaces a whole database - flag it as destructive. */

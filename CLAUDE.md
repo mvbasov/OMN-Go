@@ -346,9 +346,13 @@ fail when you skip one of these steps.
   or a `link`. `TestCompiledPageShellStaysSmall` guards the size.
 * **Do not add Tailwind, React, or marked.js.** goldmark renders the markdown on the
   server. The word "Tailwind" stays only in the historical `doc/initial_prompt.md`.
-* Write CSS by hand. `css/OMN-Go/omn-go-core.css` declares the design tokens as `:root`
-  custom properties. The theme is CSS only. It uses `data-theme` on `<html>` with a
-  `prefers-color-scheme` fallback.
+* Write CSS by hand. The palette at the top of `css/OMN-Go/omn-go-core.css` holds
+  each color value of the application: `--omn-light-<token>` and `--omn-dark-<token>`.
+  The theme maps below it give each token a palette value. A rule uses a token and
+  never a color value. `TestColorValuesLiveOnlyInThePalette` and
+  `TestDarkMapsAreTheSame` hold this. The one exception is `omn-go-compat.js`. The
+  theme is CSS only. It uses `data-theme` on `<html>` with a `prefers-color-scheme`
+  fallback.
 * **Module pattern.** Use an IIFE with an explicit `window.*` export.
 * **A control names its work in `data-action`.** Write no inline `onclick` in a
   template. Call `OMN.action('name', fn)` in a script, and put

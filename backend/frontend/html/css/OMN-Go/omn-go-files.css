@@ -44,14 +44,7 @@
 
 .files-card-served { background: var(--start-bookmarks-bg); }
 
-.files-card-source { background: #4c6b8a; }
-
-:root[data-theme="dark"] .files-card-source { background: #3f5a75; }
-
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]):not([data-theme="dark"]) .files-card-source,
-    :root[data-theme="auto"] .files-card-source { background: #3f5a75; }
-}
+.files-card-source { background: var(--files-source-bg); }
 
 .files-card-icon {
     font-size: 34px;
@@ -243,7 +236,7 @@
 }
 
 .files-edit:hover {
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
     border-color: var(--accent);
 }

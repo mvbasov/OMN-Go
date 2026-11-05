@@ -133,9 +133,9 @@
 
             // The header console button is hidden while the header is folded
             // (the default). This footer dot is always visible, so it tells
-            // the user that console messages exist without unfolding. It is
-            // the same orange as the console button (#ff9800) and lives in
-            // the page footer (#status), added by the template.
+            // the user that console messages exist without unfolding. It has
+            // the color of the console button and lives in the page footer
+            // (#status), added by the template.
             function updateConsoleFooterDot() {
                 var fd = document.getElementById('omn-go-console-footer-dot');
                 if (!fd) return;
@@ -164,11 +164,9 @@
 
                 if (logsContainer) {
                     const msg = document.createElement('div');
-                    msg.style.marginBottom = '4px';
-                    msg.style.paddingBottom = '4px';
-                    msg.style.borderBottom = '1px solid #333';
-                    const color = type === 'error' ? '#ff5555' : type === 'warn' ? '#ffb86c' : '#f8f8f2';
-                    msg.style.color = color;
+                    // The colors are tokens of omn-go-core.css.
+                    msg.className = 'console-line' +
+                        (type === 'error' ? ' console-line-error' : type === 'warn' ? ' console-line-warn' : '');
 
                     const text = Array.from(args).map(a => {
                         try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }

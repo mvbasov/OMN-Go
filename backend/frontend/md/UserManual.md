@@ -1034,10 +1034,10 @@ To open a file, use its edit link. Example: `[My styles](/css/omn-go-custom.css?
 
 OMN-Go writes the two files one time. Each file gets a comment that says what the file is for. After that the files are yours. An update keeps your version. Git synchronization copies the files to your other devices.
 
-To change one color everywhere, set the design token in your stylesheet. The tokens are at the top of `css/OMN-Go/omn-go-core.css`:
+To change one color everywhere, set its palette value in your stylesheet. The palette is at the top of `css/OMN-Go/omn-go-core.css`. Each color has a light value and a dark value:
 
 ```
-:root { --accent: #8e44ad; }
+:root { --omn-light-accent: #8e44ad; --omn-dark-accent: #c39bd3; }
 ```
 
 Put your code in a block scope, as in a note script (see [Scripting Rules](ScriptRules)). A `var` at the top level of the file becomes a global name on each page.
