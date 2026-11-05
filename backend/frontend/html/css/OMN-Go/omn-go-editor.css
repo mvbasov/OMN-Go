@@ -4,35 +4,35 @@
 html, body { height: 100%; margin: 0; }
 body {
     display: flex; flex-direction: column;
-    background: var(--bg); color: var(--text);
+    background: var(--omn-bg); color: var(--omn-text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .omn-editor-bar {
     display: flex; align-items: center; gap: 6px;
     padding: 6px 10px;
-    background: var(--bg-band);
-    border-bottom: 1px solid var(--border);
+    background: var(--omn-bg-band);
+    border-bottom: 1px solid var(--omn-border);
     flex-wrap: wrap;
 }
 .omn-editor-spacer { flex: 1 1 auto; }
 .omn-editor-bar button {
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--bg-surface); color: var(--text);
-    border: 1px solid var(--border-strong);
+    background: var(--omn-bg-surface); color: var(--omn-text);
+    border: 1px solid var(--omn-border-strong);
     border-radius: 4px; cursor: pointer;
     padding: 4px 8px; line-height: 1;
 }
-.omn-editor-bar button:hover { background: var(--bg-hover); }
-.omn-editor-bar button.active {
-    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+.omn-editor-bar button:hover { background: var(--omn-bg-hover); }
+.omn-editor-bar button.omn-active {
+    background: var(--omn-accent); color: var(--omn-on-accent); border-color: var(--omn-accent);
 }
 .omn-editor-bar button:disabled { opacity: 0.4; cursor: default; }
-.omn-editor-bar button:disabled:hover { background: var(--bg-surface); }
+.omn-editor-bar button:disabled:hover { background: var(--omn-bg-surface); }
 .omn-editor-bar .material-icons { font-size: 20px; }
 .omn-editor-tools { display: inline-flex; gap: 4px; align-items: center; }
 .omn-editor-tools::after {
     content: ""; width: 1px; align-self: stretch;
-    background: var(--border); margin: 0 4px;
+    background: var(--omn-border); margin: 0 4px;
 }
 /* -- Find / replace bar -------------------------------------
    A block between the toolbar and the text, so opening it pushes
@@ -41,8 +41,8 @@ body {
 .omn-editor-find {
     display: flex; flex-direction: column; gap: 4px;
     padding: 6px 8px;
-    background: var(--bg-band);
-    border-bottom: 1px solid var(--border);
+    background: var(--omn-bg-band);
+    border-bottom: 1px solid var(--omn-border);
 }
 .omn-editor-find[hidden] { display: none; }
 .omn-editor-find-row {
@@ -52,24 +52,24 @@ body {
 .omn-editor-find input {
     flex: 1 1 8em; min-width: 6em;
     padding: 4px 6px;
-    background: var(--bg-surface); color: var(--text);
-    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--omn-bg-surface); color: var(--omn-text);
+    border: 1px solid var(--omn-border); border-radius: 4px;
     font-family: inherit; font-size: 13px;
 }
-.omn-editor-find input:focus { outline: 1px solid var(--accent); }
+.omn-editor-find input:focus { outline: 1px solid var(--omn-accent); }
 /* A query that cannot compile: said with color as well as words,
    because the count text is small and easy to miss mid-typing. */
-.omn-editor-find input.is-invalid { border-color: var(--danger); }
+.omn-editor-find input.omn-is-invalid { border-color: var(--omn-danger); }
 .omn-editor-find button {
     display: inline-flex; align-items: center; justify-content: center;
-    background: var(--bg-surface); color: var(--text);
-    border: 1px solid var(--border-strong);
+    background: var(--omn-bg-surface); color: var(--omn-text);
+    border: 1px solid var(--omn-border-strong);
     border-radius: 4px; cursor: pointer;
     padding: 4px 8px; line-height: 1;
 }
-.omn-editor-find button:hover { background: var(--bg-hover); }
-.omn-editor-find button.active {
-    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+.omn-editor-find button:hover { background: var(--omn-bg-hover); }
+.omn-editor-find button.omn-active {
+    background: var(--omn-accent); color: var(--omn-on-accent); border-color: var(--omn-accent);
 }
 .omn-editor-find .material-icons { font-size: 20px; }
 /* The three mode flags are labelled with text, not icons - "Aa",
@@ -80,18 +80,18 @@ body {
 }
 .omn-find-word { font-size: 12px; }
 .omn-editor-find-count {
-    font-size: 12px; color: var(--text-muted);
+    font-size: 12px; color: var(--omn-text-muted);
     min-width: 5em; text-align: right; white-space: nowrap;
 }
 /* Keeps the replace field aligned under the find field despite the
    chevron button occupying the first slot of the row above. */
 .omn-find-chevron-space { width: 30px; flex: 0 0 auto; }
 
-#editorSave { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-#editorSave:hover { background: var(--accent); color: var(--on-accent); }
+#omn-editor-save { border-color: var(--omn-accent); color: var(--omn-accent); font-weight: 600; }
+#omn-editor-save:hover { background: var(--omn-accent); color: var(--omn-on-accent); }
 /* Editing area: a horizontal row of [line-number gutter][textarea].
    The gutter shows only when line numbers are on AND word wrap is
-   off (body.ln-on) - under wrapping the two can't stay aligned, so
+   off (body.omn-ln-on) - under wrapping the two can't stay aligned, so
    the toggle is forced off while wrapping. The gutter's font-size,
    line-height and top padding must match the textarea's exactly or
    the numbers drift. */
@@ -103,36 +103,36 @@ body {
     text-align: right; white-space: pre;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 14px; line-height: 1.5;
-    color: var(--text-dim); background: var(--bg-band);
-    border-right: 1px solid var(--border);
+    color: var(--omn-text-dim); background: var(--omn-bg-band);
+    border-right: 1px solid var(--omn-border);
     user-select: none; -webkit-user-select: none;
 }
-body.ln-on .omn-editor-gutter { display: block; }
+body.omn-ln-on .omn-editor-gutter { display: block; }
 /* The pane carries the surface color so the textarea above it can be
    transparent, letting the mirror's marks show through. */
 .omn-editor-pane {
     position: relative; display: flex;
     flex: 1 1 auto; min-width: 0;
-    background: var(--bg-surface);
+    background: var(--omn-bg-surface);
 }
-.omn-editor #editor {
+.omn-editor #omn-editor-text {
     display: block; flex: 1 1 auto; min-width: 0;
     box-sizing: border-box; border: none; outline: none;
     padding: 12px 14px; margin: 0; resize: none;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 14px; line-height: 1.5; tab-size: 4;
     white-space: pre-wrap; overflow-x: hidden;
-    background: transparent; color: var(--text);
+    background: transparent; color: var(--omn-text);
     /* Positioned so it paints ABOVE the absolutely-positioned mirror:
        without this the mirror would cover the text being edited. */
     position: relative; z-index: 1;
 }
 /* Word wrap off: don't wrap, scroll horizontally instead. */
-.omn-editor #editor.nowrap { white-space: pre; overflow-x: auto; }
+.omn-editor #omn-editor-text.omn-nowrap { white-space: pre; overflow-x: auto; }
 
 /* -- Find match mirror --
-   Same box, same font, same wrapping as #editor; text in invisible ink
-   so only the <mark> backgrounds are seen. Any divergence from #editor
+   Same box, same font, same wrapping as #omn-editor-text; text in invisible ink
+   so only the <mark> backgrounds are seen. Any divergence from #omn-editor-text
    above shows up as highlights sliding off the words they mark. */
 .omn-editor-mirror {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -147,39 +147,39 @@ body.ln-on .omn-editor-gutter { display: block; }
     pointer-events: none;
     user-select: none; -webkit-user-select: none;
 }
-.omn-editor-mirror.nowrap { white-space: pre; }
+.omn-editor-mirror.omn-nowrap { white-space: pre; }
 .omn-editor-mirror mark {
     color: transparent;
-    background: var(--search-hit-bg);
+    background: var(--omn-search-hit-bg);
     border-radius: 2px;
 }
 /* The one the counter is pointing at. A ring rather than a different
    color, so it reads as "this one of them", not "a different kind". */
-.omn-editor-mirror mark.is-current {
-    outline: 2px solid var(--accent);
+.omn-editor-mirror mark.omn-is-current {
+    outline: 2px solid var(--omn-accent);
     outline-offset: 1px;
 }
 .omn-editor-status {
     display: flex; align-items: center; gap: 8px;
     padding: 4px 12px; font-size: 12px;
-    background: var(--bg-band); border-top: 1px solid var(--border);
-    color: var(--text-faint); min-height: 1.2em;
+    background: var(--omn-bg-band); border-top: 1px solid var(--omn-border);
+    color: var(--omn-text-faint); min-height: 1.2em;
 }
 /* File name (left), shown persistently; transient Loading/Saving/
    error text reuses this span. Unsaved state is the dot, not text. */
-#editorStatus {
+#omn-editor-status {
     flex: 1 1 auto; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
-.editor-status-error { color: var(--state-alert); }
-.editor-status-ok    { color: var(--state-ok); }
+.omn-editor-status-error { color: var(--omn-state-alert); }
+.omn-editor-status-ok    { color: var(--omn-state-ok); }
 /* State dot at the right: green = saved, red = unsaved changes.
    Pure CSS circle (border-radius:50%), no image asset. */
 .omn-editor-dot {
     flex: 0 0 auto; width: 10px; height: 10px;
-    border-radius: 50%; background: var(--text-dim);
+    border-radius: 50%; background: var(--omn-text-dim);
 }
-.omn-editor-dot.clean   { background: var(--state-ok); }
-.omn-editor-dot.dirty   { background: var(--state-alert); }
-.omn-editor-dot.loading { background: var(--text-dim); }
-.omn-editor-dot.error   { background: var(--state-alert); }
+.omn-editor-dot.omn-clean   { background: var(--omn-state-ok); }
+.omn-editor-dot.omn-dirty   { background: var(--omn-state-alert); }
+.omn-editor-dot.omn-loading { background: var(--omn-text-dim); }
+.omn-editor-dot.omn-error   { background: var(--omn-state-alert); }

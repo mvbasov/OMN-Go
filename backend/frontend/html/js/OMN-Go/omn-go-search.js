@@ -126,10 +126,10 @@ if (window.location.protocol !== 'file:') {
                     // about which one to press.
                     '<button type="button" class="omn-search-go" ' +
                             'title="Search (↵)" aria-label="Search">' +
-                      '<i class="material-icons icon-sm">search</i>' +
+                      '<i class="material-icons omn-icon-sm">search</i>' +
                     '</button>' +
                     '<button type="button" class="omn-search-close" aria-label="Close">' +
-                      '<i class="material-icons icon-sm">close</i>' +
+                      '<i class="material-icons omn-icon-sm">close</i>' +
                     '</button>' +
                   '</div>' +
                   // The wait, on the line under the field that causes it. It
@@ -191,7 +191,7 @@ if (window.location.protocol !== 'file:') {
 
             function chip(value, label) {
                 var el = document.createElement('span');
-                el.className = 'omn-search-chip' + (showing === value ? ' is-active' : '');
+                el.className = 'omn-search-chip' + (showing === value ? ' omn-is-active' : '');
                 el.textContent = label;
                 if (globalAvailable()) {
                     el.setAttribute('role', 'button');
@@ -367,7 +367,7 @@ if (window.location.protocol !== 'file:') {
         function showProgress(on) {
             if (!progressEl) return;
             progressEl.hidden = !on;
-            progressEl.classList.toggle('indeterminate', !!on);
+            progressEl.classList.toggle('omn-indeterminate', !!on);
         }
 
         // Typing changes no results. It keeps two things honest, and both
@@ -709,9 +709,9 @@ if (window.location.protocol !== 'file:') {
             if (!rows.length) return;
             if (i < 0) i = 0;
             if (i >= rows.length) i = rows.length - 1;
-            if (active >= 0 && rows[active]) rows[active].classList.remove('is-active');
+            if (active >= 0 && rows[active]) rows[active].classList.remove('omn-is-active');
             active = i;
-            rows[active].classList.add('is-active');
+            rows[active].classList.add('omn-is-active');
             if (rows[active].scrollIntoView) {
                 rows[active].scrollIntoView({ block: 'nearest' });
             }

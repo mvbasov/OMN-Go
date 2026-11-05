@@ -62,7 +62,7 @@ function shellScripts() {
 // newDomPage answers a page that is ready for a test.
 //
 // opts.body is the markup of the body. The default is shellBody().
-// opts.preview is the markup of the note, inside #preview.
+// opts.preview is the markup of the note, inside #omn-preview.
 // opts.protocol is "http:" or "file:". The default is "http:".
 // opts.note is the name of the note, with no extension. The default is
 // "Note". The page gets the variables that the script block of index.html
@@ -349,7 +349,7 @@ function newDomPage(opts) {
     // element.
     h.hidden = function (selector) {
         const el = h.$(selector);
-        return el.classList.contains('hidden') || el.style.display === 'none';
+        return el.classList.contains('omn-hidden') || el.style.display === 'none';
     };
     return h;
 }
@@ -468,7 +468,7 @@ function bookmarkPage(bookmarks, opts) {
     h.page.localStorage = h.storage;
     // Bookmarker.css hides the tag cloud until a style shows it.
     h.page.getComputedStyle = function (el) {
-        return { display: el.style.display || (el.id === 'tagsCloud' ? 'none' : 'block') };
+        return { display: el.style.display || (el.id === 'omn-bm-tags-cloud' ? 'none' : 'block') };
     };
     return h.load(shellScripts().concat(['Bookmarker.js'])).ready();
 }

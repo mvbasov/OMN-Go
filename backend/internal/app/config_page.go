@@ -74,10 +74,10 @@ func renderLogTagBoxes(values map[string]string) string {
 			label = string(tag)
 		}
 		checked := values[config.PlaceholderName("log_tags_"+string(tag))]
-		b.WriteString(`                <div class="config-checkbox-row">` + "\n")
+		b.WriteString(`                <div class="omn-config-checkbox-row">` + "\n")
 		b.WriteString(`                    <input type="checkbox" name="log_tags" value="` +
 			render.EscapeHTML(string(tag)) + `" ` + checked + ` />` + "\n")
-		b.WriteString(`                    <label class="config-label"><code>` +
+		b.WriteString(`                    <label class="omn-config-label"><code>` +
 			render.EscapeHTML(string(tag)) + `</code> - ` + render.EscapeHTML(label) + `</label>` + "\n")
 		b.WriteString("                </div>\n")
 	}

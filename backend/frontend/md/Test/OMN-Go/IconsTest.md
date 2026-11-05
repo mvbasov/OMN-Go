@@ -12,17 +12,17 @@ Bundled Material Icons (no network needed) — `<i class="material-icons">name</
   gap: 0.75rem;
   text-align: center;
 } .icons-test-item {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-card);
+  background: var(--omn-bg-surface);
+  border: 1px solid var(--omn-border-card);
   border-radius: 8px;
   padding: 0.6rem 0.25rem;
 } .icons-test-item .material-icons {
   font-size: 1.8rem;
-  color: var(--accent);
+  color: var(--omn-accent);
 } .icons-test-item .icons-test-name {
   display: block;
   font-size: 0.75em;
-  color: var(--text-muted);
+  color: var(--omn-text-muted);
   margin-top: 0.25rem;
 }
 </style>

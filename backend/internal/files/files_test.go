@@ -100,7 +100,7 @@ func TestFilesPage_FirstScreenIsThreeTrees(t *testing.T) {
 	if strings.Contains(body, "mine.js") {
 		t.Error("the first screen listed a file; it carries three buttons only")
 	}
-	if strings.Contains(body, `class="files-row"`) {
+	if strings.Contains(body, `class="omn-files-row"`) {
 		t.Error("the first screen carries a listing row")
 	}
 }
@@ -198,7 +198,7 @@ func TestFilesCrumbs_HaveNoDoubledSlash(t *testing.T) {
 	if strings.Contains(body, "html/ / js/") || strings.Contains(body, "html//js/") {
 		t.Error("the crumb shows a doubled slash")
 	}
-	if !strings.Contains(body, `<span class="files-crumb-here">js/</span>`) {
+	if !strings.Contains(body, `<span class="omn-files-crumb-here">js/</span>`) {
 		t.Error("the last crumb is not the directory in view")
 	}
 
@@ -357,7 +357,7 @@ func TestFilesPage_TxtMirror(t *testing.T) {
 	touch(t, filepath.Join(a.StorageDir, "html", "behind.txt"), old)
 
 	body := served(t, a, "")
-	if strings.Contains(body, "copy of md/log.txt") || strings.Contains(body, "log.txt</a></span><span class=\"files-state") {
+	if strings.Contains(body, "copy of md/log.txt") || strings.Contains(body, "log.txt</a></span><span class=\"omn-files-state") {
 		t.Error("a .txt pair that agrees still carries a word")
 	}
 	if row := rowOfName(t, a, filesTreeServed, "", "log.txt"); row.State != "" {
@@ -491,7 +491,7 @@ func TestFilesPage_TreesHoldTheRightThings(t *testing.T) {
 	if strings.Contains(bundled, "Log.md") {
 		t.Error("a note of the device reached the Bundled tree")
 	}
-	if strings.Contains(bundled, `class="files-edit"`) {
+	if strings.Contains(bundled, `class="omn-files-edit"`) {
 		t.Error("the Bundled tree offers an edit link; an edit operates on the copy " +
 			"on the device, and that copy has a row in another tree")
 	}
@@ -513,7 +513,7 @@ func TestFilesPage_TreesHoldTheRightThings(t *testing.T) {
 func TestFilesPage_BundledSpellsOutAppOwned(t *testing.T) {
 	a := newTestApp(t)
 	body := getFilesPage(t, a, "tree=bundled&dir=js%2FOMN-Go%2F").Body.String()
-	if !strings.Contains(body, `<span class="files-facts">`) {
+	if !strings.Contains(body, `<span class="omn-files-facts">`) {
 		t.Fatal("no facts line in the Bundled tree")
 	}
 	if !strings.Contains(body, ">app-owned<") {
@@ -728,17 +728,17 @@ func TestFilesPage_RowIsTwoLines(t *testing.T) {
 	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// extracted")
 
 	body := served(t, a, "js%2FOMN-Go%2F")
-	if !strings.Contains(body, `<span class="files-name">`) {
+	if !strings.Contains(body, `<span class="omn-files-name">`) {
 		t.Error("a row has no name element")
 	}
-	if !strings.Contains(body, `<span class="files-facts">`) {
+	if !strings.Contains(body, `<span class="omn-files-facts">`) {
 		t.Error("a row has no facts line")
 	}
-	if !strings.Contains(body, `class="material-icons files-kind"`) {
+	if !strings.Contains(body, `class="material-icons omn-files-kind"`) {
 		t.Error("a row carries no type mark")
 	}
 	// The row shows the date and keeps the full time in the title.
-	if strings.Count(body, `class="files-meta" title="`) == 0 {
+	if strings.Count(body, `class="omn-files-meta" title="`) == 0 {
 		t.Error("a row on the device does not carry the full time in a title")
 	}
 }
@@ -805,7 +805,7 @@ func TestFilesPage_LegendIsFoldedAndScoped(t *testing.T) {
 	// One that does uses a folded <details>, and it must not be open.
 	writeDiskFile(t, a, "js/OMN-Go/omn-go-core.js", "// edited")
 	loud := served(t, a, "js%2F")
-	if !strings.Contains(loud, `<details class="files-legend"><summary>What the words mean</summary>`) {
+	if !strings.Contains(loud, `<details class="omn-files-legend"><summary>What the words mean</summary>`) {
 		t.Error("the key is not a folded details element")
 	}
 	if strings.Contains(loud, "<details open") {
@@ -919,9 +919,9 @@ func TestFilesPage_HostileDirNeverEscapes(t *testing.T) {
 	}
 
 	// The two that name nothing list nothing at all - not a file row, not a
-	// directory row. "files-row" is the class every row of either kind carries.
+	// directory row. "omn-files-row" is the class every row of either kind carries.
 	for _, q := range []string{"%2Fetc%2Fpasswd", "nope%2F"} {
-		if body := served(t, a, q); strings.Contains(body, "files-row") {
+		if body := served(t, a, q); strings.Contains(body, "omn-files-row") {
 			t.Errorf("%s listed something; it names no directory in the tree", q)
 		}
 	}
@@ -1011,7 +1011,7 @@ func TestFilesPage_ScalesToABigDirectory(t *testing.T) {
 	}
 	// One list now, not two, so the page carries one capped list of rows plus
 	// the directory rows of the tree.
-	if n := strings.Count(body, `class="files-row"`); n > filesDirLimit+40 {
+	if n := strings.Count(body, `class="omn-files-row"`); n > filesDirLimit+40 {
 		t.Errorf("%d file rows, want at most %d", n, filesDirLimit+40)
 	}
 	if len(body) > 256*1024 {

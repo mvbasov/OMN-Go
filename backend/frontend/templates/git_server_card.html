@@ -1,13 +1,13 @@
-<div class="git-server-card">
-    <label class="git-server-label">
+<div class="omn-git-server-card">
+    <label class="omn-git-server-label">
         <input type="radio" name="active_git_index" value="%%INDEX%%" %%ACTIVE_CHECKED%%>
         Use as Active Server (Slot %%SLOT%%)
     </label>
-    <div class="git-server-grid">
-        <input type="text" id="git_name_%%INDEX%%" name="git_name_%%INDEX%%" value="%%NAME%%" placeholder="Server Name" class="git-server-input">
-        <input type="text" id="git_url_%%INDEX%%" name="git_url_%%INDEX%%" value="%%URL%%" placeholder="Git URL (git@...)" class="git-server-input">
-        <textarea id="git_key_%%INDEX%%" name="git_key_%%INDEX%%" data-secret="git_key_%%INDEX%%" placeholder="SSH Private Key (unchanged)" class="git-server-input git-server-key"></textarea>
-        <input type="password" id="git_pass_%%INDEX%%" name="git_pass_%%INDEX%%" value="" data-secret="git_pass_%%INDEX%%" autocomplete="new-password" placeholder="Key Password (unchanged)" class="git-server-input">
+    <div class="omn-git-server-grid">
+        <input type="text" id="omn-git-name-%%INDEX%%" name="git_name_%%INDEX%%" value="%%NAME%%" placeholder="Server Name" class="omn-git-server-input">
+        <input type="text" id="omn-git-url-%%INDEX%%" name="git_url_%%INDEX%%" value="%%URL%%" placeholder="Git URL (git@...)" class="omn-git-server-input">
+        <textarea id="omn-git-key-%%INDEX%%" name="git_key_%%INDEX%%" data-secret="git_key_%%INDEX%%" placeholder="SSH Private Key (unchanged)" class="omn-git-server-input omn-git-server-key"></textarea>
+        <input type="password" id="omn-git-pass-%%INDEX%%" name="git_pass_%%INDEX%%" value="" data-secret="git_pass_%%INDEX%%" autocomplete="new-password" placeholder="Key Password (unchanged)" class="omn-git-server-input">
     </div>
-    <span class="config-hint git-server-hostkey">%%HOST_KEY%%</span>
+    <span class="omn-config-hint omn-git-server-hostkey">%%HOST_KEY%%</span>
 </div>

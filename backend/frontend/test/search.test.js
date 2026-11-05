@@ -119,7 +119,7 @@ test('Enter sends the query with the name of the note, and the rows show the lin
     assert.deepStrictEqual(marks.map(function (m) { return m.textContent; }), ['alpha']);
     assert.strictEqual(rows(h)[0].querySelector('.omn-search-text').textContent, 'The alpha line of the note.');
     assert.ok(status(h).indexOf('2 matching lines') === 0, status(h));
-    assert.strictEqual(rows(h)[0].classList.contains('is-active'), true);
+    assert.strictEqual(rows(h)[0].classList.contains('omn-is-active'), true);
 });
 
 test('the magnifier sends the query too, and a short query sends nothing', async () => {
@@ -140,7 +140,7 @@ test('the arrow keys move the active row, and they stop at the ends', async () =
     h.key('.omn-search-input', 'Enter');
     await h.settle();
     const active = function () {
-        return rows(h).map(function (r) { return r.classList.contains('is-active'); });
+        return rows(h).map(function (r) { return r.classList.contains('omn-is-active'); });
     };
     h.key('.omn-search-input', 'ArrowUp');
     assert.deepStrictEqual(active(), [true, false]);
@@ -162,10 +162,10 @@ test('Enter on a row of this page marks the words and closes the dialog', async 
     assert.strictEqual(h.$('.omn-search-overlay').hidden, true);
     // The second Enter is a choice, and not a second search.
     assert.strictEqual(searches(h).length, 1);
-    const marks = h.document.querySelectorAll('#preview mark');
+    const marks = h.document.querySelectorAll('#omn-preview mark');
     assert.deepStrictEqual(marks.map(function (m) { return m.textContent; }), ['alpha', 'alpha']);
     // The chosen line is the second one, and the page went to it.
-    const current = h.document.querySelectorAll('#preview .omn-search-hit-current');
+    const current = h.document.querySelectorAll('#omn-preview .omn-search-hit-current');
     assert.strictEqual(current.length, 1);
     assert.strictEqual(current[0].closest('p').textContent, 'Another alpha here, and a beta.');
 });
@@ -274,7 +274,7 @@ test('the scope chips send the scope, and the same chip sends nothing', async ()
     chip('This page').click();
     await h.settle();
     assert.ok(searches(h)[1].endsWith('&scope=page'), searches(h)[1]);
-    assert.strictEqual(chip('This page').classList.contains('is-active'), true);
+    assert.strictEqual(chip('This page').classList.contains('omn-is-active'), true);
     assert.strictEqual(h.$('.omn-search-input').placeholder, 'Search this page');
 
     chip('This page').click();
@@ -304,7 +304,7 @@ test('a refusal of the server shows its text and goes back to this page', async 
     h.key('.omn-search-input', 'Enter');
     await h.settle();
     assert.strictEqual(status(h), 'The search index is not ready');
-    assert.strictEqual(h.$('.omn-search-chip.is-active').textContent, 'This page');
+    assert.strictEqual(h.$('.omn-search-chip.omn-is-active').textContent, 'This page');
 });
 
 test('Escape, the close button and a press outside the card close the dialog', async () => {

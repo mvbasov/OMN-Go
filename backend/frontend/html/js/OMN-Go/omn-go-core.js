@@ -23,7 +23,7 @@
 // site in this file reads it. See window.onload below.
 //
 // A SECOND call stood inside a MutationObserver. That observer watched
-// #preview for a change of the DOM, and the render of KaTeX itself makes
+// #omn-preview for a change of the DOM, and the render of KaTeX itself makes
 // such a change. It replaces the text "$...$" with the markup
 // <span class="katex">...</span>.
 //
@@ -32,7 +32,7 @@
 // rendered math with the same delimiter pattern. That is what damaged
 // the plain text nearby.
 //
-// The server sets the content of #preview one time, and no code of this
+// The server sets the content of #omn-preview one time, and no code of this
 // file changes it after that. The observer therefore had no work at all.
 // It is REMOVED below and not repaired. A mechanism that feeds itself
 // and has no work to do is a risk with no gain.
@@ -142,10 +142,10 @@ window.OMNProgress = (function() {
               '<div class="omn-progress-head">' +
                 '<span class="omn-progress-title"></span>' +
                 '<button type="button" class="omn-progress-close" aria-label="Hide">' +
-                  '<i class="material-icons icon-sm">close</i>' +
+                  '<i class="material-icons omn-icon-sm">close</i>' +
                 '</button>' +
               '</div>' +
-              '<div class="omn-progress-track indeterminate"><div class="omn-progress-fill"></div></div>' +
+              '<div class="omn-progress-track omn-indeterminate"><div class="omn-progress-fill"></div></div>' +
               '<div class="omn-progress-stage"></div>' +
               '<div class="omn-progress-detail"></div>' +
             '</div>';
@@ -187,12 +187,12 @@ window.OMNProgress = (function() {
         percent: function(n) {
             if (!trackEl) return;
             if (n === null || n === undefined || isNaN(n)) {
-                trackEl.classList.add('indeterminate');
+                trackEl.classList.add('omn-indeterminate');
                 fillEl.style.width = '';
                 return;
             }
             n = Math.max(0, Math.min(100, Number(n)));
-            trackEl.classList.remove('indeterminate');
+            trackEl.classList.remove('omn-indeterminate');
             fillEl.style.width = n + '%';
         },
         hide: function() {
@@ -220,20 +220,20 @@ if (typeof currentNote === 'undefined') {
     currentNote = (window.location.pathname.split('/').pop() || 'Welcome').replace(/\.html$/, '').replace(/\.md$/, '');
 }
 
-        // applyPlatformUI shows the .android-only controls. omn-go-core.css
+        // applyPlatformUI shows the .omn-android-only controls. omn-go-core.css
         // hides them. The server sets IS_ANDROID through COND_SCRIPTS in
         // internal/render/pages.go, the same way as IS_MARKDOWN. The function
         // runs at load, and it needs no login and no session.
         //
         // Set "flex", and not "". An empty value removes the inline style,
         // and the cascade decides again. The CSS hides these controls with a
-        // selector that wins inside .header-actions, thus "" keeps the
-        // button hidden on Android too. ".header-actions a, .header-actions
+        // selector that wins inside .omn-header-actions, thus "" keeps the
+        // button hidden on Android too. ".omn-header-actions a, .omn-header-actions
         // button" gives "flex" to each other control of that bar, thus the
         // button matches its neighbors.
         function applyPlatformUI() {
             if (typeof IS_ANDROID !== 'undefined' && IS_ANDROID) {
-                document.querySelectorAll('.android-only').forEach(el => {
+                document.querySelectorAll('.omn-android-only').forEach(el => {
                     el.style.display = 'flex';
                 });
             }
@@ -242,14 +242,14 @@ if (typeof currentNote === 'undefined') {
         // Standalone or offline mode. When the compiled page is opened
         // directly from disk (file://) there is no server. Hide the header
         // controls that work only against the backend: create, quick-note,
-        // bookmark, sync, settings and edit, all marked .server-only in
+        // bookmark, sync, settings and edit, all marked .omn-server-only in
         // index.html. Home, the metadata toggle and Refresh stay, because
         // they work offline. Refresh falls back to a plain reload, see
         // refreshPage. This runs on load, and the header is collapsed by
         // default, thus nothing flashes.
         function applyOfflineUI() {
             if (window.location.protocol === 'file:') {
-                document.querySelectorAll('.server-only').forEach(function (el) {
+                document.querySelectorAll('.omn-server-only').forEach(function (el) {
                     el.style.display = 'none';
                 });
             }
@@ -268,7 +268,7 @@ if (typeof currentNote === 'undefined') {
 
         // Asks the native shell (WebViewSetup.shouldOverrideUrlLoading, see
         // the omngo://edit precedent) to pin a home-screen shortcut to the
-        // current note. The .android-only button is the only way in, and
+        // current note. The .omn-android-only button is the only way in, and
         // applyPlatformUI() reveals it inside the Android app only. There
         // is no equivalent on desktop. "name" is the on-disk page name, and
         // MainActivity needs it to reopen the right note. "title" is the
@@ -285,14 +285,14 @@ if (typeof currentNote === 'undefined') {
 // The title of the page opens and closes the header. The arrow beside the
 // title shows the state.
 window.OMN.action('toggle-header', function () {
-    var header = document.getElementById('hidable_header');
-    var arrow = document.getElementById('title_arrow');
+    var header = document.getElementById('omn-hidable-header');
+    var arrow = document.getElementById('omn-title-arrow');
     if (!header) return;
-    if (header.classList.contains('hidden')) {
-        header.classList.remove('hidden');
+    if (header.classList.contains('omn-hidden')) {
+        header.classList.remove('omn-hidden');
         if (arrow) arrow.textContent = '\u2212';
     } else {
-        header.classList.add('hidden');
+        header.classList.add('omn-hidden');
         if (arrow) arrow.textContent = '+';
     }
 });
@@ -317,11 +317,11 @@ window.OMN.action('edit-page', function () {
 // adds each modal when it serves a page.
 window.OMN.action('toggle-panel', function (el) {
     var p = document.getElementById(el.getAttribute('data-arg'));
-    if (p) p.classList.toggle('hidden');
+    if (p) p.classList.toggle('omn-hidden');
 });
 window.OMN.action('hide-panel', function (el) {
     var p = document.getElementById(el.getAttribute('data-arg'));
-    if (p) p.classList.add('hidden');
+    if (p) p.classList.add('omn-hidden');
 });
 
 // addEventListener, and NOT "window.onload = ...". A classic OMN note
@@ -346,17 +346,17 @@ window.addEventListener('load', () => {
             // evaluateJavascript in MainActivity.onNewIntent - this only
             // covers the cold-start case.
             if (params.has('quicknote')) {
-                const qp = document.getElementById('quickPanel');
-                if (qp) qp.classList.remove('hidden');
+                const qp = document.getElementById('omn-quick-panel');
+                if (qp) qp.classList.remove('omn-hidden');
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             }
             if (window.hljs) {
-                document.querySelectorAll('#preview pre code').forEach((block) => {
+                document.querySelectorAll('#omn-preview pre code').forEach((block) => {
                     hljs.highlightElement(block);
                 });
             }
             if (typeof OMN_GO_KATEX !== 'undefined' && OMN_GO_KATEX && window.renderMathInElement) {
-                omnGoRenderMath(document.getElementById('preview') || document.body);
+                omnGoRenderMath(document.getElementById('omn-preview') || document.body);
             }
             // AFTER hljs and KaTeX, and never before. highlightElement
             // rebuilds the innerHTML of each "pre code". That used to
@@ -364,7 +364,7 @@ window.addEventListener('load', () => {
             // See the note above omnApplyArrivalHighlight.
             omnApplyArrivalHighlight();
             if (typeof currentNote !== 'undefined' && currentNote === 'Config') {
-                const tb = document.getElementById('toggleBtn');
+                const tb = document.getElementById('omn-toggle-btn');
                 if (tb) tb.style.display = 'none';
             }
             // Note: ?edit=true is now handled entirely on the server, which

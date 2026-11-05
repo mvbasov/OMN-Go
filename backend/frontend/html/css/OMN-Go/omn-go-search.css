@@ -8,7 +8,7 @@
 .omn-search-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--overlay-bg);
+    background: var(--omn-overlay-bg);
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -26,11 +26,11 @@
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    background: var(--bg-surface);
-    color: var(--text);
-    border: 1px solid var(--border-strong);
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border-strong);
     border-radius: 6px;
-    box-shadow: 0 8px 24px var(--shadow-strong);
+    box-shadow: 0 8px 24px var(--omn-shadow-strong);
     overflow: hidden;
 }
 
@@ -39,11 +39,11 @@
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--omn-border-soft);
 }
 
 /* The control that runs the search. Same glyph and same place as the submit
-   button of the results page (.search-page-submit), and styled from the same
+   button of the results page (.omn-search-page-submit), and styled from the same
    tokens, so the two read as one control in two places - only the shape
    differs, because this one sits in a row of round icon buttons rather than
    beside a full-width field. The dialog used to lead with a magnifier that
@@ -56,15 +56,15 @@
     width: 28px;
     height: 28px;
     padding: 0;
-    color: var(--on-accent);
-    background: var(--accent);
+    color: var(--omn-on-accent);
+    background: var(--omn-accent);
     border: none;
     border-radius: 50%;
     cursor: pointer;
 }
 
 .omn-search-go:hover {
-    background: var(--accent-hover);
+    background: var(--omn-accent-hover);
 }
 
 /* The search dialog's own wait. It carries .omn-progress-track and
@@ -88,7 +88,7 @@
     min-width: 0;
     padding: 6px 4px;
     font-size: 16px;             /* 16px stops iOS/WebView zooming on focus */
-    color: var(--text);
+    color: var(--omn-text);
     background: transparent;
     border: none;
     outline: none;
@@ -97,14 +97,14 @@
 .omn-search-close {
     flex: 0 0 auto;
     padding: 2px;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     background: none;
     border: none;
     cursor: pointer;
 }
 
 .omn-search-close:hover {
-    color: var(--text);
+    color: var(--omn-text);
 }
 
 .omn-search-scope {
@@ -112,25 +112,25 @@
     align-items: center;
     gap: 8px;
     padding: 6px 12px;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--omn-border-soft);
     font-size: 12px;
 }
 
 .omn-search-chip {
     padding: 2px 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 10px;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
 }
 
-.omn-search-chip.is-active {
-    color: var(--bg-surface);
-    background: var(--accent);
-    border-color: var(--accent);
+.omn-search-chip.omn-is-active {
+    color: var(--omn-bg-surface);
+    background: var(--omn-accent);
+    border-color: var(--omn-accent);
 }
 
 .omn-search-where {
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -145,17 +145,17 @@
     gap: 8px;
     padding: 8px 12px 4px;
     cursor: pointer;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--omn-border-soft);
 }
 
 .omn-search-doc:hover {
-    background: var(--bg-hover);
+    background: var(--omn-bg-hover);
 }
 
 .omn-search-doc-title {
     flex: 0 1 auto;
     font-weight: 600;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
     font-size: 13px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -165,7 +165,7 @@
 .omn-search-doc-path {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--text-dim);
+    color: var(--omn-text-dim);
     font-size: 11px;
     text-align: right;
     overflow: hidden;
@@ -175,7 +175,7 @@
 
 .omn-search-note {
     padding: 4px 12px 8px;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     font-size: 11px;
 }
 
@@ -186,12 +186,12 @@
 }
 
 .omn-search-chip[role="button"]:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--omn-accent);
+    color: var(--omn-accent);
 }
 
-.omn-search-chip.is-active[role="button"]:hover {
-    color: var(--bg-surface);
+.omn-search-chip.omn-is-active[role="button"]:hover {
+    color: var(--omn-bg-surface);
 }
 
 .omn-search-results {
@@ -208,19 +208,19 @@
     gap: 8px;
     padding: 7px 12px;
     cursor: pointer;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--omn-border-soft);
 }
 
 .omn-search-row:hover,
-.omn-search-row.is-active {
-    background: var(--bg-hover);
+.omn-search-row.omn-is-active {
+    background: var(--omn-bg-hover);
 }
 
 .omn-search-line {
     flex: 0 0 auto;
     min-width: 2.5em;
     text-align: right;
-    color: var(--text-dim);
+    color: var(--omn-text-dim);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
@@ -229,7 +229,7 @@
    in notes is a normal thing to search for. */
 .omn-search-ctx {
     flex: 0 0 auto;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     font-size: 11px;
     letter-spacing: -1px;
 }
@@ -245,9 +245,9 @@
 .omn-search-status {
     flex: 0 0 auto;
     padding: 7px 12px;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     font-size: 12px;
-    border-top: 1px solid var(--border-soft);
+    border-top: 1px solid var(--omn-border-soft);
 }
 
 /* "See all results", in the scope row rather than at the foot of the list.
@@ -262,7 +262,7 @@
     border: 1px solid transparent;
     border-radius: 10px;
     background: transparent;
-    color: var(--accent);
+    color: var(--omn-accent);
     font-size: 12px;
     font-weight: 600;
     font-family: inherit;
@@ -271,98 +271,98 @@
 }
 
 .omn-search-seeall:hover {
-    border-color: var(--border);
-    background: var(--bg-hover);
+    border-color: var(--omn-border);
+    background: var(--omn-bg-hover);
 }
 
 .omn-search-seeall:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--omn-accent);
     outline-offset: 1px;
 }
 
 /* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
    The shareable, JS-free counterpart to the dialog. Same match styling, laid
    out for reading rather than for speed. */
-.search-page {
+.omn-search-page {
     max-width: 900px;
 }
 
-.search-page-form {
+.omn-search-page-form {
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
 }
 
-.search-page-input {
+.omn-search-page-input {
     flex: 1 1 auto;
     min-width: 0;
     padding: 8px 10px;
     font-size: 16px;
-    color: var(--text);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    color: var(--omn-text);
+    background: var(--omn-bg-surface);
+    border: 1px solid var(--omn-border);
     border-radius: 4px;
 }
 
-.search-page-submit {
+.omn-search-page-submit {
     flex: 0 0 auto;
     padding: 6px 12px;
-    color: var(--on-accent);
-    background: var(--accent);
+    color: var(--omn-on-accent);
+    background: var(--omn-accent);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 
-.search-page-submit:hover {
-    background: var(--accent-hover);
+.omn-search-page-submit:hover {
+    background: var(--omn-accent-hover);
 }
 
-.search-page-summary {
-    color: var(--text-muted);
+.omn-search-page-summary {
+    color: var(--omn-text-muted);
     font-size: 13px;
     margin-bottom: 12px;
 }
 
-.search-page-note {
-    color: var(--text-faint);
+.omn-search-page-note {
+    color: var(--omn-text-faint);
 }
 
-.search-group {
+.omn-search-group {
     margin: 18px 0 8px;
     padding-bottom: 4px;
     font-size: 15px;
-    color: var(--text-heading);
-    border-bottom: 1px solid var(--border-soft);
+    color: var(--omn-text-heading);
+    border-bottom: 1px solid var(--omn-border-soft);
 }
 
-.search-group-count {
-    color: var(--text-dim);
+.omn-search-group-count {
+    color: var(--omn-text-dim);
     font-size: 12px;
     font-weight: normal;
 }
 
-.search-result {
+.omn-search-result {
     padding: 8px 0 10px;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--omn-border-soft);
 }
 
-.search-result-title {
+.omn-search-result-title {
     font-size: 15px;
     font-weight: 600;
 }
 
-.search-result-path {
-    color: var(--text-dim);
+.omn-search-result-path {
+    color: var(--omn-text-dim);
     font-size: 11px;
     margin-bottom: 4px;
 }
 
-.search-result-tags {
+.omn-search-result-tags {
     margin-bottom: 4px;
 }
 
-.search-snippet {
+.omn-search-snippet {
     display: flex;
     align-items: baseline;
     gap: 8px;
@@ -376,7 +376,7 @@
    blue underlined link: the <mark> on the matched word is the only color
    that belongs here. The hover band is the row's affordance, and it is the
    same one the search dialog gives its rows. */
-a.search-snippet {
+a.omn-search-snippet {
     color: inherit;
     text-decoration: none;
     border-radius: 3px;
@@ -384,93 +384,93 @@ a.search-snippet {
     margin: 0 -4px;
 }
 
-a.search-snippet:hover,
-a.search-snippet:focus-visible {
-    background: var(--bg-hover);
+a.omn-search-snippet:hover,
+a.omn-search-snippet:focus-visible {
+    background: var(--omn-bg-hover);
 }
 
-.search-snippet-line {
+.omn-search-snippet-line {
     flex: 0 0 auto;
     min-width: 3em;
     text-align: right;
-    color: var(--text-dim);
+    color: var(--omn-text-dim);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
 
-.search-snippet-ctx {
+.omn-search-snippet-ctx {
     flex: 0 0 auto;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     font-size: 11px;
     letter-spacing: -1px;
 }
 
-.search-snippet-text {
+.omn-search-snippet-text {
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.search-result-note,
-.search-empty-hint {
-    color: var(--text-faint);
+.omn-search-result-note,
+.omn-search-empty-hint {
+    color: var(--omn-text-faint);
     font-size: 12px;
 }
 
 /* The page you get when global search is off. It is not an error page - the
    address is legitimate and people link to it from their own notes - so it
    reads as an explanation with a way forward, not as a miss. */
-.search-page.is-disabled .search-page-form,
-.search-page.is-disabled .search-page-summary {
+.omn-search-page.omn-is-disabled .omn-search-page-form,
+.omn-search-page.omn-is-disabled .omn-search-page-summary {
     display: none;
 }
 
-.search-page-notice {
+.omn-search-page-notice {
     padding: 8px 0 4px 0;
     max-width: 46em;
 }
 
-.search-page-notice h2 {
+.omn-search-page-notice h2 {
     margin: 0 0 8px 0;
     font-size: 1.15rem;
 }
 
-.search-page-notice p {
+.omn-search-page-notice p {
     margin: 0 0 10px 0;
 }
 
 /* The one thing to do on this page, so it looks like a button rather than
    another sentence with an underline in it. */
-.search-page-cta {
+.omn-search-page-cta {
     display: inline-block;
     padding: 6px 12px;
-    border: 1px solid var(--accent);
+    border: 1px solid var(--omn-accent);
     border-radius: 4px;
-    color: var(--accent);
+    color: var(--omn-accent);
     text-decoration: none;
     font-weight: 600;
 }
 
-.search-page-cta:hover {
-    background: var(--accent);
-    color: var(--on-accent);
+.omn-search-page-cta:hover {
+    background: var(--omn-accent);
+    color: var(--omn-on-accent);
 }
 
-.search-page-notice .search-page-note {
+.omn-search-page-notice .omn-search-page-note {
     font-size: 0.9rem;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
 }
 
-.search-page-notice kbd {
+.omn-search-page-notice kbd {
     padding: 1px 4px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 3px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
     font-family: inherit;
     font-size: 0.85em;
 }
 
-.search-empty {
+.omn-search-empty {
     padding: 12px 0;
 }
 
@@ -487,22 +487,22 @@ a.search-snippet:focus-visible {
 /* The section a run of hits belongs to, on the results page. Sits above its
    snippets and indents them under it, so "which entry was this in" is answered
    by the shape of the list rather than by reading each line. */
-.search-section {
+.omn-search-section {
     margin: 6px 0 2px 0;
     font-size: 0.85rem;
     font-weight: 600;
     opacity: 0.85;
 }
 
-.search-section a {
+.omn-search-section a {
     text-decoration: none;
 }
 
-.search-section a:hover {
+.omn-search-section a:hover {
     text-decoration: underline;
 }
 
-.search-section + .search-snippet,
-.search-section ~ .search-snippet {
+.omn-search-section + .omn-search-snippet,
+.omn-search-section ~ .omn-search-snippet {
     margin-left: 10px;
 }

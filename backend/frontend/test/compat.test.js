@@ -18,14 +18,14 @@ const { Event } = require('./mini-dom.js');
 // loaded answers a page with this user agent after the script ran and the
 // document is ready.
 function loaded(userAgent) {
-    const h = newDomPage({ body: '<div id="mainUI">the page</div>' });
+    const h = newDomPage({ body: '<div id="omn-main-ui">the page</div>' });
     h.page.navigator.userAgent = userAgent;
     h.load(['omn-go-compat.js']);
     return h;
 }
 
 function notice(h) {
-    return h.document.getElementById('omnGoCompat');
+    return h.document.getElementById('omn-compat-bar');
 }
 
 const OLD = 'Mozilla/5.0 (Linux; Android 6.0; wv) AppleWebKit/537.36 Chrome/44.0.2403.119 Mobile Safari/537.36';
@@ -59,7 +59,7 @@ test('the notice shows one time, also when both load events run', () => {
     // ready sends DOMContentLoaded and then load. The script listens to
     // both, because a page of the cache can have sent the first one.
     h.ready();
-    assert.strictEqual(h.document.querySelectorAll('#omnGoCompat').length, 1);
+    assert.strictEqual(h.document.querySelectorAll('#omn-compat-bar').length, 1);
 });
 
 test('the load event alone is enough', () => {

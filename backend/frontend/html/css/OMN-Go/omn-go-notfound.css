@@ -2,58 +2,58 @@
    file that is not text. */
 
 /* -- 404 page --
-   Reuses .config-panel / .config-link-btn as a generic card and action row
-   (db_backups.html and md/SQLImport.md lean on .config-panel the same way);
+   Reuses .omn-config-panel / .omn-config-link-btn as a generic card and action row
+   (db_backups.html and md/SQLImport.md lean on .omn-config-panel the same way);
    only the fact list and the suggestion block need rules of their own. */
-.notfound-lead {
+.omn-notfound-lead {
     margin: 16px 0 0;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
 }
 
-.notfound-facts {
+.omn-notfound-facts {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 6px 14px;
     margin: 18px 0 0;
 }
 
-.notfound-facts dt {
+.omn-notfound-facts dt {
     font-weight: 600;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
     white-space: nowrap;
 }
 
-.notfound-facts dd {
+.omn-notfound-facts dd {
     margin: 0;
-    color: var(--text);
+    color: var(--omn-text);
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.notfound-url {
+.omn-notfound-url {
     font-family: monospace;
-    background: var(--bg-inset);
-    color: var(--text);
+    background: var(--omn-bg-inset);
+    color: var(--omn-text);
     padding: 0.1em 0.4em;
     border-radius: 4px;
 }
 
-.notfound-suggest {
+.omn-notfound-suggest {
     margin-top: 20px;
     padding: 12px 14px;
-    border: 1px solid var(--accent);
+    border: 1px solid var(--omn-accent);
     border-radius: 8px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
 }
 
-.notfound-suggest-label {
-    color: var(--text-heading);
+.omn-notfound-suggest-label {
+    color: var(--omn-text-heading);
     font-weight: 600;
     margin-right: 6px;
 }
 
-.notfound-suggest-link {
+.omn-notfound-suggest-link {
     font-family: monospace;
     font-size: 15px;
-    color: var(--accent);
+    color: var(--omn-accent);
 }

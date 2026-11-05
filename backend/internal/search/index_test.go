@@ -114,7 +114,7 @@ func TestIndexCoversEachUserFileTree(t *testing.T) {
 		}
 
 		rec := getSearchPage(t, a, "needle")
-		heading := `<h2 class="search-group">` + tree.Label + ` <span`
+		heading := `<h2 class="omn-search-group">` + tree.Label + ` <span`
 		if !strings.Contains(rec.Body.String(), heading) {
 			t.Errorf("%s: the search page has no heading %q", tree.Dir, tree.Label)
 		}

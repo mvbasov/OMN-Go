@@ -73,8 +73,8 @@
     // markup. A log line carries text that a person wrote.
     function makeRow(msg, parts) {
         var row = document.createElement('div');
-        row.className = 'lg-row';
-        if (parts) { row.classList.add('lg-' + parts.level); }
+        row.className = 'omn-lg-row';
+        if (parts) { row.classList.add('omn-lg-' + parts.level); }
         row.textContent = msg.replace(/\n+$/, '');
         return row;
     }
@@ -85,8 +85,8 @@
     // rebuild keeps one code path for the first draw, for a filter change
     // and for a reload.
     function draw() {
-        var body = el('lgBody');
-        var count = el('lgCount');
+        var body = el('omn-lg-body');
+        var count = el('omn-lg-count');
         if (!body) { return; }
         var atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
         body.textContent = '';
@@ -99,7 +99,7 @@
         }
         if (shown === 0) {
             var none = document.createElement('div');
-            none.className = 'lg-none';
+            none.className = 'omn-lg-none';
             none.textContent = lines.length === 0
                 ? 'The log holds no line yet.'
                 : 'Every line of the log is hidden by the filter.';
@@ -116,7 +116,7 @@
     // A checkbox for one level or for one tag.
     function makeBox(name, hidden, onChange) {
         var label = document.createElement('label');
-        label.className = 'lg-box';
+        label.className = 'omn-lg-box';
         var input = document.createElement('input');
         input.type = 'checkbox';
         input.checked = !hidden[name];
@@ -132,8 +132,8 @@
     }
 
     function drawFilter() {
-        var levels = el('lgLevels');
-        var tags = el('lgTags');
+        var levels = el('omn-lg-levels');
+        var tags = el('omn-lg-tags');
         if (levels) {
             levels.textContent = '';
             for (var i = 0; i < LOG_LEVELS.length; i++) {
@@ -171,7 +171,7 @@
     // load reads the ring. It replaces every line that the page holds,
     // thus Reload after a long time gives the newest 500 and no duplicate.
     function load() {
-        var body = el('lgBody');
+        var body = el('omn-lg-body');
         if (body) { body.textContent = 'Loading…'; }
         fetch('/api/logs/history').then(function (res) {
             if (res.status === 401 || res.status === 403) {
@@ -210,7 +210,7 @@
     // rule. It knows what the Android WebView does with the Clipboard API,
     // and this page must not learn that a second time.
     function copyShown() {
-        var btn = el('lgCopy');
+        var btn = el('omn-lg-copy');
         var said = function (word) {
             if (!btn) { return; }
             if (typeof btn.dataset.omnLabel === 'undefined') {
@@ -234,15 +234,15 @@
     }
 
     function start() {
-        var reload = el('lgReload');
+        var reload = el('omn-lg-reload');
         if (reload) { reload.addEventListener('click', load); }
-        var copy = el('lgCopy');
+        var copy = el('omn-lg-copy');
         if (copy) { copy.addEventListener('click', copyShown); }
-        var toggle = el('lgFilterToggle');
-        var filter = el('lgFilter');
+        var toggle = el('omn-lg-filter-toggle');
+        var filter = el('omn-lg-filter');
         if (toggle && filter) {
             toggle.addEventListener('click', function () {
-                filter.classList.toggle('hidden');
+                filter.classList.toggle('omn-hidden');
             });
         }
         load();

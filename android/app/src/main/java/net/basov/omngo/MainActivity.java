@@ -279,11 +279,11 @@ public class MainActivity extends Activity {
             // would throw away the current page, which is what the
             // shared-text branch below avoids for a warm start. The `p &&`
             // guard makes a silent no-op when the current page has no
-            // #quickPanel at all, for example mid-edit on editor.html. That
+            // #omn-quick-panel at all, for example mid-edit on editor.html. That
             // mirrors the caveat noted for window.handleShare.
             if (webView != null) {
                 webView.evaluateJavascript(
-                    "javascript:(function(){ var p=document.getElementById('quickPanel'); if(p) p.classList.remove('hidden'); })();",
+                    "javascript:(function(){ var p=document.getElementById('omn-quick-panel'); if(p) p.classList.remove('omn-hidden'); })();",
                     null);
             }
         } else if (shareIn.isSharedNoteIntent(intent)) {

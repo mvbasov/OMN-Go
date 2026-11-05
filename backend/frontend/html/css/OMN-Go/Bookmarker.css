@@ -7,7 +7,7 @@
    not just the bookmark widget. The light-mode "ivory" tint below used
    to apply unconditionally, which left the page stuck on a near-white
    background under data-theme="dark" (or "auto" with a dark OS/browser)
-   while #preview's text still switched to the light --text color from
+   while #omn-preview's text still switched to the light --omn-text color from
    omn-go-core.css - i.e. light text on a light background. The overrides
    below mirror the exact dark/auto selector pattern omn-go-core.css uses
    for its own tokens, so this follows the same theme instead of fighting
@@ -16,61 +16,61 @@ body {
   background-color: ivory;
 }
 :root[data-theme="dark"] body {
-  background-color: var(--bg);
+  background-color: var(--omn-bg);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="dark"]) body,
   :root[data-theme="auto"] body {
-    background-color: var(--bg);
+    background-color: var(--omn-bg);
   }
 }
-div#searchBox {
+div#omn-bm-search-box {
   width: 95%;
   padding-top: 0.5em;
   margin: 0.3em;
 }
-input#searchInput {
+input#omn-bm-search-input {
   margin: 0.1em;
   border-radius: 0.5em;
 }
-div#preview button.colexp {
+div#omn-preview button.omn-colexp {
   width: 29%;
   border-radius: 0.5em;
   outline: none;
   margin: 0.1em;
 }
-div#buttons {
+div#omn-bm-buttons {
   width: 90%;
   padding-top: 0.5em;
   margin: 0.3em;
 }
-div#tagsCloud {
+div#omn-bm-tags-cloud {
   margin: 0.3em;
   display: none;
 }
-div#bmlist {
+div#omn-bm-list {
   overflow-y: scroll;
   height: 580px;
 }
-div#preview button.tag {
+div#omn-preview button.omn-tag {
   border-radius: 0.5rem;
   outline: none;
 }
-div#preview button.tagSpecial {
-  background: var(--bookmark-special-bg);
+div#omn-preview button.omn-tag-special {
+  background: var(--omn-bookmark-special-bg);
 }
-div#preview button.details {
+div#omn-preview button.omn-details {
   border: none;
   background: none;
   outline: none;
   font-size: 1.1em;
 }
-span#counter {
+span#omn-bm-counter {
   cursor:pointer;
-  color: var(--accent);
+  color: var(--omn-accent);
   text-decoration:underline;
 }
-span.spanDate {
+span.omn-span-date {
    font-size: 0.6rem;
 }
 a + span {
@@ -79,6 +79,6 @@ a + span {
 a:focus + span {
   display: inline;
 }
-span#bVersion {
+span#omn-bm-version {
   font-size: 0.3em;
 }

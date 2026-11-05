@@ -25,10 +25,10 @@
          exit control (the × cancel button, which prompts on unsaved changes);
          a separate back arrow would duplicate it. -->
     <div class="omn-editor-bar">
-        <span class="omn-editor-tools" id="editorTools"><!-- tool buttons injected by omn-go-editor.js --></span>
+        <span class="omn-editor-tools" id="omn-editor-tools"><!-- tool buttons injected by omn-go-editor.js --></span>
         <span class="omn-editor-spacer"></span>
-        <button id="editorSave" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
-        <button id="editorCancel" type="button" title="Cancel"><i class="material-icons">close</i></button>
+        <button id="omn-editor-save" type="button" title="Save (Ctrl+S)"><i class="material-icons">save</i></button>
+        <button id="omn-editor-cancel" type="button" title="Cancel"><i class="material-icons">close</i></button>
     </div>
     <!-- Find / replace. Docked between the toolbar and the text rather than
          floating over it: this is the one search in the app where you need to
@@ -43,34 +43,34 @@
          NO_SUGGESTIONS flag, which disables the composing region every
          non-Latin layout needs - see the search overlay in omn-go-search.js
          for the same rule and the bug that produced it. -->
-    <div class="omn-editor-find" id="editorFind" hidden>
+    <div class="omn-editor-find" id="omn-editor-find" hidden>
         <div class="omn-editor-find-row">
-            <button id="findToggleReplace" type="button" class="editor-tool omn-find-chevron"
+            <button id="omn-find-toggle-replace" type="button" class="omn-find-chevron"
                     title="Show replace" aria-label="Show replace"><i class="material-icons">chevron_right</i></button>
-            <input id="findInput" type="text" placeholder="Find" aria-label="Find" />
-            <span class="omn-editor-find-count" id="findCount"></span>
-            <button id="findPrev" type="button" class="editor-tool" title="Previous match (Shift+Enter)"
+            <input id="omn-find-input" type="text" placeholder="Find" aria-label="Find" />
+            <span class="omn-editor-find-count" id="omn-find-count"></span>
+            <button id="omn-find-prev" type="button" title="Previous match (Shift+Enter)"
                     aria-label="Previous match"><i class="material-icons">keyboard_arrow_up</i></button>
-            <button id="findNext" type="button" class="editor-tool" title="Next match (Enter)"
+            <button id="omn-find-next" type="button" title="Next match (Enter)"
                     aria-label="Next match"><i class="material-icons">keyboard_arrow_down</i></button>
-            <button id="findCase" type="button" class="editor-tool omn-find-flag" title="Match case"
+            <button id="omn-find-case" type="button" class="omn-find-flag" title="Match case"
                     aria-label="Match case" aria-pressed="false">Aa</button>
-            <button id="findWord" type="button" class="editor-tool omn-find-flag" title="Whole word"
+            <button id="omn-find-word" type="button" class="omn-find-flag" title="Whole word"
                     aria-label="Whole word" aria-pressed="false">ab</button>
-            <button id="findRegex" type="button" class="editor-tool omn-find-flag" title="Regular expression"
+            <button id="omn-find-regex" type="button" class="omn-find-flag" title="Regular expression"
                     aria-label="Regular expression" aria-pressed="false">.*</button>
-            <button id="findClose" type="button" class="editor-tool" title="Close (Esc)"
+            <button id="omn-find-close" type="button" title="Close (Esc)"
                     aria-label="Close find"><i class="material-icons">close</i></button>
         </div>
-        <div class="omn-editor-find-row omn-editor-replace-row" id="findReplaceRow" hidden>
+        <div class="omn-editor-find-row omn-editor-replace-row" id="omn-find-replace-row" hidden>
             <span class="omn-find-chevron-space" aria-hidden="true"></span>
-            <input id="replaceInput" type="text" placeholder="Replace with" aria-label="Replace with" />
-            <button id="replaceOne" type="button" class="editor-tool omn-find-word" title="Replace this match">Replace</button>
-            <button id="replaceAll" type="button" class="editor-tool omn-find-word" title="Replace every match">All</button>
+            <input id="omn-replace-input" type="text" placeholder="Replace with" aria-label="Replace with" />
+            <button id="omn-replace-one" type="button" class="omn-find-word" title="Replace this match">Replace</button>
+            <button id="omn-replace-all" type="button" class="omn-find-word" title="Replace every match">All</button>
         </div>
     </div>
     <div class="omn-editor-main">
-        <div id="editorGutter" class="omn-editor-gutter" aria-hidden="true"></div>
+        <div id="omn-editor-gutter" class="omn-editor-gutter" aria-hidden="true"></div>
         <!-- The textarea sits on a mirror layer that paints the find matches.
              A <textarea> cannot color its own contents, and Chromium does not
              draw a selection in a textarea that is not focused - which it never
@@ -78,7 +78,7 @@
              underneath: same text, same metrics, invisible ink, and a <mark>
              behind each hit showing through the transparent textarea.
 
-             Every metric on .omn-editor-mirror must match #editor exactly, the
+             Every metric on .omn-editor-mirror must match #omn-editor-text exactly, the
              same discipline the line-number gutter already needs.
 
              spellcheck="false" keeps the keyboard menu away. A red underline
@@ -90,13 +90,13 @@
              autocomplete="off" sets NO_SUGGESTIONS. See computeEditorInfo in
              content/browser/input/ImeUtils.java of Chromium. -->
         <div class="omn-editor-pane">
-            <div id="editorMirror" class="omn-editor-mirror" aria-hidden="true"></div>
-            <textarea id="editor" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="on"></textarea>
+            <div id="omn-editor-mirror" class="omn-editor-mirror" aria-hidden="true"></div>
+            <textarea id="omn-editor-text" spellcheck="false" placeholder="Loading…" autocapitalize="off" autocomplete="on"></textarea>
         </div>
     </div>
     <div class="omn-editor-status">
-        <span id="editorStatus">Loading…</span>
-        <span id="editorDot" class="omn-editor-dot loading" title="Save state"></span>
+        <span id="omn-editor-status">Loading…</span>
+        <span id="omn-editor-dot" class="omn-editor-dot omn-loading" title="Save state"></span>
     </div>
 
     <script src="/js/OMN-Go/omn-go-editor.js"></script>

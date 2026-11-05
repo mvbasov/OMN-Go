@@ -27,7 +27,7 @@ Tags: JavaScript, Test, OMN-Go, OMN-Go user
     document.querySelector('#page_title').innerHTML = esc(Title);
   if (typeof currentNote !== 'undefined' && currentNote)
     document.querySelector('#cur_note').innerHTML = esc(currentNote);
-  const statusDiv = document.querySelector('#status');
+  const statusDiv = document.querySelector('#omn-page-footer');
   if (statusDiv && !statusDiv.querySelector('.tpv-status-note')) {
     statusDiv.style.display = 'block';
     const note = document.createElement('span');

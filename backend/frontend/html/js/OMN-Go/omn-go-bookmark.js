@@ -32,7 +32,7 @@ if (window.location.protocol !== 'file:') {
         if (urlMatch) {
             // URL Found -> Route to Bookmark Panel
             const url = urlMatch[0];
-            document.getElementById('bmUrl').value = url;
+            document.getElementById('omn-bm-url').value = url;
 
             let title = subject;
             if (!title || title.includes(url)) {
@@ -40,27 +40,27 @@ if (window.location.protocol !== 'file:') {
             }
             if (!title) title = "Shared Link";
 
-            document.getElementById('bmTitle').value = title;
+            document.getElementById('omn-bm-title').value = title;
             window.showBookmarkPanel();
-            document.getElementById('quickPanel').classList.add('hidden');
+            document.getElementById('omn-quick-panel').classList.add('omn-hidden');
         } else {
             // No URL -> Route to Quick Note Panel
             let content = '';
             if (subject) content += subject + "\n\n";
             if (text) content += text;
 
-            document.getElementById('quickText').value = content.trim();
-            document.getElementById('quickPanel').classList.remove('hidden');
-            document.getElementById('bmPanel').classList.add('hidden');
+            document.getElementById('omn-quick-text').value = content.trim();
+            document.getElementById('omn-quick-panel').classList.remove('omn-hidden');
+            document.getElementById('omn-bm-panel').classList.add('omn-hidden');
         }
     };
     // --- Bookmark "Tags" autocomplete ---
     //
-    // Suggests existing tags while a person types into the #bmTags field of
+    // Suggests existing tags while a person types into the #omn-bm-tags field of
     // the Ingest Bookmark modal. Tags are typed comma-separated, as in
     // "work, recipe, ita|", where the "|" marks the caret. Suggestions are
     // computed against the fragment after the last comma alone. They are
-    // shown once that fragment reaches the minChars attribute of #bmTags,
+    // shown once that fragment reaches the minChars attribute of #omn-bm-tags,
     // which is 2 by default and set in index.html. To pick a suggestion
     // completes the fragment and appends ", ", thus the next tag can be
     // typed right away.
@@ -76,14 +76,14 @@ if (window.location.protocol !== 'file:') {
     // every page load. Most page views never touch this panel.
     //
     // window.showBookmarkPanel() and the bookmark-panel action below are the
-    // only places that reveal #bmPanel. The "add bookmark" button of the header,
+    // only places that reveal #omn-bm-panel. The "add bookmark" button of the header,
     // the URL drag-and-drop handler and window.handleShare all go through one
-    // of them now. None pokes the classList of #bmPanel directly. "The modal
+    // of them now. None pokes the classList of #omn-bm-panel directly. "The modal
     // is opening" is thus caught in exactly one place.
     (function () {
         var tagsCache = null;    // null until prepared; array once loaded (even if empty)
         var tagsPromise = null;  // in-flight fetch, if any
-        var wired = false;       // #bmTags/#bmTagsSuggestions listeners attached only once
+        var wired = false;       // #omn-bm-tags/#omn-bm-tags-suggestions listeners attached only once
 
         // Fetches /json/bookmarker-tags.json at most one time for each page.
         // It is safe to call every time the modal opens. The list can be
@@ -108,14 +108,14 @@ if (window.location.protocol !== 'file:') {
             return { done: done, fragment: fragment.replace(/^\s+/, '') };
         }
 
-        // Attaches the input/keydown/click listeners to #bmTags exactly once.
+        // Attaches the input/keydown/click listeners to #omn-bm-tags exactly once.
         // showBookmarkPanel() and the bookmark-panel action call it each time
         // the modal opens. The `wired` guard makes a repeat call do nothing,
         // thus a second open of the panel attaches no second listener.
         function wireBookmarkTagAutocomplete() {
             if (wired) return;
-            var input = document.getElementById('bmTags');
-            var list = document.getElementById('bmTagsSuggestions');
+            var input = document.getElementById('omn-bm-tags');
+            var list = document.getElementById('omn-bm-tags-suggestions');
             if (!input || !list) return;
             wired = true;
 
@@ -126,13 +126,13 @@ if (window.location.protocol !== 'file:') {
 
             function hide() {
                 list.innerHTML = '';
-                list.classList.add('hidden');
+                list.classList.add('omn-hidden');
                 activeIndex = -1;
             }
 
             function setActive(idx) {
-                var items = list.querySelectorAll('.tag-suggestion-item');
-                items.forEach(function (it, i) { it.classList.toggle('active', i === idx); });
+                var items = list.querySelectorAll('.omn-tag-suggestion-item');
+                items.forEach(function (it, i) { it.classList.toggle('omn-active', i === idx); });
                 activeIndex = idx;
             }
 
@@ -155,8 +155,8 @@ if (window.location.protocol !== 'file:') {
                 matches.forEach(function (tag) {
                     var li = document.createElement('li');
                     li.textContent = tag;
-                    li.className = 'tag-suggestion-item';
-                    // mousedown (not click) fires before #bmTags's blur, so
+                    li.className = 'omn-tag-suggestion-item';
+                    // mousedown (not click) fires before #omn-bm-tags's blur, so
                     // the pick survives the input losing focus.
                     li.addEventListener('mousedown', function (e) {
                         e.preventDefault();
@@ -165,7 +165,7 @@ if (window.location.protocol !== 'file:') {
                     list.appendChild(li);
                 });
                 activeIndex = -1;
-                list.classList.remove('hidden');
+                list.classList.remove('omn-hidden');
             }
 
             function update() {
@@ -191,8 +191,8 @@ if (window.location.protocol !== 'file:') {
             input.addEventListener('focus', update);
 
             input.addEventListener('keydown', function (e) {
-                var items = list.querySelectorAll('.tag-suggestion-item');
-                if (list.classList.contains('hidden') || !items.length) return;
+                var items = list.querySelectorAll('.omn-tag-suggestion-item');
+                if (list.classList.contains('omn-hidden') || !items.length) return;
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     setActive((activeIndex + 1) % items.length);
@@ -212,25 +212,25 @@ if (window.location.protocol !== 'file:') {
             });
         }
 
-        // Unconditionally shows #bmPanel (used by drag-and-drop and
+        // Unconditionally shows #omn-bm-panel (used by drag-and-drop and
         // handleShare, which only ever want it open, never toggled).
         window.showBookmarkPanel = function () {
-            var panel = document.getElementById('bmPanel');
+            var panel = document.getElementById('omn-bm-panel');
             if (!panel) return;
-            panel.classList.remove('hidden');
+            panel.classList.remove('omn-hidden');
             wireBookmarkTagAutocomplete();
             ensureTagsLoaded();
         };
 
-        // Toggles #bmPanel (used by the header's "add bookmark" button, which
+        // Toggles #omn-bm-panel (used by the header's "add bookmark" button, which
         // both opens and closes it). Only prepares the autocomplete on the
         // transition into "visible" - closing the panel does nothing extra.
         // See OMN.action in omn-go-core.js.
         window.OMN.action('bookmark-panel', function () {
-            var panel = document.getElementById('bmPanel');
+            var panel = document.getElementById('omn-bm-panel');
             if (!panel) return;
-            var opening = panel.classList.contains('hidden');
-            panel.classList.toggle('hidden');
+            var opening = panel.classList.contains('omn-hidden');
+            panel.classList.toggle('omn-hidden');
             if (opening) {
                 wireBookmarkTagAutocomplete();
                 ensureTagsLoaded();

@@ -288,8 +288,8 @@ func TestCompilePageWithBodyHeaders(t *testing.T) {
 	// The rendered page must NOT hold its own source in an editor
 	// textarea. The editor is a separate page. The page holds only the
 	// rendered body.
-	if strings.Contains(out, "<textarea id=\"editor\"") {
-		t.Error("compiled page still embeds an #editor textarea (doubled content)")
+	if strings.Contains(out, "<textarea id=\"omn-editor-text\"") {
+		t.Error("compiled page still embeds an #omn-editor-text textarea (doubled content)")
 	}
 	if !strings.Contains(out, "<strong>bold</strong>") {
 		t.Error("rendered body missing")
@@ -327,7 +327,7 @@ func TestModalsInjectedAtServeTime(t *testing.T) {
 	if !strings.Contains(compiled, `<div id="omn-go-modals-slot"></div>`) {
 		t.Fatalf("compiled/cached page missing the modals slot marker:\n%s", compiled)
 	}
-	for _, modal := range []string{`id="loginOverlay"`, `id="quickPanel"`, `id="conflict-modal"`} {
+	for _, modal := range []string{`id="omn-login-overlay"`, `id="omn-quick-panel"`, `id="omn-conflict-modal"`} {
 		if strings.Contains(compiled, modal) {
 			t.Errorf("modal %s was baked into the cached page (should be serve-time only)", modal)
 		}
@@ -337,7 +337,7 @@ func TestModalsInjectedAtServeTime(t *testing.T) {
 	if strings.Contains(served, `<div id="omn-go-modals-slot"></div>`) {
 		t.Error("modals slot was not replaced at serve time")
 	}
-	for _, want := range []string{`id="loginOverlay"`, `id="quickPanel"`, `id="bmPanel"`, `id="commitModal"`, `id="conflict-modal"`} {
+	for _, want := range []string{`id="omn-login-overlay"`, `id="omn-quick-panel"`, `id="omn-bm-panel"`, `id="omn-commit-modal"`, `id="omn-conflict-modal"`} {
 		if !strings.Contains(served, want) {
 			t.Errorf("served page missing injected modal %s", want)
 		}

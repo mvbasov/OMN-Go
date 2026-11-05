@@ -334,8 +334,10 @@ func TestANewVersionCompilesEachPageAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	(&App{}).initStorage(dir)
-	if _, err := os.Stat(page); !os.IsNotExist(err) {
-		t.Errorf("a start with a new version kept the compiled page: %v", err)
+	// The precompile goroutine can compile the page again before the read.
+	// Thus the test looks for the old shell, not for a missing file.
+	if got, err := os.ReadFile(page); err == nil && strings.Contains(string(got), "the shell of the old version") {
+		t.Errorf("a start with a new version kept the compiled page")
 	}
 	if _, err := os.Stat(note); err != nil {
 		t.Errorf("the note went away: %v", err)

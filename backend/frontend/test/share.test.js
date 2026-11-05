@@ -32,20 +32,20 @@ function page(opts) {
 
 // control answers the button of the panel with this label.
 function control(h, label) {
-    const found = h.document.querySelectorAll('#metadataPanel button.metadata-send')
+    const found = h.document.querySelectorAll('#omn-metadata-panel button.omn-metadata-send')
         .find(function (b) { return b.title === label; });
     assert.ok(found, 'the panel has no control "' + label + '"');
     return found;
 }
 
 function status(h) {
-    return h.$('#metadataPanel .metadata-send-status').textContent;
+    return h.$('#omn-metadata-panel .omn-metadata-send-status').textContent;
 }
 
 test('the panel shows the file and each line of the header block', () => {
     const h = page();
-    assert.strictEqual(h.$('.metadata-file-name').textContent, 'File: dir/Draft.txt');
-    const rows = h.document.querySelectorAll('#metadataPanel .metadata-row')
+    assert.strictEqual(h.$('.omn-metadata-file-name').textContent, 'File: dir/Draft.txt');
+    const rows = h.document.querySelectorAll('#omn-metadata-panel .omn-metadata-row')
         .map(function (r) { return r.textContent; });
     assert.deepStrictEqual(rows, [
         'Title: My [first] note',
@@ -58,29 +58,29 @@ test('the panel shows the file and each line of the header block', () => {
 
 test('a header value with markup stays text', () => {
     const h = page();
-    assert.strictEqual(h.document.querySelectorAll('#metadataPanel b').length, 0,
+    assert.strictEqual(h.document.querySelectorAll('#omn-metadata-panel b').length, 0,
         'a value of the note became an element of the page');
 });
 
 test('the panel has three controls on a note from the server', () => {
     const h = page();
-    const labels = h.document.querySelectorAll('#metadataPanel button.metadata-send')
+    const labels = h.document.querySelectorAll('#omn-metadata-panel button.omn-metadata-send')
         .map(function (b) { return b.title; });
     assert.deepStrictEqual(labels, ['Send this note', 'Copy this note as text', 'Copy a link to this page']);
-    for (const b of h.document.querySelectorAll('#metadataPanel button.metadata-send')) {
+    for (const b of h.document.querySelectorAll('#omn-metadata-panel button.omn-metadata-send')) {
         assert.strictEqual(b.getAttribute('aria-label'), b.title);
     }
 });
 
 test('a page that is not a note has only the link control, and a page from disk has none', () => {
     const h = notePage({ note: 'site.css', markdown: false });
-    const labels = h.document.querySelectorAll('#metadataPanel button.metadata-send')
+    const labels = h.document.querySelectorAll('#omn-metadata-panel button.omn-metadata-send')
         .map(function (b) { return b.title; });
     assert.deepStrictEqual(labels, ['Copy a link to this page']);
 
     const disk = page({ protocol: 'file:' });
-    assert.strictEqual(disk.document.querySelectorAll('#metadataPanel button').length, 0);
-    assert.strictEqual(disk.$('.metadata-file-name').textContent, 'File: dir/Draft.txt');
+    assert.strictEqual(disk.document.querySelectorAll('#omn-metadata-panel button').length, 0);
+    assert.strictEqual(disk.$('.omn-metadata-file-name').textContent, 'File: dir/Draft.txt');
 });
 
 test('Send opens the export of the note, with the extension that makes the name clear', () => {

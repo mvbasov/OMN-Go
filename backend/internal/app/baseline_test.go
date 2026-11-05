@@ -111,7 +111,7 @@ func TestBaseline_ServeHTMLPageDispatch(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status %d", rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), `id="configForm"`) {
+		if !strings.Contains(rec.Body.String(), `id="omn-config-form"`) {
 			t.Error("Config.html did not render the config form")
 		}
 		// Dynamic, NOT cached: no md source and no compiled artefact.
@@ -1127,7 +1127,7 @@ func assertCachedPageShape(t *testing.T, path string) {
 	html := string(data)
 	for _, want := range []string{
 		`<meta id="omn-go-runtime-vars-marker">`,
-		`<div id="preview">`,
+		`<div id="omn-preview">`,
 		"var IS_MARKDOWN = true;",
 		`content="OMN-Go ` + version + `"`,
 	} {

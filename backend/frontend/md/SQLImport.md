@@ -12,33 +12,33 @@ Import an SQL dump into a server-side database. Two dialects are understood:
 
 The dump is applied through the normal `/api/sql` endpoint in batches, each batch one transaction. After a successful import, go to the <a href="/db_backups">Database Backups</a> page and press **Backup now** — the import itself does not create a backup.
 
-<div class="config-panel">
-    <div class="config-field">
-        <label class="config-label">Target database name</label>
-        <input type="text" id="sqlImpDb" class="config-input" placeholder="mydata" />
-        <span class="config-hint">Letters, digits, '_' and '-', max 64 chars. The database is created if it does not exist. Importing into an existing database ADDS to it (or fails on conflicts) — it does not clear it first.</span>
+<div class="omn-config-panel">
+    <div class="omn-config-field">
+        <label class="omn-config-label">Target database name</label>
+        <input type="text" id="sqlImpDb" class="omn-config-input" placeholder="mydata" />
+        <span class="omn-config-hint">Letters, digits, '_' and '-', max 64 chars. The database is created if it does not exist. Importing into an existing database ADDS to it (or fails on conflicts) — it does not clear it first.</span>
     </div>
-    <div class="config-field">
-        <label class="config-label">SQL dump</label>
-        <textarea id="sqlImpText" class="config-input" rows="12" placeholder="Paste the dump here, or load a file below" spellcheck="false"></textarea>
+    <div class="omn-config-field">
+        <label class="omn-config-label">SQL dump</label>
+        <textarea id="sqlImpText" class="omn-config-input" rows="12" placeholder="Paste the dump here, or load a file below" spellcheck="false"></textarea>
         <input type="file" id="sqlImpFile" accept=".sql,.txt,text/*" />
     </div>
-    <div class="config-field">
-        <label class="config-label">Dialect</label>
-        <select id="sqlImpDialect" class="config-input">
+    <div class="omn-config-field">
+        <label class="omn-config-label">Dialect</label>
+        <select id="sqlImpDialect" class="omn-config-input">
             <option value="auto" selected>Auto-detect</option>
             <option value="sqlite3">sqlite3 .dump (raw SQL)</option>
             <option value="websql">websqldump.js (re-parsed)</option>
         </select>
     </div>
-    <div class="config-field config-checkbox-row">
+    <div class="omn-config-field omn-config-checkbox-row">
         <input type="checkbox" id="sqlImpNull" checked />
-        <label class="config-label">websqldump: treat the value "null" as SQL NULL</label>
+        <label class="omn-config-label">websqldump: treat the value "null" as SQL NULL</label>
     </div>
-    <div class="config-field config-save-row">
-        <button type="button" class="config-save-btn" onclick="sqlImportRun()">Import</button>
+    <div class="omn-config-field omn-config-save-row">
+        <button type="button" class="omn-config-save-btn" onclick="sqlImportRun()">Import</button>
     </div>
-    <div class="config-field">
+    <div class="omn-config-field">
         <pre id="sqlImpLog" style="white-space:pre-wrap;max-height:40vh;overflow:auto;"></pre>
     </div>
 </div>

@@ -1,23 +1,23 @@
 /* omn-go-config.css: the Config page. */
 
-.config-form {
+.omn-config-form {
     margin-top: 20px;
 }
 
 /* -- Screen switching: the root menu and each settings group are sibling
-   .config-screen blocks; exactly one carries .active at a time (see the
+   .omn-config-screen blocks; exactly one carries .omn-active at a time (see the
    hash-driven navigation in omn-go-config.js). -- */
-.config-screen {
+.omn-config-screen {
     display: none;
 }
 
-.config-screen.active {
+.omn-config-screen.omn-active {
     display: block;
 }
 
 /* -- Root menu: full-width rows sized as comfortable touch targets
    (Android WebView is the primary consumer of this page). -- */
-.config-menu {
+.omn-config-menu {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -25,16 +25,16 @@
 }
 
 /* -- Sub-screen header: back control + group title -- */
-.config-subhead {
+.omn-config-subhead {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-bottom: 6px;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-title);
+    border-bottom: 1px solid var(--omn-border-title);
 }
 
-.config-back {
+.omn-config-back {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -43,44 +43,44 @@
     height: 40px;
     padding: 0;
     background: none;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 50%;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
     cursor: pointer;
     transition: background 0.15s;
 }
 
-.config-back:hover {
-    background: var(--bg-hover);
+.omn-config-back:hover {
+    background: var(--omn-bg-hover);
 }
 
-.config-subtitle {
+.omn-config-subtitle {
     margin: 0;
     font-size: 20px;
     font-weight: 700;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
 }
 
 /* -- Unsaved-changes cues (mirrors the editor's saved/unsaved dot) -- */
-.config-menu-dirty {
+.omn-config-menu-dirty {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-top: 16px;
     padding: 10px 12px;
-    border: 1px solid var(--danger);
+    border: 1px solid var(--omn-danger);
     border-radius: 8px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
 }
 
-.config-menu-dirty[hidden] {
+.omn-config-menu-dirty[hidden] {
     display: none;
 }
 
-.config-menu-dirty-save {
+.omn-config-menu-dirty-save {
     margin-left: auto;
-    background: var(--success);
-    color: var(--on-accent);
+    background: var(--omn-success);
+    color: var(--omn-on-accent);
     border: none;
     padding: 8px 16px;
     border-radius: 4px;
@@ -88,11 +88,11 @@
     cursor: pointer;
 }
 
-.config-menu-dirty-save:hover {
-    background: var(--success-hover);
+.omn-config-menu-dirty-save:hover {
+    background: var(--omn-success-hover);
 }
 
-.config-dirty-indicator {
+.omn-config-dirty-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -101,72 +101,72 @@
     min-height: 16px;
 }
 
-.config-dirty-dot {
+.omn-config-dirty-dot {
     flex: 0 0 auto;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--success);
+    background: var(--omn-success);
     transition: background 0.2s;
 }
 
-.config-dirty-dot.dirty {
-    background: var(--danger);
+.omn-config-dirty-dot.omn-dirty {
+    background: var(--omn-danger);
 }
 
-.config-dirty-label {
+.omn-config-dirty-label {
     font-size: 13px;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
 }
 
 /* -- Git server cards -- */
-.git-server-card {
+.omn-git-server-card {
     padding: 1rem;
     margin-bottom: 1rem;
-    border: 1px solid var(--border-soft);
+    border: 1px solid var(--omn-border-soft);
     border-radius: 4px;
-    box-shadow: 0 1px 2px var(--shadow-soft);
-    background-color: var(--bg-inset);
-    color: var(--text);
+    box-shadow: 0 1px 2px var(--omn-shadow-soft);
+    background-color: var(--omn-bg-inset);
+    color: var(--omn-text);
 }
 
-.git-server-label {
+.omn-git-server-label {
     font-weight: bold;
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-.git-server-grid {
+.omn-git-server-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
     margin-top: 0.5rem;
 }
 
-.git-server-input {
-    border: 1px solid var(--border);
+.omn-git-server-input {
+    border: 1px solid var(--omn-border);
     padding: 0.5rem;
     width: 100%;
     box-sizing: border-box;
     border-radius: 4px;
-    background: var(--bg-surface);
-    color: var(--text);
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
 }
 
-.git-server-key {
+.omn-git-server-key {
     font-family: monospace;
     min-height: 60px;
 }
 
 /* The fingerprint of the server key is one long word. The line must break
    at each character, or the word runs past the right edge of a phone. */
-.git-server-hostkey {
+.omn-git-server-hostkey {
     overflow-wrap: anywhere;
     word-break: break-all;
 }
 
 @media (max-width: 600px) {
-    .git-server-grid { grid-template-columns: 1fr; }
-    .config-subtitle { font-size: 18px; }
+    .omn-git-server-grid { grid-template-columns: 1fr; }
+    .omn-config-subtitle { font-size: 18px; }
 }

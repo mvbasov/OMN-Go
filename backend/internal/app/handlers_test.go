@@ -263,7 +263,7 @@ func TestServeStorageSubdirHonorsEditIntent(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("edit request: status %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "editorSave") {
+	if !strings.Contains(rec.Body.String(), "omn-editor-save") {
 		t.Error("edit request did not answer with the editor page")
 	}
 
@@ -301,7 +301,7 @@ func TestEditorRoutesRefuseBinaryFiles(t *testing.T) {
 	if rec.Code != http.StatusUnsupportedMediaType {
 		t.Errorf("serveEditor: status %d, want 415", rec.Code)
 	}
-	if strings.Contains(rec.Body.String(), "editorSave") {
+	if strings.Contains(rec.Body.String(), "omn-editor-save") {
 		t.Error("serveEditor answered with the editor page for a picture")
 	}
 
@@ -361,7 +361,7 @@ func TestEditorRoutesStillOpenTextFiles(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("serveEditor(%q): status %d, want 200", p, rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), "editorSave") {
+		if !strings.Contains(rec.Body.String(), "omn-editor-save") {
 			t.Errorf("serveEditor(%q) did not answer with the editor page", p)
 		}
 	}

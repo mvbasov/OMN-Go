@@ -113,7 +113,7 @@
     --omn-light-console-button:       #ff9800;   /* console button and footer dot */
     --omn-light-console-shadow:       rgba(0, 0, 0, 0.5);
     --omn-light-bookmark-special-bg:  #ff000022;   /* special tag buttons of the Bookmarks page */
-    --omn-light-mark-yellow:          #ffff00;   /* .bg-yellow and the other note utilities */
+    --omn-light-mark-yellow:          #ffff00;   /* .omn-bg-yellow and the other note utilities */
     --omn-light-mark-aqua:            #00ffff;
     --omn-light-mark-red:             #ff0000;
     --omn-light-mark-green:           #008000;
@@ -209,271 +209,271 @@
 /* The light theme. */
 :root {
     color-scheme: light;
-    --bg: var(--omn-light-bg);
-    --bg-surface: var(--omn-light-bg-surface);
-    --bg-band: var(--omn-light-bg-band);
-    --bg-inset: var(--omn-light-bg-inset);
-    --bg-metadata: var(--omn-light-bg-metadata);
-    --bg-toc: var(--omn-light-bg-toc);
-    --bg-hover: var(--omn-light-bg-hover);
-    --text: var(--omn-light-text);
-    --text-strong: var(--omn-light-text-strong);
-    --text-heading: var(--omn-light-text-heading);
-    --text-muted: var(--omn-light-text-muted);
-    --text-faint: var(--omn-light-text-faint);
-    --text-dim: var(--omn-light-text-dim);
-    --border: var(--omn-light-border);
-    --border-soft: var(--omn-light-border-soft);
-    --border-card: var(--omn-light-border-card);
-    --border-strong: var(--omn-light-border-strong);
-    --border-title: var(--omn-light-border-title);
-    --accent: var(--omn-light-accent);
-    --accent-hover: var(--omn-light-accent-hover);
-    --success: var(--omn-light-success);
-    --success-hover: var(--omn-light-success-hover);
-    --danger: var(--omn-light-danger);
-    --info: var(--omn-light-info);
-    --secondary: var(--omn-light-secondary);
-    --file-app: var(--omn-light-file-app);
-    --file-alert: var(--omn-light-file-alert);
-    --file-keep: var(--omn-light-file-keep);
-    --file-derived: var(--omn-light-file-derived);
-    --file-plain: var(--omn-light-file-plain);
-    --start-notes-bg: var(--omn-light-start-notes-bg);
-    --start-bookmarks-bg: var(--omn-light-start-bookmarks-bg);
-    --start-btn-text: var(--omn-light-start-btn-text);
-    --tag-bg: var(--omn-light-tag-bg);
-    --tag-border: var(--omn-light-tag-border);
-    --tag-selected: var(--omn-light-tag-selected);
-    --table-border: var(--omn-light-table-border);
-    --table-th-bg: var(--omn-light-table-th-bg);
-    --table-th-text: var(--omn-light-table-th-text);
-    --table-row-odd: var(--omn-light-table-row-odd);
-    --table-row-even: var(--omn-light-table-row-even);
-    --table-text: var(--omn-light-table-text);
-    --search-hit-bg: var(--omn-light-search-hit-bg);
-    --search-hit-text: var(--omn-light-search-hit-text);
-    --overlay-bg: var(--omn-light-overlay-bg);
-    --shadow: var(--omn-light-shadow);
-    --shadow-soft: var(--omn-light-shadow-soft);
-    --shadow-strong: var(--omn-light-shadow-strong);
-    --code-bg: var(--omn-light-code-bg);
-    --code-text: var(--omn-light-code-text);
-    --code-comment: var(--omn-light-code-comment);
-    --code-punctuation: var(--omn-light-code-punctuation);
-    --code-string: var(--omn-light-code-string);
-    --code-variable: var(--omn-light-code-variable);
-    --code-literal: var(--omn-light-code-literal);
-    --code-built-in: var(--omn-light-code-built-in);
-    --code-meta: var(--omn-light-code-meta);
-    --code-meta-string: var(--omn-light-code-meta-string);
-    --code-tag-name: var(--omn-light-code-tag-name);
-    --code-tag-attr: var(--omn-light-code-tag-attr);
-    --on-accent: var(--omn-light-on-accent);
-    --files-source-bg: var(--omn-light-files-source-bg);
-    --state-ok: var(--omn-light-state-ok);
-    --state-warn: var(--omn-light-state-warn);
-    --state-info: var(--omn-light-state-info);
-    --state-off: var(--omn-light-state-off);
-    --state-error: var(--omn-light-state-error);
-    --state-alert: var(--omn-light-state-alert);
-    --console-bg: var(--omn-light-console-bg);
-    --console-text: var(--omn-light-console-text);
-    --console-line: var(--omn-light-console-line);
-    --console-warn: var(--omn-light-console-warn);
-    --console-error: var(--omn-light-console-error);
-    --console-border: var(--omn-light-console-border);
-    --console-head-bg: var(--omn-light-console-head-bg);
-    --console-head-text: var(--omn-light-console-head-text);
-    --console-clear: var(--omn-light-console-clear);
-    --console-button: var(--omn-light-console-button);
-    --console-shadow: var(--omn-light-console-shadow);
-    --bookmark-special-bg: var(--omn-light-bookmark-special-bg);
-    --mark-yellow: var(--omn-light-mark-yellow);
-    --mark-aqua: var(--omn-light-mark-aqua);
-    --mark-red: var(--omn-light-mark-red);
-    --mark-green: var(--omn-light-mark-green);
-    --mark-ink: var(--omn-light-mark-ink);
+    --omn-bg: var(--omn-light-bg);
+    --omn-bg-surface: var(--omn-light-bg-surface);
+    --omn-bg-band: var(--omn-light-bg-band);
+    --omn-bg-inset: var(--omn-light-bg-inset);
+    --omn-bg-metadata: var(--omn-light-bg-metadata);
+    --omn-bg-toc: var(--omn-light-bg-toc);
+    --omn-bg-hover: var(--omn-light-bg-hover);
+    --omn-text: var(--omn-light-text);
+    --omn-text-strong: var(--omn-light-text-strong);
+    --omn-text-heading: var(--omn-light-text-heading);
+    --omn-text-muted: var(--omn-light-text-muted);
+    --omn-text-faint: var(--omn-light-text-faint);
+    --omn-text-dim: var(--omn-light-text-dim);
+    --omn-border: var(--omn-light-border);
+    --omn-border-soft: var(--omn-light-border-soft);
+    --omn-border-card: var(--omn-light-border-card);
+    --omn-border-strong: var(--omn-light-border-strong);
+    --omn-border-title: var(--omn-light-border-title);
+    --omn-accent: var(--omn-light-accent);
+    --omn-accent-hover: var(--omn-light-accent-hover);
+    --omn-success: var(--omn-light-success);
+    --omn-success-hover: var(--omn-light-success-hover);
+    --omn-danger: var(--omn-light-danger);
+    --omn-info: var(--omn-light-info);
+    --omn-secondary: var(--omn-light-secondary);
+    --omn-file-app: var(--omn-light-file-app);
+    --omn-file-alert: var(--omn-light-file-alert);
+    --omn-file-keep: var(--omn-light-file-keep);
+    --omn-file-derived: var(--omn-light-file-derived);
+    --omn-file-plain: var(--omn-light-file-plain);
+    --omn-start-notes-bg: var(--omn-light-start-notes-bg);
+    --omn-start-bookmarks-bg: var(--omn-light-start-bookmarks-bg);
+    --omn-start-btn-text: var(--omn-light-start-btn-text);
+    --omn-tag-bg: var(--omn-light-tag-bg);
+    --omn-tag-border: var(--omn-light-tag-border);
+    --omn-tag-selected: var(--omn-light-tag-selected);
+    --omn-table-border: var(--omn-light-table-border);
+    --omn-table-th-bg: var(--omn-light-table-th-bg);
+    --omn-table-th-text: var(--omn-light-table-th-text);
+    --omn-table-row-odd: var(--omn-light-table-row-odd);
+    --omn-table-row-even: var(--omn-light-table-row-even);
+    --omn-table-text: var(--omn-light-table-text);
+    --omn-search-hit-bg: var(--omn-light-search-hit-bg);
+    --omn-search-hit-text: var(--omn-light-search-hit-text);
+    --omn-overlay-bg: var(--omn-light-overlay-bg);
+    --omn-shadow: var(--omn-light-shadow);
+    --omn-shadow-soft: var(--omn-light-shadow-soft);
+    --omn-shadow-strong: var(--omn-light-shadow-strong);
+    --omn-code-bg: var(--omn-light-code-bg);
+    --omn-code-text: var(--omn-light-code-text);
+    --omn-code-comment: var(--omn-light-code-comment);
+    --omn-code-punctuation: var(--omn-light-code-punctuation);
+    --omn-code-string: var(--omn-light-code-string);
+    --omn-code-variable: var(--omn-light-code-variable);
+    --omn-code-literal: var(--omn-light-code-literal);
+    --omn-code-built-in: var(--omn-light-code-built-in);
+    --omn-code-meta: var(--omn-light-code-meta);
+    --omn-code-meta-string: var(--omn-light-code-meta-string);
+    --omn-code-tag-name: var(--omn-light-code-tag-name);
+    --omn-code-tag-attr: var(--omn-light-code-tag-attr);
+    --omn-on-accent: var(--omn-light-on-accent);
+    --omn-files-source-bg: var(--omn-light-files-source-bg);
+    --omn-state-ok: var(--omn-light-state-ok);
+    --omn-state-warn: var(--omn-light-state-warn);
+    --omn-state-info: var(--omn-light-state-info);
+    --omn-state-off: var(--omn-light-state-off);
+    --omn-state-error: var(--omn-light-state-error);
+    --omn-state-alert: var(--omn-light-state-alert);
+    --omn-console-bg: var(--omn-light-console-bg);
+    --omn-console-text: var(--omn-light-console-text);
+    --omn-console-line: var(--omn-light-console-line);
+    --omn-console-warn: var(--omn-light-console-warn);
+    --omn-console-error: var(--omn-light-console-error);
+    --omn-console-border: var(--omn-light-console-border);
+    --omn-console-head-bg: var(--omn-light-console-head-bg);
+    --omn-console-head-text: var(--omn-light-console-head-text);
+    --omn-console-clear: var(--omn-light-console-clear);
+    --omn-console-button: var(--omn-light-console-button);
+    --omn-console-shadow: var(--omn-light-console-shadow);
+    --omn-bookmark-special-bg: var(--omn-light-bookmark-special-bg);
+    --omn-mark-yellow: var(--omn-light-mark-yellow);
+    --omn-mark-aqua: var(--omn-light-mark-aqua);
+    --omn-mark-red: var(--omn-light-mark-red);
+    --omn-mark-green: var(--omn-light-mark-green);
+    --omn-mark-ink: var(--omn-light-mark-ink);
 }
 
 /* The dark theme. The auto theme on a dark device uses the same list. */
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: var(--omn-dark-bg);
-    --bg-surface: var(--omn-dark-bg-surface);
-    --bg-band: var(--omn-dark-bg-band);
-    --bg-inset: var(--omn-dark-bg-inset);
-    --bg-metadata: var(--omn-dark-bg-metadata);
-    --bg-toc: var(--omn-dark-bg-toc);
-    --bg-hover: var(--omn-dark-bg-hover);
-    --text: var(--omn-dark-text);
-    --text-strong: var(--omn-dark-text-strong);
-    --text-heading: var(--omn-dark-text-heading);
-    --text-muted: var(--omn-dark-text-muted);
-    --text-faint: var(--omn-dark-text-faint);
-    --text-dim: var(--omn-dark-text-dim);
-    --border: var(--omn-dark-border);
-    --border-soft: var(--omn-dark-border-soft);
-    --border-card: var(--omn-dark-border-card);
-    --border-strong: var(--omn-dark-border-strong);
-    --border-title: var(--omn-dark-border-title);
-    --accent: var(--omn-dark-accent);
-    --accent-hover: var(--omn-dark-accent-hover);
-    --success: var(--omn-dark-success);
-    --success-hover: var(--omn-dark-success-hover);
-    --danger: var(--omn-dark-danger);
-    --info: var(--omn-dark-info);
-    --secondary: var(--omn-dark-secondary);
-    --file-app: var(--omn-dark-file-app);
-    --file-alert: var(--omn-dark-file-alert);
-    --file-keep: var(--omn-dark-file-keep);
-    --file-derived: var(--omn-dark-file-derived);
-    --file-plain: var(--omn-dark-file-plain);
-    --start-notes-bg: var(--omn-dark-start-notes-bg);
-    --start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
-    --start-btn-text: var(--omn-dark-start-btn-text);
-    --tag-bg: var(--omn-dark-tag-bg);
-    --tag-border: var(--omn-dark-tag-border);
-    --tag-selected: var(--omn-dark-tag-selected);
-    --table-border: var(--omn-dark-table-border);
-    --table-th-bg: var(--omn-dark-table-th-bg);
-    --table-th-text: var(--omn-dark-table-th-text);
-    --table-row-odd: var(--omn-dark-table-row-odd);
-    --table-row-even: var(--omn-dark-table-row-even);
-    --table-text: var(--omn-dark-table-text);
-    --search-hit-bg: var(--omn-dark-search-hit-bg);
-    --search-hit-text: var(--omn-dark-search-hit-text);
-    --overlay-bg: var(--omn-dark-overlay-bg);
-    --shadow: var(--omn-dark-shadow);
-    --shadow-soft: var(--omn-dark-shadow-soft);
-    --shadow-strong: var(--omn-dark-shadow-strong);
-    --code-bg: var(--omn-dark-code-bg);
-    --code-text: var(--omn-dark-code-text);
-    --code-comment: var(--omn-dark-code-comment);
-    --code-punctuation: var(--omn-dark-code-punctuation);
-    --code-string: var(--omn-dark-code-string);
-    --code-variable: var(--omn-dark-code-variable);
-    --code-literal: var(--omn-dark-code-literal);
-    --code-built-in: var(--omn-dark-code-built-in);
-    --code-meta: var(--omn-dark-code-meta);
-    --code-meta-string: var(--omn-dark-code-meta-string);
-    --code-tag-name: var(--omn-dark-code-tag-name);
-    --code-tag-attr: var(--omn-dark-code-tag-attr);
-    --on-accent: var(--omn-dark-on-accent);
-    --files-source-bg: var(--omn-dark-files-source-bg);
-    --state-ok: var(--omn-dark-state-ok);
-    --state-warn: var(--omn-dark-state-warn);
-    --state-info: var(--omn-dark-state-info);
-    --state-off: var(--omn-dark-state-off);
-    --state-error: var(--omn-dark-state-error);
-    --state-alert: var(--omn-dark-state-alert);
-    --console-bg: var(--omn-dark-console-bg);
-    --console-text: var(--omn-dark-console-text);
-    --console-line: var(--omn-dark-console-line);
-    --console-warn: var(--omn-dark-console-warn);
-    --console-error: var(--omn-dark-console-error);
-    --console-border: var(--omn-dark-console-border);
-    --console-head-bg: var(--omn-dark-console-head-bg);
-    --console-head-text: var(--omn-dark-console-head-text);
-    --console-clear: var(--omn-dark-console-clear);
-    --console-button: var(--omn-dark-console-button);
-    --console-shadow: var(--omn-dark-console-shadow);
-    --bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
-    --mark-yellow: var(--omn-dark-mark-yellow);
-    --mark-aqua: var(--omn-dark-mark-aqua);
-    --mark-red: var(--omn-dark-mark-red);
-    --mark-green: var(--omn-dark-mark-green);
-    --mark-ink: var(--omn-dark-mark-ink);
+    --omn-bg: var(--omn-dark-bg);
+    --omn-bg-surface: var(--omn-dark-bg-surface);
+    --omn-bg-band: var(--omn-dark-bg-band);
+    --omn-bg-inset: var(--omn-dark-bg-inset);
+    --omn-bg-metadata: var(--omn-dark-bg-metadata);
+    --omn-bg-toc: var(--omn-dark-bg-toc);
+    --omn-bg-hover: var(--omn-dark-bg-hover);
+    --omn-text: var(--omn-dark-text);
+    --omn-text-strong: var(--omn-dark-text-strong);
+    --omn-text-heading: var(--omn-dark-text-heading);
+    --omn-text-muted: var(--omn-dark-text-muted);
+    --omn-text-faint: var(--omn-dark-text-faint);
+    --omn-text-dim: var(--omn-dark-text-dim);
+    --omn-border: var(--omn-dark-border);
+    --omn-border-soft: var(--omn-dark-border-soft);
+    --omn-border-card: var(--omn-dark-border-card);
+    --omn-border-strong: var(--omn-dark-border-strong);
+    --omn-border-title: var(--omn-dark-border-title);
+    --omn-accent: var(--omn-dark-accent);
+    --omn-accent-hover: var(--omn-dark-accent-hover);
+    --omn-success: var(--omn-dark-success);
+    --omn-success-hover: var(--omn-dark-success-hover);
+    --omn-danger: var(--omn-dark-danger);
+    --omn-info: var(--omn-dark-info);
+    --omn-secondary: var(--omn-dark-secondary);
+    --omn-file-app: var(--omn-dark-file-app);
+    --omn-file-alert: var(--omn-dark-file-alert);
+    --omn-file-keep: var(--omn-dark-file-keep);
+    --omn-file-derived: var(--omn-dark-file-derived);
+    --omn-file-plain: var(--omn-dark-file-plain);
+    --omn-start-notes-bg: var(--omn-dark-start-notes-bg);
+    --omn-start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
+    --omn-start-btn-text: var(--omn-dark-start-btn-text);
+    --omn-tag-bg: var(--omn-dark-tag-bg);
+    --omn-tag-border: var(--omn-dark-tag-border);
+    --omn-tag-selected: var(--omn-dark-tag-selected);
+    --omn-table-border: var(--omn-dark-table-border);
+    --omn-table-th-bg: var(--omn-dark-table-th-bg);
+    --omn-table-th-text: var(--omn-dark-table-th-text);
+    --omn-table-row-odd: var(--omn-dark-table-row-odd);
+    --omn-table-row-even: var(--omn-dark-table-row-even);
+    --omn-table-text: var(--omn-dark-table-text);
+    --omn-search-hit-bg: var(--omn-dark-search-hit-bg);
+    --omn-search-hit-text: var(--omn-dark-search-hit-text);
+    --omn-overlay-bg: var(--omn-dark-overlay-bg);
+    --omn-shadow: var(--omn-dark-shadow);
+    --omn-shadow-soft: var(--omn-dark-shadow-soft);
+    --omn-shadow-strong: var(--omn-dark-shadow-strong);
+    --omn-code-bg: var(--omn-dark-code-bg);
+    --omn-code-text: var(--omn-dark-code-text);
+    --omn-code-comment: var(--omn-dark-code-comment);
+    --omn-code-punctuation: var(--omn-dark-code-punctuation);
+    --omn-code-string: var(--omn-dark-code-string);
+    --omn-code-variable: var(--omn-dark-code-variable);
+    --omn-code-literal: var(--omn-dark-code-literal);
+    --omn-code-built-in: var(--omn-dark-code-built-in);
+    --omn-code-meta: var(--omn-dark-code-meta);
+    --omn-code-meta-string: var(--omn-dark-code-meta-string);
+    --omn-code-tag-name: var(--omn-dark-code-tag-name);
+    --omn-code-tag-attr: var(--omn-dark-code-tag-attr);
+    --omn-on-accent: var(--omn-dark-on-accent);
+    --omn-files-source-bg: var(--omn-dark-files-source-bg);
+    --omn-state-ok: var(--omn-dark-state-ok);
+    --omn-state-warn: var(--omn-dark-state-warn);
+    --omn-state-info: var(--omn-dark-state-info);
+    --omn-state-off: var(--omn-dark-state-off);
+    --omn-state-error: var(--omn-dark-state-error);
+    --omn-state-alert: var(--omn-dark-state-alert);
+    --omn-console-bg: var(--omn-dark-console-bg);
+    --omn-console-text: var(--omn-dark-console-text);
+    --omn-console-line: var(--omn-dark-console-line);
+    --omn-console-warn: var(--omn-dark-console-warn);
+    --omn-console-error: var(--omn-dark-console-error);
+    --omn-console-border: var(--omn-dark-console-border);
+    --omn-console-head-bg: var(--omn-dark-console-head-bg);
+    --omn-console-head-text: var(--omn-dark-console-head-text);
+    --omn-console-clear: var(--omn-dark-console-clear);
+    --omn-console-button: var(--omn-dark-console-button);
+    --omn-console-shadow: var(--omn-dark-console-shadow);
+    --omn-bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+    --omn-mark-yellow: var(--omn-dark-mark-yellow);
+    --omn-mark-aqua: var(--omn-dark-mark-aqua);
+    --omn-mark-red: var(--omn-dark-mark-red);
+    --omn-mark-green: var(--omn-dark-mark-green);
+    --omn-mark-ink: var(--omn-dark-mark-ink);
 }
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]):not([data-theme="dark"]),
     :root[data-theme="auto"] {
         color-scheme: dark;
-        --bg: var(--omn-dark-bg);
-        --bg-surface: var(--omn-dark-bg-surface);
-        --bg-band: var(--omn-dark-bg-band);
-        --bg-inset: var(--omn-dark-bg-inset);
-        --bg-metadata: var(--omn-dark-bg-metadata);
-        --bg-toc: var(--omn-dark-bg-toc);
-        --bg-hover: var(--omn-dark-bg-hover);
-        --text: var(--omn-dark-text);
-        --text-strong: var(--omn-dark-text-strong);
-        --text-heading: var(--omn-dark-text-heading);
-        --text-muted: var(--omn-dark-text-muted);
-        --text-faint: var(--omn-dark-text-faint);
-        --text-dim: var(--omn-dark-text-dim);
-        --border: var(--omn-dark-border);
-        --border-soft: var(--omn-dark-border-soft);
-        --border-card: var(--omn-dark-border-card);
-        --border-strong: var(--omn-dark-border-strong);
-        --border-title: var(--omn-dark-border-title);
-        --accent: var(--omn-dark-accent);
-        --accent-hover: var(--omn-dark-accent-hover);
-        --success: var(--omn-dark-success);
-        --success-hover: var(--omn-dark-success-hover);
-        --danger: var(--omn-dark-danger);
-        --info: var(--omn-dark-info);
-        --secondary: var(--omn-dark-secondary);
-        --file-app: var(--omn-dark-file-app);
-        --file-alert: var(--omn-dark-file-alert);
-        --file-keep: var(--omn-dark-file-keep);
-        --file-derived: var(--omn-dark-file-derived);
-        --file-plain: var(--omn-dark-file-plain);
-        --start-notes-bg: var(--omn-dark-start-notes-bg);
-        --start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
-        --start-btn-text: var(--omn-dark-start-btn-text);
-        --tag-bg: var(--omn-dark-tag-bg);
-        --tag-border: var(--omn-dark-tag-border);
-        --tag-selected: var(--omn-dark-tag-selected);
-        --table-border: var(--omn-dark-table-border);
-        --table-th-bg: var(--omn-dark-table-th-bg);
-        --table-th-text: var(--omn-dark-table-th-text);
-        --table-row-odd: var(--omn-dark-table-row-odd);
-        --table-row-even: var(--omn-dark-table-row-even);
-        --table-text: var(--omn-dark-table-text);
-        --search-hit-bg: var(--omn-dark-search-hit-bg);
-        --search-hit-text: var(--omn-dark-search-hit-text);
-        --overlay-bg: var(--omn-dark-overlay-bg);
-        --shadow: var(--omn-dark-shadow);
-        --shadow-soft: var(--omn-dark-shadow-soft);
-        --shadow-strong: var(--omn-dark-shadow-strong);
-        --code-bg: var(--omn-dark-code-bg);
-        --code-text: var(--omn-dark-code-text);
-        --code-comment: var(--omn-dark-code-comment);
-        --code-punctuation: var(--omn-dark-code-punctuation);
-        --code-string: var(--omn-dark-code-string);
-        --code-variable: var(--omn-dark-code-variable);
-        --code-literal: var(--omn-dark-code-literal);
-        --code-built-in: var(--omn-dark-code-built-in);
-        --code-meta: var(--omn-dark-code-meta);
-        --code-meta-string: var(--omn-dark-code-meta-string);
-        --code-tag-name: var(--omn-dark-code-tag-name);
-        --code-tag-attr: var(--omn-dark-code-tag-attr);
-        --on-accent: var(--omn-dark-on-accent);
-        --files-source-bg: var(--omn-dark-files-source-bg);
-        --state-ok: var(--omn-dark-state-ok);
-        --state-warn: var(--omn-dark-state-warn);
-        --state-info: var(--omn-dark-state-info);
-        --state-off: var(--omn-dark-state-off);
-        --state-error: var(--omn-dark-state-error);
-        --state-alert: var(--omn-dark-state-alert);
-        --console-bg: var(--omn-dark-console-bg);
-        --console-text: var(--omn-dark-console-text);
-        --console-line: var(--omn-dark-console-line);
-        --console-warn: var(--omn-dark-console-warn);
-        --console-error: var(--omn-dark-console-error);
-        --console-border: var(--omn-dark-console-border);
-        --console-head-bg: var(--omn-dark-console-head-bg);
-        --console-head-text: var(--omn-dark-console-head-text);
-        --console-clear: var(--omn-dark-console-clear);
-        --console-button: var(--omn-dark-console-button);
-        --console-shadow: var(--omn-dark-console-shadow);
-        --bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
-        --mark-yellow: var(--omn-dark-mark-yellow);
-        --mark-aqua: var(--omn-dark-mark-aqua);
-        --mark-red: var(--omn-dark-mark-red);
-        --mark-green: var(--omn-dark-mark-green);
-        --mark-ink: var(--omn-dark-mark-ink);
+        --omn-bg: var(--omn-dark-bg);
+        --omn-bg-surface: var(--omn-dark-bg-surface);
+        --omn-bg-band: var(--omn-dark-bg-band);
+        --omn-bg-inset: var(--omn-dark-bg-inset);
+        --omn-bg-metadata: var(--omn-dark-bg-metadata);
+        --omn-bg-toc: var(--omn-dark-bg-toc);
+        --omn-bg-hover: var(--omn-dark-bg-hover);
+        --omn-text: var(--omn-dark-text);
+        --omn-text-strong: var(--omn-dark-text-strong);
+        --omn-text-heading: var(--omn-dark-text-heading);
+        --omn-text-muted: var(--omn-dark-text-muted);
+        --omn-text-faint: var(--omn-dark-text-faint);
+        --omn-text-dim: var(--omn-dark-text-dim);
+        --omn-border: var(--omn-dark-border);
+        --omn-border-soft: var(--omn-dark-border-soft);
+        --omn-border-card: var(--omn-dark-border-card);
+        --omn-border-strong: var(--omn-dark-border-strong);
+        --omn-border-title: var(--omn-dark-border-title);
+        --omn-accent: var(--omn-dark-accent);
+        --omn-accent-hover: var(--omn-dark-accent-hover);
+        --omn-success: var(--omn-dark-success);
+        --omn-success-hover: var(--omn-dark-success-hover);
+        --omn-danger: var(--omn-dark-danger);
+        --omn-info: var(--omn-dark-info);
+        --omn-secondary: var(--omn-dark-secondary);
+        --omn-file-app: var(--omn-dark-file-app);
+        --omn-file-alert: var(--omn-dark-file-alert);
+        --omn-file-keep: var(--omn-dark-file-keep);
+        --omn-file-derived: var(--omn-dark-file-derived);
+        --omn-file-plain: var(--omn-dark-file-plain);
+        --omn-start-notes-bg: var(--omn-dark-start-notes-bg);
+        --omn-start-bookmarks-bg: var(--omn-dark-start-bookmarks-bg);
+        --omn-start-btn-text: var(--omn-dark-start-btn-text);
+        --omn-tag-bg: var(--omn-dark-tag-bg);
+        --omn-tag-border: var(--omn-dark-tag-border);
+        --omn-tag-selected: var(--omn-dark-tag-selected);
+        --omn-table-border: var(--omn-dark-table-border);
+        --omn-table-th-bg: var(--omn-dark-table-th-bg);
+        --omn-table-th-text: var(--omn-dark-table-th-text);
+        --omn-table-row-odd: var(--omn-dark-table-row-odd);
+        --omn-table-row-even: var(--omn-dark-table-row-even);
+        --omn-table-text: var(--omn-dark-table-text);
+        --omn-search-hit-bg: var(--omn-dark-search-hit-bg);
+        --omn-search-hit-text: var(--omn-dark-search-hit-text);
+        --omn-overlay-bg: var(--omn-dark-overlay-bg);
+        --omn-shadow: var(--omn-dark-shadow);
+        --omn-shadow-soft: var(--omn-dark-shadow-soft);
+        --omn-shadow-strong: var(--omn-dark-shadow-strong);
+        --omn-code-bg: var(--omn-dark-code-bg);
+        --omn-code-text: var(--omn-dark-code-text);
+        --omn-code-comment: var(--omn-dark-code-comment);
+        --omn-code-punctuation: var(--omn-dark-code-punctuation);
+        --omn-code-string: var(--omn-dark-code-string);
+        --omn-code-variable: var(--omn-dark-code-variable);
+        --omn-code-literal: var(--omn-dark-code-literal);
+        --omn-code-built-in: var(--omn-dark-code-built-in);
+        --omn-code-meta: var(--omn-dark-code-meta);
+        --omn-code-meta-string: var(--omn-dark-code-meta-string);
+        --omn-code-tag-name: var(--omn-dark-code-tag-name);
+        --omn-code-tag-attr: var(--omn-dark-code-tag-attr);
+        --omn-on-accent: var(--omn-dark-on-accent);
+        --omn-files-source-bg: var(--omn-dark-files-source-bg);
+        --omn-state-ok: var(--omn-dark-state-ok);
+        --omn-state-warn: var(--omn-dark-state-warn);
+        --omn-state-info: var(--omn-dark-state-info);
+        --omn-state-off: var(--omn-dark-state-off);
+        --omn-state-error: var(--omn-dark-state-error);
+        --omn-state-alert: var(--omn-dark-state-alert);
+        --omn-console-bg: var(--omn-dark-console-bg);
+        --omn-console-text: var(--omn-dark-console-text);
+        --omn-console-line: var(--omn-dark-console-line);
+        --omn-console-warn: var(--omn-dark-console-warn);
+        --omn-console-error: var(--omn-dark-console-error);
+        --omn-console-border: var(--omn-dark-console-border);
+        --omn-console-head-bg: var(--omn-dark-console-head-bg);
+        --omn-console-head-text: var(--omn-dark-console-head-text);
+        --omn-console-clear: var(--omn-dark-console-clear);
+        --omn-console-button: var(--omn-dark-console-button);
+        --omn-console-shadow: var(--omn-dark-console-shadow);
+        --omn-bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+        --omn-mark-yellow: var(--omn-dark-mark-yellow);
+        --omn-mark-aqua: var(--omn-dark-mark-aqua);
+        --omn-mark-red: var(--omn-dark-mark-red);
+        --omn-mark-green: var(--omn-dark-mark-green);
+        --omn-mark-ink: var(--omn-dark-mark-ink);
     }
 }
 
@@ -517,25 +517,25 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background: var(--bg);
-    color: var(--text);
+    background: var(--omn-bg);
+    color: var(--omn-text);
 }
 
-#mainUI {
+#omn-main-ui {
     display: flex;
     flex: 1;
     flex-direction: column;
-    /* Without this, a flex item's implicit min-height:auto keeps #mainUI from
+    /* Without this, a flex item's implicit min-height:auto keeps #omn-main-ui from
        shrinking below its content's natural height. On a long page (e.g.
        UserManual) that let the whole body grow past 100vh and scroll as one -
        carrying the header off the top and hiding the footer until the very
-       bottom. min-height:0 clamps #mainUI to its flex share so #preview scrolls
+       bottom. min-height:0 clamps #omn-main-ui to its flex share so #omn-preview scrolls
        internally instead, keeping the header and footer always visible. The
-       inner .page-content already sets this; #mainUI was the missing link. */
+       inner .omn-page-content already sets this; #omn-main-ui was the missing link. */
     min-height: 0;
 }
 
-.page_container {
+.omn-page-container {
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -543,7 +543,7 @@ body {
     margin: 0;
 }
 
-.hidden {
+.omn-hidden {
     display: none !important;
 }
 
@@ -551,115 +551,115 @@ body {
    4. Page chrome (header, title, tags, footer)
    ========================================================================== */
 
-.page-header {
+.omn-page-header {
     overflow: hidden;
-    background-color: var(--bg-band);
+    background-color: var(--omn-bg-band);
     width: 100%;
     margin: 0;
     flex-shrink: 0;
     user-select: none;
 }
 
-.collapsible-header {
-    background-color: var(--bg-band);
+.omn-collapsible-header {
+    background-color: var(--omn-bg-band);
     width: 100%;
     padding: 0.5em;
     box-sizing: border-box;
 }
-.collapsible-header.hidden {
+.omn-collapsible-header.omn-hidden {
     display: none;
 }
 
-.header-actions {
+.omn-header-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 6px;
 }
-.header-actions a,
-.header-actions button {
-    color: var(--text);
+.omn-header-actions a,
+.omn-header-actions button {
+    color: var(--omn-text);
     text-decoration: none;
     cursor: pointer;
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--omn-border-strong);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 14px;
     display: flex;
     align-items: center;
 }
-.header-actions a:hover,
-.header-actions button:hover {
-    background: var(--bg-hover);
+.omn-header-actions a:hover,
+.omn-header-actions button:hover {
+    background: var(--omn-bg-hover);
 }
 
-.page-title {
+.omn-page-title {
     margin: 0.4em 0 0.5em 0;
     width: 100%;
     text-align: center;
     cursor: pointer;
     font-size: 1.1em;
     font-weight: bold;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
 }
-.page-title:hover {
-    color: var(--accent);
+.omn-page-title:hover {
+    color: var(--omn-accent);
 }
 
-.title-arrow {
+.omn-title-arrow {
     display: inline-block;
     text-indent: 0;
-    border: 1px solid var(--text-faint);
+    border: 1px solid var(--omn-text-faint);
     border-radius: 6px;
     padding: 0.1em 0.4em;
     margin-left: 6px;
     font-size: 0.9em;
-    color: var(--text-heading);
-    background: var(--bg-inset);
+    color: var(--omn-text-heading);
+    background: var(--omn-bg-inset);
     vertical-align: middle;
 }
 
 /* -- Tag pills -- */
-#headerTags {
+#omn-header-tags {
     margin-top: 5px;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
 }
-a.taglink {
+a.omn-taglink {
     text-decoration: none;
-    color: var(--text);
+    color: var(--omn-text);
 }
-.tagmark {
-    background-color: var(--tag-bg);
+.omn-tagmark {
+    background-color: var(--omn-tag-bg);
     padding: 2px 8px;
-    border: 1px solid var(--tag-border);
+    border: 1px solid var(--omn-tag-border);
     border-radius: 8px;
     font-size: 0.85em;
     display: inline-block;
 }
-.tagmark:hover {
-    background-color: var(--bg-hover);
+.omn-tagmark:hover {
+    background-color: var(--omn-bg-hover);
 }
-.tagmarkselected {
-    color: var(--bg-surface);
-    background-color: var(--tag-selected);
+.omn-tagmarkselected {
+    color: var(--omn-bg-surface);
+    background-color: var(--omn-tag-selected);
 }
 
 /* -- Footer / status bar -- */
-.page-footer {
+.omn-page-footer {
     overflow-x: hidden;
     flex-shrink: 0;
-    background-color: var(--bg-band);
+    background-color: var(--omn-bg-band);
     padding: 2px 8px;
     font-size: 0.75rem;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.version-footer-inline {
+.omn-version-footer-inline {
     font-size: 0.7rem;
     opacity: 0.7;
 }
@@ -681,7 +681,7 @@ a.taglink {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--console-button);
+    background: var(--omn-console-button);
     cursor: pointer;
     flex: 0 0 auto;
     margin-left: 8px;
@@ -691,7 +691,7 @@ a.taglink {
    5. Content area (preview / editor)
    ========================================================================== */
 
-.page-content {
+.omn-page-content {
     padding: 0.5em;
     flex: 1;
     display: flex;
@@ -700,28 +700,28 @@ a.taglink {
     overflow: hidden;    /* prevent double scrollbars; children scroll */
 }
 
-#preview {
+#omn-preview {
     width: 100%;
     flex: 1;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    background: var(--omn-bg-surface);
+    border: 1px solid var(--omn-border);
     padding: 20px;
     overflow-y: auto;
     box-sizing: border-box;
     line-height: 1.6;
-    /* Layout containment keeps #preview's descendants from affecting the
+    /* Layout containment keeps #omn-preview's descendants from affecting the
        layout OUTSIDE it. Without it, some rendered content - notably KaTeX
        math output (e.g. on UserManual, which sets OMN_GO_KATEX) - escaped this
        scroll box and inflated the whole document's height by thousands of px.
        That phantom height was itself unreachable by mouse wheel (the wheel
-       scrolls #preview), but a touch drag that hit #preview's bottom then
+       scrolls #omn-preview), but a touch drag that hit #omn-preview's bottom then
        chained into it, dragging the entire shell - header and footer included -
        off screen. contain:layout removes the phantom height entirely (the
-       document stays exactly one viewport tall) while #preview still scrolls
+       document stays exactly one viewport tall) while #omn-preview still scrolls
        its content normally, so there is nothing left to chain into. */
     contain: layout;
 }
-.page-content #preview {
+.omn-page-content #omn-preview {
     border: none;
     background: transparent;
     padding: 10px 0;
@@ -731,20 +731,20 @@ a.taglink {
     overflow-y: auto;    /* scroll if content overflows */
 }
 
-#editor {
+#omn-editor-text {
     display: none;
     width: 100%;
     flex: 1;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     padding: 10px;
     font-family: monospace;
     resize: none;
     box-sizing: border-box;
-    background: var(--bg-surface);
-    color: var(--text);
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
 }
-.page-content #editor {
-    border: 1px solid var(--border-soft);
+.omn-page-content #omn-editor-text {
+    border: 1px solid var(--omn-border-soft);
     flex: 1;
     min-height: 0;
     width: 100%;
@@ -753,12 +753,12 @@ a.taglink {
 }
 
 /* -- Metadata panel -- */
-.metadata-panel {
-    background: var(--bg-metadata);
+.omn-metadata-panel {
+    background: var(--omn-bg-metadata);
     padding: 15px;
     font-family: monospace;
     white-space: pre-wrap;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     margin-bottom: 10px;
     border-radius: 4px;
     font-size: 13px;
@@ -769,16 +769,16 @@ a.taglink {
    makes the column longer and leaves the width of the metadata alone. Until
    26.08.53 the controls were in the "File:" line, and each new control took
    width from the name of the note. */
-.metadata-layout {
+.omn-metadata-layout {
     display: flex;
     align-items: flex-start;
     gap: 12px;
 }
-.metadata-body {
+.omn-metadata-body {
     flex: 1 1 auto;
     min-width: 0;
 }
-.metadata-actions {
+.omn-metadata-actions {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
@@ -787,14 +787,14 @@ a.taglink {
 /* The "File:" line, and the status text of the controls. The color and the
    rule under it were inline "#0056b3" and "#ccc" until 26.08.37 - unthemed,
    so the line was nearly invisible on the dark theme. */
-.metadata-file-row {
+.omn-metadata-file-row {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
     padding-bottom: 4px;
-    border-bottom: 1px solid var(--border);
-    color: var(--accent);
+    border-bottom: 1px solid var(--omn-border);
+    color: var(--omn-accent);
     font-weight: bold;
 }
 /* A long value gets a hanging indent: the first line starts at the left
@@ -802,20 +802,20 @@ a.taglink {
    the only text at the left edge, and the eye finds the next key. A long word
    with no space in it - a URL in a Tags line, for example - breaks instead of
    pushing the panel wider. */
-.metadata-file-name {
+.omn-metadata-file-name {
     flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
     padding-left: 2em;
     text-indent: -2em;
 }
-.metadata-send-status {
+.omn-metadata-send-status {
     flex: 0 0 auto;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
     font-weight: normal;
     font-size: 12px;
 }
-.metadata-send {
+.omn-metadata-send {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -823,16 +823,16 @@ a.taglink {
     width: 26px;
     height: 26px;
     padding: 0;
-    color: var(--text);
+    color: var(--omn-text);
     background: none;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 50%;
     cursor: pointer;
 }
-.metadata-send:hover {
-    background: var(--bg-hover);
+.omn-metadata-send:hover {
+    background: var(--omn-bg-hover);
 }
-.metadata-row {
+.omn-metadata-row {
     margin-bottom: 4px;
     padding-left: 2em;
     text-indent: -2em;
@@ -844,23 +844,23 @@ a.taglink {
    the note: a user who edits the note keeps the styling, and a user who
    deletes the box takes nothing else with it. -- */
 .omn-incoming {
-    border: 1px dashed var(--border-strong);
+    border: 1px dashed var(--omn-border-strong);
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 14px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
 }
-.omn-incoming.is-over {
+.omn-incoming.omn-is-over {
     border-style: solid;
-    border-color: var(--accent);
-    background: var(--bg-hover);
+    border-color: var(--omn-accent);
+    background: var(--omn-bg-hover);
 }
 /* The box is a <details>, closed on load: the reason to open the Incoming
    notes page is the list, not the control. The summary is the whole
    affordance, so it takes the pointer and the open/closed spacing. */
 .omn-incoming-head {
     font-weight: bold;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
     margin-bottom: 0;
 }
 details.omn-incoming > summary.omn-incoming-head {
@@ -876,12 +876,12 @@ details.omn-incoming[open] > summary.omn-incoming-head {
    it. */
 .omn-incoming-when {
     font-size: 0.8em;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
     white-space: nowrap;
 }
 .omn-incoming-hint {
     margin: 0 0 8px;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
     font-size: 13px;
 }
 .omn-incoming-row {
@@ -896,14 +896,14 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    color: var(--on-accent);
-    background: var(--accent);
+    color: var(--omn-on-accent);
+    background: var(--omn-accent);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 .omn-incoming-btn:hover {
-    background: var(--accent-hover);
+    background: var(--omn-accent-hover);
 }
 .omn-incoming-btn[disabled] {
     opacity: 0.6;
@@ -912,21 +912,21 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 .omn-incoming-status {
     margin-top: 8px;
     min-height: 1.2em;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
     font-size: 13px;
 }
-.omn-incoming-status.is-error {
-    color: var(--danger);
+.omn-incoming-status.omn-is-error {
+    color: var(--omn-danger);
 }
 
 /* ==========================================================================
    6. Components (overlays, modals, panels, buttons)
    ========================================================================== */
 
-.overlay {
+.omn-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--overlay-bg);
+    background: var(--omn-overlay-bg);
     display: none;   /* JS switches to flex when shown */
     align-items: center;
     justify-content: center;
@@ -934,125 +934,125 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 }
 
 /* The two sync conflict modals (modals.html). The other overlays are shown
-   by JS with style.display. These two are driven by the .hidden class
+   by JS with style.display. These two are driven by the .omn-hidden class
    alone. See window.runSync and window.performSync in omn-go-sync.js.
 
-   BOTH IDS MUST STAY IN THIS RULE. 26.08.58 added #push-conflict-modal to
-   modals.html and to the JS, and it added no rule here. .overlay sets
-   display:none, thus a removal of .hidden left that modal invisible. The
+   BOTH IDS MUST STAY IN THIS RULE. 26.08.58 added #omn-push-conflict-modal to
+   modals.html and to the JS, and it added no rule here. .omn-overlay sets
+   display:none, thus a removal of .omn-hidden left that modal invisible. The
    element was in the page, so the confirm() fallback of runSync did not run
    either. The same commit removed the force checkbox of the header. A
    rejected push therefore gave the reader nothing at all, from 26.08.58 to
    26.09.55. TestAnOverlayHiddenByClassCanBeShownAgain keeps the two files
    in agreement. */
-#conflict-modal:not(.hidden),
-#push-conflict-modal:not(.hidden) {
+#omn-conflict-modal:not(.omn-hidden),
+#omn-push-conflict-modal:not(.omn-hidden) {
     display: flex;
 }
 
 /* Conflict modal file list: the files in contention (populated by
    populateConflictFiles in omn-go-api.js) - exactly what "Mark Conflicts"
    would inject markers into. Scrolls when there are many. */
-.conflict-files {
+.omn-conflict-files {
     text-align: left;
     margin-bottom: 10px;
     padding: 8px 10px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 4px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
     max-height: 160px;
     overflow-y: auto;
 }
-.conflict-files-title {
+.omn-conflict-files-title {
     margin: 0 0 6px;
     font-weight: bold;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
 }
-#conflict-file-list {
+#omn-conflict-file-list {
     margin: 0;
     padding-left: 18px;
     font-family: monospace;
     word-break: break-all;
 }
-#conflict-file-list li {
+#omn-conflict-file-list li {
     margin: 2px 0;
 }
-.conflict-files-none {
+.omn-conflict-files-none {
     list-style: none;
     margin-left: -18px;
     font-family: inherit;
     font-style: italic;
-    color: var(--text-muted);
+    color: var(--omn-text-muted);
 }
 
-.modal {
-    background: var(--bg-surface);
+.omn-modal {
+    background: var(--omn-bg-surface);
     padding: 20px;
     border-radius: 4px;
-    box-shadow: 0 4px 6px var(--shadow);
+    box-shadow: 0 4px 6px var(--omn-shadow);
     width: 300px;
 }
-.modal input, .modal button, .modal textarea,
-.panel input, .panel textarea, .panel button {
+.omn-modal input, .omn-modal button, .omn-modal textarea,
+.omn-panel input, .omn-panel textarea, .omn-panel button {
     width: 100%;
     box-sizing: border-box;
     margin-bottom: 10px;
     padding: 8px;
 }
-.modal input, .modal textarea,
-.panel input, .panel textarea {
-    background: var(--bg-surface);
-    color: var(--text);
-    border: 1px solid var(--border);
+.omn-modal input, .omn-modal textarea,
+.omn-panel input, .omn-panel textarea {
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border);
 }
-.modal button {
-    background: var(--accent);
-    color: var(--on-accent);
+.omn-modal button {
+    background: var(--omn-accent);
+    color: var(--omn-on-accent);
     border: none;
     cursor: pointer;
     border-radius: 4px;
 }
 
-.panel {
+.omn-panel {
     position: absolute;
     top: 50px;
     right: 20px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    background: var(--omn-bg-surface);
+    border: 1px solid var(--omn-border);
     padding: 15px;
-    box-shadow: 0 4px 8px var(--shadow);
+    box-shadow: 0 4px 8px var(--omn-shadow);
     width: 300px;
     z-index: 40;
 }
-.panel h3 { margin-top: 0; }
-.panel button {
-    background: var(--success);
-    color: var(--on-accent);
+.omn-panel h3 { margin-top: 0; }
+.omn-panel button {
+    background: var(--omn-success);
+    color: var(--omn-on-accent);
     border: none;
     cursor: pointer;
     border-radius: 4px;
 }
 
-.modal-buttons-row {
+.omn-modal-buttons-row {
     display: flex;
     gap: 10px;
 }
-.btn-cancel {
-    background: var(--danger);
+.omn-btn-cancel {
+    background: var(--omn-danger);
 }
 
 /* -- Bookmark "Tags" autocomplete (see wireBookmarkTagAutocomplete in
    omn-go-bookmark.js). The wrapper takes over the margin-bottom that
-   ".panel input" normally provides, so #bmTags itself is zeroed out -
+   ".omn-panel input" normally provides, so #omn-bm-tags itself is zeroed out -
    otherwise the gap would be doubled. -- */
-.panel .tag-input-wrap {
+.omn-panel .omn-tag-input-wrap {
     position: relative;
     margin-bottom: 10px;
 }
-.panel .tag-input-wrap input {
+.omn-panel .omn-tag-input-wrap input {
     margin-bottom: 0;
 }
-.tag-suggestions {
+.omn-tag-suggestions {
     position: absolute;
     left: 0; right: 0; top: 100%;
     margin: 2px 0 0;
@@ -1060,29 +1060,29 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     list-style: none;
     max-height: 160px;
     overflow-y: auto;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-strong);
+    background: var(--omn-bg-surface);
+    border: 1px solid var(--omn-border-strong);
     border-radius: 4px;
-    box-shadow: 0 4px 6px var(--shadow);
+    box-shadow: 0 4px 6px var(--omn-shadow);
     z-index: 60;
 }
-.tag-suggestion-item {
+.omn-tag-suggestion-item {
     padding: 6px 10px;
     cursor: pointer;
-    color: var(--text);
+    color: var(--omn-text);
     font-size: 13px;
 }
-.tag-suggestion-item:hover,
-.tag-suggestion-item.active {
-    background: var(--bg-hover);
+.omn-tag-suggestion-item:hover,
+.omn-tag-suggestion-item.omn-active {
+    background: var(--omn-bg-hover);
 }
 
 /* Shared by the result rows and the in-page highlight, so a match looks the
    same wherever it is shown. */
 mark.omn-search-hit {
     padding: 0 1px;
-    color: var(--search-hit-text);
-    background: var(--search-hit-bg);
+    color: var(--omn-search-hit-text);
+    background: var(--omn-search-hit-bg);
     border-radius: 2px;
 }
 
@@ -1106,25 +1106,25 @@ mark.omn-search-hit.omn-search-hit-current {
 }
 
 /* -- Header action button accents. The hover keeps the color. -- */
-.header-actions .btn-create-page,
-.header-actions .btn-quick-note,
-.header-actions .btn-add-bookmark,
-.header-actions .btn-add-shortcut,
-.header-actions .btn-create-page:hover,
-.header-actions .btn-quick-note:hover,
-.header-actions .btn-add-bookmark:hover,
-.header-actions .btn-add-shortcut:hover {
-    background: var(--info);
-    border-color: var(--info);
-    color: var(--on-accent);
+.omn-header-actions .omn-btn-create-page,
+.omn-header-actions .omn-btn-quick-note,
+.omn-header-actions .omn-btn-add-bookmark,
+.omn-header-actions .omn-btn-add-shortcut,
+.omn-header-actions .omn-btn-create-page:hover,
+.omn-header-actions .omn-btn-quick-note:hover,
+.omn-header-actions .omn-btn-add-bookmark:hover,
+.omn-header-actions .omn-btn-add-shortcut:hover {
+    background: var(--omn-info);
+    border-color: var(--omn-info);
+    color: var(--omn-on-accent);
 }
-.header-actions .btn-refresh,
-.header-actions .btn-settings,
-.header-actions .btn-refresh:hover,
-.header-actions .btn-settings:hover {
-    background: var(--secondary);
-    border-color: var(--secondary);
-    color: var(--on-accent);
+.omn-header-actions .omn-btn-refresh,
+.omn-header-actions .omn-btn-settings,
+.omn-header-actions .omn-btn-refresh:hover,
+.omn-header-actions .omn-btn-settings:hover {
+    background: var(--omn-secondary);
+    border-color: var(--omn-secondary);
+    color: var(--omn-on-accent);
 }
 
 /* -- Android-only controls (e.g. "add to home screen" shortcut) --
@@ -1132,26 +1132,26 @@ mark.omn-search-hit.omn-search-hit-current {
    desktop, so these stay hidden until omn-go-core.js's applyPlatformUI()
    (gated on the server-injected IS_ANDROID flag, see
    internal/render/pages.go) reveals them. */
-.android-only {
+.omn-android-only {
     display: none;
 }
 
-/* The bare .android-only rule above is specificity 0-1-0, and every control
-   in the header bar is also matched by ".header-actions a, .header-actions
+/* The bare .omn-android-only rule above is specificity 0-1-0, and every control
+   in the header bar is also matched by ".omn-header-actions a, .omn-header-actions
    button" (0-1-1), which sets display:flex - so "Add to home screen" was
    visible in the DESKTOP header too, where the add-shortcut action has no
    native shell to ask. This selector restores "hidden by default" for the
    header case. On Android, applyPlatformUI (omn-go-core.js) sets an
    explicit inline display on the element, which beats both rules. */
-.header-actions .android-only {
+.omn-header-actions .omn-android-only {
     display: none;
 }
 
 /* -- Editing controls -- */
-.btn-metadata-toggle {
+.omn-btn-metadata-toggle {
     display: block;
-    background: var(--info);
-    color: var(--on-accent);
+    background: var(--omn-info);
+    color: var(--omn-on-accent);
     border: none;
 }
 
@@ -1172,7 +1172,7 @@ mark.omn-search-hit.omn-search-hit-current {
     align-items: flex-start;
     justify-content: center;
     padding: 18vh 16px 16px;
-    background: var(--overlay-bg);
+    background: var(--omn-overlay-bg);
 }
 .omn-progress-overlay[hidden] {
     display: none;
@@ -1182,11 +1182,11 @@ mark.omn-search-hit.omn-search-hit-current {
     max-width: 420px;
     box-sizing: border-box;
     padding: 18px 20px;
-    background: var(--bg-surface);
-    color: var(--text);
-    border: 1px solid var(--border-card);
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border-card);
     border-radius: 8px;
-    box-shadow: 0 4px 24px var(--shadow-strong);
+    box-shadow: 0 4px 24px var(--omn-shadow-strong);
 }
 .omn-progress-head {
     display: flex;
@@ -1198,7 +1198,7 @@ mark.omn-search-hit.omn-search-hit-current {
     flex: 1 1 auto;
     font-size: 16px;
     font-weight: 700;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
 }
 .omn-progress-close {
     flex: 0 0 auto;
@@ -1209,31 +1209,31 @@ mark.omn-search-hit.omn-search-hit-current {
     height: 28px;
     padding: 0;
     background: none;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 50%;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     cursor: pointer;
 }
 .omn-progress-close:hover {
-    background: var(--bg-hover);
-    color: var(--text);
+    background: var(--omn-bg-hover);
+    color: var(--omn-text);
 }
 .omn-progress-track {
     height: 6px;
     border-radius: 3px;
-    background: var(--bg-inset);
+    background: var(--omn-bg-inset);
     overflow: hidden;
 }
 .omn-progress-fill {
     height: 100%;
     width: 100%;
     border-radius: 3px;
-    background: var(--accent);
+    background: var(--omn-accent);
 }
 /* Indeterminate: a short bar sweeping the track. translateX percentages are
    relative to the FILL's own width (40% of the track), so -100% parks it
    just off the left edge and 250% carries it just past the right. */
-.omn-progress-track.indeterminate .omn-progress-fill {
+.omn-progress-track.omn-indeterminate .omn-progress-fill {
     width: 40%;
     animation: omn-progress-sweep 1.2s ease-in-out infinite;
 }
@@ -1244,7 +1244,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .omn-progress-stage {
     margin-top: 14px;
     font-size: 14px;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
 }
 .omn-progress-detail {
     margin-top: 5px;
@@ -1252,11 +1252,11 @@ mark.omn-search-hit.omn-search-hit-current {
     font-family: monospace;
     font-size: 12px;
     line-height: 1.2;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
     overflow-wrap: anywhere;
 }
 @media (prefers-reduced-motion: reduce) {
-    .omn-progress-track.indeterminate .omn-progress-fill {
+    .omn-progress-track.omn-indeterminate .omn-progress-fill {
         width: 100%;
         animation: none;
         opacity: 0.55;
@@ -1270,9 +1270,9 @@ mark.omn-search-hit.omn-search-hit-current {
    deletes the block from the note. The classes live here so that the note
    stays short and so that both themes stay correct without inline colors.
 
-   The card colors are their own tokens (--start-notes-bg,
-   --start-bookmarks-bg, --start-btn-text in section 1) rather than --accent
-   and --info: the dark palette lightens --accent to #4d9fff, which is a
+   The card colors are their own tokens (--omn-start-notes-bg,
+   --omn-start-bookmarks-bg, --omn-start-btn-text in section 1) rather than --omn-accent
+   and --omn-info: the dark palette lightens --omn-accent to #4d9fff, which is a
    good link color on a dark background but leaves too little contrast under
    white label text on a filled card. Hover uses a brightness filter, so it
    needs no token of its own in either theme.
@@ -1295,11 +1295,11 @@ mark.omn-search-hit.omn-search-hit-current {
     min-height: 72px;
     padding: 14px 18px;
     border-radius: 10px;
-    background: var(--start-notes-bg);
-    color: var(--start-btn-text);
+    background: var(--omn-start-notes-bg);
+    color: var(--omn-start-btn-text);
     text-decoration: none;
-    text-indent: 0;      /* #preview p sets 1em - see .material-icons above */
-    box-shadow: 0 2px 4px var(--shadow);
+    text-indent: 0;      /* #omn-preview p sets 1em - see .material-icons above */
+    box-shadow: 0 2px 4px var(--omn-shadow);
 }
 
 .omn-start-button:hover,
@@ -1308,7 +1308,7 @@ mark.omn-search-hit.omn-search-hit-current {
 }
 
 .omn-start-button-bookmarks {
-    background: var(--start-bookmarks-bg);
+    background: var(--omn-start-bookmarks-bg);
 }
 
 .omn-start-icon {
@@ -1347,26 +1347,26 @@ mark.omn-search-hit.omn-search-hit-current {
    7. Panel pages (Config, Status, Log, the error pages)
    ========================================================================== */
 
-.config-panel {
+.omn-config-panel {
     max-width: 600px;
     margin: 0 auto;
-    background: var(--bg-surface);
+    background: var(--omn-bg-surface);
     padding: 30px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px var(--shadow);
-    border: 1px solid var(--border-card);
+    box-shadow: 0 4px 12px var(--omn-shadow);
+    border: 1px solid var(--omn-border-card);
 }
-.config-title {
+.omn-config-title {
     margin-top: 0;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
     font-size: 24px;
     font-weight: 700;
-    border-bottom: 2px solid var(--border-title);
+    border-bottom: 2px solid var(--omn-border-title);
     padding-bottom: 10px;
 }
 
-.config-menu-item,
-.config-link-btn {
+.omn-config-menu-item,
+.omn-config-link-btn {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -1375,82 +1375,82 @@ mark.omn-search-hit.omn-search-hit-current {
     padding: 12px 14px;
     text-align: left;
     text-decoration: none;
-    background: var(--bg-inset);
-    color: var(--text);
-    border: 1px solid var(--border-soft);
+    background: var(--omn-bg-inset);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border-soft);
     border-radius: 8px;
     cursor: pointer;
     box-sizing: border-box;
     transition: background 0.15s, border-color 0.15s;
 }
-.config-menu-item:hover,
-.config-link-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-strong);
+.omn-config-menu-item:hover,
+.omn-config-link-btn:hover {
+    background: var(--omn-bg-hover);
+    border-color: var(--omn-border-strong);
 }
-.config-menu-icon {
+.omn-config-menu-icon {
     flex: 0 0 auto;
     font-size: 24px;
-    color: var(--accent);
+    color: var(--omn-accent);
 }
-.config-menu-text {
+.omn-config-menu-text {
     display: flex;
     flex-direction: column;
     gap: 2px;
     flex: 1 1 auto;
     min-width: 0;
 }
-.config-menu-name {
+.omn-config-menu-name {
     font-weight: 600;
     font-size: 16px;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
 }
-.config-menu-desc {
+.omn-config-menu-desc {
     font-size: 13px;
-    color: var(--text-faint);
+    color: var(--omn-text-faint);
 }
-.config-menu-chevron {
+.omn-config-menu-chevron {
     flex: 0 0 auto;
     font-size: 22px;
-    color: var(--text-dim);
+    color: var(--omn-text-dim);
 }
 
-.config-link-row {
+.omn-config-link-row {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-.config-field {
+.omn-config-field {
     margin-bottom: 20px;
 }
-.config-label {
+.omn-config-label {
     display: block;
     font-weight: 600;
     margin-bottom: 8px;
-    color: var(--text-heading);
+    color: var(--omn-text-heading);
 }
-.config-input {
+.omn-config-input {
     width: 100%;
     padding: 10px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--omn-border);
     border-radius: 4px;
     box-sizing: border-box;
-    background: var(--bg-surface);
-    color: var(--text);
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
 }
-.config-checkbox-row {
+.omn-config-checkbox-row {
     display: flex;
     align-items: center;
     gap: 10px;
 }
-.config-hint {
-    color: var(--text-faint);
+.omn-config-hint {
+    color: var(--omn-text-faint);
     display: block;
     margin-top: 5px;
 }
-.config-save-btn {
-    background: var(--success);
-    color: var(--on-accent);
+.omn-config-save-btn {
+    background: var(--omn-success);
+    color: var(--omn-on-accent);
     border: none;
     padding: 12px 20px;
     border-radius: 4px;
@@ -1460,10 +1460,10 @@ mark.omn-search-hit.omn-search-hit-current {
     font-size: 16px;
     transition: background 0.2s;
 }
-.config-save-btn:hover {
-    background: var(--success-hover);
+.omn-config-save-btn:hover {
+    background: var(--omn-success-hover);
 }
-.config-save-row {
+.omn-config-save-row {
     margin-top: 20px;
 }
 
@@ -1473,35 +1473,35 @@ mark.omn-search-hit.omn-search-hit-current {
    Deliberately NOT themed: a terminal-style console is dark in both
    themes, matching its green-on-black identity. */
 
-.console-modal {
+.omn-console-modal {
     display: none;
     position: fixed;
     top: 10%; left: 10%;
     width: 80%; height: 80%;
-    background: var(--console-bg);
-    color: var(--console-text);
+    background: var(--omn-console-bg);
+    color: var(--omn-console-text);
     z-index: 10000;
-    border: 2px solid var(--console-border);
+    border: 2px solid var(--omn-console-border);
     border-radius: 8px;
     flex-direction: column;
     font-family: monospace;
-    box-shadow: 0 4px 12px var(--console-shadow);
+    box-shadow: 0 4px 12px var(--omn-console-shadow);
 }
-.console-header {
+.omn-console-header {
     padding: 10px;
-    background: var(--console-head-bg);
-    color: var(--console-head-text);
+    background: var(--omn-console-head-bg);
+    color: var(--omn-console-head-text);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--console-border);
+    border-bottom: 1px solid var(--omn-console-border);
     font-weight: bold;
 }
-.console-actions {
+.omn-console-actions {
     display: flex;
     gap: 8px;
 }
-.console-logs {
+.omn-console-logs {
     flex: 1;
     overflow-y: auto;
     padding: 10px;
@@ -1510,8 +1510,8 @@ mark.omn-search-hit.omn-search-hit-current {
     font-size: 12px;
     line-height: 1.4;
 }
-.btn-console {
-    color: var(--on-accent);
+.omn-btn-console {
+    color: var(--omn-on-accent);
     border: none;
     border-radius: 4px;
     padding: 4px 8px;
@@ -1520,23 +1520,23 @@ mark.omn-search-hit.omn-search-hit-current {
     align-items: center;
     justify-content: center;
 }
-.console-line {
+.omn-console-line {
     margin-bottom: 4px;
     padding-bottom: 4px;
-    border-bottom: 1px solid var(--console-head-bg);
-    color: var(--console-line);
+    border-bottom: 1px solid var(--omn-console-head-bg);
+    color: var(--omn-console-line);
 }
-.console-line-error { color: var(--console-error); }
-.console-line-warn { color: var(--console-warn); }
-.btn-console-clear { background: var(--console-clear); }
-.btn-console-close { background: var(--console-error); }
-.btn-console-main,
-.header-actions .btn-console-main,
-.header-actions .btn-console-main:hover {
-    background: var(--console-button);
-    color: var(--on-accent);
+.omn-console-line-error { color: var(--omn-console-error); }
+.omn-console-line-warn { color: var(--omn-console-warn); }
+.omn-btn-console-clear { background: var(--omn-console-clear); }
+.omn-btn-console-close { background: var(--omn-console-error); }
+.omn-btn-console-main,
+.omn-header-actions .omn-btn-console-main,
+.omn-header-actions .omn-btn-console-main:hover {
+    background: var(--omn-console-button);
+    color: var(--omn-on-accent);
 }
-.btn-console-main {
+.omn-btn-console-main {
     margin-left: 8px;
     padding: 4px 8px;
     border: none;
@@ -1547,64 +1547,64 @@ mark.omn-search-hit.omn-search-hit-current {
     display: flex;
     align-items: center;
 }
-.btn-console-main-fixed {
+.omn-btn-console-main-fixed {
     position: fixed;
     bottom: 4px;
     left: 8px;
     z-index: 9999;
     margin-left: 0;
 }
-.icon-sm { font-size: 18px; }
-.icon-xs { font-size: 16px; margin-right: 4px; }
+.omn-icon-sm { font-size: 18px; }
+.omn-icon-xs { font-size: 16px; margin-right: 4px; }
 
 /* ==========================================================================
    9. Markdown content (tables, TOC, paragraph style)
    ========================================================================== */
 
 /* -- Table of contents box -- */
-#TOC {
-    border: solid var(--text) 1px;
+#omn-toc {
+    border: solid var(--omn-text) 1px;
     margin: 10px;
     padding: 10px;
-    background: var(--bg-toc);
+    background: var(--omn-bg-toc);
 }
-.TOCEntry {
+.omn-toc-entry {
     font-family: sans-serif;
 }
-.TOCEntry a {
+.omn-toc-entry a {
     text-decoration: none;
 }
-.TOCLevel1 { font-weight: bold; }
-.TOCLevel2 { font-weight: bold; }
-.TOCLevel3 { font-weight: bold; }
-.TOCLevel4 { font-weight: bold; margin-left: 0.5em; }
-.TOCLevel5 { font-weight: bold; margin-left: 1em; }
-.TOCLevel6 { font-weight: bold; margin-left: 1.5em; }
+.omn-toc-level1 { font-weight: bold; }
+.omn-toc-level2 { font-weight: bold; }
+.omn-toc-level3 { font-weight: bold; }
+.omn-toc-level4 { font-weight: bold; margin-left: 0.5em; }
+.omn-toc-level5 { font-weight: bold; margin-left: 1em; }
+.omn-toc-level6 { font-weight: bold; margin-left: 1.5em; }
 
 /* -- Tables (legacy common.css look, tokenized) -- */
-#content table {
+#omn-content table {
     border-collapse: collapse;
 }
-#content table,
-#content th,
-#content td {
-    border: 2px solid var(--table-border);
+#omn-content table,
+#omn-content th,
+#omn-content td {
+    border: 2px solid var(--omn-table-border);
 }
-#content th {
-    background-color: var(--table-th-bg);
-    color: var(--table-th-text);
+#omn-content th {
+    background-color: var(--omn-table-th-bg);
+    color: var(--omn-table-th-text);
 }
-#content tr:nth-child(odd) {
-    background-color: var(--table-row-odd);
-    color: var(--table-text);
+#omn-content tr:nth-child(odd) {
+    background-color: var(--omn-table-row-odd);
+    color: var(--omn-table-text);
 }
-#content tr:nth-child(even) {
-    background-color: var(--table-row-even);
-    color: var(--table-text);
+#omn-content tr:nth-child(even) {
+    background-color: var(--omn-table-row-even);
+    color: var(--omn-table-text);
 }
 
 /* -- Paragraph indent (legacy style) -- */
-#preview p {
+#omn-preview p {
     text-indent: 1em;
     margin: 0 3px;
 }
@@ -1621,40 +1621,40 @@ mark.omn-search-hit.omn-search-hit-current {
    like the rest of the page. Light token values equal the vendor theme,
    so the light look is unchanged; the higher specificity beats the vendor
    rules without !important. -- */
-#preview pre code.hljs {
-    background: var(--code-bg);
-    color: var(--code-text);
+#omn-preview pre code.hljs {
+    background: var(--omn-code-bg);
+    color: var(--omn-code-text);
 }
-#preview pre code.hljs .hljs-comment { color: var(--code-comment); }
-#preview pre code.hljs .hljs-punctuation,
-#preview pre code.hljs .hljs-tag { color: var(--code-punctuation); }
-#preview pre code.hljs .hljs-deletion,
-#preview pre code.hljs .hljs-number,
-#preview pre code.hljs .hljs-quote,
-#preview pre code.hljs .hljs-selector-class,
-#preview pre code.hljs .hljs-selector-id,
-#preview pre code.hljs .hljs-string,
-#preview pre code.hljs .hljs-template-tag,
-#preview pre code.hljs .hljs-type { color: var(--code-string); }
-#preview pre code.hljs .hljs-section,
-#preview pre code.hljs .hljs-title { color: var(--code-string); font-weight: 700; }
-#preview pre code.hljs .hljs-link,
-#preview pre code.hljs .hljs-operator,
-#preview pre code.hljs .hljs-regexp,
-#preview pre code.hljs .hljs-selector-attr,
-#preview pre code.hljs .hljs-selector-pseudo,
-#preview pre code.hljs .hljs-symbol,
-#preview pre code.hljs .hljs-template-variable,
-#preview pre code.hljs .hljs-variable { color: var(--code-variable); }
-#preview pre code.hljs .hljs-literal { color: var(--code-literal); }
-#preview pre code.hljs .hljs-addition,
-#preview pre code.hljs .hljs-built_in,
-#preview pre code.hljs .hljs-bullet,
-#preview pre code.hljs .hljs-code { color: var(--code-built-in); }
-#preview pre code.hljs .hljs-meta { color: var(--code-meta); }
-#preview pre code.hljs .hljs-meta .hljs-string { color: var(--code-meta-string); }
-#preview pre code.hljs .hljs-tag .hljs-name { color: var(--code-tag-name); }
-#preview pre code.hljs .hljs-tag .hljs-attr { color: var(--code-tag-attr); }
+#omn-preview pre code.hljs .hljs-comment { color: var(--omn-code-comment); }
+#omn-preview pre code.hljs .hljs-punctuation,
+#omn-preview pre code.hljs .hljs-tag { color: var(--omn-code-punctuation); }
+#omn-preview pre code.hljs .hljs-deletion,
+#omn-preview pre code.hljs .hljs-number,
+#omn-preview pre code.hljs .hljs-quote,
+#omn-preview pre code.hljs .hljs-selector-class,
+#omn-preview pre code.hljs .hljs-selector-id,
+#omn-preview pre code.hljs .hljs-string,
+#omn-preview pre code.hljs .hljs-template-tag,
+#omn-preview pre code.hljs .hljs-type { color: var(--omn-code-string); }
+#omn-preview pre code.hljs .hljs-section,
+#omn-preview pre code.hljs .hljs-title { color: var(--omn-code-string); font-weight: 700; }
+#omn-preview pre code.hljs .hljs-link,
+#omn-preview pre code.hljs .hljs-operator,
+#omn-preview pre code.hljs .hljs-regexp,
+#omn-preview pre code.hljs .hljs-selector-attr,
+#omn-preview pre code.hljs .hljs-selector-pseudo,
+#omn-preview pre code.hljs .hljs-symbol,
+#omn-preview pre code.hljs .hljs-template-variable,
+#omn-preview pre code.hljs .hljs-variable { color: var(--omn-code-variable); }
+#omn-preview pre code.hljs .hljs-literal { color: var(--omn-code-literal); }
+#omn-preview pre code.hljs .hljs-addition,
+#omn-preview pre code.hljs .hljs-built_in,
+#omn-preview pre code.hljs .hljs-bullet,
+#omn-preview pre code.hljs .hljs-code { color: var(--omn-code-built-in); }
+#omn-preview pre code.hljs .hljs-meta { color: var(--omn-code-meta); }
+#omn-preview pre code.hljs .hljs-meta .hljs-string { color: var(--omn-code-meta-string); }
+#omn-preview pre code.hljs .hljs-tag .hljs-name { color: var(--omn-code-tag-name); }
+#omn-preview pre code.hljs .hljs-tag .hljs-attr { color: var(--omn-code-tag-attr); }
 
 /* ==========================================================================
    10. Utilities
@@ -1663,18 +1663,18 @@ mark.omn-search-hit.omn-search-hit-current {
 /* Explicit color utilities used inside user notes: these are content
    semantics (highlighting), not chrome, so they intentionally keep their
    literal colors in both themes. */
-.bg-yellow { background-color: var(--mark-yellow); color: var(--mark-ink); }
-.bg-aqua   { background-color: var(--mark-aqua);   color: var(--mark-ink); }
-.fg-red    { color: var(--mark-red); }
-.fg-green  { color: var(--mark-green); }
+.omn-bg-yellow { background-color: var(--omn-mark-yellow); color: var(--omn-mark-ink); }
+.omn-bg-aqua   { background-color: var(--omn-mark-aqua);   color: var(--omn-mark-ink); }
+.omn-fg-red    { color: var(--omn-mark-red); }
+.omn-fg-green  { color: var(--omn-mark-green); }
 
 /* ==========================================================================
    11. Responsive
    ========================================================================== */
 
 @media (max-width: 600px) {
-    .panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
-    .modal { width: 90%; }
-    .config-panel { padding: 16px; }
-    .config-menu-desc { font-size: 12px; }
+    .omn-panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
+    .omn-modal { width: 90%; }
+    .omn-config-panel { padding: 16px; }
+    .omn-config-menu-desc { font-size: 12px; }
 }

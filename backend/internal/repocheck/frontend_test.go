@@ -122,11 +122,11 @@ func TestDocumentedCoreAPIIsExported(t *testing.T) {
 // A modal that hides by class must have a rule that shows it again
 // ----------------------------------------------------------------------
 //
-// modals.html holds four overlays. Two of them start with the .hidden
-// class, and JS shows each one with classList.remove('hidden'). The other
+// modals.html holds four overlays. Two of them start with the .omn-hidden
+// class, and JS shows each one with classList.remove('omn-hidden'). The other
 // two carry no class, and JS shows each one with style.display.
 //
-// .overlay in omn-go-core.css sets display:none. A modal of the first kind
+// .omn-overlay in omn-go-core.css sets display:none. A modal of the first kind
 // is thus invisible until a rule gives it a display value again.
 //
 // A modal with no such rule never appears. runSync finds the element, thus
@@ -152,9 +152,9 @@ func TestAnOverlayHiddenByClassCanBeShownAgain(t *testing.T) {
 		overlay, hidden := false, false
 		for _, c := range strings.Fields(m[2]) {
 			switch c {
-			case "overlay":
+			case "omn-overlay":
 				overlay = true
-			case "hidden":
+			case "omn-hidden":
 				hidden = true
 			}
 		}
@@ -162,7 +162,7 @@ func TestAnOverlayHiddenByClassCanBeShownAgain(t *testing.T) {
 			continue
 		}
 		checked++
-		rule := "#" + m[1] + ":not(.hidden)"
+		rule := "#" + m[1] + ":not(.omn-hidden)"
 		if !strings.Contains(string(css), rule) {
 			t.Errorf("%s starts hidden by class, and omn-go-core.css holds no "+
 				"%s rule. The overlay stays at display:none, thus the modal "+

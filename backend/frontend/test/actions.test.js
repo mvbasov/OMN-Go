@@ -169,7 +169,7 @@ test('the copy control copies the quick note and writes the result on itself', (
     let selected = false;
     text.select = function () { selected = true; };
     text.setSelectionRange = function () {};
-    page.document.getElementById = function (id) { return id === 'quickText' ? text : null; };
+    page.document.getElementById = function (id) { return id === 'omn-quick-text' ? text : null; };
     const commands = [];
     page.document.execCommand = function (name) { commands.push(name); return true; };
     const el = control('quick-note-copy');
@@ -192,7 +192,7 @@ test('the copy control copies the quick note and writes the result on itself', (
 
 test('the title opens and closes the header', () => {
     const { page, clicks } = loadPage();
-    const classes = { hidden: true };
+    const classes = { 'omn-hidden': true };
     const header = makeElement();
     header.classList = {
         contains: function (c) { return !!classes[c]; },
@@ -201,13 +201,13 @@ test('the title opens and closes the header', () => {
     };
     const arrow = makeElement();
     page.document.getElementById = function (id) {
-        return id === 'hidable_header' ? header : id === 'title_arrow' ? arrow : null;
+        return id === 'omn-hidable-header' ? header : id === 'omn-title-arrow' ? arrow : null;
     };
     click(clicks, control('toggle-header'));
-    assert.strictEqual(classes.hidden, undefined, 'the first click did not open the header');
+    assert.strictEqual(classes['omn-hidden'], undefined, 'the first click did not open the header');
     assert.strictEqual(arrow.textContent, '\u2212');
     click(clicks, control('toggle-header'));
-    assert.strictEqual(classes.hidden, true, 'the second click did not close the header');
+    assert.strictEqual(classes['omn-hidden'], true, 'the second click did not close the header');
     assert.strictEqual(arrow.textContent, '+');
 });
 
@@ -249,13 +249,13 @@ test('hide-panel and toggle-panel work on the panel of data-arg', () => {
         add: function (c) { calls.push('add ' + c); },
         toggle: function (c) { calls.push('toggle ' + c); },
     };
-    page.document.getElementById = function (id) { return id === 'quickPanel' ? panel : null; };
-    click(clicks, control('hide-panel', 'quickPanel'));
-    click(clicks, control('toggle-panel', 'quickPanel'));
+    page.document.getElementById = function (id) { return id === 'omn-quick-panel' ? panel : null; };
+    click(clicks, control('hide-panel', 'omn-quick-panel'));
+    click(clicks, control('toggle-panel', 'omn-quick-panel'));
     // An id that the page does not have must not throw. An exported page
     // has no modal.
     click(clicks, control('hide-panel', 'absent'));
-    assert.deepStrictEqual(calls, ['add hidden', 'toggle hidden']);
+    assert.deepStrictEqual(calls, ['add omn-hidden', 'toggle omn-hidden']);
 });
 
 test('on a page from disk a server action does not throw', () => {

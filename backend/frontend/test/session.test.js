@@ -26,11 +26,11 @@ async function loaded(prepare) {
 }
 
 function boxShown(h) {
-    return h.$('#loginOverlay').style.display === 'flex' && h.$('#mainUI').style.display === 'none';
+    return h.$('#omn-login-overlay').style.display === 'flex' && h.$('#omn-main-ui').style.display === 'none';
 }
 
 function pageShown(h) {
-    return h.$('#loginOverlay').style.display === 'none' && h.$('#mainUI').style.display === 'flex';
+    return h.$('#omn-login-overlay').style.display === 'none' && h.$('#omn-main-ui').style.display === 'flex';
 }
 
 test('the hint cookie shows the page with no request', async () => {
@@ -69,7 +69,7 @@ test('a correct password closes the box, and the page sends it one time', async 
         };
     });
     assert.ok(boxShown(h));
-    h.$('#pwdInput').value = 'p&ss word';
+    h.$('#omn-pwd-input').value = 'p&ss word';
     h.press('[data-action="login"]');
     await h.settle();
     const logins = h.requests.filter(function (r) { return r.url === '/login'; });
@@ -84,7 +84,7 @@ test('a wrong password keeps the box and tells the person', async () => {
     const h = await loaded(function (h) {
         h.server = function () { return { httpStatus: 401, text: 'no' }; };
     });
-    h.$('#pwdInput').value = 'wrong';
+    h.$('#omn-pwd-input').value = 'wrong';
     h.press('[data-action="login"]');
     await h.settle();
     assert.ok(boxShown(h));

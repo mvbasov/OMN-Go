@@ -1,38 +1,38 @@
 /* omn-go-external.css: the wait page of the external editor. */
 
-.ext-edit-panel {
+.omn-ext-edit-panel {
     max-width: 600px;
     margin: 40px auto;
-    background: var(--bg-surface);
+    background: var(--omn-bg-surface);
     padding: 40px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px var(--shadow);
-    border: 1px solid var(--border-card);
+    box-shadow: 0 4px 12px var(--omn-shadow);
+    border: 1px solid var(--omn-border-card);
     text-align: center;
 }
 
-.ext-edit-icon {
+.omn-ext-edit-icon {
     font-size: 48px;
     margin-bottom: 20px;
 }
 
-.ext-edit-title {
+.omn-ext-edit-title {
     margin-top: 0;
-    color: var(--text-strong);
+    color: var(--omn-text-strong);
     font-size: 24px;
     font-weight: 700;
 }
 
-.ext-edit-msg {
-    color: var(--text-muted);
+.omn-ext-edit-msg {
+    color: var(--omn-text-muted);
     font-size: 16px;
     margin-bottom: 30px;
     line-height: 1.5;
 }
 
-.ext-edit-btn {
-    background: var(--accent);
-    color: var(--on-accent);
+.omn-ext-edit-btn {
+    background: var(--omn-accent);
+    color: var(--omn-on-accent);
     border: none;
     padding: 15px 30px;
     border-radius: 6px;
@@ -40,9 +40,9 @@
     cursor: pointer;
     font-size: 18px;
     transition: background 0.2s;
-    box-shadow: 0 2px 5px var(--shadow-strong);
+    box-shadow: 0 2px 5px var(--omn-shadow-strong);
 }
 
-.ext-edit-btn:hover {
-    background: var(--accent-hover);
+.omn-ext-edit-btn:hover {
+    background: var(--omn-accent-hover);
 }

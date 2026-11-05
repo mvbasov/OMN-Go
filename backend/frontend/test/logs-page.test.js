@@ -39,12 +39,12 @@ async function open(lines) {
 }
 
 function shown(h) {
-    return h.document.querySelectorAll('#lgBody .lg-row').map(function (r) { return r.textContent; });
+    return h.document.querySelectorAll('#omn-lg-body .omn-lg-row').map(function (r) { return r.textContent; });
 }
 
 // box answers the checkbox of the filter with this name.
 function box(h, group, name) {
-    const label = h.document.querySelectorAll('#' + group + ' label.lg-box')
+    const label = h.document.querySelectorAll('#' + group + ' label.omn-lg-box')
         .find(function (l) { return l.querySelector('span').textContent === name; });
     assert.ok(label, 'the filter has no box "' + name + '"');
     return label.querySelector('input');
@@ -65,13 +65,13 @@ test('the page loads the history and shows each line as text', async () => {
         '2026/10/02 10:00:02 [assets] (error) cannot read <b>x</b>',
         'a line with no tag and no level',
     ]);
-    assert.strictEqual(h.$('#lgCount').textContent, '4 of 4');
+    assert.strictEqual(h.$('#omn-lg-count').textContent, '4 of 4');
     // A line of the log can hold a path or a note name. It must not
     // become markup.
-    assert.strictEqual(h.document.querySelectorAll('#lgBody b').length, 0);
+    assert.strictEqual(h.document.querySelectorAll('#omn-lg-body b').length, 0);
     // The level of a line is a class of its row.
-    const classes = h.document.querySelectorAll('#lgBody .lg-row').map(function (r) { return r.className; });
-    assert.deepStrictEqual(classes, ['lg-row lg-info', 'lg-row lg-debug', 'lg-row lg-error', 'lg-row']);
+    const classes = h.document.querySelectorAll('#omn-lg-body .omn-lg-row').map(function (r) { return r.className; });
+    assert.deepStrictEqual(classes, ['omn-lg-row omn-lg-info', 'omn-lg-row omn-lg-debug', 'omn-lg-row omn-lg-error', 'omn-lg-row']);
 });
 
 test('the page opens no log stream of its own', async () => {
@@ -85,90 +85,90 @@ test('a new line of the server shows at once', async () => {
     h.serverLog('2026/10/02 10:00:05 [search] (info) index ready');
     assert.strictEqual(shown(h).length, 5);
     assert.strictEqual(shown(h)[4], '2026/10/02 10:00:05 [search] (info) index ready');
-    assert.strictEqual(h.$('#lgCount').textContent, '5 of 5');
+    assert.strictEqual(h.$('#omn-lg-count').textContent, '5 of 5');
 });
 
 test('the filter has a box for each level and for each tag of the lines', async () => {
     const h = await open();
     const names = function (group) {
-        return h.document.querySelectorAll('#' + group + ' label.lg-box span')
+        return h.document.querySelectorAll('#' + group + ' label.omn-lg-box span')
             .map(function (s) { return s.textContent; });
     };
-    assert.deepStrictEqual(names('lgLevels'), ['error', 'info', 'debug']);
+    assert.deepStrictEqual(names('omn-lg-levels'), ['error', 'info', 'debug']);
     // The tags are in the order of the alphabet.
-    assert.deepStrictEqual(names('lgTags'), ['assets', 'sync']);
+    assert.deepStrictEqual(names('omn-lg-tags'), ['assets', 'sync']);
     // A tag that arrives later gets a box of its own.
     h.serverLog('2026/10/02 10:00:05 [search] (info) index ready');
-    assert.deepStrictEqual(names('lgTags'), ['assets', 'search', 'sync']);
+    assert.deepStrictEqual(names('omn-lg-tags'), ['assets', 'search', 'sync']);
 });
 
 test('the Filter button shows and hides the boxes', async () => {
     const h = await open();
-    assert.strictEqual(h.hidden('#lgFilter'), true);
-    h.press('#lgFilterToggle');
-    assert.strictEqual(h.hidden('#lgFilter'), false);
-    h.press('#lgFilterToggle');
-    assert.strictEqual(h.hidden('#lgFilter'), true);
+    assert.strictEqual(h.hidden('#omn-lg-filter'), true);
+    h.press('#omn-lg-filter-toggle');
+    assert.strictEqual(h.hidden('#omn-lg-filter'), false);
+    h.press('#omn-lg-filter-toggle');
+    assert.strictEqual(h.hidden('#omn-lg-filter'), true);
 });
 
 test('a box of a level hides the lines of that level, and a line with no level stays', async () => {
     const h = await open();
-    set(box(h, 'lgLevels', 'debug'), false);
+    set(box(h, 'omn-lg-levels', 'debug'), false);
     assert.deepStrictEqual(shown(h), [
         '2026/10/02 10:00:00 [sync] (info) Sync started',
         '2026/10/02 10:00:02 [assets] (error) cannot read <b>x</b>',
         'a line with no tag and no level',
     ]);
-    assert.strictEqual(h.$('#lgCount').textContent, '3 of 4');
-    set(box(h, 'lgLevels', 'debug'), true);
+    assert.strictEqual(h.$('#omn-lg-count').textContent, '3 of 4');
+    set(box(h, 'omn-lg-levels', 'debug'), true);
     assert.strictEqual(shown(h).length, 4);
 });
 
 test('a box of a tag hides the lines of that tag, and a new tag keeps the choice', async () => {
     const h = await open();
-    set(box(h, 'lgTags', 'sync'), false);
+    set(box(h, 'omn-lg-tags', 'sync'), false);
     assert.deepStrictEqual(shown(h), [
         '2026/10/02 10:00:02 [assets] (error) cannot read <b>x</b>',
         'a line with no tag and no level',
     ]);
     // A new tag draws the boxes again. The box of sync must stay off.
     h.serverLog('2026/10/02 10:00:05 [search] (info) index ready');
-    assert.strictEqual(box(h, 'lgTags', 'sync').checked, false);
+    assert.strictEqual(box(h, 'omn-lg-tags', 'sync').checked, false);
     assert.strictEqual(shown(h).length, 3);
     // A new line of the hidden tag does not show.
     h.serverLog('2026/10/02 10:00:06 [sync] (info) Sync done');
     assert.strictEqual(shown(h).length, 3);
-    assert.strictEqual(h.$('#lgCount').textContent, '3 of 6');
+    assert.strictEqual(h.$('#omn-lg-count').textContent, '3 of 6');
 });
 
 test('an empty log and a log with each line hidden say so', async () => {
     const empty = await open([]);
-    assert.strictEqual(empty.$('#lgBody .lg-none').textContent, 'The log holds no line yet.');
-    assert.strictEqual(empty.$('#lgCount').textContent, '0 of 0');
+    assert.strictEqual(empty.$('#omn-lg-body .omn-lg-none').textContent, 'The log holds no line yet.');
+    assert.strictEqual(empty.$('#omn-lg-count').textContent, '0 of 0');
 
     const h = await open([LINES[0], LINES[1]]);
-    set(box(h, 'lgTags', 'sync'), false);
-    assert.strictEqual(h.$('#lgBody .lg-none').textContent, 'Every line of the log is hidden by the filter.');
+    set(box(h, 'omn-lg-tags', 'sync'), false);
+    assert.strictEqual(h.$('#omn-lg-body .omn-lg-none').textContent, 'Every line of the log is hidden by the filter.');
 });
 
 test('Copy copies only the lines that show', async () => {
     const h = await open();
     h.holdTimers();
-    set(box(h, 'lgLevels', 'debug'), false);
-    h.press('#lgCopy');
+    set(box(h, 'omn-lg-levels', 'debug'), false);
+    h.press('#omn-lg-copy');
     await h.settle();
     assert.deepStrictEqual(h.clipboard, [
         '2026/10/02 10:00:00 [sync] (info) Sync started\n' +
         '2026/10/02 10:00:02 [assets] (error) cannot read <b>x</b>\n' +
         'a line with no tag and no level',
     ]);
-    assert.strictEqual(h.$('#lgCopy').textContent, 'Copied');
+    assert.strictEqual(h.$('#omn-lg-copy').textContent, 'Copied');
     // A second press while the button says "Copied" must not keep that
     // word as the label.
-    h.press('#lgCopy');
+    h.press('#omn-lg-copy');
     await h.settle();
     h.runTimers();
-    assert.strictEqual(h.$('#lgCopy').textContent, 'Copy');
+    assert.strictEqual(h.$('#omn-lg-copy').textContent, 'Copy');
 });
 
 test('a copy that fails says so on the button', async () => {
@@ -176,9 +176,9 @@ test('a copy that fails says so on the button', async () => {
     h.holdTimers();
     h.clipboardRefuses = true;
     h.document.execCommand = function () { return false; };
-    h.press('#lgCopy');
+    h.press('#omn-lg-copy');
     await h.settle();
-    assert.strictEqual(h.$('#lgCopy').textContent, 'Cannot copy');
+    assert.strictEqual(h.$('#omn-lg-copy').textContent, 'Cannot copy');
 });
 
 test('Reload reads the history again and keeps the filter', async () => {
@@ -187,12 +187,12 @@ test('Reload reads the history again and keeps the filter', async () => {
         return request.url === '/api/logs/history' ? { lines: lines.slice() } : {};
     });
     await h.settle();
-    set(box(h, 'lgLevels', 'debug'), false);
+    set(box(h, 'omn-lg-levels', 'debug'), false);
     lines = LINES.concat(['2026/10/02 10:00:09 [sync] (debug) Staging\n']);
-    h.press('#lgReload');
+    h.press('#omn-lg-reload');
     await h.settle();
-    assert.strictEqual(h.$('#lgCount').textContent, '3 of 5');
-    assert.strictEqual(box(h, 'lgLevels', 'debug').checked, false);
+    assert.strictEqual(h.$('#omn-lg-count').textContent, '3 of 5');
+    assert.strictEqual(box(h, 'omn-lg-levels', 'debug').checked, false);
 });
 
 test('a caller with no session and a fault of the server each get a message', async () => {
@@ -200,12 +200,12 @@ test('a caller with no session and a fault of the server each get a message', as
         return request.url === '/api/logs/history' ? { httpStatus: 401, text: 'no' } : {};
     });
     await refused.settle();
-    assert.strictEqual(refused.$('#lgBody').textContent,
+    assert.strictEqual(refused.$('#omn-lg-body').textContent,
         'Cannot read the log: This page is for the admin of this device.');
 
     const fault = systemPage('logs_page.html', 'omn-go-logs.js', function (request) {
         return request.url === '/api/logs/history' ? { httpStatus: 500, text: 'x' } : {};
     });
     await fault.settle();
-    assert.strictEqual(fault.$('#lgBody').textContent, 'Cannot read the log: HTTP 500');
+    assert.strictEqual(fault.$('#omn-lg-body').textContent, 'Cannot read the log: HTTP 500');
 });

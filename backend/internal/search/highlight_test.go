@@ -215,7 +215,7 @@ func TestSearchPage_LinksCarryHighlight(t *testing.T) {
 	// Two terms, two parameters, ampersand-escaped for the attribute.
 	page := getSearchPage(t, a, "json+fetch").Body.String()
 	if !strings.Contains(page, `href="/Fetch.html?hl=json&amp;hl=fetch"`) {
-		t.Errorf("two-term link is missing or unescaped:\n%s", excerpt(page, "search-result-title"))
+		t.Errorf("two-term link is missing or unescaped:\n%s", excerpt(page, "omn-search-result-title"))
 	}
 	if strings.Contains(page, `hl=json&hl=`) {
 		t.Error("a raw & reached an href attribute")
@@ -235,10 +235,10 @@ func TestSearchPage_SnippetLinksCarryTheirOwnLine(t *testing.T) {
 		`href="/Many.html?hl=needle&amp;hlt=second+needle+line"`,
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("missing %q:\n%s", want, excerpt(body, "search-snippet"))
+			t.Errorf("missing %q:\n%s", want, excerpt(body, "omn-search-snippet"))
 		}
 	}
-	if strings.Contains(body, `<div class="search-snippet"`) {
+	if strings.Contains(body, `<div class="omn-search-snippet"`) {
 		t.Error("a snippet is still plain text; every line has to be a link")
 	}
 }
@@ -293,7 +293,7 @@ func TestSearchPage_QueryInLinkIsEscaped(t *testing.T) {
 	writeSearchNote(t, a, "Note.md", "Title: Note\n\nthe \"><script> payload sits here\n")
 
 	page := getSearchPage(t, a, `%22%3E%3Cscript%3E`).Body.String()
-	link := excerpt(page, "search-result-title")
+	link := excerpt(page, "omn-search-result-title")
 
 	if !strings.Contains(link, `href="/Note.html?hl=%22%3E%3Cscript%3E"`) {
 		t.Errorf("the term was not percent-encoded into the link:\n%s", link)

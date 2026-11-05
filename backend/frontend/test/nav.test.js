@@ -118,7 +118,7 @@ test('a press with a modifier key or another mouse button arms no overlay', () =
     // Ctrl and the middle button open a new tab in a browser.
     for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
         const event = new Event('click', Object.assign({ bubbles: true }, init));
-        // The body, and not #preview: the link handler of the note is not
+        // The body, and not #omn-preview: the link handler of the note is not
         // the subject here.
         const link = h.document.createElement('a');
         link.setAttribute('href', '/Other.html');
@@ -140,7 +140,7 @@ test('a second press starts the wait again, and a new hash stops it', () => {
 test('the form of the results page arms the overlay, and another form does not', () => {
     const h = page();
     const form = h.document.createElement('form');
-    form.className = 'search-page-form';
+    form.className = 'omn-search-page-form';
     h.document.body.appendChild(form);
     const other = h.document.createElement('form');
     h.document.body.appendChild(other);
@@ -156,7 +156,7 @@ test('the form of the results page arms the overlay, and another form does not',
     assert.deepStrictEqual(h.pendingTimers(), []);
 
     const fresh = h.document.createElement('form');
-    fresh.className = 'search-page-form';
+    fresh.className = 'omn-search-page-form';
     h.document.body.appendChild(fresh);
     fresh.dispatchEvent(new Event('submit', { bubbles: true }));
     assert.deepStrictEqual(h.pendingTimers(), [300]);

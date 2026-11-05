@@ -118,20 +118,20 @@ test('a conflict opens the modal with the files, and each button does its work',
     });
     h.press(DOWNLOAD);
     await h.settle();
-    assert.strictEqual(h.hidden('#conflict-modal'), false, 'the conflict modal did not open');
-    const items = h.document.querySelectorAll('#conflict-file-list li');
+    assert.strictEqual(h.hidden('#omn-conflict-modal'), false, 'the conflict modal did not open');
+    const items = h.document.querySelectorAll('#omn-conflict-file-list li');
     assert.deepStrictEqual(items.map(function (li) { return li.textContent; }), ['md/A.md', 'md/<b>.md']);
     // A file name is text. It must not become markup.
-    assert.strictEqual(h.document.querySelectorAll('#conflict-file-list b').length, 0);
+    assert.strictEqual(h.document.querySelectorAll('#omn-conflict-file-list b').length, 0);
 
     // Abort closes the modal and sends NOTHING.
     h.press('[data-action="sync-resolve"][data-arg="abort"]');
     await h.settle();
-    assert.strictEqual(h.hidden('#conflict-modal'), true);
+    assert.strictEqual(h.hidden('#omn-conflict-modal'), true);
     assert.deepStrictEqual(syncPosts(h), ['action=download']);
 
     // Mark Conflicts sends pull_mark, and the page loads again.
-    h.$('#conflict-modal').classList.remove('hidden');
+    h.$('#omn-conflict-modal').classList.remove('omn-hidden');
     h.press('[data-action="sync-resolve"][data-arg="pull_mark"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), ['action=download', 'action=pull_mark']);
@@ -148,7 +148,7 @@ test('a conflict with no file says that Force Pull is the answer', async () => {
     h.server = serverWith({ '/api/sync': { status: 'conflict', files: [] } });
     h.press(DOWNLOAD);
     await h.settle();
-    const items = h.document.querySelectorAll('#conflict-file-list li');
+    const items = h.document.querySelectorAll('#omn-conflict-file-list li');
     assert.strictEqual(items.length, 1);
     assert.ok(items[0].textContent.indexOf('Force Pull') >= 0, items[0].textContent);
 });
@@ -160,23 +160,23 @@ test('an upload shows the files and sends the commit message', async () => {
     });
     h.press(UPLOAD);
     await h.settle();
-    assert.strictEqual(h.$('#commitModal').style.display, 'flex');
-    assert.strictEqual(h.$('#commitFileList').textContent, 'md/A.md\nmd/B.md');
+    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'flex');
+    assert.strictEqual(h.$('#omn-commit-file-list').textContent, 'md/A.md\nmd/B.md');
     assert.deepStrictEqual(syncPosts(h), [], 'the upload went out before the person gave a message');
 
     // An empty message sends nothing.
-    h.$('#commitMessage').value = '   ';
+    h.$('#omn-commit-message').value = '   ';
     h.press('[data-action="commit-upload"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), []);
     assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Please enter a commit message.');
 
-    h.$('#commitMessage').value = '  two notes  ';
+    h.$('#omn-commit-message').value = '  two notes  ';
     h.press('[data-action="commit-upload"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), ['action=upload&message=two+notes']);
-    assert.strictEqual(h.$('#commitModal').style.display, 'none');
-    assert.strictEqual(h.$('#commitMessage').value, '', 'the old message stays in the box');
+    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'none');
+    assert.strictEqual(h.$('#omn-commit-message').value, '', 'the old message stays in the box');
 });
 
 test('Cancel of the commit modal sends nothing', async () => {
@@ -184,11 +184,11 @@ test('Cancel of the commit modal sends nothing', async () => {
     h.server = serverWith({ '/api/sync/preview': { files: ['md/A.md'] } });
     h.press(UPLOAD);
     await h.settle();
-    h.$('#commitMessage').value = 'not this time';
+    h.$('#omn-commit-message').value = 'not this time';
     h.press('[data-action="commit-cancel"]');
     await h.settle();
-    assert.strictEqual(h.$('#commitModal').style.display, 'none');
-    assert.strictEqual(h.$('#commitMessage').value, '');
+    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'none');
+    assert.strictEqual(h.$('#omn-commit-message').value, '');
     assert.deepStrictEqual(syncPosts(h), []);
 });
 
@@ -199,7 +199,7 @@ test('an upload with a clean tree pushes the commits that the remote does not ha
     await h.settle();
     // No commit, thus no message and no modal.
     assert.deepStrictEqual(syncPosts(h), ['action=upload']);
-    assert.notStrictEqual(h.$('#commitModal').style.display, 'flex');
+    assert.notStrictEqual(h.$('#omn-commit-modal').style.display, 'flex');
 });
 
 test('an upload with nothing to do names the remote', async () => {
@@ -242,15 +242,15 @@ test('a rejected push keeps the message for the force push', async () => {
     });
     h.press(UPLOAD);
     await h.settle();
-    h.$('#commitMessage').value = 'my change';
+    h.$('#omn-commit-message').value = 'my change';
     h.press('[data-action="commit-upload"]');
     await h.settle();
-    assert.strictEqual(h.hidden('#push-conflict-modal'), false, 'the push modal did not open');
+    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), false, 'the push modal did not open');
 
     h.press('[data-action="push-force"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h).slice(1), ['action=push_force&message=my+change']);
-    assert.strictEqual(h.hidden('#push-conflict-modal'), true);
+    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), true);
     // The person did not have to type the message again.
     assert.strictEqual(h.dialogs.filter(function (d) { return d.kind === 'prompt'; }).length, 0);
 });
@@ -265,7 +265,7 @@ test('a force push with no message asks for one, and no message sends nothing', 
     });
     h.press(UPLOAD);
     await h.settle();
-    assert.strictEqual(h.hidden('#push-conflict-modal'), false);
+    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), false);
 
     // The person cancels the question.
     h.press('[data-action="push-force"]');
@@ -274,7 +274,7 @@ test('a force push with no message asks for one, and no message sends nothing', 
     assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Force push canceled — no commit message.');
 
     // The person gives a message.
-    h.$('#push-conflict-modal').classList.remove('hidden');
+    h.$('#omn-push-conflict-modal').classList.remove('omn-hidden');
     h.prompt = function () { return '  overwrite the remote '; };
     h.press('[data-action="push-force"]');
     await h.settle();
@@ -286,10 +286,10 @@ test('Abort of the push modal sends nothing', async () => {
     h.press(DOWNLOAD);
     await h.settle();
     h.requests.length = 0;
-    h.$('#push-conflict-modal').classList.remove('hidden');
+    h.$('#omn-push-conflict-modal').classList.remove('omn-hidden');
     h.press('[data-action="push-cancel"]');
     await h.settle();
-    assert.strictEqual(h.hidden('#push-conflict-modal'), true);
+    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), true);
     assert.deepStrictEqual(h.requests, []);
 });
 

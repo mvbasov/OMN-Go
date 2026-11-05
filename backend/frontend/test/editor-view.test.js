@@ -52,7 +52,7 @@ function watchView(h, ta) {
 async function open(abbr) {
     const note = longNote(abbr);
     const h = await editorPage(note.text);
-    const ta = h.$('#editor');
+    const ta = h.$('#omn-editor-text');
     assert.strictEqual(ta.value, note.text, 'the editor did not load the note');
     ta.focus();
     ta.setSelectionRange(note.caret, note.caret);
@@ -60,7 +60,7 @@ async function open(abbr) {
     return { h: h, ta: ta, caret: note.caret };
 }
 
-const EXPAND = '#editorTools button[title^="Expand an abbreviation"]';
+const EXPAND = '#omn-editor-tools button[title^="Expand an abbreviation"]';
 
 test('the toolbar button expands an Emmet abbreviation and keeps the view', async () => {
     const { h, ta, caret } = await open('ul>li*2');
@@ -88,7 +88,7 @@ test('the toolbar button expands a Markdown abbreviation and keeps the view', as
 
 test('Tab expands with the focus in the textarea and keeps the view', async () => {
     const { h, ta } = await open('ul>li*2');
-    const tab = h.key('#editor', 'Tab');
+    const tab = h.key('#omn-editor-text', 'Tab');
     assert.strictEqual(tab.defaultPrevented, true, 'Tab moved the focus away');
     assert.ok(ta.value.indexOf('<ul>\n  <li></li>') >= 0);
     assert.strictEqual(ta.scrollTop, 1000);
@@ -107,14 +107,14 @@ test('a browser that moves the view at the write gets it back', async () => {
             ta.scrollTop = END_OF_NOTE;
         },
     });
-    h.key('#editor', 'Tab');
+    h.key('#omn-editor-text', 'Tab');
     assert.ok(text.indexOf('<ul>\n  <li></li>') >= 0);
     assert.strictEqual(ta.scrollTop, 1000);
 });
 
 test('Tab with no abbreviation writes a tab character and keeps the view', async () => {
     const { h, ta, caret } = await open('plain text ');
-    h.key('#editor', 'Tab');
+    h.key('#omn-editor-text', 'Tab');
     assert.strictEqual(ta.value.slice(caret, caret + 1), '\t');
     assert.strictEqual(ta.selectionStart, caret + 1);
     assert.strictEqual(ta.scrollTop, 1000);
@@ -123,7 +123,7 @@ test('Tab with no abbreviation writes a tab character and keeps the view', async
 test('an expansion marks the note as changed', async () => {
     const { h } = await open('ul>li*2');
     const dot = h.$('.omn-editor-dot');
-    assert.strictEqual(dot.classList.contains('dirty'), false);
-    h.key('#editor', 'Tab');
-    assert.strictEqual(dot.classList.contains('dirty'), true);
+    assert.strictEqual(dot.classList.contains('omn-dirty'), false);
+    h.key('#omn-editor-text', 'Tab');
+    assert.strictEqual(dot.classList.contains('omn-dirty'), true);
 });

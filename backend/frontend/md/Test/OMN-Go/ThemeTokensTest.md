@@ -11,14 +11,14 @@ Live swatches of the design tokens from `omn-go-core.css`. Flip the app's theme 
   grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: 0.6rem;
 } .tt-swatch {
-  border: 1px solid var(--border-card);
+  border: 1px solid var(--omn-border-card);
   border-radius: 8px;
   padding: 0.5rem;
   font-size: 0.8em;
 } .tt-swatch code {
   display: block;
   font-size: 0.75em;
-  color: var(--text-muted);
+  color: var(--omn-text-muted);
   margin-top: 0.3rem;
   word-break: break-all;
 }
@@ -32,16 +32,16 @@ Live swatches of the design tokens from `omn-go-core.css`. Flip the app's theme 
 
 <script type="module">
 {
-  const colorTokens = ['--bg', '--bg-surface', '--bg-band', '--bg-inset',
-    '--bg-hover', '--accent', '--success', '--danger', '--info', '--secondary',
-    '--border', '--border-card', '--tag-bg', '--table-th-bg'];
-  const textTokens = ['--text', '--text-strong', '--text-heading',
-    '--text-muted', '--text-faint', '--text-dim'];
+  const colorTokens = ['--omn-bg', '--omn-bg-surface', '--omn-bg-band', '--omn-bg-inset',
+    '--omn-bg-hover', '--omn-accent', '--omn-success', '--omn-danger', '--omn-info', '--omn-secondary',
+    '--omn-border', '--omn-border-card', '--omn-tag-bg', '--omn-table-th-bg'];
+  const textTokens = ['--omn-text', '--omn-text-strong', '--omn-text-heading',
+    '--omn-text-muted', '--omn-text-faint', '--omn-text-dim'];
   document.querySelector('#ttColor').innerHTML = colorTokens.map((t) =>
-    `<div class="tt-swatch" style="background:var(${t});color:var(--text)">Aa<code>${t}</code></div>`
+    `<div class="tt-swatch" style="background:var(${t});color:var(--omn-text)">Aa<code>${t}</code></div>`
   ).join('');
   document.querySelector('#ttText').innerHTML = textTokens.map((t) =>
-    `<div class="tt-swatch" style="background:var(--bg-surface);color:var(${t})">Sample text<code>${t}</code></div>`
+    `<div class="tt-swatch" style="background:var(--omn-bg-surface);color:var(${t})">Sample text<code>${t}</code></div>`
   ).join('');
 }
 </script>

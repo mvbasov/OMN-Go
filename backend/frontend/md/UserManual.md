@@ -416,11 +416,11 @@ Find icon names at [fonts.google.com/icons](https://fonts.google.com/icons). Sel
 The header buttons call JavaScript functions. These functions are available on every page. You can put your own buttons anywhere in a note:
 
 ```
-<button onclick="document.getElementById('bmPanel').classList.remove('hidden')">
+<button onclick="document.getElementById('omn-bm-panel').classList.remove('omn-hidden')">
   <i class="material-icons">bookmark_add</i> Add bookmark
 </button>
 
-<button onclick="document.getElementById('quickPanel').classList.remove('hidden')">
+<button onclick="document.getElementById('omn-quick-panel').classList.remove('omn-hidden')">
   <i class="material-icons">insert_comment</i> Add quick note
 </button>
 ```
@@ -949,10 +949,11 @@ access your notes. OMN-Go has no HTTPS. Use LAN sharing only on a trusted home n
 
 ## Raw HTML and JavaScript in pages
 
-Markdown pages can contain raw HTML. The [icon](#material-icons-in-notes) and [button](#buttons-and-shortcuts-inside-a-page) examples above use raw HTML. Pages can also contain note scripts. The [Bookmarks](Bookmarks) page stores its data in a note script. Four rules keep note scripts correct. See [ScriptRules](ScriptRules) for details and examples:
+Markdown pages can contain raw HTML. The [icon](#material-icons-in-notes) and [button](#buttons-and-shortcuts-inside-a-page) examples above use raw HTML. Pages can also contain note scripts. The [Bookmarks](Bookmarks) page stores its data in a note script. Five rules keep note scripts correct. See [ScriptRules](ScriptRules) for details and examples:
 
 - Put your code in a block scope (`{ ... }` or an IIFE). Then the variables of one page cannot collide with the note scripts of another page, or with the scripts of OMN-Go.
 - Attach to `window` each function that an HTML `onclick` calls.
+- Do not start a class or an id of your own with `omn-`. OMN-Go uses that prefix for each class, id and color token of its own.
 - Write no empty line inside a `<script>` block. An empty line ends the HTML element that holds the block, and Markdown then reads the rest of the code as text.
 - The backend compiles the page one time and then caches it. The note scripts run on every view, so make them idempotent.
 

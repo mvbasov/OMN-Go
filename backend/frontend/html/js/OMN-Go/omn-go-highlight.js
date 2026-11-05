@@ -91,7 +91,7 @@ var OMN_HL_SCROLLED = false;
 // becomes its own text again, and the parent is normalized. A run of
 // searches therefore leaves the page no deeper than it found it.
 function omnClearHighlights() {
-    var preview = document.getElementById('preview');
+    var preview = document.getElementById('omn-preview');
     if (!preview) return;
     var marks = preview.querySelectorAll('mark.omn-search-hit');
     for (var i = 0; i < marks.length; i++) {
@@ -112,7 +112,7 @@ function omnClearHighlights() {
 // rather than highlighting something that is not what matched.
 function omnHighlightTerms(terms) {
     omnClearHighlights();
-    var preview = document.getElementById('preview');
+    var preview = document.getElementById('omn-preview');
     if (!preview || !terms || !terms.length) return null;
 
     var needles = terms
@@ -245,7 +245,7 @@ function omnFlatten(raw) {
 // text of a mark belongs in the answer. It only must not be marked a
 // second time.
 function omnPreviewText() {
-    var preview = document.getElementById('preview');
+    var preview = document.getElementById('omn-preview');
     if (!preview) return null;
 
     var walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, null);
@@ -344,7 +344,7 @@ window.omnAnchorElement = omnAnchorElement;
 // must NOT read that as "go to the first mark in the page". The hits
 // above belong to a section that the reader did not choose.
 function omnMarkFrom(anchor) {
-    var marks = document.querySelectorAll('#preview mark.omn-search-hit');
+    var marks = document.querySelectorAll('#omn-preview mark.omn-search-hit');
     for (var i = 0; i < marks.length; i++) {
         if (anchor.compareDocumentPosition(marks[i]) &
             Node.DOCUMENT_POSITION_FOLLOWING) {
@@ -371,12 +371,12 @@ function omnMarkFrom(anchor) {
 // implement inconsistently and the Android WebView largely does not.
 //
 // WHEN THIS RUNS MATTERS. The load listener further down this file calls
-// it at the END, after highlight.js and KaTeX have rewritten #preview.
+// it at the END, after highlight.js and KaTeX have rewritten #omn-preview.
 //
 // It had a load listener of its own before, and that put it FIRST.
 //
 // hljs.highlightElement replaces the innerHTML of every
-// "#preview pre code" with its own markup, built from the text of the
+// "#omn-preview pre code" with its own markup, built from the text of the
 // block. A <mark> written inside a fenced block before that ran was
 // therefore deleted a moment later.
 //

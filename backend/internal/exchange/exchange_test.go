@@ -667,7 +667,7 @@ func TestIncomingIndexMarker(t *testing.T) {
 	}
 	// The note holds NOTHING but its header block, the marker and the list.
 	// The receive box is application chrome and lives in modals.html.
-	if strings.Contains(idx, "<script") || strings.Contains(idx, "omnIncoming") {
+	if strings.Contains(idx, "<script") || strings.Contains(idx, `id="omn-incoming"`) {
 		t.Errorf("the note carries chrome of its own:\n%s", idx)
 	}
 	// The header block still ends immediately at the marker, with no blank
@@ -1005,7 +1005,7 @@ func TestIncomingTemplateCarriesItsMarkers(t *testing.T) {
 	if !strings.Contains(starter, incomingListMarker) {
 		t.Errorf("the incoming index template does not carry %q", incomingListMarker)
 	}
-	for _, unwanted := range []string{"<script", "omnIncoming", "<details"} {
+	for _, unwanted := range []string{"<script", "omn-incoming", "<details"} {
 		if strings.Contains(starter, unwanted) {
 			t.Errorf("the starter note carries %q, which belongs to the application", unwanted)
 		}

@@ -46,13 +46,13 @@ async function open(seen, more) {
 
 // rows answers the rows of the page as "key = value".
 function rows(h) {
-    return h.document.querySelectorAll('#stBody tr').map(function (tr) {
-        return tr.querySelector('.st-key').textContent + ' = ' + tr.querySelector('.st-val').textContent;
+    return h.document.querySelectorAll('#omn-st-body tr').map(function (tr) {
+        return tr.querySelector('.omn-st-key').textContent + ' = ' + tr.querySelector('.omn-st-val').textContent;
     });
 }
 
 function heads(h) {
-    return h.document.querySelectorAll('#stBody h3').map(function (e) { return e.textContent; });
+    return h.document.querySelectorAll('#omn-st-body h3').map(function (e) { return e.textContent; });
 }
 
 test('the first load asks for no section by name and shows each section that came', async () => {
@@ -61,7 +61,7 @@ test('the first load asks for no section by name and shows each section that cam
     // No "sections": the server then gives the sections that cost no time.
     assert.deepStrictEqual(seen, ['/api/status']);
     assert.deepStrictEqual(heads(h), ['Server', 'Configuration', 'Git', 'Runtime']);
-    assert.strictEqual(h.$('.st-note').textContent, 'Generated 2026-10-02T10:00:00Z');
+    assert.strictEqual(h.$('.omn-st-note').textContent, 'Generated 2026-10-02T10:00:00Z');
 });
 
 test('each kind of value has its form', async () => {
@@ -80,7 +80,7 @@ test('each kind of value has its form', async () => {
 test('a value with markup stays text', async () => {
     const h = await open([]);
     assert.ok(rows(h).indexOf('remote = git@example.org:<b>me</b>/notes.git') >= 0);
-    assert.strictEqual(h.document.querySelectorAll('#stBody b').length, 0);
+    assert.strictEqual(h.document.querySelectorAll('#omn-st-body b').length, 0);
 });
 
 test('the Storage button asks for its section only on a press, and adds it to the page', async () => {
@@ -88,10 +88,10 @@ test('the Storage button asks for its section only on a press, and adds it to th
     const h = await open(seen);
     assert.ok(heads(h).indexOf('Storage') < 0, 'the page shows the storage counts before a press');
 
-    h.press('#stStorage');
-    assert.strictEqual(h.$('#stStorage').disabled, true, 'a second press can start a second count');
+    h.press('#omn-st-storage');
+    assert.strictEqual(h.$('#omn-st-storage').disabled, true, 'a second press can start a second count');
     await h.settle();
-    assert.strictEqual(h.$('#stStorage').disabled, false);
+    assert.strictEqual(h.$('#omn-st-storage').disabled, false);
     assert.deepStrictEqual(seen.slice(1), ['/api/status?sections=storage']);
     // The other sections stay.
     assert.deepStrictEqual(heads(h), ['Server', 'Configuration', 'Git', 'Runtime', 'Storage']);
@@ -104,10 +104,10 @@ test('the Storage button asks for its section only on a press, and adds it to th
 test('Reload asks for each section that the person already asked for', async () => {
     const seen = [];
     const h = await open(seen);
-    h.press('#stDirty');
+    h.press('#omn-st-dirty');
     await h.settle();
     seen.length = 0;
-    h.press('#stReload');
+    h.press('#omn-st-reload');
     await h.settle();
     assert.deepStrictEqual(seen, ['/api/status?sections=server%2Cconfig%2Cgit%2Csearch%2Cruntime%2Candroid%2Cgit_dirty']);
 });
@@ -117,15 +117,15 @@ test('Copy asks for the Markdown form of the same sections and copies it', async
     const h = await open(seen);
     h.holdTimers();
     seen.length = 0;
-    h.press('#stCopy');
+    h.press('#omn-st-copy');
     await h.settle();
     assert.deepStrictEqual(seen, ['/api/status?format=md&sections=server%2Cconfig%2Cgit%2Csearch%2Cruntime%2Candroid']);
     assert.deepStrictEqual(h.clipboard, ['# Status\n\n| a | b |']);
-    assert.strictEqual(h.$('#stCopy').textContent, 'Copied');
+    assert.strictEqual(h.$('#omn-st-copy').textContent, 'Copied');
     // The label of the button comes again.
     assert.deepStrictEqual(h.pendingTimers(), [1400]);
     h.runTimers();
-    assert.strictEqual(h.$('#stCopy').textContent, 'Copy as Markdown');
+    assert.strictEqual(h.$('#omn-st-copy').textContent, 'Copy as Markdown');
 });
 
 test('a first load that fails says so', async () => {
@@ -133,7 +133,7 @@ test('a first load that fails says so', async () => {
         return request.url.indexOf('/api/status') === 0 ? { httpStatus: 500, text: 'fault' } : {};
     });
     await h.settle();
-    assert.strictEqual(h.$('#stBody .st-error').textContent, 'Could not read the status: HTTP 500');
+    assert.strictEqual(h.$('#omn-st-body .omn-st-error').textContent, 'Could not read the status: HTTP 500');
 });
 
 test('a later load that fails keeps the values of the page', async () => {
@@ -146,11 +146,11 @@ test('a later load that fails keeps the values of the page', async () => {
     });
     await h.settle();
     broken = true;
-    h.press('#stStorage');
+    h.press('#omn-st-storage');
     await h.settle();
-    assert.strictEqual(h.document.querySelector('#stBody .st-error'), null);
+    assert.strictEqual(h.document.querySelector('#omn-st-body .omn-st-error'), null);
     assert.deepStrictEqual(heads(h), ['Server', 'Configuration', 'Git', 'Runtime']);
-    assert.strictEqual(h.$('#stStorage').disabled, false, 'the button stays off after a fault');
+    assert.strictEqual(h.$('#omn-st-storage').disabled, false, 'the button stays off after a fault');
 });
 
 test('a copy that fails says so on the button', async () => {
@@ -158,7 +158,7 @@ test('a copy that fails says so on the button', async () => {
     h.holdTimers();
     h.clipboardRefuses = true;
     h.document.execCommand = function () { return false; };
-    h.press('#stCopy');
+    h.press('#omn-st-copy');
     await h.settle();
-    assert.strictEqual(h.$('#stCopy').textContent, 'Copy failed');
+    assert.strictEqual(h.$('#omn-st-copy').textContent, 'Copy failed');
 });

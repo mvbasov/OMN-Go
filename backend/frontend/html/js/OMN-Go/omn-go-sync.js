@@ -79,16 +79,16 @@ if (window.location.protocol !== 'file:') {
             return null;
         }
 
-        const modal = document.getElementById('conflict-modal');
+        const modal = document.getElementById('omn-conflict-modal');
         switch (data.status) {
             case 'success':
-                if (modal) modal.classList.add('hidden');
+                if (modal) modal.classList.add('omn-hidden');
                 hidePushConflictModal();
                 return data;
             case 'conflict':
                 if (modal) {
                     populateConflictFiles(data.files);
-                    modal.classList.remove('hidden');
+                    modal.classList.remove('omn-hidden');
                 } else {
                     const list = (data.files && data.files.length)
                         ? '\n\nFiles in contention:\n' + data.files.join('\n') : '';
@@ -105,9 +105,9 @@ if (window.location.protocol !== 'file:') {
                 // rejected push leaves local state untouched (see
                 // syncPush). Abort is a pure UI cancel.
                 retryPushMessage = opts.message || null;
-                const pModal = document.getElementById('push-conflict-modal');
+                const pModal = document.getElementById('omn-push-conflict-modal');
                 if (pModal) {
-                    pModal.classList.remove('hidden');
+                    pModal.classList.remove('omn-hidden');
                 } else {
                     const choice = confirm('Push rejected: the remote has new commits.\n\nOK to Force Push (destructive), Cancel to Abort.');
                     if (choice) performPushForce();
@@ -160,14 +160,14 @@ if (window.location.protocol !== 'file:') {
     // Built with textContent, and never with innerHTML, thus a note filename
     // cannot inject markup.
     const populateConflictFiles = function (files) {
-        const box = document.getElementById('conflict-files');
-        const list = document.getElementById('conflict-file-list');
+        const box = document.getElementById('omn-conflict-files');
+        const list = document.getElementById('omn-conflict-file-list');
         if (!box || !list) return;
         list.textContent = '';
         const arr = Array.isArray(files) ? files : [];
         if (arr.length === 0) {
             const li = document.createElement('li');
-            li.className = 'conflict-files-none';
+            li.className = 'omn-conflict-files-none';
             li.textContent = 'No individual file conflicts — histories diverged; Force Pull is recommended.';
             list.appendChild(li);
         } else {
@@ -177,7 +177,7 @@ if (window.location.protocol !== 'file:') {
                 list.appendChild(li);
             });
         }
-        box.classList.remove('hidden');
+        box.classList.remove('omn-hidden');
     };
 
     // performSync handles the three buttons on the conflict modal in
@@ -186,15 +186,15 @@ if (window.location.protocol !== 'file:') {
     // above, thus the modal and the header sync buttons cannot disagree
     // about the wire format or the response handling.
     const performSync = async function (action) {
-        const modal = document.getElementById('conflict-modal');
+        const modal = document.getElementById('omn-conflict-modal');
         if (action === 'abort') {
             // A plain "pull" never changes local state before it reports a
             // conflict. To abort here is thus a UI cancel alone, and there
             // is nothing on the server to undo.
-            if (modal) modal.classList.add('hidden');
+            if (modal) modal.classList.add('omn-hidden');
             return;
         }
-        if (modal) modal.classList.add('hidden');
+        if (modal) modal.classList.add('omn-hidden');
 
         const data = await runSync(action);
         if (data && data.status === 'success') {
@@ -209,8 +209,8 @@ if (window.location.protocol !== 'file:') {
     // push_conflict before any mutation. The Abort button only hides
     // this modal, like the pull modal's Abort button.
     const hidePushConflictModal = function () {
-        const modal = document.getElementById('push-conflict-modal');
-        if (modal) modal.classList.add('hidden');
+        const modal = document.getElementById('omn-push-conflict-modal');
+        if (modal) modal.classList.add('omn-hidden');
     };
 
     // performPushForce handles "Force Push" on the push-rejection modal.
@@ -318,16 +318,16 @@ if (window.location.protocol !== 'file:') {
                 return;
             }
 
-            var listEl = document.getElementById('commitFileList');
+            var listEl = document.getElementById('omn-commit-file-list');
             if (listEl) listEl.textContent = files.join('\n');
-            document.getElementById('commitModal').style.display = 'flex';
+            document.getElementById('omn-commit-modal').style.display = 'flex';
         } catch(e) {
             alert('Error: ' + e);
         }
     };
 
     const commitAndUpload = async function () {
-        const message = document.getElementById('commitMessage').value.trim();
+        const message = document.getElementById('omn-commit-message').value.trim();
         if (!message) {
             alert('Please enter a commit message.');
             return;
@@ -343,8 +343,8 @@ if (window.location.protocol !== 'file:') {
     };
 
     const hideCommitModal = function () {
-        document.getElementById('commitModal').style.display = 'none';
-        document.getElementById('commitMessage').value = '';
+        document.getElementById('omn-commit-modal').style.display = 'none';
+        document.getElementById('omn-commit-message').value = '';
     };
 
     // The actions of the sync controls. See OMN.action in omn-go-core.js.

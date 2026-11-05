@@ -61,7 +61,7 @@ final class Shortcuts {
     // Home-screen shortcuts ("add to home screen" for the current note)
     // ----------------------------------------------------------------------
     //
-    // Triggered by the .android-only button in index.html (createNoteShortcut()
+    // Triggered by the .omn-android-only button in index.html (createNoteShortcut()
     // in omn-go-core.js), which navigates to omngo://shortcut?name=... -
     // intercepted in shouldOverrideUrlLoading of WebViewSetup, same pattern
     // as omngo://edit.

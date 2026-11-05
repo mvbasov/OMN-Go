@@ -47,7 +47,7 @@ func TestSearchPage_RendersResults(t *testing.T) {
 	for _, want := range []string{
 		`href="/Fetch.html?hl=fetch"`,   // links to the note, carrying the query
 		"1 result for",                  // the summary counts
-		`class="search-group"`,          // grouped by kind
+		`class="omn-search-group"`,      // grouped by kind
 		"Notes",                         // ... with a human label
 		`<mark class="omn-search-hit">`, // the match is highlighted
 	} {
@@ -179,7 +179,7 @@ func TestSearchPage_ExplainsHowToEnableGlobalSearch(t *testing.T) {
 	}
 
 	// No form: submitting it would land straight back here.
-	if !strings.Contains(body, "is-disabled") {
+	if !strings.Contains(body, "omn-is-disabled") {
 		t.Error("the form is not suppressed")
 	}
 
@@ -225,7 +225,7 @@ func TestSearchPage_NoQueryIsJustTheForm(t *testing.T) {
 	if strings.Contains(body, "No matches") {
 		t.Error("an empty query reported 'no matches'; it asked nothing")
 	}
-	if strings.Contains(body, `class="search-result"`) {
+	if strings.Contains(body, `class="omn-search-result"`) {
 		t.Error("an empty query returned results")
 	}
 }

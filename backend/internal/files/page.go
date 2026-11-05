@@ -99,14 +99,14 @@ func renderFilesPage(v filesPageView) string {
 // thus one layout to build and to test.
 func renderFilesCards(v filesPageView) string {
 	var b strings.Builder
-	b.WriteString(`<div class="files-cards">`)
+	b.WriteString(`<div class="omn-files-cards">`)
 	for _, c := range v.Cards {
-		fmt.Fprintf(&b, `<a class="files-card %s" href="%s">`+
-			`<i class="material-icons files-card-icon">%s</i>`+
-			`<span class="files-card-text">`+
-			`<span class="files-card-title">%s</span>`+
-			`<span class="files-card-where">%s</span>`+
-			`<span class="files-card-count">%s</span>`+
+		fmt.Fprintf(&b, `<a class="omn-files-card %s" href="%s">`+
+			`<i class="material-icons omn-files-card-icon">%s</i>`+
+			`<span class="omn-files-card-text">`+
+			`<span class="omn-files-card-title">%s</span>`+
+			`<span class="omn-files-card-where">%s</span>`+
+			`<span class="omn-files-card-count">%s</span>`+
 			`</span></a>`,
 			render.EscapeHTML(c.Class), render.EscapeHTML(filesPageURL(c.Key, "", false)),
 			render.EscapeHTML(c.Icon), render.EscapeHTML(c.Title), render.EscapeHTML(c.Where),
@@ -140,10 +140,10 @@ func renderFilesListing(v filesPageView) string {
 
 	// Write the crumb. Each label holds its own slash, and nothing goes
 	// between two labels. The trail thus reads as the path: html/js/.
-	b.WriteString(`<div class="files-crumbs">`)
+	b.WriteString(`<div class="omn-files-crumbs">`)
 	for i, c := range v.Crumbs {
 		if i == len(v.Crumbs)-1 {
-			fmt.Fprintf(&b, `<span class="files-crumb-here">%s</span>`, render.EscapeHTML(c.Label))
+			fmt.Fprintf(&b, `<span class="omn-files-crumb-here">%s</span>`, render.EscapeHTML(c.Label))
 			continue
 		}
 		fmt.Fprintf(&b, `<a href="%s">%s</a>`,
@@ -151,13 +151,13 @@ func renderFilesListing(v filesPageView) string {
 	}
 	b.WriteString(`</div>`)
 
-	fmt.Fprintf(&b, `<p class="files-summary">%s</p>`, render.EscapeHTML(v.Summary))
+	fmt.Fprintf(&b, `<p class="omn-files-summary">%s</p>`, render.EscapeHTML(v.Summary))
 
 	// Fold the legend, and leave it out when this directory uses no word.
 	// <details> needs no script, and it keeps its state while the page is
 	// open.
 	if len(v.Legend) > 0 {
-		b.WriteString(`<details class="files-legend">` +
+		b.WriteString(`<details class="omn-files-legend">` +
 			`<summary>What the words mean</summary>`)
 		for _, item := range v.Legend {
 			fmt.Fprintf(&b, `<div><b class="%s">%s</b> — %s</div>`,
@@ -167,21 +167,21 @@ func renderFilesListing(v filesPageView) string {
 	}
 
 	if v.Empty {
-		b.WriteString(`<p class="files-empty">This directory holds nothing.</p>`)
+		b.WriteString(`<p class="omn-files-empty">This directory holds nothing.</p>`)
 		return b.String()
 	}
 
-	b.WriteString(`<ul class="files-list">`)
+	b.WriteString(`<ul class="omn-files-list">`)
 	for _, d := range v.Dirs {
-		fmt.Fprintf(&b, `<li class="files-row files-dir">`+
-			`<span class="files-name"><i class="material-icons files-kind">folder</i>`+
+		fmt.Fprintf(&b, `<li class="omn-files-row omn-files-dir">`+
+			`<span class="omn-files-name"><i class="material-icons omn-files-kind">folder</i>`+
 			`<a href="%s">%s</a></span>`,
 			render.EscapeHTML(filesPageURL(v.Tree, d.Dir, false)), render.EscapeHTML(d.Name+"/"))
 		if word, color := filesDirNote(v.Tree, d); word != "" {
-			fmt.Fprintf(&b, `<span class="files-state %s">%s</span>`,
+			fmt.Fprintf(&b, `<span class="omn-files-state %s">%s</span>`,
 				render.EscapeHTML(color), render.EscapeHTML(word))
 		}
-		fmt.Fprintf(&b, `<span class="files-facts"><span class="files-size">%s · %s</span>`+
+		fmt.Fprintf(&b, `<span class="omn-files-facts"><span class="omn-files-size">%s · %s</span>`+
 			`</span></li>`,
 			render.EscapeHTML(filesCountLabel(d.Files)), render.EscapeHTML(filesSize(d.Bytes)))
 	}
@@ -191,7 +191,7 @@ func renderFilesListing(v filesPageView) string {
 	b.WriteString(`</ul>`)
 
 	if v.Hidden > 0 {
-		fmt.Fprintf(&b, `<p class="files-more">%s not shown `+
+		fmt.Fprintf(&b, `<p class="omn-files-more">%s not shown `+
 			`<a href="%s">show all %s &rarr;</a></p>`,
 			render.EscapeHTML(strconv.Itoa(v.Hidden)),
 			render.EscapeHTML(filesPageURL(v.Tree, v.Dir, true)),
@@ -204,33 +204,33 @@ func renderFilesListing(v filesPageView) string {
 // and the facts on the second. The name has the whole first line, thus it
 // never goes into a narrow column.
 func renderFilesRow(b *strings.Builder, f filesFileRow) {
-	b.WriteString(`<li class="files-row">`)
-	fmt.Fprintf(b, `<span class="files-name">`+
-		`<i class="material-icons files-kind">%s</i><a href="%s">%s</a></span>`,
+	b.WriteString(`<li class="omn-files-row">`)
+	fmt.Fprintf(b, `<span class="omn-files-name">`+
+		`<i class="material-icons omn-files-kind">%s</i><a href="%s">%s</a></span>`,
 		render.EscapeHTML(f.Kind), render.EscapeHTML(f.URL), render.EscapeHTML(f.Name))
 	if f.State != "" {
-		fmt.Fprintf(b, `<span class="files-state %s">%s</span>`,
+		fmt.Fprintf(b, `<span class="omn-files-state %s">%s</span>`,
 			render.EscapeHTML(f.StateColor), render.EscapeHTML(f.State))
 	}
-	b.WriteString(`<span class="files-facts">`)
-	fmt.Fprintf(b, `<span class="files-size">%s</span>`, render.EscapeHTML(f.Size))
+	b.WriteString(`<span class="omn-files-facts">`)
+	fmt.Fprintf(b, `<span class="omn-files-size">%s</span>`, render.EscapeHTML(f.Size))
 	if f.Mod != "" {
 		// Show the date only, because the full time is too wide for a phone.
 		// The title keeps the full time.
-		fmt.Fprintf(b, `<span class="files-meta" title="%s">%s</span>`,
+		fmt.Fprintf(b, `<span class="omn-files-meta" title="%s">%s</span>`,
 			render.EscapeHTML(f.ModFull), render.EscapeHTML(f.Mod))
 	}
 	// The ownership word is on the second line of each row that has it, in
 	// each tree. The color is a hint, and the word is the fact.
 	if f.AppOwned {
-		fmt.Fprintf(b, `<span class="files-meta %s" title="%s">app-owned</span>`,
+		fmt.Fprintf(b, `<span class="omn-files-meta %s" title="%s">app-owned</span>`,
 			render.EscapeHTML(f.OwnerColor), render.EscapeHTML(filesOwnerHint))
 	}
 	for _, extra := range f.Extra {
-		fmt.Fprintf(b, `<span class="files-meta">%s</span>`, render.EscapeHTML(extra))
+		fmt.Fprintf(b, `<span class="omn-files-meta">%s</span>`, render.EscapeHTML(extra))
 	}
 	if f.EditURL != "" {
-		fmt.Fprintf(b, `<a class="files-edit" href="%s">edit</a>`, render.EscapeHTML(f.EditURL))
+		fmt.Fprintf(b, `<a class="omn-files-edit" href="%s">edit</a>`, render.EscapeHTML(f.EditURL))
 	}
 	b.WriteString(`</span></li>`)
 }

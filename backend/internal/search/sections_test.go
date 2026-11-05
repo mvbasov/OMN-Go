@@ -620,14 +620,14 @@ func TestSearchPageSectionLinksDoNotStackFragments(t *testing.T) {
 
 	body := getSearchPage(t, a, "needle").Body.String()
 	if strings.Contains(body, "#2026-07-27-072317#") || strings.Contains(body, "#2026-07-26-090000#") {
-		t.Fatalf("two fragments landed in one href:\n%s", excerpt(body, "search-section"))
+		t.Fatalf("two fragments landed in one href:\n%s", excerpt(body, "omn-search-section"))
 	}
 	for _, want := range []string{
 		`href="/Q.html?hl=needle#2026-07-27-072317"`,
 		`href="/Q.html?hl=needle#2026-07-26-090000"`,
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("missing %q\n%s", want, excerpt(body, "search-section"))
+			t.Errorf("missing %q\n%s", want, excerpt(body, "omn-search-section"))
 		}
 	}
 }

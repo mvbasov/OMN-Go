@@ -21,15 +21,15 @@
 // --- Config page: menu navigation + unsaved-changes tracking ---
 //
 // The config form itself is untouched. Each settings group is a show and
-// hide .config-screen block inside the ONE <form>. FormData(form) in
+// hide .omn-config-screen block inside the ONE <form>. FormData(form) in
 // the config-save action below thus still collects every field, whatever
-// screen is open. A no-op on a page with no #configForm.
+// screen is open. A no-op on a page with no #omn-config-form.
 document.addEventListener("DOMContentLoaded", () => {
-    const form = document.getElementById('configForm');
+    const form = document.getElementById('omn-config-form');
     if (!form) return;
-    const panel = form.closest('.config-panel') || document;
-    const menu = document.getElementById('configMenu');
-    const screens = panel.querySelectorAll('.config-screen');
+    const panel = form.closest('.omn-config-panel') || document;
+    const menu = document.getElementById('omn-config-menu');
+    const screens = panel.querySelectorAll('.omn-config-screen');
 
     // -- Navigation --
     //
@@ -55,10 +55,10 @@ document.addEventListener("DOMContentLoaded", () => {
             // fallback shown when the hash names no known sub-screen.
             const name = s.getAttribute('data-screen');
             const active = !!name && name === want;
-            s.classList.toggle('active', active);
+            s.classList.toggle('omn-active', active);
             if (active) matched = true;
         });
-        if (menu) menu.classList.toggle('active', !matched);
+        if (menu) menu.classList.toggle('omn-active', !matched);
         // A sub-screen replaces the menu at the top of the panel, so start
         // it at the top instead of inheriting the menu's scroll offset.
         window.scrollTo(0, 0);
@@ -91,21 +91,21 @@ document.addEventListener("DOMContentLoaded", () => {
     // triggers the prompt. The config-save action calls
     // window.configMarkClean() before its reload paths, thus a successful
     // save does not prompt.
-    const dots = panel.querySelectorAll('.config-dirty-dot');
-    const labels = panel.querySelectorAll('.config-dirty-indicator .config-dirty-label');
-    const menuBanner = document.getElementById('configMenuDirty');
+    const dots = panel.querySelectorAll('.omn-config-dirty-dot');
+    const labels = panel.querySelectorAll('.omn-config-dirty-indicator .omn-config-dirty-label');
+    const menuBanner = document.getElementById('omn-config-menu-dirty');
     let dirty = false;
 
     function markDirty() {
         if (dirty) return;
         dirty = true;
-        dots.forEach(d => d.classList.add('dirty'));
+        dots.forEach(d => d.classList.add('omn-dirty'));
         labels.forEach(l => { l.textContent = 'Unsaved changes'; });
         if (menuBanner) menuBanner.hidden = false;
     }
     window.configMarkClean = function() {
         dirty = false;
-        dots.forEach(d => d.classList.remove('dirty'));
+        dots.forEach(d => d.classList.remove('omn-dirty'));
         labels.forEach(l => { l.textContent = ''; });
         if (menuBanner) menuBanner.hidden = true;
     };
@@ -161,7 +161,7 @@ function secretValue(cfg, name) {
 
 // The reveal button of a settings screen. See OMN.action in omn-go-core.js.
 window.OMN.action('config-reveal', async function (btn) {
-    const form = document.getElementById('configForm');
+    const form = document.getElementById('omn-config-form');
     if (!form || !btn) return;
     const label = btn.querySelector('[data-reveal-label]');
     const icon = btn.querySelector('.material-icons');
@@ -209,7 +209,7 @@ window.OMN.action('config-reveal', async function (btn) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('configForm');
+    const form = document.getElementById('omn-config-form');
     if (!form) return;
     secretFields(form).forEach(function (el) {
         el.addEventListener('input', function () { el.dataset.dirty = '1'; });
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // Each Save button of the page. See OMN.action in omn-go-core.js.
 window.OMN.action('config-save', async function () {
-    const form = document.getElementById('configForm');
+    const form = document.getElementById('omn-config-form');
     if (!form) { alert('Config form not found'); return; }
     const fd = new FormData(form);
     // A secret box that the reader did not touch carries no meaning,

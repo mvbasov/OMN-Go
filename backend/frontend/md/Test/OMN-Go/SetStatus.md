@@ -10,14 +10,14 @@ Tags: JavaScript, CSS, Test, OMN-Go, OMN-Go user
   display: inline-block;
   width: 1rem;
   height: 1rem;
-  background-color: var(--info);
+  background-color: var(--omn-info);
   border-radius: 50%;
 }
 </style>
 
 <script type="module">
 {
-  const s = document.querySelector('#status');
+  const s = document.querySelector('#omn-page-footer');
   // Idempotent: the script re-runs on every view of the cached page, so
   // without this check a second view would stack up a second dot.
   if (s && !s.querySelector('.setstatus-dot')) {

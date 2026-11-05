@@ -164,7 +164,7 @@ func renderTagsMarkdown(index map[string][]TagPageRef) []byte {
 
 	b.WriteString(`<div class="omn-tags-cloud">` + "\n")
 	for _, t := range tagNames {
-		fmt.Fprintf(&b, `<a href="#%s" class="taglink"><span class="tagmark">%s</span></a>`+"\n",
+		fmt.Fprintf(&b, `<a href="#%s" class="omn-taglink"><span class="omn-tagmark">%s</span></a>`+"\n",
 			EscapeHTML(TagSlug(t)), EscapeHTML(t))
 	}
 	b.WriteString("</div>\n\n")

@@ -1,70 +1,70 @@
-<div id="loginOverlay" class="overlay">
-    <div class="modal">
+<div id="omn-login-overlay" class="omn-overlay">
+    <div class="omn-modal">
         <h2>OMN-Go Login</h2>
-        <input type="password" id="pwdInput" placeholder="Admin Password">
+        <input type="password" id="omn-pwd-input" placeholder="Admin Password">
         <button data-action="login">Enter</button>
     </div>
 </div>
-<div id="quickPanel" class="panel hidden">
+<div id="omn-quick-panel" class="omn-panel omn-hidden">
     <h3>Quick Note</h3>
-    <textarea id="quickText" rows="4"></textarea>
-    <div class="modal-buttons-row">
+    <textarea id="omn-quick-text" rows="4"></textarea>
+    <div class="omn-modal-buttons-row">
         <button data-action="quick-note-save">Save</button>
         <button data-action="quick-note-copy" title="Copy the text to the clipboard without saving">Copy</button>
-        <button data-action="hide-panel" data-arg="quickPanel" class="btn-cancel">Cancel</button>
+        <button data-action="hide-panel" data-arg="omn-quick-panel" class="omn-btn-cancel">Cancel</button>
     </div>
 </div>
-<div id="bmPanel" class="panel hidden">
+<div id="omn-bm-panel" class="omn-panel omn-hidden">
     <h3>Ingest Bookmark</h3>
-    <input id="bmUrl" placeholder="URL">
-    <input id="bmTitle" placeholder="Title">
-    <div class="tag-input-wrap">
-        <input id="bmTags" placeholder="Tags (comma separated)" autocomplete="off" minChars="2">
-        <ul id="bmTagsSuggestions" class="tag-suggestions hidden"></ul>
+    <input id="omn-bm-url" placeholder="URL">
+    <input id="omn-bm-title" placeholder="Title">
+    <div class="omn-tag-input-wrap">
+        <input id="omn-bm-tags" placeholder="Tags (comma separated)" autocomplete="off" minChars="2">
+        <ul id="omn-bm-tags-suggestions" class="omn-tag-suggestions omn-hidden"></ul>
     </div>
-    <textarea id="bmNotes" rows="2" placeholder="Notes (semicolon separated)"></textarea>
-    <div class="modal-buttons-row">
+    <textarea id="omn-bm-notes" rows="2" placeholder="Notes (semicolon separated)"></textarea>
+    <div class="omn-modal-buttons-row">
         <button data-action="bookmark-save">Save</button>
-        <button data-action="hide-panel" data-arg="bmPanel" class="btn-cancel">Cancel</button>
+        <button data-action="hide-panel" data-arg="omn-bm-panel" class="omn-btn-cancel">Cancel</button>
     </div>
 </div>
-<div id="commitModal" class="overlay" style="display:none;">
-    <div class="modal" style="width:500px; max-height:80vh; overflow-y:auto;">
+<div id="omn-commit-modal" class="omn-overlay" style="display:none;">
+    <div class="omn-modal" style="width:500px; max-height:80vh; overflow-y:auto;">
         <h2>Commit Changes</h2>
         <p>Files to be committed:</p>
-        <pre id="commitFileList" style="background: var(--bg-inset); color: var(--text); border: 1px solid var(--border); padding:10px; max-height:200px; overflow-y:auto; white-space:pre-wrap;"></pre>
-        <textarea id="commitMessage" placeholder="Enter commit message..." style="width:100%; height:80px; margin-top:10px;"></textarea>
-        <div class="modal-buttons-row" style="margin-top:10px;">
-            <button data-action="commit-upload" class="admin-only">Commit &amp; Push</button>
-            <button data-action="commit-cancel" class="btn-cancel">Cancel</button>
+        <pre id="omn-commit-file-list" style="background: var(--omn-bg-inset); color: var(--omn-text); border: 1px solid var(--omn-border); padding:10px; max-height:200px; overflow-y:auto; white-space:pre-wrap;"></pre>
+        <textarea id="omn-commit-message" placeholder="Enter commit message..." style="width:100%; height:80px; margin-top:10px;"></textarea>
+        <div class="omn-modal-buttons-row" style="margin-top:10px;">
+            <button data-action="commit-upload">Commit &amp; Push</button>
+            <button data-action="commit-cancel" class="omn-btn-cancel">Cancel</button>
         </div>
     </div>
 </div>
-<div id="conflict-modal" class="overlay hidden">
-    <div class="modal">
+<div id="omn-conflict-modal" class="omn-overlay omn-hidden">
+    <div class="omn-modal">
         <h2>Merge Conflict</h2>
         <p>Local changes conflict with the remote repository. Choose how to resolve this:</p>
-        <div id="conflict-files" class="conflict-files hidden">
-            <p class="conflict-files-title">Files in contention:</p>
-            <ul id="conflict-file-list"></ul>
+        <div id="omn-conflict-files" class="omn-conflict-files omn-hidden">
+            <p class="omn-conflict-files-title">Files in contention:</p>
+            <ul id="omn-conflict-file-list"></ul>
         </div>
         <button data-action="sync-resolve" data-arg="pull_force">Force Pull (Reset to Remote)<br><small>Overwrites tracked files; also deletes local files that are neither tracked nor in .gitignore</small></button>
         <button data-action="sync-resolve" data-arg="pull_mark">Mark Conflicts in Files<br><small>Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; conflict markers for manual fixing</small></button>
-        <button data-action="sync-resolve" data-arg="abort" class="btn-cancel">Abort Operation</button>
+        <button data-action="sync-resolve" data-arg="abort" class="omn-btn-cancel">Abort Operation</button>
     </div>
 </div>
-<div id="push-conflict-modal" class="overlay hidden">
-    <div class="modal">
+<div id="omn-push-conflict-modal" class="omn-overlay omn-hidden">
+    <div class="omn-modal">
         <h2>Push Rejected</h2>
         <p>The remote has newer commits and rejected the push. Pull the remote changes first, or overwrite the remote:</p>
         <button data-action="push-force">Force Push<br><small>Overwrites the history on the remote to match this device — destructive. Prefer pulling the remote changes first.</small></button>
-        <button data-action="push-cancel" class="btn-cancel">Abort</button>
+        <button data-action="push-cancel" class="omn-btn-cancel">Abort</button>
     </div>
 </div>
 <!--
   The receive box of the Incoming notes page (note exchange).
 
-  It is HERE, with the other server-only chrome, and not in the note. The
+  It is HERE, with the other chrome that only the server gives, and not in the note. The
   incoming index is the user's note and holds nothing but the list of what
   arrived; this control belongs to the application, so it is spliced in at
   serve time like every modal above and never reaches the on-disk cache or
@@ -74,12 +74,12 @@
   where omn-go-api.js moves it to the top of the preview and wires it up.
   Android never shows it at all - the share sheet does that work there.
 -->
-<details class="omn-incoming hidden" id="omnIncoming">
+<details class="omn-incoming omn-hidden" id="omn-incoming">
     <summary class="omn-incoming-head">Receive a note</summary>
     <p class="omn-incoming-hint">Choose one or more <code>.md</code> files, or drop them here. Each note goes under <code>incoming/</code> and gets a line in the list below. A note never writes over a note that you made. A JSON file, a contact file (<code>.vcf</code>) or a calendar file (<code>.ics</code>, <code>.vcs</code>) goes to its own directory under <code>html/</code> and gets a line too.</p>
     <div class="omn-incoming-row">
-        <input type="file" id="omnIncomingFiles" accept=".md,.markdown,text/markdown,text/plain" multiple>
-        <button type="button" class="omn-incoming-btn" id="omnIncomingImport"><i class="material-icons icon-sm">upload_file</i>Import</button>
+        <input type="file" id="omn-incoming-files" accept=".md,.markdown,text/markdown,text/plain" multiple>
+        <button type="button" class="omn-incoming-btn" id="omn-incoming-import"><i class="material-icons omn-icon-sm">upload_file</i>Import</button>
     </div>
-    <div class="omn-incoming-status" id="omnIncomingStatus"></div>
+    <div class="omn-incoming-status" id="omn-incoming-status"></div>
 </details>

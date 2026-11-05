@@ -81,7 +81,7 @@ func TestStatusPageAnswersARemoteCallerWithAPage(t *testing.T) {
 	if !strings.Contains(body, "for the admin of this device") {
 		t.Error("a remote caller did not get the refusal page")
 	}
-	if strings.Contains(body, "stStorage") {
+	if strings.Contains(body, "omn-st-storage") {
 		t.Error("a remote caller got the reader script")
 	}
 }

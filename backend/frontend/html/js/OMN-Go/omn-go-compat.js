@@ -36,9 +36,9 @@
     if (!m || parseInt(m[1], 10) >= MIN) { return; }
     var found = m[1];
     function show() {
-        if (!document.body || document.getElementById('omnGoCompat')) { return; }
+        if (!document.body || document.getElementById('omn-compat-bar')) { return; }
         var bar = document.createElement('div');
-        bar.id = 'omnGoCompat';
+        bar.id = 'omn-compat-bar';
         /* Inline styles on purpose: the stylesheet is built on CSS
            custom properties, which a WebView this old does not have. */
         bar.setAttribute('style', 'position:relative;z-index:99999;'

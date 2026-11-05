@@ -319,15 +319,15 @@ if (window.location.protocol !== 'file:') {
     // The actions of this block need the server. The else branch at the end
     // of this file gives each one a stub for a page from disk.
     window.OMN.action('login', async function () {
-        const pwd = document.getElementById('pwdInput').value;
+        const pwd = document.getElementById('omn-pwd-input').value;
         const res = await fetch('/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'password=' + encodeURIComponent(pwd)
         });
         if(res.ok) {
-            document.getElementById('loginOverlay').style.display = 'none';
-            document.getElementById('mainUI').style.display = 'flex';
+            document.getElementById('omn-login-overlay').style.display = 'none';
+            document.getElementById('omn-main-ui').style.display = 'flex';
         } else {
             alert('Invalid Password');
         }
@@ -369,11 +369,11 @@ if (window.location.protocol !== 'file:') {
 
     window.OMN.action('quick-note-save', async function () {
         const fd = new URLSearchParams();
-        fd.append('note', document.getElementById('quickText').value);
+        fd.append('note', document.getElementById('omn-quick-text').value);
         const res = await fetch('/api/quick', { method: 'POST', body: fd });
         if(res.ok) {
-            document.getElementById('quickText').value = '';
-            document.getElementById('quickPanel').classList.add('hidden');
+            document.getElementById('omn-quick-text').value = '';
+            document.getElementById('omn-quick-panel').classList.add('omn-hidden');
             alert('Saved!');
             window.location.reload();
         }
@@ -381,14 +381,14 @@ if (window.location.protocol !== 'file:') {
 
     window.OMN.action('bookmark-save', async function () {
         const fd = new URLSearchParams();
-        fd.append('url', document.getElementById('bmUrl').value);
-        fd.append('title', document.getElementById('bmTitle').value);
-        fd.append('tags', document.getElementById('bmTags').value);
-        fd.append('notes', document.getElementById('bmNotes').value);
+        fd.append('url', document.getElementById('omn-bm-url').value);
+        fd.append('title', document.getElementById('omn-bm-title').value);
+        fd.append('tags', document.getElementById('omn-bm-tags').value);
+        fd.append('notes', document.getElementById('omn-bm-notes').value);
         const res = await fetch('/api/bookmark', { method: 'POST', body: fd });
         if(res.ok) {
-            document.getElementById('bmPanel').classList.add('hidden');
-            document.querySelectorAll('#bmPanel input, #bmPanel textarea').forEach(el => el.value = '');
+            document.getElementById('omn-bm-panel').classList.add('omn-hidden');
+            document.querySelectorAll('#omn-bm-panel input, #omn-bm-panel textarea').forEach(el => el.value = '');
             alert('Saved!');
             window.location.reload();
         }
@@ -409,16 +409,16 @@ if (window.location.protocol !== 'file:') {
     // WebView is on a page without the panel. A page mid-edit on editor.html
     // is such a page, because it loads this file not at all.
     window.omnGoInsertCapture = function(text, label) {
-        var q = document.getElementById('quickText');
-        var p = document.getElementById('quickPanel');
+        var q = document.getElementById('omn-quick-text');
+        var p = document.getElementById('omn-quick-panel');
         if (!q || !p) { return false; }
         var content = '';
         if (label) { content += label + "\n\n"; }
         if (text) { content += text; }
         q.value = content.trim();
-        p.classList.remove('hidden');
-        var bm = document.getElementById('bmPanel');
-        if (bm) { bm.classList.add('hidden'); }
+        p.classList.remove('omn-hidden');
+        var bm = document.getElementById('omn-bm-panel');
+        if (bm) { bm.classList.add('omn-hidden'); }
         return true;
     };
 
@@ -428,20 +428,20 @@ if (window.location.protocol !== 'file:') {
     // the rest of this script.
     document.addEventListener('DOMContentLoaded', () => {
         document.body.addEventListener('dragover', e => {
-            if (!e.target.closest('#editor')) e.preventDefault();
+            if (!e.target.closest('#omn-editor-text')) e.preventDefault();
         });
         document.body.addEventListener('drop', e => {
-            if (e.target.closest('#editor')) return;
+            if (e.target.closest('#omn-editor-text')) return;
             const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
             if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
                 e.preventDefault();
-                document.getElementById('bmUrl').value = url;
-                document.getElementById('bmTitle').value = '';
+                document.getElementById('omn-bm-url').value = url;
+                document.getElementById('omn-bm-title').value = '';
                 const html = e.dataTransfer.getData('text/html');
                 if (html) {
                     const match = html.match(/<a[^>]*>(.*?)<\/a>/i);
                     if (match && match[1]) {
-                        document.getElementById('bmTitle').value = match[1].replace(/<[^>]+>/g, '').trim();
+                        document.getElementById('omn-bm-title').value = match[1].replace(/<[^>]+>/g, '').trim();
                     }
                 }
                 window.showBookmarkPanel();
@@ -576,13 +576,13 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.checkSession = async function() {
-        // #loginOverlay is a server-injected modal. See injectRuntimeVars.
+        // #omn-login-overlay is a server-injected modal. See injectRuntimeVars.
         // An exported page and an offline page have no login gate. When
         // the element is absent, leave the visible content alone rather
-        // than read a property of null. #mainUI stays in the page, and
+        // than read a property of null. #omn-main-ui stays in the page, and
         // the guard covers it for the same reason.
-        const overlay = document.getElementById('loginOverlay');
-        const main = document.getElementById('mainUI');
+        const overlay = document.getElementById('omn-login-overlay');
+        const main = document.getElementById('omn-main-ui');
         if (!overlay || !main) return;
         // An admin hint cookie means that this browser logged in. The
         // server still tests the signed cookie on each request. An old
@@ -726,26 +726,26 @@ if (window.location.protocol !== 'file:') {
         }
 
         function setUp() {
-            const box = document.getElementById('omnIncoming');
+            const box = document.getElementById('omn-incoming');
             if (!box) return;
             if (!onIncomingPage() || (typeof IS_ANDROID !== 'undefined' && IS_ANDROID)) {
                 box.remove();
                 return;
             }
-            const preview = document.getElementById('preview');
-            const input = document.getElementById('omnIncomingFiles');
-            const button = document.getElementById('omnIncomingImport');
-            const statusEl = document.getElementById('omnIncomingStatus');
+            const preview = document.getElementById('omn-preview');
+            const input = document.getElementById('omn-incoming-files');
+            const button = document.getElementById('omn-incoming-import');
+            const statusEl = document.getElementById('omn-incoming-status');
             if (!preview || !input || !button || !statusEl) return;
 
             // Above the list, which is what the page is for. The box is
             // closed until it is wanted, so it costs one line.
             preview.insertBefore(box, preview.firstChild);
-            box.classList.remove('hidden');
+            box.classList.remove('omn-hidden');
 
             const say = function (msg, bad) {
                 statusEl.textContent = msg || '';
-                statusEl.classList.toggle('is-error', !!bad);
+                statusEl.classList.toggle('omn-is-error', !!bad);
             };
 
             // OMN_USER_FILE_UPLOADS maps the extension of a JSON file, of a
@@ -838,15 +838,15 @@ if (window.location.protocol !== 'file:') {
             ['dragenter', 'dragover'].forEach(function (name) {
                 box.addEventListener(name, function (e) {
                     e.preventDefault();
-                    box.classList.add('is-over');
+                    box.classList.add('omn-is-over');
                 });
             });
             ['dragleave', 'dragend'].forEach(function (name) {
-                box.addEventListener(name, function () { box.classList.remove('is-over'); });
+                box.addEventListener(name, function () { box.classList.remove('omn-is-over'); });
             });
             box.addEventListener('drop', function (e) {
                 e.preventDefault();
-                box.classList.remove('is-over');
+                box.classList.remove('omn-is-over');
                 run(e.dataTransfer && e.dataTransfer.files);
             });
         }
@@ -876,7 +876,7 @@ if (window.location.protocol !== 'file:') {
     window.omnGoOpenDatabase = function() { printDebug('omnGoOpenDatabase'); };
     window.openDatabase = function() { printDebug('openDatabase'); };
     // Search needs the server: the panel queries /api/search, which does not
-    // exist on a page opened from disk. The header button is .server-only and
+    // exist on a page opened from disk. The header button is .omn-server-only and
     // therefore already hidden here (applyOfflineUI) - these stubs cover a
     // note script or a stale keyboard shortcut calling in anyway.
     // omnSearchClearHighlights is NOT stubbed here: the highlighting lives in

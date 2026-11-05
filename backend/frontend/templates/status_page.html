@@ -1,19 +1,19 @@
-<div class="config-panel">
-    <h2 class="config-title">Status</h2>
-    <div class="config-field">
-        <span class="config-hint">What this application does now. The page reads <code class="st-code">/api/status</code>. Two parts cost time, so they load when you ask for them: the storage counts and the git worktree state.</span>
+<div class="omn-config-panel">
+    <h2 class="omn-config-title">Status</h2>
+    <div class="omn-config-field">
+        <span class="omn-config-hint">What this application does now. The page reads <code class="omn-st-code">/api/status</code>. Two parts cost time, so they load when you ask for them: the storage counts and the git worktree state.</span>
     </div>
 
-    <div class="st-actions">
-        <button type="button" class="st-btn" id="stReload">Reload</button>
-        <button type="button" class="st-btn" id="stStorage">Storage</button>
-        <button type="button" class="st-btn" id="stDirty">Git worktree</button>
-        <button type="button" class="st-btn" id="stCopy">Copy as Markdown</button>
-        <a class="st-btn" href="/api/status?sections=all&amp;format=md">Open as text</a>
-        <a class="st-btn" href="/api/status?sections=all">Open as JSON</a>
+    <div class="omn-st-actions">
+        <button type="button" class="omn-st-btn" id="omn-st-reload">Reload</button>
+        <button type="button" class="omn-st-btn" id="omn-st-storage">Storage</button>
+        <button type="button" class="omn-st-btn" id="omn-st-dirty">Git worktree</button>
+        <button type="button" class="omn-st-btn" id="omn-st-copy">Copy as Markdown</button>
+        <a class="omn-st-btn" href="/api/status?sections=all&amp;format=md">Open as text</a>
+        <a class="omn-st-btn" href="/api/status?sections=all">Open as JSON</a>
     </div>
 
-    <div id="stBody" class="st-body">Loading…</div>
+    <div id="omn-st-body">Loading…</div>
 </div>
 <!--
   The script of this page. The Stylesheet: line of the page header names

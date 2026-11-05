@@ -353,6 +353,11 @@ fail when you skip one of these steps.
   `TestDarkMapsAreTheSame` hold this. The one exception is `omn-go-compat.js`. The
   theme is CSS only. It uses `data-theme` on `<html>` with a `prefers-color-scheme`
   fallback.
+* **Each class, id and token of the application starts with `omn-`.** A token is
+  `--omn-<name>`. A note puts its own names into the same page, and the prefix
+  keeps the two sets apart. A class of a vendored library (Material Icons,
+  highlight.js, KaTeX) keeps its own name. `TestEachNameInAStylesheetHasThePrefix`
+  and `TestEachNameInATemplateHasThePrefix` hold this.
 * **Module pattern.** Use an IIFE with an explicit `window.*` export.
 * **A control names its work in `data-action`.** Write no inline `onclick` in a
   template. Call `OMN.action('name', fn)` in a script, and put

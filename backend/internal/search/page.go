@@ -71,18 +71,18 @@ func renderSnippetHTML(text string, spans [][2]int) string {
 
 // searchDisabledNotice is the page text when global search is off. A note can
 // link here, thus it is a page and not a 404. Its markup is static.
-const searchDisabledNotice = `<div class="search-page-notice">` +
+const searchDisabledNotice = `<div class="omn-search-page-notice">` +
 	`<h2>Global search is off</h2>` +
 	`<p>Searching every note at once needs an index, and the index is held in ` +
 	`memory for as long as the app runs - roughly a third of the size of the ` +
 	`text it covers. That is a real cost on a small device, so it is off until ` +
 	`you ask for it.</p>` +
-	`<p><a class="search-page-cta" href="/Config.html#cfg-search">` +
+	`<p><a class="omn-search-page-cta" href="/Config.html#cfg-search">` +
 	`Turn on global search in Settings</a></p>` +
-	`<p class="search-page-note">There, <em>Enable global search</em> switches ` +
+	`<p class="omn-search-page-note">There, <em>Enable global search</em> switches ` +
 	`it on and the checkboxes under it choose what gets indexed - notes and ` +
 	`bookmarks to begin with. It applies immediately; no restart.</p>` +
-	`<p class="search-page-note">Searching the note you have open needs none of ` +
+	`<p class="omn-search-page-note">Searching the note you have open needs none of ` +
 	`this and always works: the magnifier in the page header, or ` +
 	`<kbd>Ctrl</kbd>+<kbd>K</kbd>.</p>` +
 	`</div>`
@@ -92,7 +92,7 @@ func renderSearchPage(v searchPageView) string {
 		// Each other slot stays empty. There is no form, because a submit
 		// comes back here. There is no result section.
 		return render.Fill(searchPageTmpl, map[string]string{
-			"DISABLED": " is-disabled",
+			"DISABLED": " omn-is-disabled",
 			"NOTICE":   searchDisabledNotice,
 			"QUERY":    "",
 			"SUMMARY":  "",
@@ -115,11 +115,11 @@ func renderSearchPage(v searchPageView) string {
 		if len(inKind) == 0 {
 			continue
 		}
-		fmt.Fprintf(&groups, "<h2 class=\"search-group\">%s <span class=\"search-group-count\">%d</span></h2>\n",
+		fmt.Fprintf(&groups, "<h2 class=\"omn-search-group\">%s <span class=\"omn-search-group-count\">%d</span></h2>\n",
 			render.EscapeHTML(searchKindLabel(kind)), len(inKind))
 
 		for _, r := range inKind {
-			groups.WriteString("<div class=\"search-result\">\n")
+			groups.WriteString("<div class=\"omn-search-result\">\n")
 			title := r.Title
 			if title == "" {
 				title = r.Name
@@ -127,16 +127,16 @@ func renderSearchPage(v searchPageView) string {
 			// The link carries the query as ?hl=. The note then marks and
 			// scrolls to the match. The client removes the parameters after
 			// it uses them, thus a copied URL is plain.
-			fmt.Fprintf(&groups, "  <a class=\"search-result-title\" href=\"%s\">%s</a>\n",
+			fmt.Fprintf(&groups, "  <a class=\"omn-search-result-title\" href=\"%s\">%s</a>\n",
 				render.EscapeHTML(highlightURL(r.URL, v.Highlight)), render.EscapeHTML(title))
-			fmt.Fprintf(&groups, "  <div class=\"search-result-path\">%s</div>\n", render.EscapeHTML(r.Name))
+			fmt.Fprintf(&groups, "  <div class=\"omn-search-result-path\">%s</div>\n", render.EscapeHTML(r.Name))
 
 			if len(r.Tags) > 0 {
-				groups.WriteString("  <div class=\"search-result-tags\">")
+				groups.WriteString("  <div class=\"omn-search-result-tags\">")
 				for _, t := range r.Tags {
 					// Use the same pill markup and the same anchor as the
 					// page header. See render.RenderIndexPage.
-					fmt.Fprintf(&groups, "<a href=\"/OMNGoTags.html#%s\" class=\"taglink\"><span class=\"tagmark\">%s</span></a>",
+					fmt.Fprintf(&groups, "<a href=\"/OMNGoTags.html#%s\" class=\"omn-taglink\"><span class=\"omn-tagmark\">%s</span></a>",
 						render.EscapeHTML(render.TagSlug(t)), render.EscapeHTML(t))
 				}
 				groups.WriteString("</div>\n")
@@ -149,7 +149,7 @@ func renderSearchPage(v searchPageView) string {
 				// place.
 				if m.Section != nil && m.Section.Label != "" && m.Section.Label != lastSection {
 					lastSection = m.Section.Label
-					groups.WriteString("  <div class=\"search-section\">")
+					groups.WriteString("  <div class=\"omn-search-section\">")
 					if m.Section.ID != "" {
 						// r.URL already ends with the anchor of the BEST hit.
 						// This link needs the anchor of THIS section, thus
@@ -172,23 +172,23 @@ func renderSearchPage(v searchPageView) string {
 				// the line gets percent-encoding in snippetURL and an HTML
 				// escape here, because the text of a note can come from
 				// another person.
-				fmt.Fprintf(&groups, "  <a class=\"search-snippet\" href=\"%s\">",
+				fmt.Fprintf(&groups, "  <a class=\"omn-search-snippet\" href=\"%s\">",
 					render.EscapeHTML(snippetURL(r.URL, v.Highlight, m)))
-				fmt.Fprintf(&groups, "<span class=\"search-snippet-line\">%d</span>", m.Line)
+				fmt.Fprintf(&groups, "<span class=\"omn-search-snippet-line\">%d</span>", m.Line)
 				if m.Context != "" {
 					where := "inside a code block"
 					if m.Context == "script" {
 						where = "inside a <script> block"
 					}
-					fmt.Fprintf(&groups, "<span class=\"search-snippet-ctx\" title=\"%s\">&lsaquo;/&rsaquo;</span>",
+					fmt.Fprintf(&groups, "<span class=\"omn-search-snippet-ctx\" title=\"%s\">&lsaquo;/&rsaquo;</span>",
 						render.EscapeHTML(where))
 				}
-				fmt.Fprintf(&groups, "<span class=\"search-snippet-text\">%s</span>",
+				fmt.Fprintf(&groups, "<span class=\"omn-search-snippet-text\">%s</span>",
 					renderSnippetHTML(m.Text, m.Spans))
 				groups.WriteString("</a>\n")
 			}
 			if r.Truncated {
-				groups.WriteString("  <div class=\"search-result-note\">only the first 500 KiB of this file was searched</div>\n")
+				groups.WriteString("  <div class=\"omn-search-result-note\">only the first 500 KiB of this file was searched</div>\n")
 			}
 			groups.WriteString("</div>\n")
 		}
@@ -210,9 +210,9 @@ func renderSearchPage(v searchPageView) string {
 		if len(kinds) > 0 {
 			covered = strings.Join(kinds, ", ")
 		}
-		empty = fmt.Sprintf(`<div class="search-empty">`+
+		empty = fmt.Sprintf(`<div class="omn-search-empty">`+
 			`<p>No matches for <strong>%s</strong>.</p>`+
-			`<p class="search-empty-hint">The index currently covers: %s. `+
+			`<p class="omn-search-empty-hint">The index currently covers: %s. `+
 			`<a href="/Config.html#cfg-search">Change what is searched</a>.</p>`+
 			`</div>`, render.EscapeHTML(v.Query), render.EscapeHTML(covered))
 	default:
@@ -222,7 +222,7 @@ func renderSearchPage(v searchPageView) string {
 		}
 		summary = fmt.Sprintf("%d %s for <strong>%s</strong>", v.Total, word, render.EscapeHTML(v.Query))
 		if v.Truncated && len(v.Results) < v.Total {
-			summary += fmt.Sprintf(" <span class=\"search-page-note\">(showing the first %d)</span>", len(v.Results))
+			summary += fmt.Sprintf(" <span class=\"omn-search-page-note\">(showing the first %d)</span>", len(v.Results))
 		}
 	}
 

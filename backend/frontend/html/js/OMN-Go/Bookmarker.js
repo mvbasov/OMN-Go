@@ -2,7 +2,7 @@ const bVersion = '0.19g 2026-06-24 14:59:01';
 const duplicateTag = '!Duplicates';
 const noTagTag = '!NoTag';
 const config = {};
-const embedCont = document.querySelector('#preview');
+const embedCont = document.querySelector('#omn-preview');
 // The one key that holds the settings of this page in localStorage.
 //
 // THE KEY HAS NO PREFIX OF THE APPLICATION ID. Such a prefix would keep
@@ -72,7 +72,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
   // tag display priority on search
   if (onlyTag !== '' || search === '') {
     search = '';
-    let searchF = document.querySelector('#searchInput');
+    let searchF = document.querySelector('#omn-bm-search-input');
     searchF.value = '';
   }
   let counter = 0;
@@ -107,7 +107,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
         txt = document.createTextNode('');
         txt.textContent =  bm.date;
         spanDate.appendChild(txt);
-        spanDate.className = 'spanDate';
+        spanDate.className = 'omn-span-date';
         li.appendChild(spanDate);
       }
       // find tags if exists   
@@ -120,7 +120,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
         for (_tag of bm.tags) {
           btnt = document.createElement('button');
           btnt.innerText = _tag;
-          btnt.className = 'tag';
+          btnt.className = 'omn-tag';
           btnt.onclick = function(){showBookmarks(this.innerText);};
           divt.appendChild(btnt);
           if (!allTags.includes(_tag)) {
@@ -160,7 +160,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
           }
         }
         btn.appendChild(txt);
-        btn.className = 'details';
+        btn.className = 'omn-details';
         li.insertBefore(btn, li.firstChild);
         li.appendChild(ulin);
       }
@@ -170,15 +170,15 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
   }
   compactDuplicates();
   // display list of bookmarks
-  document.querySelector('#bmlist').replaceChildren(ul);
+  document.querySelector('#omn-bm-list').replaceChildren(ul);
   // collapse all details
   colexpall('collapse');
   // display counter
-  var counterSpan = document.querySelector('#counter');
+  var counterSpan = document.querySelector('#omn-bm-counter');
   counterSpan.innerHTML = counter;
   counterSpan.onclick = toggleTagsCloud;
   // clear and display tags cloud
-  var tagsDiv = document.querySelector('#tagsCloud');
+  var tagsDiv = document.querySelector('#omn-bm-tags-cloud');
   tagsDiv.innerHTML = "";
   if (allTags.length > 0) {
     allTags = allTags.sort();
@@ -190,11 +190,11 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
         tagB.disabled = true;
       if (tagC.startsWith('!')) {
         tagB.textContent = tagC.substring(1);
-        tagB.classList.add('tagSpecial');
+        tagB.classList.add('omn-tag-special');
       } else {
         tagB.textContent = tagC;
       }
-      tagB.classList.add('tag');
+      tagB.classList.add('omn-tag');
       var tagHandler = function(){showBookmarks(tagC);};
       tagB.onclick = tagHandler;
       tagsDiv.appendChild(tagB);
@@ -203,7 +203,7 @@ function showBookmarks(onlyTag = '', search = '', duplicates = false) {
 }
 
 function toggleTagsCloud(){
-  var tagsCloud = document.querySelector('#tagsCloud');
+  var tagsCloud = document.querySelector('#omn-bm-tags-cloud');
   if (window.getComputedStyle(tagsCloud).display === 'none')
     tagsCloud.style.display = 'block';
   else
@@ -266,7 +266,7 @@ function colexpall(state) {
   var allButtons =
       embedCont
       .getElementsByTagName('ul')[0]
-      .getElementsByClassName('details');
+      .getElementsByClassName('omn-details');
   for(var x = 0; x < allButtons.length; x++) {
     // collapse/expand all details
     var sub = allButtons[x].parentNode.getElementsByTagName('ul')[0];
@@ -283,51 +283,51 @@ function colexpall(state) {
 function createControlHeader() {
 /*
 <div
-  id="searchBox"
+  id="omn-bm-search-box"
   style="width: 95%; padding-top: 0.8em;">
   <input
-    id="searchInput"
+    id="omn-bm-search-input"
     type"text">
   </input>
   <button 
-    id="searchBtn"
-    class="colexp" 
+    id="omn-bm-search-btn"
+    class="omn-colexp" 
     onClick="
-      showBookmarks('', document.querySelector('#searchInput').value);
+      showBookmarks('', document.querySelector('#omn-bm-search-input').value);
     ">
 Search
   </button>
-  <span id="counter" style="float: right;">?</span>
+  <span id="omn-bm-counter" style="float: right;">?</span>
 </div>
 */
   // create search box
   var searchD = document.createElement('div');
-  searchD.id = 'searchBox';
+  searchD.id = 'omn-bm-search-box';
   var searchI = document.createElement('input');
-  searchI.id = 'searchInput';
+  searchI.id = 'omn-bm-search-input';
   searchI.type = 'search';
   searchI.placeholder = 'Enter search pattern…';
   searchD.appendChild(searchI);
 
   var searchB = document.createElement('button');
-  searchB.id = 'searchBtn';
-  searchB.className = 'colexp';
+  searchB.id = 'omn-bm-search-btn';
+  searchB.className = 'omn-colexp';
   searchB.innerHTML = 'Search';
   searchB.onclick = function(){
-    showBookmarks('', document.querySelector('#searchInput').value);
+    showBookmarks('', document.querySelector('#omn-bm-search-input').value);
   };
   searchD.appendChild(searchB);
   // Enable 'Enter' on keyboard to perform search
-  //document.querySelector('#searchInput')
+  //document.querySelector('#omn-bm-search-input')
   searchI.addEventListener('keyup', function(event) {
       event.preventDefault();
       if (event.keyCode === 13) {
-        document.querySelector('#searchBtn').click();
+        document.querySelector('#omn-bm-search-btn').click();
       }
   });
 
   var searchC = document.createElement('span');
-  searchC.id = 'counter';
+  searchC.id = 'omn-bm-counter';
   searchC.style = 'float: right;';
   searchD.appendChild(searchC);
 
@@ -338,22 +338,22 @@ Search
   id="buttons
   style="width: 95%; padding-top: 0.8em;">
 <p><button
-  class="colexp"
+  class="omn-colexp"
   onClick="colexpall('expand')">
 Expand
 </button>
 <button
-  class="colexp"
+  class="omn-colexp"
   onClick="colexpall('collapse')">
 Collapse
 </button>
 <button
-  class="colexp"
+  class="omn-colexp"
   onClick="showBookmarks('');colexp('collapse');">
 All
 </button>
 <button
-  class="colexp"
+  class="omn-colexp"
   onClick="showBookmarks(-1)">
 No tags
 </button></p>
@@ -361,10 +361,10 @@ No tags
 */
   // create control buttons
   var buttonsD = document.createElement('div');
-  buttonsD.id = 'buttons';
+  buttonsD.id = 'omn-bm-buttons';
 
   var buttonsBexpand = document.createElement('button');
-  buttonsBexpand.className = 'colexp';
+  buttonsBexpand.className = 'omn-colexp';
   buttonsBexpand.innerHTML = 'Expand';
   buttonsBexpand.onclick = function(){
     colexpall('expand');
@@ -372,7 +372,7 @@ No tags
   buttonsD.appendChild(buttonsBexpand);
 
   var buttonsBcollapse = document.createElement('button');
-  buttonsBcollapse.className = 'colexp';
+  buttonsBcollapse.className = 'omn-colexp';
   buttonsBcollapse.innerHTML = 'Collapse';
   buttonsBcollapse.onclick = function(){
     colexpall('collapse');
@@ -380,7 +380,7 @@ No tags
   buttonsD.appendChild(buttonsBcollapse);
 
   var buttonsBall = document.createElement('button');
-  buttonsBall.className = 'colexp';
+  buttonsBall.className = 'omn-colexp';
   buttonsBall.innerHTML = 'All';
   buttonsBall.onclick = function(){
     showBookmarks('');
@@ -391,35 +391,35 @@ No tags
   searchD.after(buttonsD);
 /*
 <div
-  id="tagsCloud">
+  id="omn-bm-tags-cloud">
 </div>
 <div
-    id="bmlist">
+    id="omn-bm-list">
 </div>
 */
 
   // create Tags cloud
   var tagsCloudD = document.createElement('div');
-  tagsCloudD.id = 'tagsCloud';
+  tagsCloudD.id = 'omn-bm-tags-cloud';
   buttonsD.after(tagsCloudD);
 
   // create main bookmark list
   var bmlistD = document.createElement('div');
-  bmlistD.id = 'bmlist';
+  bmlistD.id = 'omn-bm-list';
   tagsCloudD.after(bmlistD);
 
 /*
 <div
   style="font-size:0.3em;"
-  id="bVersion">
+  id="omn-bm-version">
 Version 0.4 (2023-01-16 05:19:40)
 </div>
 */
   // Display version at the botom
   var versionS = document.createElement('span');
   versionS.innerHTML = bVersion;
-  versionS.id = 'bVersion'
-  document.querySelector('#bmlist').after(versionS);
+  versionS.id = 'omn-bm-version'
+  document.querySelector('#omn-bm-list').after(versionS);
 }
 
 function urlParams() {
@@ -428,7 +428,7 @@ function urlParams() {
   // one of two parameters 'tag' or 'search' processed
   // The 'tag' has higher priority then 'search'.
   var urlQuery = window.location.search.substring(1);
-  var searchF = document.querySelector('#searchInput');
+  var searchF = document.querySelector('#omn-bm-search-input');
   if(urlQuery.length > 0){
     const urlParams = new URLSearchParams(urlQuery);
     var configP = urlParams.get('config', '');
@@ -563,7 +563,7 @@ function revealHashedBookmark() {
   if (!id) return;
   var li = document.getElementById(id);
   if (!li) {
-    var searchF = document.querySelector('#searchInput');
+    var searchF = document.querySelector('#omn-bm-search-input');
     if (searchF) searchF.value = '';
     showBookmarks();
     li = document.getElementById(id);

@@ -96,8 +96,8 @@ func TestRenderIndexPageEscaping(t *testing.T) {
 	// editor textarea is gone, and so is the old %%RAW_MD_HTML%%
 	// placeholder. An edit is a separate page. Guard against a return of
 	// the doubled content.
-	if strings.Contains(out, "<textarea id=\"editor\"") {
-		t.Error("rendered view page still embeds an #editor textarea (doubled content)")
+	if strings.Contains(out, "<textarea id=\"omn-editor-text\"") {
+		t.Error("rendered view page still embeds an #omn-editor-text textarea (doubled content)")
 	}
 	// Trusted preview HTML is spliced unescaped.
 	if !strings.Contains(out, "<p>trusted <strong>html</strong></p>") {

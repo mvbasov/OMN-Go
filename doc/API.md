@@ -952,7 +952,7 @@ was therefore a dead end that named neither the cause nor the cure.
 #### `?hl=<term>` — highlight on arrival
 
 Any page accepts repeated `hl` parameters. At load the client marks every
-literal occurrence of those terms in `#preview` and scrolls to the first one.
+literal occurrence of those terms in `#omn-preview` and scrolls to the first one.
 The client then removes the parameters from the address bar with
 `history.replaceState`. The URL that the user copies, bookmarks or reloads is
 therefore the plain one, and a refresh does not apply the highlight again.
@@ -2176,8 +2176,8 @@ that mattered drowned in them. Since 26.08.55 a row speaks only when the
 application is involved.
 
 **Two channels in a row.** The word says what the file **is**. The colour says
-what **happens** to it. The colour tokens are `--file-app`, `--file-alert`,
-`--file-keep`, `--file-derived` and `--file-plain`, and each has a value for
+what **happens** to it. The colour tokens are `--omn-file-app`, `--omn-file-alert`,
+`--omn-file-keep`, `--omn-file-derived` and `--omn-file-plain`, and each has a value for
 each theme (`omn-go-core.css`, section 1). Colour is never the only carrier:
 `app-owned` is a word on the second line of each row that it applies to, in
 each of the three trees.

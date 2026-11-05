@@ -493,7 +493,7 @@ func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		"/api/status", "stStorage", "stDirty", "stCopy", "stReload",
+		"/api/status", "omn-st-storage", "omn-st-dirty", "omn-st-copy", "omn-st-reload",
 		"sections=all&amp;format=md",
 		"/js/OMN-Go/omn-go-status.js", "/css/OMN-Go/omn-go-status.css",
 	} {

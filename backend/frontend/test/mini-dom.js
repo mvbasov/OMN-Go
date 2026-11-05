@@ -369,7 +369,7 @@ class Element extends Node {
     // The scripts use it as "is this element on screen".
     get offsetParent() {
         for (let n = this; n && n.nodeType === 1; n = n.parentNode) {
-            if (n.style.display === 'none' || n.classList.contains('hidden') || n.hasAttribute('hidden')) return null;
+            if (n.style.display === 'none' || n.classList.contains('omn-hidden') || n.hasAttribute('hidden')) return null;
         }
         return this.parentNode;
     }

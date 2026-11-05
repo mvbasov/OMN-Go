@@ -137,7 +137,7 @@ func TestDarkMapsAreTheSame(t *testing.T) {
 		t.Fatalf("the light map has %d tokens", len(light))
 	}
 	for tok, v := range light {
-		name := strings.TrimPrefix(tok, "--")
+		name := strings.TrimPrefix(tok, "--omn-")
 		if v != "var(--omn-light-"+name+")" {
 			t.Errorf("the light map gives %s the value %q", tok, v)
 		}
@@ -156,5 +156,85 @@ func TestDarkMapsAreTheSame(t *testing.T) {
 	if len(dark) != len(light) || len(auto) != len(light) || len(palette) != 2*len(light) {
 		t.Errorf("the light map has %d tokens, the dark maps %d and %d, the palette %d values",
 			len(light), len(dark), len(auto), len(palette))
+	}
+}
+
+// ----------------------------------------------------------------------
+// Each class, id and token of OMN-Go has the prefix "omn-"
+// ----------------------------------------------------------------------
+//
+// A note puts its own markup, styles and scripts into the page. The prefix
+// keeps the names of the application apart from the names of a note.
+// The classes of a vendored library (Material Icons, highlight.js, KaTeX)
+// keep the names of that library.
+
+var (
+	cssPreludeRe = regexp.MustCompile(`([^{};]+)\{`)
+	cssNameRe    = regexp.MustCompile(`([.#])([A-Za-z_][\w-]*)`)
+	cssTokenRe   = regexp.MustCompile(`--[A-Za-z][\w-]*`)
+	htmlClassRe  = regexp.MustCompile(`\bclass="([^"]*)"`)
+	htmlIDRe     = regexp.MustCompile(`\bid="([^"]*)"`)
+	// slotRe finds a part of a value that the server or a script fills: a
+	// %%SLOT%% or a JavaScript concatenation such as ' + st.cls + '.
+	slotRe = regexp.MustCompile(`%%\w+%%|'\s*\+[^+]*\+\s*'`)
+)
+
+// vendoredClass tells if a class belongs to a vendored library.
+func vendoredClass(c string) bool {
+	return c == "material-icons" || strings.HasPrefix(c, "hljs") || strings.HasPrefix(c, "katex")
+}
+
+func TestEachNameInAStylesheetHasThePrefix(t *testing.T) {
+	for p, text := range appStylesheets(t) {
+		text = cssCommentRe.ReplaceAllString(text, "")
+		for _, m := range cssPreludeRe.FindAllStringSubmatch(text, -1) {
+			sel := strings.TrimSpace(m[1])
+			if strings.HasPrefix(sel, "@") {
+				continue
+			}
+			for _, n := range cssNameRe.FindAllStringSubmatch(sel, -1) {
+				if !strings.HasPrefix(n[2], "omn-") && !vendoredClass(n[2]) {
+					t.Errorf("%s: the selector %q holds %s%s, which has no prefix \"omn-\"", p, sel, n[1], n[2])
+				}
+			}
+		}
+		for _, tok := range cssTokenRe.FindAllString(text, -1) {
+			if !strings.HasPrefix(tok, "--omn-") {
+				t.Errorf("%s: the token %s has no prefix \"--omn-\"", p, tok)
+			}
+		}
+	}
+}
+
+func TestEachNameInATemplateHasThePrefix(t *testing.T) {
+	entries, err := fs.ReadDir(frontend.Templates, "templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, e := range entries {
+		p := "templates/" + e.Name()
+		data, err := frontend.Templates.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(data)
+		for _, m := range htmlClassRe.FindAllStringSubmatch(text, -1) {
+			for _, c := range strings.Fields(slotRe.ReplaceAllString(m[1], " ")) {
+				checked++
+				if !strings.HasPrefix(c, "omn-") && !vendoredClass(c) {
+					t.Errorf("%s: the class %q has no prefix \"omn-\"", p, c)
+				}
+			}
+		}
+		for _, m := range htmlIDRe.FindAllStringSubmatch(text, -1) {
+			checked++
+			if id := slotRe.ReplaceAllString(m[1], ""); !strings.HasPrefix(id, "omn-") {
+				t.Errorf("%s: the id %q has no prefix \"omn-\"", p, m[1])
+			}
+		}
+	}
+	if checked < 100 {
+		t.Fatalf("only %d names were read, thus this test proves little", checked)
 	}
 }

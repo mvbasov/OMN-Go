@@ -10,7 +10,7 @@
 
 // Intercept Markdown links for standard browser-side redirects
 function setupPreviewLinkInterceptor() {
-    var preview = document.getElementById('preview');
+    var preview = document.getElementById('omn-preview');
     if (!preview) return;
     preview.addEventListener('click', (e) => {
     let target = e.target.closest('a');
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener('submit', function(ev) {
         if (ev.defaultPrevented) return;
         const form = ev.target;
-        if (!form || !form.classList || !form.classList.contains('search-page-form')) return;
+        if (!form || !form.classList || !form.classList.contains('omn-search-page-form')) return;
 
         clearTimeout(timer);
         timer = setTimeout(function() {

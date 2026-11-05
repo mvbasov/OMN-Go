@@ -40,21 +40,21 @@ function key(h, selector, name) {
 }
 
 function suggestions(h) {
-    return h.document.querySelectorAll('#bmTagsSuggestions .tag-suggestion-item')
+    return h.document.querySelectorAll('#omn-bm-tags-suggestions .omn-tag-suggestion-item')
         .map(function (li) { return li.textContent; });
 }
 
 test('the bookmark button loads its file and opens and closes the panel', async () => {
     const h = notePage();
     h.server = tagServer;
-    assert.strictEqual(h.hidden('#bmPanel'), true);
+    assert.strictEqual(h.hidden('#omn-bm-panel'), true);
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
     assert.deepStrictEqual(h.loads, ['/js/OMN-Go/omn-go-bookmark.js']);
-    assert.strictEqual(h.hidden('#bmPanel'), false);
+    assert.strictEqual(h.hidden('#omn-bm-panel'), false);
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    assert.strictEqual(h.hidden('#bmPanel'), true);
+    assert.strictEqual(h.hidden('#omn-bm-panel'), true);
     assert.strictEqual(h.loads.length, 1);
 });
 
@@ -77,26 +77,26 @@ test('the Tags box offers the tags that start with the typed part', async () => 
     await h.settle();
 
     // One character is below the limit of the box, which is minChars="2".
-    type(h, '#bmTags', 'g');
+    type(h, '#omn-bm-tags', 'g');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), []);
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), true);
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), true);
 
     // The case of the letters does not matter.
-    type(h, '#bmTags', 'go');
+    type(h, '#omn-bm-tags', 'go');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), ['golang', 'Go-Modules']);
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), false);
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), false);
 
     // Only the part after the last comma counts, and a tag that the box
     // already holds is not in the list.
-    type(h, '#bmTags', 'golang, android, g');
+    type(h, '#omn-bm-tags', 'golang, android, g');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), []);
-    type(h, '#bmTags', 'golang, android, gi');
+    type(h, '#omn-bm-tags', 'golang, android, gi');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), ['git']);
-    type(h, '#bmTags', 'GOLANG, go');
+    type(h, '#omn-bm-tags', 'GOLANG, go');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), ['Go-Modules']);
 });
@@ -106,27 +106,27 @@ test('the arrow keys and Enter put a tag into the box', async () => {
     h.server = tagServer;
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    type(h, '#bmTags', 'notes, go');
+    type(h, '#omn-bm-tags', 'notes, go');
     await h.settle();
 
     // Enter with no active line is not for the list.
-    assert.strictEqual(key(h, '#bmTags', 'Enter').defaultPrevented, false);
+    assert.strictEqual(key(h, '#omn-bm-tags', 'Enter').defaultPrevented, false);
 
-    key(h, '#bmTags', 'ArrowDown');
-    key(h, '#bmTags', 'ArrowDown');
-    const active = h.document.querySelectorAll('#bmTagsSuggestions .active');
+    key(h, '#omn-bm-tags', 'ArrowDown');
+    key(h, '#omn-bm-tags', 'ArrowDown');
+    const active = h.document.querySelectorAll('#omn-bm-tags-suggestions .omn-active');
     assert.deepStrictEqual(active.map(function (li) { return li.textContent; }), ['Go-Modules']);
     // The list goes round at its end.
-    key(h, '#bmTags', 'ArrowDown');
-    assert.strictEqual(h.$('#bmTagsSuggestions .active').textContent, 'golang');
-    key(h, '#bmTags', 'ArrowUp');
-    assert.strictEqual(h.$('#bmTagsSuggestions .active').textContent, 'Go-Modules');
+    key(h, '#omn-bm-tags', 'ArrowDown');
+    assert.strictEqual(h.$('#omn-bm-tags-suggestions .omn-active').textContent, 'golang');
+    key(h, '#omn-bm-tags', 'ArrowUp');
+    assert.strictEqual(h.$('#omn-bm-tags-suggestions .omn-active').textContent, 'Go-Modules');
 
-    const enter = key(h, '#bmTags', 'Enter');
+    const enter = key(h, '#omn-bm-tags', 'Enter');
     assert.strictEqual(enter.defaultPrevented, true, 'Enter must not send a form');
-    assert.strictEqual(h.$('#bmTags').value, 'notes, Go-Modules, ');
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), true);
-    assert.strictEqual(h.document.activeElement, h.$('#bmTags'), 'the box lost the focus');
+    assert.strictEqual(h.$('#omn-bm-tags').value, 'notes, Go-Modules, ');
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), true);
+    assert.strictEqual(h.document.activeElement, h.$('#omn-bm-tags'), 'the box lost the focus');
 });
 
 test('a press on a line of the list puts that tag into the box', async () => {
@@ -134,15 +134,15 @@ test('a press on a line of the list puts that tag into the box', async () => {
     h.server = tagServer;
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    type(h, '#bmTags', 'an');
+    type(h, '#omn-bm-tags', 'an');
     await h.settle();
-    const line = h.$('#bmTagsSuggestions .tag-suggestion-item');
+    const line = h.$('#omn-bm-tags-suggestions .omn-tag-suggestion-item');
     const down = new Event('mousedown', { bubbles: true });
     line.dispatchEvent(down);
     // mousedown and not click: the default of mousedown takes the focus
     // away from the box, and the list would close before the click.
     assert.strictEqual(down.defaultPrevented, true);
-    assert.strictEqual(h.$('#bmTags').value, 'android, ');
+    assert.strictEqual(h.$('#omn-bm-tags').value, 'android, ');
 });
 
 test('Escape and a click outside close the list', async () => {
@@ -150,16 +150,16 @@ test('Escape and a click outside close the list', async () => {
     h.server = tagServer;
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    type(h, '#bmTags', 'go');
+    type(h, '#omn-bm-tags', 'go');
     await h.settle();
-    key(h, '#bmTags', 'Escape');
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), true);
+    key(h, '#omn-bm-tags', 'Escape');
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), true);
 
-    type(h, '#bmTags', 'go');
+    type(h, '#omn-bm-tags', 'go');
     await h.settle();
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), false);
-    h.$('#bmTitle').click();
-    assert.strictEqual(h.hidden('#bmTagsSuggestions'), true);
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), false);
+    h.$('#omn-bm-title').click();
+    assert.strictEqual(h.hidden('#omn-bm-tags-suggestions'), true);
 });
 
 test('a tag list that the server does not have gives an empty list and no fault', async () => {
@@ -169,7 +169,7 @@ test('a tag list that the server does not have gives an empty list and no fault'
     };
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    type(h, '#bmTags', 'go');
+    type(h, '#omn-bm-tags', 'go');
     await h.settle();
     assert.deepStrictEqual(suggestions(h), []);
 });
@@ -179,10 +179,10 @@ test('Save sends the four boxes, clears them and loads the page again', async ()
     h.server = tagServer;
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    h.$('#bmUrl').value = 'https://example.org/a?b=1&c=2';
-    h.$('#bmTitle').value = 'An example';
-    h.$('#bmTags').value = 'golang, notes';
-    h.$('#bmNotes').value = 'first; second';
+    h.$('#omn-bm-url').value = 'https://example.org/a?b=1&c=2';
+    h.$('#omn-bm-title').value = 'An example';
+    h.$('#omn-bm-tags').value = 'golang, notes';
+    h.$('#omn-bm-notes').value = 'first; second';
     h.press('[data-action="bookmark-save"]');
     await h.settle();
     const post = h.requests.filter(function (r) { return r.url === '/api/bookmark'; });
@@ -190,8 +190,8 @@ test('Save sends the four boxes, clears them and loads the page again', async ()
     assert.strictEqual(post[0].method, 'POST');
     assert.strictEqual(post[0].body,
         'url=https%3A%2F%2Fexample.org%2Fa%3Fb%3D1%26c%3D2&title=An+example&tags=golang%2C+notes&notes=first%3B+second');
-    assert.strictEqual(h.hidden('#bmPanel'), true);
-    for (const id of ['#bmUrl', '#bmTitle', '#bmTags', '#bmNotes']) {
+    assert.strictEqual(h.hidden('#omn-bm-panel'), true);
+    for (const id of ['#omn-bm-url', '#omn-bm-title', '#omn-bm-tags', '#omn-bm-notes']) {
         assert.strictEqual(h.$(id).value, '', id + ' keeps its text after the save');
     }
     assert.strictEqual(h.page.location.reloads, 1);
@@ -205,11 +205,11 @@ test('a save that the server refuses keeps the panel and its text', async () => 
     };
     h.press('[data-action="bookmark-panel"]');
     await h.settle();
-    h.$('#bmUrl').value = 'https://example.org/';
+    h.$('#omn-bm-url').value = 'https://example.org/';
     h.press('[data-action="bookmark-save"]');
     await h.settle();
-    assert.strictEqual(h.hidden('#bmPanel'), false);
-    assert.strictEqual(h.$('#bmUrl').value, 'https://example.org/');
+    assert.strictEqual(h.hidden('#omn-bm-panel'), false);
+    assert.strictEqual(h.$('#omn-bm-url').value, 'https://example.org/');
     assert.strictEqual(h.page.location.reloads, 0);
 });
 
@@ -219,16 +219,16 @@ test('a shared text with an address opens the bookmark panel', async () => {
     // The stub of omnLazy answers with a promise. Android does not read it.
     await h.page.handleShare('Look at this https://example.org/page it is good', '');
     await h.settle();
-    assert.strictEqual(h.$('#bmUrl').value, 'https://example.org/page');
-    assert.strictEqual(h.$('#bmTitle').value, 'Look at this  it is good');
-    assert.strictEqual(h.hidden('#bmPanel'), false);
-    assert.strictEqual(h.hidden('#quickPanel'), true);
+    assert.strictEqual(h.$('#omn-bm-url').value, 'https://example.org/page');
+    assert.strictEqual(h.$('#omn-bm-title').value, 'Look at this  it is good');
+    assert.strictEqual(h.hidden('#omn-bm-panel'), false);
+    assert.strictEqual(h.hidden('#omn-quick-panel'), true);
 
     // The subject is the title, when it is not the address itself.
     await h.page.handleShare('https://example.org/x', 'A page title');
-    assert.strictEqual(h.$('#bmTitle').value, 'A page title');
+    assert.strictEqual(h.$('#omn-bm-title').value, 'A page title');
     await h.page.handleShare('https://example.org/x', 'https://example.org/x');
-    assert.strictEqual(h.$('#bmTitle').value, 'Shared Link');
+    assert.strictEqual(h.$('#omn-bm-title').value, 'Shared Link');
 });
 
 test('a shared text with no address opens the Quick Note panel with the whole text', async () => {
@@ -236,9 +236,9 @@ test('a shared text with no address opens the Quick Note panel with the whole te
     h.server = tagServer;
     await h.page.handleShare('a line of text', 'The subject');
     await h.settle();
-    assert.strictEqual(h.$('#quickText').value, 'The subject\n\na line of text');
-    assert.strictEqual(h.hidden('#quickPanel'), false);
-    assert.strictEqual(h.hidden('#bmPanel'), true);
+    assert.strictEqual(h.$('#omn-quick-text').value, 'The subject\n\na line of text');
+    assert.strictEqual(h.hidden('#omn-quick-panel'), false);
+    assert.strictEqual(h.hidden('#omn-bm-panel'), true);
 });
 
 test('omnGoInsertCapture answers true at once and opens the Quick Note panel', () => {
@@ -246,7 +246,7 @@ test('omnGoInsertCapture answers true at once and opens the Quick Note panel', (
     // IntentBridge compares the answer with true. A promise is not true.
     const answer = h.page.omnGoInsertCapture('4006381333931', 'EAN-13');
     assert.strictEqual(answer, true);
-    assert.strictEqual(h.$('#quickText').value, 'EAN-13\n\n4006381333931');
-    assert.strictEqual(h.hidden('#quickPanel'), false);
+    assert.strictEqual(h.$('#omn-quick-text').value, 'EAN-13\n\n4006381333931');
+    assert.strictEqual(h.hidden('#omn-quick-panel'), false);
     assert.deepStrictEqual(h.loads, [], 'the capture loaded a lazy file');
 });

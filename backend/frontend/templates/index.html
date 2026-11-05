@@ -28,39 +28,39 @@
     <meta id="omn-go-runtime-vars-marker">
 </head>
 <body>
-    <div id="mainUI" class="page_container">
-        <div id="ptitle" class="page-header">
-            <div id="hidable_header" class="collapsible-header hidden">
-                <div class="header-actions">
+    <div id="omn-main-ui" class="omn-page-container">
+        <div id="omn-page-header" class="omn-page-header">
+            <div id="omn-hidable-header" class="omn-collapsible-header omn-hidden">
+                <div class="omn-header-actions">
                     <a href="%%ASSET_PREFIX%%Welcome.html"><i class="material-icons">home</i></a>
-                    <button data-action="new-page" class="admin-only server-only btn-create-page"><i class="material-icons">note_add</i></button>
-                    <button data-action="toggle-panel" data-arg="quickPanel" class="admin-only server-only btn-quick-note"><i class="material-icons">insert_comment</i></button>
-                    <button data-action="bookmark-panel" class="admin-only server-only btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
-                    <button data-action="add-shortcut" class="android-only btn-add-shortcut" title="Add to home screen"><i class="material-icons">add_to_home_screen</i></button>
-                    <button data-action="refresh-page" class="admin-only btn-refresh"><i class="material-icons">refresh</i></button>
-                    <a href="#" data-action="replace-location" data-arg="/Config.html" class="btn-settings server-only"><i class="material-icons">settings</i></a>
-                    <button data-action="sync" data-arg="download" class="admin-only server-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
-                    <button data-action="sync" data-arg="upload" class="admin-only server-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
-                    <button data-action="search" class="server-only btn-search" title="Search this page (Ctrl-K or /)"><i class="material-icons">search</i></button>
-                    <button id="metaToggleBtn" data-action="toggle-panel" data-arg="metadataPanel" class="btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
-                    <button id="toggleBtn" data-action="edit-page" class="admin-only server-only" title="Edit"><i class="material-icons">edit</i></button>
+                    <button data-action="new-page" class="omn-server-only omn-btn-create-page"><i class="material-icons">note_add</i></button>
+                    <button data-action="toggle-panel" data-arg="omn-quick-panel" class="omn-server-only omn-btn-quick-note"><i class="material-icons">insert_comment</i></button>
+                    <button data-action="bookmark-panel" class="omn-server-only omn-btn-add-bookmark"><i class="material-icons">bookmark_add</i></button>
+                    <button data-action="add-shortcut" class="omn-android-only omn-btn-add-shortcut" title="Add to home screen"><i class="material-icons">add_to_home_screen</i></button>
+                    <button data-action="refresh-page" class="omn-btn-refresh"><i class="material-icons">refresh</i></button>
+                    <a href="#" data-action="replace-location" data-arg="/Config.html" class="omn-btn-settings omn-server-only"><i class="material-icons">settings</i></a>
+                    <button data-action="sync" data-arg="download" class="omn-server-only" title="Download (Pull)"><i class="material-icons">cloud_download</i></button>
+                    <button data-action="sync" data-arg="upload" class="omn-server-only" title="Upload (Push)"><i class="material-icons">cloud_upload</i></button>
+                    <button data-action="search" class="omn-server-only" title="Search this page (Ctrl-K or /)"><i class="material-icons">search</i></button>
+                    <button id="omn-meta-toggle-btn" data-action="toggle-panel" data-arg="omn-metadata-panel" class="omn-btn-metadata-toggle" title="Toggle metadata"><i class="material-icons">info</i></button>
+                    <button id="omn-toggle-btn" data-action="edit-page" class="omn-server-only" title="Edit"><i class="material-icons">edit</i></button>
                 </div>
-                <div id="headerTags">%%TAGS_HTML%%</div>
+                <div id="omn-header-tags">%%TAGS_HTML%%</div>
             </div>
-            <h4 id="pageTitle" class="page-title" data-action="toggle-header">
+            <h4 id="omn-page-title" class="omn-page-title" data-action="toggle-header">
                 %%TITLE_HTML%%
-                <span id="title_arrow" class="title-arrow">+</span>
+                <span id="omn-title-arrow" class="omn-title-arrow">+</span>
             </h4>
         </div>
 
-        <div id="content" class="page-content">
-            <div id="metadataPanel" class="hidden metadata-panel"></div>
-            <div id="preview">%%PREVIEW_BODY%%</div>
+        <div id="omn-content" class="omn-page-content">
+            <div id="omn-metadata-panel" class="omn-hidden omn-metadata-panel"></div>
+            <div id="omn-preview">%%PREVIEW_BODY%%</div>
         </div>
     </div>
 
-    <div id="status" class="page-footer">
-        <span class="version-footer-inline" id="omn-go-version-footer"></span>
+    <div id="omn-page-footer" class="omn-page-footer">
+        <span class="omn-version-footer-inline" id="omn-go-version-footer"></span>
         <span id="omn-go-console-footer-dot" title="JS console has messages — tap to open"></span>
     </div>
 

@@ -1,29 +1,29 @@
-<div class="config-panel">
-    <h2 class="config-title">Log</h2>
-    <div class="config-field">
-        <span class="config-hint">What this device wrote. The page reads <code>/api/logs/history</code> one time, and then it adds each new line from <code>/api/logs</code>. The Download and the Upload button of the header above work here, so a sync writes into this view while you watch it.</span>
+<div class="omn-config-panel">
+    <h2 class="omn-config-title">Log</h2>
+    <div class="omn-config-field">
+        <span class="omn-config-hint">What this device wrote. The page reads <code>/api/logs/history</code> one time, and then it adds each new line from <code>/api/logs</code>. The Download and the Upload button of the header above work here, so a sync writes into this view while you watch it.</span>
     </div>
 
-    <div class="lg-actions">
-        <button type="button" class="lg-btn" id="lgReload">Reload</button>
-        <button type="button" class="lg-btn" id="lgCopy">Copy</button>
-        <button type="button" class="lg-btn" id="lgFilterToggle">Filter</button>
-        <a class="lg-btn" href="/api/logs/history">Open as JSON</a>
-        <span class="lg-count" id="lgCount"></span>
+    <div class="omn-lg-actions">
+        <button type="button" class="omn-lg-btn" id="omn-lg-reload">Reload</button>
+        <button type="button" class="omn-lg-btn" id="omn-lg-copy">Copy</button>
+        <button type="button" class="omn-lg-btn" id="omn-lg-filter-toggle">Filter</button>
+        <a class="omn-lg-btn" href="/api/logs/history">Open as JSON</a>
+        <span class="omn-lg-count" id="omn-lg-count"></span>
     </div>
 
-    <div id="lgFilter" class="lg-filter hidden">
-        <div class="lg-filter-row">
-            <span class="lg-filter-name">Level</span>
-            <span id="lgLevels"></span>
+    <div id="omn-lg-filter" class="omn-lg-filter omn-hidden">
+        <div class="omn-lg-filter-row">
+            <span class="omn-lg-filter-name">Level</span>
+            <span id="omn-lg-levels"></span>
         </div>
-        <div class="lg-filter-row">
-            <span class="lg-filter-name">Tag</span>
-            <span id="lgTags"></span>
+        <div class="omn-lg-filter-row">
+            <span class="omn-lg-filter-name">Tag</span>
+            <span id="omn-lg-tags"></span>
         </div>
     </div>
 
-    <div id="lgBody" class="lg-body">Loading…</div>
+    <div id="omn-lg-body" class="omn-lg-body">Loading…</div>
 </div>
 <!--
   The script of this page. The Stylesheet: line of the page header names

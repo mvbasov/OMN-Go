@@ -31,11 +31,11 @@ func (d *filesDirRow) note(e filesEntry) {
 // These are the five color classes. omn-go-core.css holds one token for each
 // class, with a value for each theme.
 const (
-	filesColorApp     = "files-c-app"     // the next version replaces this file
-	filesColorAlert   = "files-c-alert"   // ... and the device copy differs
-	filesColorKeep    = "files-c-keep"    // yours, kept
-	filesColorDerived = "files-c-derived" // made again when needed
-	filesColorPlain   = "files-c-plain"   // nothing at stake
+	filesColorApp     = "omn-files-c-app"     // the next version replaces this file
+	filesColorAlert   = "omn-files-c-alert"   // ... and the device copy differs
+	filesColorKeep    = "omn-files-c-keep"    // yours, kept
+	filesColorDerived = "omn-files-c-derived" // made again when needed
+	filesColorPlain   = "omn-files-c-plain"   // nothing at stake
 )
 
 // filesKindIcon answers the Material Icons ligature for the kind of a file.

@@ -309,8 +309,8 @@ func TestLogsPageIsAReaderOfTheTwoAddresses(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		"/api/logs/history", "lgReload", "lgCopy", "lgFilterToggle",
-		"lgLevels", "lgTags", "lgBody",
+		"/api/logs/history", "omn-lg-reload", "omn-lg-copy", "omn-lg-filter-toggle",
+		"omn-lg-levels", "omn-lg-tags", "omn-lg-body",
 		"/js/OMN-Go/omn-go-logs.js", "/css/OMN-Go/omn-go-logs.css",
 	} {
 		if !strings.Contains(body, want) {
@@ -363,7 +363,7 @@ func TestLogsPageAnswersARemoteCallerWithAPage(t *testing.T) {
 	if !strings.Contains(body, "for the admin of this device") {
 		t.Error("a remote caller did not get the refusal page")
 	}
-	if strings.Contains(body, "lgReload") {
+	if strings.Contains(body, "omn-lg-reload") {
 		t.Error("a remote caller got the reader script")
 	}
 }

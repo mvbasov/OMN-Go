@@ -170,7 +170,7 @@ async function omnGoCopyNote(note, say) {
 // No scratch element is needed: the text already sits in a <textarea>,
 // which is exactly what select() wants.
 window.OMN.action('quick-note-copy', function (btn) {
-    var q = document.getElementById('quickText');
+    var q = document.getElementById('omn-quick-text');
     if (!q) return;
 
     // Restores the button's own label after a moment. The original
@@ -283,30 +283,10 @@ async function omnGoCopyPageLink(say) {
 // its own metadata panel. textContent cannot. The colors are theme
 // tokens, thus the panel is legible on the dark theme.
 document.addEventListener("DOMContentLoaded", () => {
-    const panel = document.getElementById('metadataPanel');
+    const panel = document.getElementById('omn-metadata-panel');
     if (!panel) return;
 
     const noteName = (typeof PageName !== 'undefined') ? PageName : '';
-
-    // Also update the header name display
-    var nameDisplay = document.getElementById('pageNameDisplay');
-    if (nameDisplay && noteName) {
-        nameDisplay.textContent = '/' + noteName;
-    }
-    // Populate header metadata line (Author, Date, Modified) from meta tags
-    var hMeta = document.getElementById('headerMetadata');
-    if (hMeta) {
-        var parts = [];
-        document.querySelectorAll('meta[name]').forEach(function(m) {
-            var n = m.getAttribute('name').toLowerCase();
-            if (n === 'author' || n === 'date' || n === 'modified') {
-                parts.push(m.getAttribute('name') + ': ' + m.getAttribute('content'));
-            }
-        });
-        if (parts.length) {
-            hMeta.textContent = ' — ' + parts.join(' · ');
-        }
-    }
 
     panel.textContent = '';
 
@@ -315,16 +295,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // makes the column longer. It does not make the "File:" line narrower,
     // which is what a third control in that line did.
     const layout = document.createElement('div');
-    layout.className = 'metadata-layout';
+    layout.className = 'omn-metadata-layout';
     const body = document.createElement('div');
-    body.className = 'metadata-body';
+    body.className = 'omn-metadata-body';
     const actions = document.createElement('div');
-    actions.className = 'metadata-actions';
+    actions.className = 'omn-metadata-actions';
 
     const fileRow = document.createElement('div');
-    fileRow.className = 'metadata-file-row';
+    fileRow.className = 'omn-metadata-file-row';
     const fileLabel = document.createElement('span');
-    fileLabel.className = 'metadata-file-name';
+    fileLabel.className = 'omn-metadata-file-name';
     fileLabel.textContent = 'File: ' + noteName;
     fileRow.appendChild(fileLabel);
 
@@ -341,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (online) {
         const status = document.createElement('span');
-        status.className = 'metadata-send-status';
+        status.className = 'omn-metadata-send-status';
         const say = function (msg) {
             status.textContent = msg || '';
             if (msg) setTimeout(function () { status.textContent = ''; }, 4000);
@@ -350,11 +330,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const button = function (icon, label, onClick) {
             const b = document.createElement('button');
             b.type = 'button';
-            b.className = 'metadata-send';
+            b.className = 'omn-metadata-send';
             b.title = label;
             b.setAttribute('aria-label', label);
             const i = document.createElement('i');
-            i.className = 'material-icons icon-sm';
+            i.className = 'material-icons omn-icon-sm';
             i.textContent = icon;
             b.appendChild(i);
             b.addEventListener('click', onClick);
@@ -382,7 +362,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const content = m.getAttribute('content');
         if (!name || !content || ['viewport', 'charset'].includes(name.toLowerCase())) return;
         const row = document.createElement('div');
-        row.className = 'metadata-row';
+        row.className = 'omn-metadata-row';
         const key = document.createElement('strong');
         key.textContent = name.charAt(0).toUpperCase() + name.slice(1) + ':';
         row.appendChild(key);

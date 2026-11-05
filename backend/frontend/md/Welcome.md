@@ -31,7 +31,7 @@ This is ***your*** start page.
 
 *Edit* (<i class="material-icons">edit</i>) it however you want.
 
-*Expand top header* <span class="title-arrow">+</span> and explore around.
+*Expand top header* <span class="omn-title-arrow">+</span> and explore around.
 
 ---
 

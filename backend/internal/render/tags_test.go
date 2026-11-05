@@ -126,8 +126,8 @@ func TestGenerateTagsPage(t *testing.T) {
 	for _, want := range []string{
 		"Title: Tags",
 		`<div class="omn-tags-cloud">`,
-		`<a href="#Blue" class="taglink">`,
-		`<a href="#Red" class="taglink">`,
+		`<a href="#Blue" class="omn-taglink">`,
+		`<a href="#Red" class="omn-taglink">`,
 		`<h2 id="Blue" class="omn-tags-section">Blue (2)</h2>`,
 		`<h2 id="Red" class="omn-tags-section">Red (1)</h2>`,
 		`<li><a href="Alpha.html">Alpha Note</a></li>`,

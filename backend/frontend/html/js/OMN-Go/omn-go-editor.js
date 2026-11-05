@@ -64,9 +64,9 @@
     var TOOLS = [
         { icon: 'code', title: 'Expand an abbreviation, Markdown or Emmet (Tab)', action: function () { expandAtCursor(); } },
         { icon: 'format_line_spacing', title: 'Cycle selection (line, line end, line start, to file end, to header, body, whole note)', action: function () { cycleSelection(); } },
-        { id: 'toolWrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
-        { id: 'toolLn', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } },
-        { id: 'toolFind', icon: 'search', title: 'Find / replace (Ctrl+F, Ctrl+H)', action: function () { openFind(false); } }
+        { id: 'omn-tool-wrap', icon: 'wrap_text', title: 'Toggle word wrap', action: function () { toggleWrap(); } },
+        { id: 'omn-tool-ln', icon: 'format_list_numbered', title: 'Toggle line numbers (off while wrapping)', action: function () { toggleLineNumbers(); } },
+        { id: 'omn-tool-find', icon: 'search', title: 'Find / replace (Ctrl+F, Ctrl+H)', action: function () { openFind(false); } }
     ];
 
     // ==================================================================
@@ -713,12 +713,12 @@
     function setStatus(msg, kind) {
         if (!statusEl) return;
         statusEl.textContent = msg || '';
-        statusEl.className = kind ? 'editor-status-' + kind : '';
+        statusEl.className = kind ? 'omn-editor-status-' + kind : '';
     }
 
     function setDot(state) {
         if (!dotEl) return;
-        dotEl.className = 'omn-editor-dot' + (state ? ' ' + state : '');
+        dotEl.className = 'omn-editor-dot' + (state ? ' omn-' + state : '');
     }
 
     function markDirty() {
@@ -747,7 +747,7 @@
         } catch (e) {
             loadFailed = true;
             ta.value = '';
-            var sb = document.getElementById('editorSave');
+            var sb = document.getElementById('omn-editor-save');
             if (sb) sb.disabled = true;
         }
         loaded = true;
@@ -969,24 +969,24 @@
     function applyState() {
         // Word wrap.
         if (wrapOn) {
-            ta.classList.remove('nowrap');
+            ta.classList.remove('omn-nowrap');
             ta.setAttribute('wrap', 'soft');
         } else {
-            ta.classList.add('nowrap');
+            ta.classList.add('omn-nowrap');
             ta.setAttribute('wrap', 'off');
         }
         // The mirror has to wrap exactly as the textarea does, or the marks
         // land on different rows from the words they belong to.
-        if (mirrorEl) mirrorEl.classList.toggle('nowrap', !wrapOn);
+        if (mirrorEl) mirrorEl.classList.toggle('omn-nowrap', !wrapOn);
         // Line numbers (forced off while wrapping).
-        document.body.classList.toggle('ln-on', lineNumbersActive());
+        document.body.classList.toggle('omn-ln-on', lineNumbersActive());
         renderGutter();
         updateToggleButtons();
     }
     function updateToggleButtons() {
-        if (wrapBtn) wrapBtn.classList.toggle('active', wrapOn);
+        if (wrapBtn) wrapBtn.classList.toggle('omn-active', wrapOn);
         if (lnBtn) {
-            lnBtn.classList.toggle('active', lineNumbersActive());
+            lnBtn.classList.toggle('omn-active', lineNumbersActive());
             lnBtn.disabled = wrapOn; // numbers make no sense while wrapping
         }
     }
@@ -1134,7 +1134,7 @@
                 frag.appendChild(document.createTextNode(value.slice(at, m.start)));
             }
             var mark = document.createElement('mark');
-            if (i === findIndex) mark.className = 'is-current';
+            if (i === findIndex) mark.className = 'omn-is-current';
             mark.textContent = value.slice(m.start, m.end);
             frag.appendChild(mark);
             at = m.end;
@@ -1156,7 +1156,7 @@
     function renderFindCount() {
         if (!findCountEl) return;
         if (findInput && findInput.classList) {
-            findInput.classList.toggle('is-invalid', findInvalid);
+            findInput.classList.toggle('omn-is-invalid', findInvalid);
         }
         if (findInvalid) {
             findCountEl.textContent = 'bad pattern';
@@ -1368,7 +1368,7 @@
     function updateFindButtons() {
         function set(btn, on) {
             if (!btn) return;
-            btn.classList.toggle('active', on);
+            btn.classList.toggle('omn-active', on);
             btn.setAttribute('aria-pressed', on ? 'true' : 'false');
         }
         set(findCaseBtn, matchCase);
@@ -1426,17 +1426,17 @@
     }
 
     function wireFind() {
-        mirrorEl = document.getElementById('editorMirror');
-        findEl = document.getElementById('editorFind');
+        mirrorEl = document.getElementById('omn-editor-mirror');
+        findEl = document.getElementById('omn-editor-find');
         if (!findEl) return;
-        findInput = document.getElementById('findInput');
-        replaceInput = document.getElementById('replaceInput');
-        findCountEl = document.getElementById('findCount');
-        findReplaceRow = document.getElementById('findReplaceRow');
-        findChevron = document.getElementById('findToggleReplace');
-        findCaseBtn = document.getElementById('findCase');
-        findWordBtn = document.getElementById('findWord');
-        findRegexBtn = document.getElementById('findRegex');
+        findInput = document.getElementById('omn-find-input');
+        replaceInput = document.getElementById('omn-replace-input');
+        findCountEl = document.getElementById('omn-find-count');
+        findReplaceRow = document.getElementById('omn-find-replace-row');
+        findChevron = document.getElementById('omn-find-toggle-replace');
+        findCaseBtn = document.getElementById('omn-find-case');
+        findWordBtn = document.getElementById('omn-find-word');
+        findRegexBtn = document.getElementById('omn-find-regex');
 
         if (findInput) {
             findInput.addEventListener('input', scheduleFind);
@@ -1463,15 +1463,15 @@
         }
 
         var byId = {
-            findPrev: function () { findStep(-1); },
-            findNext: function () { findStep(1); },
-            findClose: closeFind,
-            findToggleReplace: toggleReplaceRow,
-            findCase: function () { setFindFlag('case'); },
-            findWord: function () { setFindFlag('word'); },
-            findRegex: function () { setFindFlag('regex'); },
-            replaceOne: replaceCurrent,
-            replaceAll: replaceAll
+            'omn-find-prev': function () { findStep(-1); },
+            'omn-find-next': function () { findStep(1); },
+            'omn-find-close': closeFind,
+            'omn-find-toggle-replace': toggleReplaceRow,
+            'omn-find-case': function () { setFindFlag('case'); },
+            'omn-find-word': function () { setFindFlag('word'); },
+            'omn-find-regex': function () { setFindFlag('regex'); },
+            'omn-replace-one': replaceCurrent,
+            'omn-replace-all': replaceAll
         };
         Object.keys(byId).forEach(function (id) {
             var b = document.getElementById(id);
@@ -1485,12 +1485,11 @@
     // Wiring
     // ==================================================================
     function buildToolbar() {
-        var bar = document.getElementById('editorTools');
+        var bar = document.getElementById('omn-editor-tools');
         if (!bar) return;
         TOOLS.forEach(function (tool) {
             var b = document.createElement('button');
             b.type = 'button';
-            b.className = 'editor-tool';
             if (tool.id) b.id = tool.id;
             b.title = tool.title;
             b.setAttribute('aria-label', tool.title);
@@ -1636,14 +1635,14 @@
     }
 
     function init() {
-        ta = document.getElementById('editor');
-        statusEl = document.getElementById('editorStatus');
-        dotEl = document.getElementById('editorDot');
-        gutterEl = document.getElementById('editorGutter');
+        ta = document.getElementById('omn-editor-text');
+        statusEl = document.getElementById('omn-editor-status');
+        dotEl = document.getElementById('omn-editor-dot');
+        gutterEl = document.getElementById('omn-editor-gutter');
         if (!ta) return;
         buildToolbar();
-        wrapBtn = document.getElementById('toolWrap');
-        lnBtn = document.getElementById('toolLn');
+        wrapBtn = document.getElementById('omn-tool-wrap');
+        lnBtn = document.getElementById('omn-tool-ln');
 
         ta.addEventListener('keydown', onKeyDown);
         ta.addEventListener('input', function () {
@@ -1659,9 +1658,9 @@
         wireFind();
         setupDragDrop();
 
-        var saveBtn = document.getElementById('editorSave');
+        var saveBtn = document.getElementById('omn-editor-save');
         if (saveBtn) saveBtn.addEventListener('click', function () { save(true); });
-        var cancelBtn = document.getElementById('editorCancel');
+        var cancelBtn = document.getElementById('omn-editor-cancel');
         if (cancelBtn) cancelBtn.addEventListener('click', cancel);
 
         window.addEventListener('beforeunload', function (e) {

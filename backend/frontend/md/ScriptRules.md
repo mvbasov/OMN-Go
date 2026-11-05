@@ -12,7 +12,7 @@ The backend compiles a note to HTML. A note script then runs on every view of th
 
 A plain note script runs **immediately, while the browser still parses the page**. Classic OMN does the same. All OMN-Go helpers are available at that moment. These helpers are `openDatabase`, `omnGoOpenDatabase`, `executeScripts` and page variables such as `PageName`, `Title` and `currentNote`. The JS console button captures everything the note script prints or throws, including syntax errors.
 
-A plain note script runs during parsing. The page elements *below* the note script, for example the `#status` footer, do not exist yet. If a note script needs the complete page, use one of these two methods:
+A plain note script runs during parsing. The page elements *below* the note script, for example the `#omn-page-footer` footer, do not exist yet. If a note script needs the complete page, use one of these two methods:
 
 * Run the note script on load with `window.onload = function() { ... };` or with `window.addEventListener('load', ...)`.
 * Use `<script type="module">`. The browser defers every module script and runs it after it parses the whole page.

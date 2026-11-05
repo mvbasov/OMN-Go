@@ -44,7 +44,7 @@ const ALL = [HEDGEHOG.title, 'Video', VIDEO_AGAIN.url, 'Alpha'];
 
 // shown answers the link text of each bookmark of the list, in its order.
 function shown(h) {
-    return h.$('#bmlist').querySelectorAll('ul > li > a').map(function (a) { return a.textContent; });
+    return h.$('#omn-bm-list').querySelectorAll('ul > li > a').map(function (a) { return a.textContent; });
 }
 
 // entry answers the list item of one bookmark.
@@ -63,8 +63,8 @@ function button(h, selector, text) {
 
 // search types a pattern and presses the Search button.
 function search(h, pattern) {
-    h.$('#searchInput').value = pattern;
-    h.press('#searchBtn');
+    h.$('#omn-bm-search-input').value = pattern;
+    h.press('#omn-bm-search-btn');
     return shown(h);
 }
 
@@ -83,10 +83,10 @@ function alerts(h) {
 test('the script loads after the scripts of the application and builds the page', () => {
     // The controls go above the text that the note already has.
     const h = bookmarkPage(BOOKMARKS, { preview: '<p id="text">The text of the note.</p>' });
-    const ids = h.$('#preview').children.map(function (c) { return c.id; });
-    assert.deepStrictEqual(ids, ['searchBox', 'buttons', 'tagsCloud', 'bmlist', 'bVersion', 'text']);
-    assert.match(h.$('#bVersion').textContent, /^\d+\.\d+\w* \d{4}-\d\d-\d\d /);
-    assert.strictEqual(h.$('#searchInput').type, 'search');
+    const ids = h.$('#omn-preview').children.map(function (c) { return c.id; });
+    assert.deepStrictEqual(ids, ['omn-bm-search-box', 'omn-bm-buttons', 'omn-bm-tags-cloud', 'omn-bm-list', 'omn-bm-version', 'text']);
+    assert.match(h.$('#omn-bm-version').textContent, /^\d+\.\d+\w* \d{4}-\d\d-\d\d /);
+    assert.strictEqual(h.$('#omn-bm-search-input').type, 'search');
     assert.deepStrictEqual(h.requests.filter(function (r) { return r.method !== 'GET'; }), [],
         'the page of the list changed something on the server');
 });
@@ -94,12 +94,12 @@ test('the script loads after the scripts of the application and builds the page'
 test('the list shows the newest bookmark first and skips one with no address', () => {
     const h = bookmarkPage(BOOKMARKS);
     assert.deepStrictEqual(shown(h), ALL);
-    assert.strictEqual(h.$('#counter').textContent, '4');
+    assert.strictEqual(h.$('#omn-bm-counter').textContent, '4');
 
     const li = entry(h, ALPHA);
     assert.strictEqual(li.id, '2026-01-01-100000');
     assert.strictEqual(li.querySelector('a').getAttribute('href'), ALPHA.url);
-    assert.strictEqual(li.querySelector('.spanDate').textContent, ALPHA.date);
+    assert.strictEqual(li.querySelector('.omn-span-date').textContent, ALPHA.date);
     assert.ok(li.textContent.indexOf(ALPHA.url) >= 0, 'the item does not show the address');
 });
 
@@ -108,24 +108,24 @@ test('an item shows its tags and its notes only after a press', () => {
     const li = entry(h, ALPHA);
     const details = li.querySelector('ul');
     assert.strictEqual(details.style.display, 'none');
-    assert.deepStrictEqual(details.querySelectorAll('button.tag').map((b) => b.textContent), ['Go', 'Reference']);
+    assert.deepStrictEqual(details.querySelectorAll('button.omn-tag').map((b) => b.textContent), ['Go', 'Reference']);
     assert.ok(details.textContent.indexOf('"first note", "second note"') >= 0);
 
-    li.querySelector('button.details').click();
+    li.querySelector('button.omn-details').click();
     assert.strictEqual(details.style.display, 'block');
-    li.querySelector('button.details').click();
+    li.querySelector('button.omn-details').click();
     assert.strictEqual(details.style.display, 'none');
 
     // A bookmark with no tag and no note has nothing to show.
-    assert.strictEqual(entry(h, HEDGEHOG).querySelector('button.details'), null);
+    assert.strictEqual(entry(h, HEDGEHOG).querySelector('button.omn-details'), null);
 });
 
 test('Expand and Collapse open and close each item', () => {
     const h = bookmarkPage(BOOKMARKS);
     const blocks = [ALPHA, VIDEO, VIDEO_AGAIN].map(function (bm) { return entry(h, bm).querySelector('ul'); });
-    button(h, '#buttons', 'Expand').click();
+    button(h, '#omn-bm-buttons', 'Expand').click();
     assert.deepStrictEqual(blocks.map((b) => b.style.display), ['block', 'block', 'block']);
-    button(h, '#buttons', 'Collapse').click();
+    button(h, '#omn-bm-buttons', 'Collapse').click();
     assert.deepStrictEqual(blocks.map((b) => b.style.display), ['none', 'none', 'none']);
 });
 
@@ -160,7 +160,7 @@ const MARKUP = {
 test('markup in a value of a bookmark shows as text and makes no element', () => {
     const h = bookmarkPage([MARKUP, { date: '2026-06-02 10:00:00', url: MARKUP.url, title: '' }]);
     for (const tag of ['img', 'b', 'i', 'u', 's', 'em']) {
-        assert.strictEqual(h.$('#preview').querySelectorAll(tag).length, 0,
+        assert.strictEqual(h.$('#omn-preview').querySelectorAll(tag).length, 0,
             'a value of a bookmark made the element <' + tag + '>');
     }
     // The second bookmark has no title, thus its link shows the address.
@@ -171,11 +171,11 @@ test('markup in a value of a bookmark shows as text and makes no element', () =>
     assert.ok(li.textContent.indexOf('"<u>note</u>"') >= 0);
 
     // A tag with markup is still a tag: the cloud shows it and filters by it.
-    const cloud = h.$('#tagsCloud').querySelectorAll('button').map((b) => b.textContent);
+    const cloud = h.$('#omn-bm-tags-cloud').querySelectorAll('button').map((b) => b.textContent);
     assert.deepStrictEqual(cloud, ['NoTag', 'Duplicates', '<em>mark</em>', '<i>tag</i>']);
-    button(h, '#tagsCloud', '<i>tag</i>').click();
+    button(h, '#omn-bm-tags-cloud', '<i>tag</i>').click();
     assert.deepStrictEqual(shown(h), [MARKUP.title]);
-    button(h, '#bmlist', '<i>tag</i>').click();
+    button(h, '#omn-bm-list', '<i>tag</i>').click();
     assert.deepStrictEqual(shown(h), [MARKUP.title]);
 });
 
@@ -221,38 +221,38 @@ test('each other address keeps its link', () => {
 
 test('the count opens and closes the tag cloud', () => {
     const h = bookmarkPage(BOOKMARKS);
-    const cloud = h.$('#tagsCloud');
+    const cloud = h.$('#omn-bm-tags-cloud');
     assert.deepStrictEqual(cloud.querySelectorAll('button').map((b) => b.textContent),
         ['NoTag', 'Duplicates', 'Go', 'Reference', 'Video']);
-    assert.strictEqual(cloud.querySelectorAll('button.tagSpecial').length, 2);
-    h.press('#counter');
+    assert.strictEqual(cloud.querySelectorAll('button.omn-tag-special').length, 2);
+    h.press('#omn-bm-counter');
     assert.strictEqual(cloud.style.display, 'block');
-    h.press('#counter');
+    h.press('#omn-bm-counter');
     assert.strictEqual(cloud.style.display, 'none');
 });
 
 test('a tag of the cloud shows only its bookmarks', () => {
     const h = bookmarkPage(BOOKMARKS);
-    h.$('#searchInput').value = 'old pattern';
-    button(h, '#tagsCloud', 'Go').click();
+    h.$('#omn-bm-search-input').value = 'old pattern';
+    button(h, '#omn-bm-tags-cloud', 'Go').click();
     assert.deepStrictEqual(shown(h), [VIDEO_AGAIN.url, 'Alpha']);
-    assert.strictEqual(h.$('#counter').textContent, '2');
-    assert.strictEqual(button(h, '#tagsCloud', 'Go').disabled, true, 'the cloud does not mark the chosen tag');
-    assert.strictEqual(button(h, '#tagsCloud', 'Video').disabled, false);
-    assert.strictEqual(h.$('#searchInput').value, '', 'the box shows a pattern that the list does not use');
+    assert.strictEqual(h.$('#omn-bm-counter').textContent, '2');
+    assert.strictEqual(button(h, '#omn-bm-tags-cloud', 'Go').disabled, true, 'the cloud does not mark the chosen tag');
+    assert.strictEqual(button(h, '#omn-bm-tags-cloud', 'Video').disabled, false);
+    assert.strictEqual(h.$('#omn-bm-search-input').value, '', 'the box shows a pattern that the list does not use');
 });
 
 test('a tag of an item shows only its bookmarks', () => {
     const h = bookmarkPage(BOOKMARKS);
-    button(h, '#bmlist', 'Reference').click();
+    button(h, '#omn-bm-list', 'Reference').click();
     assert.deepStrictEqual(shown(h), ['Alpha']);
 });
 
 test('NoTag shows the bookmarks with no tag, and All shows each one', () => {
     const h = bookmarkPage(BOOKMARKS);
-    button(h, '#tagsCloud', 'NoTag').click();
+    button(h, '#omn-bm-tags-cloud', 'NoTag').click();
     assert.deepStrictEqual(shown(h), [HEDGEHOG.title]);
-    button(h, '#buttons', 'All').click();
+    button(h, '#omn-bm-buttons', 'All').click();
     assert.deepStrictEqual(shown(h), ALL);
 });
 
@@ -260,14 +260,14 @@ test('Duplicates shows the bookmarks of one address', () => {
     const h = bookmarkPage(BOOKMARKS);
     // The two shares of the video have a different "si" value, and the
     // page reads them as one address.
-    button(h, '#tagsCloud', 'Duplicates').click();
+    button(h, '#omn-bm-tags-cloud', 'Duplicates').click();
     assert.deepStrictEqual(shown(h), ['Video', VIDEO_AGAIN.url]);
 });
 
 test('a list with no tag has no tag cloud', () => {
     const h = bookmarkPage([HEDGEHOG]);
-    assert.strictEqual(h.$('#tagsCloud').querySelectorAll('button').length, 0);
-    assert.strictEqual(h.$('#counter').textContent, '1');
+    assert.strictEqual(h.$('#omn-bm-tags-cloud').querySelectorAll('button').length, 0);
+    assert.strictEqual(h.$('#omn-bm-counter').textContent, '1');
 });
 
 // ---------------------------------------------------------------------
@@ -277,13 +277,13 @@ test('a list with no tag has no tag cloud', () => {
 test('the search reads the title, the address, the tags, the notes and the date', () => {
     const h = bookmarkPage(BOOKMARKS);
     assert.deepStrictEqual(search(h, 'alpha'), ['Alpha'], 'the title');
-    assert.strictEqual(h.$('#counter').textContent, '1');
+    assert.strictEqual(h.$('#omn-bm-counter').textContent, '1');
     assert.deepStrictEqual(search(h, 'e\\.example'), [HEDGEHOG.title], 'the address');
     assert.deepStrictEqual(search(h, 'reference'), ['Alpha'], 'a tag');
     assert.deepStrictEqual(search(h, 'second'), ['Alpha'], 'a note');
     assert.deepStrictEqual(search(h, '2026-03'), ['Video'], 'the date');
     assert.deepStrictEqual(search(h, 'absent'), []);
-    assert.strictEqual(h.$('#counter').textContent, '0');
+    assert.strictEqual(h.$('#omn-bm-counter').textContent, '0');
     // The pattern is a regular expression.
     assert.deepStrictEqual(search(h, '^Al.ha$'), ['Alpha']);
     assert.deepStrictEqual(search(h, ''), ALL);
@@ -291,10 +291,10 @@ test('the search reads the title, the address, the tags, the notes and the date'
 
 test('Enter in the box is the same as the Search button', () => {
     const h = bookmarkPage(BOOKMARKS);
-    h.$('#searchInput').value = 'alpha';
-    h.$('#searchInput').dispatchEvent(new Event('keyup', { bubbles: true, keyCode: 65 }));
+    h.$('#omn-bm-search-input').value = 'alpha';
+    h.$('#omn-bm-search-input').dispatchEvent(new Event('keyup', { bubbles: true, keyCode: 65 }));
     assert.deepStrictEqual(shown(h), ALL, 'a letter key started the search');
-    h.$('#searchInput').dispatchEvent(new Event('keyup', { bubbles: true, keyCode: 13 }));
+    h.$('#omn-bm-search-input').dispatchEvent(new Event('keyup', { bubbles: true, keyCode: 13 }));
     assert.deepStrictEqual(shown(h), ['Alpha']);
 });
 
@@ -322,15 +322,15 @@ test('the two options of the device change the search', () => {
 test('the address can name a tag or a pattern, and the tag comes first', () => {
     const tag = bookmarkPage(BOOKMARKS, { search: '?tag=Go' });
     assert.deepStrictEqual(shown(tag), [VIDEO_AGAIN.url, 'Alpha']);
-    assert.strictEqual(tag.$('#searchInput').value, '');
+    assert.strictEqual(tag.$('#omn-bm-search-input').value, '');
 
     const pattern = bookmarkPage(BOOKMARKS, { search: '?search=alpha' });
     assert.deepStrictEqual(shown(pattern), ['Alpha']);
-    assert.strictEqual(pattern.$('#searchInput').value, 'alpha');
+    assert.strictEqual(pattern.$('#omn-bm-search-input').value, 'alpha');
 
     const both = bookmarkPage(BOOKMARKS, { search: '?search=alpha&tag=Video' });
     assert.deepStrictEqual(shown(both), ['Video', VIDEO_AGAIN.url]);
-    assert.strictEqual(both.$('#searchInput').value, '');
+    assert.strictEqual(both.$('#omn-bm-search-input').value, '');
 });
 
 test('the address can name a bookmark, and the page marks it', () => {
@@ -364,7 +364,7 @@ test('the first visit stores the default options and shows no dialog', () => {
     const options = stored(h);
     assert.strictEqual(options.stripAccents, true);
     assert.strictEqual(options.ignoreCase, true);
-    assert.strictEqual(options.configVersion, h.$('#bVersion').textContent);
+    assert.strictEqual(options.configVersion, h.$('#omn-bm-version').textContent);
     assert.deepStrictEqual(Object.keys(h.storage), [KEY], 'the page uses a second key of localStorage');
     assert.deepStrictEqual(h.dialogs, []);
 });

@@ -43,24 +43,24 @@ function posts(h) {
 // drop gives files to the box, the same as a person who drops them on it.
 function drop(h, names) {
     const event = new Event('drop', { bubbles: true, dataTransfer: { files: names.map(file), getData: function () { return ''; } } });
-    h.$('#omnIncoming').dispatchEvent(event);
+    h.$('#omn-incoming').dispatchEvent(event);
     return event;
 }
 
 test('the box shows on the Incoming notes page only, and never on Android', () => {
     let h = incomingPage();
-    assert.strictEqual(h.hidden('#omnIncoming'), false);
-    assert.strictEqual(h.$('#preview').firstChild, h.$('#omnIncoming'), 'the box is not above the list');
+    assert.strictEqual(h.hidden('#omn-incoming'), false);
+    assert.strictEqual(h.$('#omn-preview').firstChild, h.$('#omn-incoming'), 'the box is not above the list');
 
     h = incomingPage({}, 'Note');
-    assert.strictEqual(h.document.querySelector('#omnIncoming'), null, 'a note page keeps the box');
+    assert.strictEqual(h.document.querySelector('#omn-incoming'), null, 'a note page keeps the box');
 
     h = incomingPage({ IS_ANDROID: true });
-    assert.strictEqual(h.document.querySelector('#omnIncoming'), null, 'Android keeps the box');
+    assert.strictEqual(h.document.querySelector('#omn-incoming'), null, 'Android keeps the box');
 });
 
 test('the file dialog offers a note and each extension that the server names', () => {
-    const accept = incomingPage().$('#omnIncomingFiles').accept.split(',');
+    const accept = incomingPage().$('#omn-incoming-files').accept.split(',');
     for (const ext of ['.md'].concat(Object.keys(UPLOADS))) {
         assert.ok(accept.indexOf(ext) >= 0, ext + ' is not in ' + accept);
     }
@@ -83,7 +83,7 @@ test('a note goes to the import, and each other file goes to the upload of its t
     assert.ok(posts(h)[1].body.indexOf('file=') === 0, 'the upload reads the field "file"');
     // The server wrote the list, thus the page comes again.
     assert.strictEqual(h.page.location.reloads, 1);
-    assert.strictEqual(h.$('#omnIncomingStatus').textContent, 'Imported 6. Refreshing…');
+    assert.strictEqual(h.$('#omn-incoming-status').textContent, 'Imported 6. Refreshing…');
 });
 
 test('a file that the server refused shows the words of the server', async () => {
@@ -98,11 +98,11 @@ test('a file that the server refused shows the words of the server', async () =>
     drop(h, ['big.vcf', 'a.ics', 'Plan.md']);
     await h.settle(20);
 
-    const status = h.$('#omnIncomingStatus');
+    const status = h.$('#omn-incoming-status');
     assert.strictEqual(status.textContent,
         '1 imported, 2 failed — big.vcf: file too large (limit is 3.00 MB); ' +
         'a.ics: log in as admin to import a file');
-    assert.strictEqual(status.classList.contains('is-error'), true);
+    assert.strictEqual(status.classList.contains('omn-is-error'), true);
     assert.strictEqual(h.page.location.reloads, 0, 'the page came again and lost the message');
 });
 
@@ -115,8 +115,8 @@ test('a page of an older server sends each file to the note import', async () =>
 
 test('the Import button with no file asks for one', async () => {
     const h = incomingPage();
-    h.press('#omnIncomingImport');
+    h.press('#omn-incoming-import');
     await h.settle();
-    assert.strictEqual(h.$('#omnIncomingStatus').textContent, 'Choose a file first.');
+    assert.strictEqual(h.$('#omn-incoming-status').textContent, 'Choose a file first.');
     assert.strictEqual(posts(h).length, 0);
 });
