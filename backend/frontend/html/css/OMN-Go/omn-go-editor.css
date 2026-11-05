@@ -1,5 +1,5 @@
-/* omn-go-editor.css: the editor page. editor.html names it. The editor
-   page loads no omn-go-custom.css. */
+/* The editor page. editor.html names this file. The editor page loads no
+   omn-go-custom.css. */
 
 html, body { height: 100%; margin: 0; }
 body {
@@ -34,10 +34,8 @@ body {
     content: ""; width: 1px; align-self: stretch;
     background: var(--omn-border); margin: 0 4px;
 }
-/* -- Find / replace bar -------------------------------------
-   A block between the toolbar and the text, so opening it pushes
-   the note down rather than covering it. Rows wrap on a narrow
-   screen; the query field is the only thing that grows. */
+/* Find and replace bar. It is between the toolbar and the text, thus it
+   moves the note down and does not cover it. */
 .omn-editor-find {
     display: flex; flex-direction: column; gap: 4px;
     padding: 6px 8px;
@@ -57,8 +55,8 @@ body {
     font-family: inherit; font-size: 13px;
 }
 .omn-editor-find input:focus { outline: 1px solid var(--omn-accent); }
-/* A query that cannot compile: said with color as well as words,
-   because the count text is small and easy to miss mid-typing. */
+/* A query that is not a valid regular expression. The count text is small,
+   thus the field shows it too. */
 .omn-editor-find input.omn-is-invalid { border-color: var(--omn-danger); }
 .omn-editor-find button {
     display: inline-flex; align-items: center; justify-content: center;
@@ -72,8 +70,6 @@ body {
     background: var(--omn-accent); color: var(--omn-on-accent); border-color: var(--omn-accent);
 }
 .omn-editor-find .material-icons { font-size: 20px; }
-/* The three mode flags are labelled with text, not icons - "Aa",
-   "ab", ".*" are what every editor uses and they need no legend. */
 .omn-find-flag {
     font-family: monospace; font-size: 12px; font-weight: 700;
     min-width: 2.2em;
@@ -83,18 +79,14 @@ body {
     font-size: 12px; color: var(--omn-text-muted);
     min-width: 5em; text-align: right; white-space: nowrap;
 }
-/* Keeps the replace field aligned under the find field despite the
-   chevron button occupying the first slot of the row above. */
+/* Keeps the replace field under the find field. */
 .omn-find-chevron-space { width: 30px; flex: 0 0 auto; }
 
 #omn-editor-save { border-color: var(--omn-accent); color: var(--omn-accent); font-weight: 600; }
 #omn-editor-save:hover { background: var(--omn-accent); color: var(--omn-on-accent); }
-/* Editing area: a horizontal row of [line-number gutter][textarea].
-   The gutter shows only when line numbers are on AND word wrap is
-   off (body.omn-ln-on) - under wrapping the two can't stay aligned, so
-   the toggle is forced off while wrapping. The gutter's font-size,
-   line-height and top padding must match the textarea's exactly or
-   the numbers drift. */
+/* The line number gutter and the text. The gutter shows only when line
+   numbers are on and word wrap is off (body.omn-ln-on). The font, the line
+   height and the top padding of the gutter must be the same as the textarea. */
 .omn-editor-main { display: flex; flex: 1 1 auto; min-height: 0; }
 .omn-editor-gutter {
     display: none; flex: 0 0 auto;
@@ -108,8 +100,8 @@ body {
     user-select: none; -webkit-user-select: none;
 }
 body.omn-ln-on .omn-editor-gutter { display: block; }
-/* The pane carries the surface color so the textarea above it can be
-   transparent, letting the mirror's marks show through. */
+/* The pane has the surface color. The textarea is transparent, thus the
+   marks of the mirror show through it. */
 .omn-editor-pane {
     position: relative; display: flex;
     flex: 1 1 auto; min-width: 0;
@@ -123,17 +115,15 @@ body.omn-ln-on .omn-editor-gutter { display: block; }
     font-size: 14px; line-height: 1.5; tab-size: 4;
     white-space: pre-wrap; overflow-x: hidden;
     background: transparent; color: var(--omn-text);
-    /* Positioned so it paints ABOVE the absolutely-positioned mirror:
-       without this the mirror would cover the text being edited. */
+    /* Above the mirror */
     position: relative; z-index: 1;
 }
-/* Word wrap off: don't wrap, scroll horizontally instead. */
+/* Word wrap off */
 .omn-editor #omn-editor-text.omn-nowrap { white-space: pre; overflow-x: auto; }
 
-/* -- Find match mirror --
-   Same box, same font, same wrapping as #omn-editor-text; text in invisible ink
-   so only the <mark> backgrounds are seen. Any divergence from #omn-editor-text
-   above shows up as highlights sliding off the words they mark. */
+/* The mirror of the matches. It has the box, the font and the wrap of
+   #omn-editor-text, and its text is transparent. Thus only the <mark>
+   backgrounds show. A difference in metrics moves the marks off the words. */
 .omn-editor-mirror {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     box-sizing: border-box;
@@ -153,8 +143,8 @@ body.omn-ln-on .omn-editor-gutter { display: block; }
     background: var(--omn-search-hit-bg);
     border-radius: 2px;
 }
-/* The one the counter is pointing at. A ring rather than a different
-   color, so it reads as "this one of them", not "a different kind". */
+/* The match that the counter names. A ring, not a new color, shows that it
+   is the same kind of match. */
 .omn-editor-mirror mark.omn-is-current {
     outline: 2px solid var(--omn-accent);
     outline-offset: 1px;
@@ -165,16 +155,14 @@ body.omn-ln-on .omn-editor-gutter { display: block; }
     background: var(--omn-bg-band); border-top: 1px solid var(--omn-border);
     color: var(--omn-text-faint); min-height: 1.2em;
 }
-/* File name (left), shown persistently; transient Loading/Saving/
-   error text reuses this span. Unsaved state is the dot, not text. */
+/* The file name. The same span shows the load and save messages. */
 #omn-editor-status {
     flex: 1 1 auto; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap;
 }
 .omn-editor-status-error { color: var(--omn-state-alert); }
 .omn-editor-status-ok    { color: var(--omn-state-ok); }
-/* State dot at the right: green = saved, red = unsaved changes.
-   Pure CSS circle (border-radius:50%), no image asset. */
+/* Green: saved. Red: a change that is not saved. */
 .omn-editor-dot {
     flex: 0 0 auto; width: 10px; height: 10px;
     border-radius: 50%; background: var(--omn-text-dim);

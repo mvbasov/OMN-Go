@@ -1,19 +1,13 @@
-/* omn-go-files.css: the Files page (/OMNGoFiles.html). */
+/* The Files page, /OMNGoFiles.html. */
 
-/* -- Directory index (/OMNGoFiles.html) --
-   Built to read like a browser's file:/// listing: one directory at a time, a
-   breadcrumb above it, one row per entry. Every color comes from a token, so
-   the page follows the theme without a dark-mode block of its own. */
+/* The page shows one directory at a time, like a file:/// listing of a
+   browser. The path is above the list, and each entry has one row. */
 .omn-files-page {
     padding: 4px 0 16px;
 }
 
-/* -- The first screen: one button per tree -- */
-/* One column at EVERY width, on purpose. A wide screen gets a narrower page
-   rather than three columns: one layout to build, one to test, and each target
-   stays the size of a thumb. The pattern is the start-page button of Welcome
-   (.omn-start-button), with its own classes because this page is server-built
-   markup and that one is written in a note. */
+/* The first screen: one button for each tree */
+/* One column at each width. Each button stays large enough for a thumb. */
 .omn-files-cards {
     display: flex;
     flex-direction: column;
@@ -63,11 +57,9 @@
 
 .omn-files-card-count { font-size: 11px; opacity: 0.8; font-variant-numeric: tabular-nums; }
 
-/* -- The way back up -- */
-/* Each crumb carries its own trailing slash and NOTHING is written between
-   two of them, so the trail reads as the path it is: html/js/ . Until 26.08.53
-   the labels held a slash AND a separator span went between them, which made
-   the crumb of html/js/ read "html/ / js/". */
+/* The path */
+/* Each part of the path has its own slash, and nothing is between two parts.
+   Thus the path reads as html/js/. */
 .omn-files-crumbs {
     margin-bottom: 4px;
     font-size: 14px;
@@ -87,8 +79,6 @@
     color: var(--omn-text-strong);
 }
 
-/* The totals of the subtree, then how many rows of THIS directory are worth a
-   second look. The wording keeps the two apart: "below" belongs to the totals. */
 .omn-files-summary {
     margin: 2px 0 6px;
     font-size: 12px;
@@ -96,11 +86,8 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* The key: folded by default, and it lists only the words that this directory
-   actually uses. On a real installation most screens use one word or none, so
-   the key is for the reader who meets a word for the first time. <details> is
-   the browser's own control - no script, and it stays open while the page
-   lives. */
+/* The key. It is folded by default, and it lists only the words that this
+   directory uses. */
 .omn-files-legend {
     margin: 0 0 8px;
     font-size: 11px;
@@ -137,12 +124,10 @@
     list-style: none;
 }
 
-/* -- One row, two lines -- */
-/* The name owns the first line and shares it with one word: what the file is.
-   The facts go on the second line. Two lines is deliberate at every width, and
-   it replaces the one-line row of 26.08.53, where the facts and the name
-   competed for the same space and a long name broke one character per line on
-   a phone. */
+/* One row, two lines */
+/* The first line holds the name and the kind of file. The second line holds
+   the facts. Thus a long name does not break into one character for each
+   line on a phone. */
 .omn-files-row {
     display: flex;
     flex-wrap: wrap;
@@ -171,14 +156,11 @@
     text-decoration: underline;
 }
 
-/* Directories are the navigation on this page, so they are the one thing that
-   looks heavier than a file. */
 .omn-files-dir .omn-files-name a {
     font-weight: 600;
 }
 
-/* What the file IS, as a type mark. Every ligature used here is in the bundled
-   subset of the icon font, so the column costs no new asset. */
+/* The kind of file. Each icon is in the bundled subset of the icon font. */
 .omn-files-kind {
     font-size: 16px;
     color: var(--omn-text-dim);
@@ -198,7 +180,7 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 8px;
-    padding-left: 22px;   /* under the name, clear of the type mark */
+    padding-left: 22px;   /* under the name */
 }
 
 .omn-files-size,
@@ -209,9 +191,8 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Colour says what HAPPENS to a file, and only that. The word beside it says
-   what the file is, and "app-owned" is written out on the second line of every
-   row it applies to - color is a hint, never the carrier. */
+/* The color tells what happens to a file. The words also tell it, thus the
+   color is never the only signal. */
 .omn-files-c-app     { color: var(--omn-file-app); }
 
 .omn-files-c-alert   { color: var(--omn-file-alert); }
@@ -222,8 +203,7 @@
 
 .omn-files-c-plain   { color: var(--omn-file-plain); }
 
-/* Only where editing a file in place makes sense - never for images, fonts or
-   anything else the editor would corrupt. */
+/* Only for a text file. The editor damages an image or a font. */
 .omn-files-edit {
     flex: 0 0 auto;
     margin-left: auto;

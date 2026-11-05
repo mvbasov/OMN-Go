@@ -24,7 +24,7 @@ var (
 	// cssColorRe finds a color value: a hex value, rgb(), rgba(), hsl(),
 	// hsla(), or a color name. "white-space" is not a color.
 	cssColorRe = regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(|` +
-		`(?:^|[\s:,(])(?:white|black|red|green|blue|yellow|aqua|orange|gray|grey|silver|purple|pink|navy|teal|maroon|lime|fuchsia|olive)(?:$|[\s;,)!])`)
+		`(?:^|[\s:,(])(?:white|black|red|green|blue|yellow|aqua|orange|gray|grey|silver|purple|pink|navy|teal|maroon|lime|fuchsia|olive|ivory|gold|brown|cyan|magenta|beige|indigo|violet)(?:$|[\s;,)!])`)
 	// codeColorRe is the check of a script or a template. It finds a hex value
 	// or a color function. A color name is too common in prose there.
 	codeColorRe  = regexp.MustCompile(`['":\s]#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})(?:$|[^\w-])|\b(?:rgba?|hsla?)\(`)

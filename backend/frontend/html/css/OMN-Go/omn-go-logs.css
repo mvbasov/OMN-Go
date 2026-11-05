@@ -1,12 +1,4 @@
-/* The Log page, /OMNGoLogs.html.
-
-   Only templates/logs_page.html loads this file, and a note page never
-   does. That is the same arrangement as Bookmarker.css.
-
-   Each color comes from the design tokens of omn-go-core.css. The page
-   therefore follows the light, the dark and the auto theme, like every
-   other page. The shell of the page loads that file first, thus each
-   token is here already. */
+/* The Log page, /OMNGoLogs.html. */
 
 .omn-lg-actions {
     display: flex;
@@ -76,8 +68,7 @@
     white-space: nowrap;
 }
 
-/* The log itself. It scrolls inside its own box, thus the page header and
-   the buttons stay where they are while a person reads. */
+/* The log scrolls in its own box, thus the header and the buttons stay. */
 .omn-lg-body {
     max-height: 60vh;
     overflow: auto;
@@ -87,9 +78,8 @@
     background: var(--omn-bg-inset);
 }
 
-/* A log line is column data. It keeps its spaces and it does not wrap into
-   the line below, thus the tag and the level stay where the eye expects
-   them. The box scrolls sideways for a long line. */
+/* A log line keeps its spaces and does not wrap, thus the columns stay. The
+   box scrolls to the side for a long line. */
 .omn-lg-row {
     font-family: monospace;
     font-size: 0.85em;

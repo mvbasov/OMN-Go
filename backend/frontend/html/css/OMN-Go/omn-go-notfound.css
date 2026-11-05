@@ -1,10 +1,7 @@
-/* omn-go-notfound.css: the page of a missing address and the page of a
-   file that is not text. */
+/* The page of a missing address, and the page of a file that is not text.
+   The pages also use .omn-config-panel and .omn-config-link-btn of the core
+   stylesheet. */
 
-/* -- 404 page --
-   Reuses .omn-config-panel / .omn-config-link-btn as a generic card and action row
-   (db_backups.html and md/SQLImport.md lean on .omn-config-panel the same way);
-   only the fact list and the suggestion block need rules of their own. */
 .omn-notfound-lead {
     margin: 16px 0 0;
     color: var(--omn-text-muted);

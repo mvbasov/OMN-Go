@@ -1,71 +1,58 @@
-/* ==========================================================================
-   OMN-Go Core Stylesheet
-   ==========================================================================
-   Table of contents:
-     1. Design tokens (theming: light / dark / auto)
-     2. Fonts & icons
-     3. Base & page layout
-     4. Page chrome (header, title, tags, footer)
-     5. Content area (preview / editor)
-     6. Components (overlays, modals, panels, buttons)
-     7. Panel pages (Config, Status, Log, the error pages)
-     8. JS console
-     9. Markdown content (tables, TOC, paragraph style)
-    10. Utilities
-    11. Responsive
+/* The core stylesheet of OMN-Go. Each page loads it.
 
-   Theming model:
-     - The palette in section 1 holds each color value. The theme maps
-       below it give each token a palette value.
-     - The server sets <html data-theme="auto|light|dark"> for each request.
-       See render.Renderer.InjectRuntimeVars.
-     - "auto", and a page with no data-theme, follow the device through
-       prefers-color-scheme.
-     - The dark map is written two times: for [data-theme="dark"] and in the
-       media query of auto. CSS cannot share one block between the two. Keep
-       the two lists the same. TestDarkMapsAreTheSame holds this.
-   ========================================================================== */
+    1. Palette and theme maps
+    2. Fonts and icons
+    3. Base and page layout
+    4. Page header, tags and footer
+    5. Content area
+    6. Overlays, modals, panels and buttons
+    7. Panel pages
+    8. JS console
+    9. Markdown content
+   10. Color marks
+   11. Narrow screens
 
-/* ==========================================================================
-   1. Design tokens
-   ========================================================================== */
+   The server sets data-theme="auto", "light" or "dark" on <html>. The auto
+   theme, and a page with no data-theme, follow prefers-color-scheme. */
 
-/* The palette holds each color value of OMN-Go, and no other rule holds one.
-   A color scheme in omn-go-custom.css sets new palette values. */
+/* ===== 1. Palette and theme maps ===== */
+
+/* The palette holds each color value of OMN-Go. No other rule holds a color
+   value. A color scheme in omn-go-custom.css sets new palette values. */
 :root {
-    --omn-light-bg:                   #f9f9f9;   /* page background */
+    --omn-light-bg:                   #f9f9f9;   /* page */
     --omn-light-bg-surface:           #ffffff;   /* cards, modals, preview */
     --omn-light-bg-band:              #e8e8e8;   /* page header / footer strips */
-    --omn-light-bg-inset:             #f5f5f5;   /* pre blocks, title arrow, subtle fills */
+    --omn-light-bg-inset:             #f5f5f5;   /* code blocks, title arrow */
     --omn-light-bg-metadata:          #e9ecef;   /* metadata panel */
     --omn-light-bg-toc:               #fafafa;   /* table of contents box */
-    --omn-light-bg-hover:             #d0d0d0;   /* header button / tag hover */
+    --omn-light-bg-hover:             #d0d0d0;   /* hover of a header button or a tag */
     --omn-light-text:                 #333333;   /* body text */
-    --omn-light-text-strong:          #1a1a1a;   /* titles, headings */
-    --omn-light-text-heading:         #444444;   /* labels, secondary headings */
+    --omn-light-text-strong:          #1a1a1a;   /* titles */
+    --omn-light-text-heading:         #444444;   /* labels, small headings */
     --omn-light-text-muted:           #555555;   /* hints, descriptions */
-    --omn-light-text-faint:           #666666;   /* footer, minor hints */
+    --omn-light-text-faint:           #666666;   /* footer, small hints */
     --omn-light-text-dim:             #888888;   /* version footer */
     --omn-light-border:               #cccccc;   /* inputs, general borders */
     --omn-light-border-soft:          #dddddd;   /* editor, cards */
-    --omn-light-border-card:          #e1e4e8;   /* config / ext-edit panels */
-    --omn-light-border-strong:        #999999;   /* header action buttons */
-    --omn-light-border-title:         #eaecef;   /* config title underline */
-    --omn-light-accent:               #0056b3;   /* primary blue */
+    --omn-light-border-card:          #e1e4e8;   /* panels of the panel pages */
+    --omn-light-border-strong:        #999999;   /* header buttons */
+    --omn-light-border-title:         #eaecef;   /* line under a panel title */
+    --omn-light-accent:               #0056b3;   /* links, primary buttons */
     --omn-light-accent-hover:         #004494;
-    --omn-light-success:              #28a745;   /* save / confirm green */
+    --omn-light-success:              #28a745;   /* save, confirm */
     --omn-light-success-hover:        #218838;
-    --omn-light-danger:               #dc3545;   /* cancel / destructive red */
-    --omn-light-info:                 #17a2b8;   /* create / note / bookmark teal */
-    --omn-light-secondary:            #6c757d;   /* refresh / settings gray */
-    --omn-light-file-app:             #9a5b00;   /* the next version replaces this file 5.2:1 */
-    --omn-light-file-alert:           #b3261e;   /* ... and the device copy differs 6.2:1 */
-    --omn-light-file-keep:            #1f7a35;   /* yours - OMN-Go keeps it 5.1:1 */
-    --omn-light-file-derived:         #12798a;   /* OMN-Go makes it again 4.8:1 */
-    --omn-light-file-plain:           #6b6b6b;   /* nothing at stake 5.1:1 */
-    --omn-light-start-notes-bg:       #0056b3;   /* "My Quick Notes" card */
-    --omn-light-start-bookmarks-bg:   #17a2b8;   /* "My Bookmarks" card */
-    --omn-light-start-btn-text:       #ffffff;   /* label on both cards */
+    --omn-light-danger:               #dc3545;   /* cancel, delete */
+    --omn-light-info:                 #17a2b8;   /* new page, quick note, bookmark */
+    --omn-light-secondary:            #6c757d;   /* refresh, settings */
+    --omn-light-file-app:             #9a5b00;   /* Files: an update replaces it. Contrast 5.2:1 */
+    --omn-light-file-alert:           #b3261e;   /* Files: ... and the copy on the device differs. 6.2:1 */
+    --omn-light-file-keep:            #1f7a35;   /* Files: OMN-Go keeps it. 5.1:1 */
+    --omn-light-file-derived:         #12798a;   /* Files: OMN-Go makes it again. 4.8:1 */
+    --omn-light-file-plain:           #6b6b6b;   /* Files: no risk. 5.1:1 */
+    --omn-light-start-notes-bg:       #0056b3;   /* start button "My Quick Notes" */
+    --omn-light-start-bookmarks-bg:   #17a2b8;   /* start button "My Bookmarks" */
+    --omn-light-start-btn-text:       #ffffff;   /* text of the start buttons */
     --omn-light-tag-bg:               #e7e7e7;
     --omn-light-tag-border:           #505050;
     --omn-light-tag-selected:         #888888;
@@ -75,7 +62,7 @@
     --omn-light-table-row-odd:        #eeeeee;
     --omn-light-table-row-even:       #ffffff;
     --omn-light-table-text:           #000000;
-    --omn-light-search-hit-bg:        #ffe08a;   /* matched text in results and in the page */
+    --omn-light-search-hit-bg:        #ffe08a;   /* search match */
     --omn-light-search-hit-text:      #1a1a1a;
     --omn-light-overlay-bg:           rgba(0, 0, 0, 0.7);
     --omn-light-shadow:               rgba(0, 0, 0, 0.1);
@@ -94,14 +81,14 @@
     --omn-light-code-tag-name:        #444444;   /* tag name in a code block */
     --omn-light-code-tag-attr:        #444444;   /* attribute name in a code block */
     --omn-light-on-accent:            #ffffff;   /* text on a filled button */
-    --omn-light-files-source-bg:      #4c6b8a;   /* Source card of the Files page */
-    --omn-light-state-ok:             #3fb950;   /* state dots: in sync, saved */
-    --omn-light-state-warn:           #d29922;   /* state dots: changed */
-    --omn-light-state-info:           #4d9fff;   /* state dots: backup newer, missing */
-    --omn-light-state-off:            #8b949e;   /* state dots: no backup */
-    --omn-light-state-error:          #f85149;   /* state dots: damaged backup */
-    --omn-light-state-alert:          #ff5555;   /* editor: unsaved, error */
-    --omn-light-console-bg:           #1e1e1e;   /* JS console: the same in both themes */
+    --omn-light-files-source-bg:      #4c6b8a;   /* Files: the Source button */
+    --omn-light-state-ok:             #3fb950;   /* state dot: in sync, saved */
+    --omn-light-state-warn:           #d29922;   /* state dot: changed */
+    --omn-light-state-info:           #4d9fff;   /* state dot: backup is newer, missing */
+    --omn-light-state-off:            #8b949e;   /* state dot: no backup */
+    --omn-light-state-error:          #f85149;   /* state dot: damaged backup */
+    --omn-light-state-alert:          #ff5555;   /* editor dot: not saved, error */
+    --omn-light-console-bg:           #1e1e1e;   /* JS console. By default the same in both themes. */
     --omn-light-console-text:         #00ff00;
     --omn-light-console-line:         #f8f8f2;
     --omn-light-console-warn:         #ffb86c;
@@ -112,8 +99,9 @@
     --omn-light-console-clear:        #888888;
     --omn-light-console-button:       #ff9800;   /* console button and footer dot */
     --omn-light-console-shadow:       rgba(0, 0, 0, 0.5);
-    --omn-light-bookmark-special-bg:  #ff000022;   /* special tag buttons of the Bookmarks page */
-    --omn-light-mark-yellow:          #ffff00;   /* .omn-bg-yellow and the other note utilities */
+    --omn-light-bookmark-special-bg:  #ff000022;   /* special tags of the Bookmarks page */
+    --omn-light-bookmarks-bg:         #fffff0;   /* page of the Bookmarks note */
+    --omn-light-mark-yellow:          #ffff00;   /* color marks of section 10 */
     --omn-light-mark-aqua:            #00ffff;
     --omn-light-mark-red:             #ff0000;
     --omn-light-mark-green:           #008000;
@@ -199,6 +187,7 @@
     --omn-dark-console-button:        #ff9800;
     --omn-dark-console-shadow:        rgba(0, 0, 0, 0.5);
     --omn-dark-bookmark-special-bg:   #ff000022;
+    --omn-dark-bookmarks-bg:          #1b1d1e;
     --omn-dark-mark-yellow:           #ffff00;
     --omn-dark-mark-aqua:             #00ffff;
     --omn-dark-mark-red:              #ff0000;
@@ -206,7 +195,7 @@
     --omn-dark-mark-ink:              #000000;
 }
 
-/* The light theme. */
+/* The light map. */
 :root {
     color-scheme: light;
     --omn-bg: var(--omn-light-bg);
@@ -289,6 +278,7 @@
     --omn-console-button: var(--omn-light-console-button);
     --omn-console-shadow: var(--omn-light-console-shadow);
     --omn-bookmark-special-bg: var(--omn-light-bookmark-special-bg);
+    --omn-bookmarks-bg: var(--omn-light-bookmarks-bg);
     --omn-mark-yellow: var(--omn-light-mark-yellow);
     --omn-mark-aqua: var(--omn-light-mark-aqua);
     --omn-mark-red: var(--omn-light-mark-red);
@@ -296,7 +286,8 @@
     --omn-mark-ink: var(--omn-light-mark-ink);
 }
 
-/* The dark theme. The auto theme on a dark device uses the same list. */
+/* The dark map. The media query below holds a copy for the auto theme,
+   because CSS cannot share one block. TestDarkMapsAreTheSame compares them. */
 :root[data-theme="dark"] {
     color-scheme: dark;
     --omn-bg: var(--omn-dark-bg);
@@ -379,6 +370,7 @@
     --omn-console-button: var(--omn-dark-console-button);
     --omn-console-shadow: var(--omn-dark-console-shadow);
     --omn-bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+    --omn-bookmarks-bg: var(--omn-dark-bookmarks-bg);
     --omn-mark-yellow: var(--omn-dark-mark-yellow);
     --omn-mark-aqua: var(--omn-dark-mark-aqua);
     --omn-mark-red: var(--omn-dark-mark-red);
@@ -469,6 +461,7 @@
         --omn-console-button: var(--omn-dark-console-button);
         --omn-console-shadow: var(--omn-dark-console-shadow);
         --omn-bookmark-special-bg: var(--omn-dark-bookmark-special-bg);
+        --omn-bookmarks-bg: var(--omn-dark-bookmarks-bg);
         --omn-mark-yellow: var(--omn-dark-mark-yellow);
         --omn-mark-aqua: var(--omn-dark-mark-aqua);
         --omn-mark-red: var(--omn-dark-mark-red);
@@ -477,9 +470,7 @@
     }
 }
 
-/* ==========================================================================
-   2. Fonts & icons
-   ========================================================================== */
+/* ===== 2. Fonts and icons ===== */
 
 @font-face {
     font-family: 'Material Icons';
@@ -502,13 +493,11 @@
     direction: ltr;
     -webkit-font-feature-settings: 'liga';
     -webkit-font-smoothing: antialiased;
-    /* An inline block inherits the paragraph indent of a note. */
+    /* An icon in a note paragraph gets no paragraph indent. */
     text-indent: 0;
 }
 
-/* ==========================================================================
-   3. Base & page layout
-   ========================================================================== */
+/* ===== 3. Base and page layout ===== */
 
 body {
     font-family: sans-serif;
@@ -525,13 +514,9 @@ body {
     display: flex;
     flex: 1;
     flex-direction: column;
-    /* Without this, a flex item's implicit min-height:auto keeps #omn-main-ui from
-       shrinking below its content's natural height. On a long page (e.g.
-       UserManual) that let the whole body grow past 100vh and scroll as one -
-       carrying the header off the top and hiding the footer until the very
-       bottom. min-height:0 clamps #omn-main-ui to its flex share so #omn-preview scrolls
-       internally instead, keeping the header and footer always visible. The
-       inner .omn-page-content already sets this; #omn-main-ui was the missing link. */
+    /* A flex item does not shrink below its content by default. A long note
+       then makes the body taller than the screen, and the header and the
+       footer scroll away. With min-height: 0, #omn-preview scrolls inside. */
     min-height: 0;
 }
 
@@ -547,9 +532,7 @@ body {
     display: none !important;
 }
 
-/* ==========================================================================
-   4. Page chrome (header, title, tags, footer)
-   ========================================================================== */
+/* ===== 4. Page header, tags and footer ===== */
 
 .omn-page-header {
     overflow: hidden;
@@ -620,7 +603,7 @@ body {
     vertical-align: middle;
 }
 
-/* -- Tag pills -- */
+/* Tags */
 #omn-header-tags {
     margin-top: 5px;
     display: flex;
@@ -647,7 +630,7 @@ a.omn-taglink {
     background-color: var(--omn-tag-selected);
 }
 
-/* -- Footer / status bar -- */
+/* Footer */
 .omn-page-footer {
     overflow-x: hidden;
     flex-shrink: 0;
@@ -664,18 +647,9 @@ a.omn-taglink {
     opacity: 0.7;
 }
 
-/* The console dot of the footer. The header console button is hidden while
-   the header is folded, which is the default. This dot is always in view,
-   thus it reports that console messages exist without an unfold.
-
-   The rules were an inline style attribute of index.html until 26.08.73.
-   The attribute went into the compiled page of each note, and a note is
-   the one thing this application has many of.
-
-   #ff9800 is the orange of the console button, and it is a literal here
-   for the same reason it is one there. updateConsoleFooterDot in
-   omn-go-console.js writes display: inline-block when a message arrives, thus
-   the value below is the state before the first message only. */
+/* The console dot of the footer. It is always in view, because the header is
+   folded by default. updateConsoleFooterDot in omn-go-console.js shows it
+   when the first console message arrives. */
 #omn-go-console-footer-dot {
     display: none;
     width: 10px;
@@ -687,17 +661,15 @@ a.omn-taglink {
     margin-left: 8px;
 }
 
-/* ==========================================================================
-   5. Content area (preview / editor)
-   ========================================================================== */
+/* ===== 5. Content area ===== */
 
 .omn-page-content {
     padding: 0.5em;
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;       /* allow shrinking below content size */
-    overflow: hidden;    /* prevent double scrollbars; children scroll */
+    min-height: 0;
+    overflow: hidden;    /* the children scroll, not this box */
 }
 
 #omn-preview {
@@ -709,16 +681,10 @@ a.omn-taglink {
     overflow-y: auto;
     box-sizing: border-box;
     line-height: 1.6;
-    /* Layout containment keeps #omn-preview's descendants from affecting the
-       layout OUTSIDE it. Without it, some rendered content - notably KaTeX
-       math output (e.g. on UserManual, which sets OMN_GO_KATEX) - escaped this
-       scroll box and inflated the whole document's height by thousands of px.
-       That phantom height was itself unreachable by mouse wheel (the wheel
-       scrolls #omn-preview), but a touch drag that hit #omn-preview's bottom then
-       chained into it, dragging the entire shell - header and footer included -
-       off screen. contain:layout removes the phantom height entirely (the
-       document stays exactly one viewport tall) while #omn-preview still scrolls
-       its content normally, so there is nothing left to chain into. */
+    /* Without layout containment, KaTeX output can make the document taller
+       than the screen. A touch drag then moves the whole page. With it, the
+       document stays one screen tall. It also makes #omn-preview the
+       containing block of each fixed element inside it. */
     contain: layout;
 }
 .omn-page-content #omn-preview {
@@ -728,7 +694,7 @@ a.omn-taglink {
     flex: 1;
     min-height: 0;
     width: 100%;
-    overflow-y: auto;    /* scroll if content overflows */
+    overflow-y: auto;
 }
 
 #omn-editor-text {
@@ -748,11 +714,11 @@ a.omn-taglink {
     flex: 1;
     min-height: 0;
     width: 100%;
-    resize: vertical;    /* allow manual resize if desired */
+    resize: vertical;
     box-sizing: border-box;
 }
 
-/* -- Metadata panel -- */
+/* Metadata panel */
 .omn-metadata-panel {
     background: var(--omn-bg-metadata);
     padding: 15px;
@@ -763,12 +729,8 @@ a.omn-taglink {
     border-radius: 4px;
     font-size: 13px;
 }
-/* The two parts of the panel: the metadata at the left, the controls in a
-   column at the right (see the metadata panel builder in omn-go-share.js).
-   The column holds each control under the control before it, so a new control
-   makes the column longer and leaves the width of the metadata alone. Until
-   26.08.53 the controls were in the "File:" line, and each new control took
-   width from the name of the note. */
+/* The metadata is at the left, and a column of controls is at the right. A
+   new control makes the column longer and takes no width from the metadata. */
 .omn-metadata-layout {
     display: flex;
     align-items: flex-start;
@@ -784,9 +746,6 @@ a.omn-taglink {
     flex-direction: column;
     gap: 6px;
 }
-/* The "File:" line, and the status text of the controls. The color and the
-   rule under it were inline "#0056b3" and "#ccc" until 26.08.37 - unthemed,
-   so the line was nearly invisible on the dark theme. */
 .omn-metadata-file-row {
     display: flex;
     align-items: center;
@@ -797,11 +756,8 @@ a.omn-taglink {
     color: var(--omn-accent);
     font-weight: bold;
 }
-/* A long value gets a hanging indent: the first line starts at the left
-   margin, and each line after it is indented. The name of the key thus stays
-   the only text at the left edge, and the eye finds the next key. A long word
-   with no space in it - a URL in a Tags line, for example - breaks instead of
-   pushing the panel wider. */
+/* A long value gets a hanging indent, thus each key stays alone at the left
+   edge. A long word, for example a URL, breaks and does not widen the panel. */
 .omn-metadata-file-name {
     flex: 1 1 auto;
     min-width: 0;
@@ -839,10 +795,8 @@ a.omn-taglink {
     overflow-wrap: anywhere;
 }
 
-/* -- The receive box on the incoming index (templates/incoming_index.md).
-   The note is user-owned markdown, so these rules are here rather than in
-   the note: a user who edits the note keeps the styling, and a user who
-   deletes the box takes nothing else with it. -- */
+/* The receive box of the incoming index (templates/incoming_index.md). The
+   rules are here, because the note belongs to the user. */
 .omn-incoming {
     border: 1px dashed var(--omn-border-strong);
     border-radius: 6px;
@@ -855,9 +809,7 @@ a.omn-taglink {
     border-color: var(--omn-accent);
     background: var(--omn-bg-hover);
 }
-/* The box is a <details>, closed on load: the reason to open the Incoming
-   notes page is the list, not the control. The summary is the whole
-   affordance, so it takes the pointer and the open/closed spacing. */
+/* The box is a closed <details>. A reader opens the page for the list. */
 .omn-incoming-head {
     font-weight: bold;
     color: var(--omn-text-heading);
@@ -870,10 +822,7 @@ details.omn-incoming > summary.omn-incoming-head {
 details.omn-incoming[open] > summary.omn-incoming-head {
     margin-bottom: 6px;
 }
-/* The date on each list line. Smaller and quieter than the note's own title,
-   which is what a reader is looking for; the date only says how recent it
-   is. addIncomingIndexLine (backend/internal/exchange/exchange.go) writes
-   it. */
+/* The date of a line. addIncomingIndexLine in internal/exchange writes it. */
 .omn-incoming-when {
     font-size: 0.8em;
     color: var(--omn-text-muted);
@@ -919,40 +868,27 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     color: var(--omn-danger);
 }
 
-/* ==========================================================================
-   6. Components (overlays, modals, panels, buttons)
-   ========================================================================== */
+/* ===== 6. Overlays, modals, panels and buttons ===== */
 
 .omn-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: var(--omn-overlay-bg);
-    display: none;   /* JS switches to flex when shown */
+    display: none;   /* a script sets display: flex */
     align-items: center;
     justify-content: center;
     z-index: 50;
 }
 
-/* The two sync conflict modals (modals.html). The other overlays are shown
-   by JS with style.display. These two are driven by the .omn-hidden class
-   alone. See window.runSync and window.performSync in omn-go-sync.js.
-
-   BOTH IDS MUST STAY IN THIS RULE. 26.08.58 added #omn-push-conflict-modal to
-   modals.html and to the JS, and it added no rule here. .omn-overlay sets
-   display:none, thus a removal of .omn-hidden left that modal invisible. The
-   element was in the page, so the confirm() fallback of runSync did not run
-   either. The same commit removed the force checkbox of the header. A
-   rejected push therefore gave the reader nothing at all, from 26.08.58 to
-   26.09.55. TestAnOverlayHiddenByClassCanBeShownAgain keeps the two files
-   in agreement. */
+/* The two sync conflict modals of modals.html. The .omn-hidden class alone
+   shows them, and .omn-overlay sets display: none. Thus each id must be in
+   this rule. TestAnOverlayHiddenByClassCanBeShownAgain holds this. */
 #omn-conflict-modal:not(.omn-hidden),
 #omn-push-conflict-modal:not(.omn-hidden) {
     display: flex;
 }
 
-/* Conflict modal file list: the files in contention (populated by
-   populateConflictFiles in omn-go-api.js) - exactly what "Mark Conflicts"
-   would inject markers into. Scrolls when there are many. */
+/* populateConflictFiles in omn-go-api.js fills this list. */
 .omn-conflict-files {
     text-align: left;
     margin-bottom: 10px;
@@ -1041,10 +977,8 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     background: var(--omn-danger);
 }
 
-/* -- Bookmark "Tags" autocomplete (see wireBookmarkTagAutocomplete in
-   omn-go-bookmark.js). The wrapper takes over the margin-bottom that
-   ".omn-panel input" normally provides, so #omn-bm-tags itself is zeroed out -
-   otherwise the gap would be doubled. -- */
+/* The tag field of the bookmark panel. The wrapper takes the bottom margin of
+   ".omn-panel input", thus the field has none. */
 .omn-panel .omn-tag-input-wrap {
     position: relative;
     margin-bottom: 10px;
@@ -1077,8 +1011,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     background: var(--omn-bg-hover);
 }
 
-/* Shared by the result rows and the in-page highlight, so a match looks the
-   same wherever it is shown. */
+/* The result rows and the highlight in the page use the same mark. */
 mark.omn-search-hit {
     padding: 0 1px;
     color: var(--omn-search-hit-text);
@@ -1086,26 +1019,21 @@ mark.omn-search-hit {
     border-radius: 2px;
 }
 
-/* Used by Bookmarker.js when a search result links straight to one entry -
-   the same ring the in-page highlighter puts on the hit it scrolled to, so
-   "this is the one you were sent to" looks the same everywhere. */
+/* Bookmarker.js marks the entry that a search result opens. */
 li.omn-search-hit-current {
     outline: 2px solid currentColor;
     outline-offset: 2px;
     border-radius: 3px;
 }
 
-/* The one that was scrolled to on arrival. A ring rather than a different
-   color: the reader landed mid-page and needs to know which of several
-   identical-looking marks the scroll was aimed at, without that mark reading
-   as a different KIND of match. currentColor picks up the surrounding text, so
-   it stays legible in every theme without a token of its own. */
+/* The match that the page scrolled to. A ring, not a new color, shows that
+   it is the same kind of match. currentColor follows the text color. */
 mark.omn-search-hit.omn-search-hit-current {
     outline: 2px solid currentColor;
     outline-offset: 1px;
 }
 
-/* -- Header action button accents. The hover keeps the color. -- */
+/* Header button colors. The hover keeps the color. */
 .omn-header-actions .omn-btn-create-page,
 .omn-header-actions .omn-btn-quick-note,
 .omn-header-actions .omn-btn-add-bookmark,
@@ -1127,27 +1055,19 @@ mark.omn-search-hit.omn-search-hit-current {
     color: var(--omn-on-accent);
 }
 
-/* -- Android-only controls (e.g. "add to home screen" shortcut) --
-   Hidden by default: there's no native shortcut API to call on
-   desktop, so these stay hidden until omn-go-core.js's applyPlatformUI()
-   (gated on the server-injected IS_ANDROID flag, see
-   internal/render/pages.go) reveals them. */
+/* Hidden by default. applyPlatformUI in omn-go-core.js shows these controls
+   on Android. */
 .omn-android-only {
     display: none;
 }
 
-/* The bare .omn-android-only rule above is specificity 0-1-0, and every control
-   in the header bar is also matched by ".omn-header-actions a, .omn-header-actions
-   button" (0-1-1), which sets display:flex - so "Add to home screen" was
-   visible in the DESKTOP header too, where the add-shortcut action has no
-   native shell to ask. This selector restores "hidden by default" for the
-   header case. On Android, applyPlatformUI (omn-go-core.js) sets an
-   explicit inline display on the element, which beats both rules. */
+/* ".omn-header-actions button" sets display: flex and is more specific than
+   the rule above. This rule hides the control in the header again. */
 .omn-header-actions .omn-android-only {
     display: none;
 }
 
-/* -- Editing controls -- */
+/* Editing controls */
 .omn-btn-metadata-toggle {
     display: block;
     background: var(--omn-info);
@@ -1155,15 +1075,9 @@ mark.omn-search-hit.omn-search-hit-current {
     border: none;
 }
 
-/* -- Progress overlay --
-   Shown while the server is doing something the user has to wait for (git
-   sync, database backup/restore, a slow page load). Driven entirely by
-   window.OMNProgress in omn-go-core.js, which builds the markup on first
-   use, so a page that never reports progress carries none of this DOM.
-   The bar is indeterminate by default and becomes determinate only where a
-   real total is known (see OMNProgress.percent). Deliberately does NOT
-   block pointer events on the page beneath: a sync stuck on a bad SSH key
-   must not lock the UI. */
+/* Progress overlay. window.OMNProgress in omn-go-core.js makes the markup on
+   first use. The overlay does not stop pointer events, because a sync that
+   waits on a bad SSH key must not lock the page. */
 .omn-progress-overlay {
     position: fixed;
     inset: 0;
@@ -1230,9 +1144,8 @@ mark.omn-search-hit.omn-search-hit-current {
     border-radius: 3px;
     background: var(--omn-accent);
 }
-/* Indeterminate: a short bar sweeping the track. translateX percentages are
-   relative to the FILL's own width (40% of the track), so -100% parks it
-   just off the left edge and 250% carries it just past the right. */
+/* A translateX percentage is relative to the fill, which is 40% of the track.
+   -100% puts the fill left of the track, and 250% puts it right of it. */
 .omn-progress-track.omn-indeterminate .omn-progress-fill {
     width: 40%;
     animation: omn-progress-sweep 1.2s ease-in-out infinite;
@@ -1263,23 +1176,9 @@ mark.omn-search-hit.omn-search-hit-current {
     }
 }
 
-/* -- Start-page buttons --
-   The two large entry points ("My Quick Notes", "My Bookmarks") at the top
-   of the start page. They are plain <a> elements written in the Markdown
-   source of Welcome.md, NOT page chrome: a user who does not want them
-   deletes the block from the note. The classes live here so that the note
-   stays short and so that both themes stay correct without inline colors.
-
-   The card colors are their own tokens (--omn-start-notes-bg,
-   --omn-start-bookmarks-bg, --omn-start-btn-text in section 1) rather than --omn-accent
-   and --omn-info: the dark palette lightens --omn-accent to #4d9fff, which is a
-   good link color on a dark background but leaves too little contrast under
-   white label text on a filled card. Hover uses a brightness filter, so it
-   needs no token of its own in either theme.
-
-   One column by default - a full-width target is the easy one to press on
-   a phone - and two columns from 700px up, where a full-width button only
-   looks stretched. */
+/* The two start buttons of Welcome.md. The note holds the markup. The cards
+   have their own tokens, because the dark --omn-accent is too light under
+   white text. One column on a phone, two columns from 700px. */
 .omn-start-buttons {
     display: flex;
     flex-direction: column;
@@ -1298,7 +1197,7 @@ mark.omn-search-hit.omn-search-hit-current {
     background: var(--omn-start-notes-bg);
     color: var(--omn-start-btn-text);
     text-decoration: none;
-    text-indent: 0;      /* #omn-preview p sets 1em - see .material-icons above */
+    text-indent: 0;      /* "#omn-preview p" sets an indent */
     box-shadow: 0 2px 4px var(--omn-shadow);
 }
 
@@ -1343,9 +1242,7 @@ mark.omn-search-hit.omn-search-hit-current {
     }
 }
 
-/* ==========================================================================
-   7. Panel pages (Config, Status, Log, the error pages)
-   ========================================================================== */
+/* ===== 7. Panel pages ===== */
 
 .omn-config-panel {
     max-width: 600px;
@@ -1467,11 +1364,8 @@ mark.omn-search-hit.omn-search-hit-current {
     margin-top: 20px;
 }
 
-/* ==========================================================================
-   8. JS console
-   ==========================================================================
-   Deliberately NOT themed: a terminal-style console is dark in both
-   themes, matching its green-on-black identity. */
+/* ===== 8. JS console ===== */
+/* By default the console is dark in both themes. */
 
 .omn-console-modal {
     display: none;
@@ -1557,11 +1451,9 @@ mark.omn-search-hit.omn-search-hit-current {
 .omn-icon-sm { font-size: 18px; }
 .omn-icon-xs { font-size: 16px; margin-right: 4px; }
 
-/* ==========================================================================
-   9. Markdown content (tables, TOC, paragraph style)
-   ========================================================================== */
+/* ===== 9. Markdown content ===== */
 
-/* -- Table of contents box -- */
+/* Table of contents */
 #omn-toc {
     border: solid var(--omn-text) 1px;
     margin: 10px;
@@ -1581,7 +1473,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .omn-toc-level5 { font-weight: bold; margin-left: 1em; }
 .omn-toc-level6 { font-weight: bold; margin-left: 1.5em; }
 
-/* -- Tables (legacy common.css look, tokenized) -- */
+/* Tables */
 #omn-content table {
     border-collapse: collapse;
 }
@@ -1603,24 +1495,20 @@ mark.omn-search-hit.omn-search-hit-current {
     color: var(--omn-table-text);
 }
 
-/* -- Paragraph indent (legacy style) -- */
+/* Paragraph indent */
 #omn-preview p {
     text-indent: 1em;
     margin: 0 3px;
 }
 
-/* -- Imported/dropped images -- */
+/* Imported images */
 .omn-imported-image {
     max-width: 85vw;
     padding-left: 5vw;
 }
 
-/* -- Code blocks (hljs) - the vendor theme (highlight.default.min.css)
-   ships light colors only. These rules substitute the --code-* design
-   tokens from section 1, so fenced ``` blocks follow light / dark / auto
-   like the rest of the page. Light token values equal the vendor theme,
-   so the light look is unchanged; the higher specificity beats the vendor
-   rules without !important. -- */
+/* Code blocks. The highlight.js theme has light colors only. These rules use
+   the --omn-code-* tokens, and they are more specific than the theme. */
 #omn-preview pre code.hljs {
     background: var(--omn-code-bg);
     color: var(--omn-code-text);
@@ -1656,21 +1544,15 @@ mark.omn-search-hit.omn-search-hit-current {
 #omn-preview pre code.hljs .hljs-tag .hljs-name { color: var(--omn-code-tag-name); }
 #omn-preview pre code.hljs .hljs-tag .hljs-attr { color: var(--omn-code-tag-attr); }
 
-/* ==========================================================================
-   10. Utilities
-   ========================================================================== */
+/* ===== 10. Color marks ===== */
 
-/* Explicit color utilities used inside user notes: these are content
-   semantics (highlighting), not chrome, so they intentionally keep their
-   literal colors in both themes. */
+/* A note uses these marks. By default they have the same colors in both themes. */
 .omn-bg-yellow { background-color: var(--omn-mark-yellow); color: var(--omn-mark-ink); }
 .omn-bg-aqua   { background-color: var(--omn-mark-aqua);   color: var(--omn-mark-ink); }
 .omn-fg-red    { color: var(--omn-mark-red); }
 .omn-fg-green  { color: var(--omn-mark-green); }
 
-/* ==========================================================================
-   11. Responsive
-   ========================================================================== */
+/* ===== 11. Narrow screens ===== */
 
 @media (max-width: 600px) {
     .omn-panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }

@@ -20,10 +20,11 @@ package repocheck
 //
 // It reads a WHOLE LINE comment in a Go file, a JavaScript file and a
 // Java file. A comment at the end of a code line is short by nature, and
-// the scan steps over it.
+// the scan steps over it. In a CSS file it reads each block comment that
+// starts a line. See styleSource.
 //
-// It skips a file with the .min.js suffix. A vendored file is not ours
-// to write, and katex.min.js alone is 277 kilobytes.
+// It skips a file with the .min.js or the .min.css suffix. A vendored file
+// is not ours to write, and katex.min.js alone is 277 kilobytes.
 //
 // It skips a directory that a build makes, for example android/app/build.
 // A generated Java file is not ours to write either. The list of skipped
@@ -249,11 +250,11 @@ func commentStyleFiles(t *testing.T) []string {
 	var out []string
 	take := func(rel string) {
 		name := filepath.Base(rel)
-		if strings.HasSuffix(name, ".min.js") {
+		if strings.HasSuffix(name, ".min.js") || strings.HasSuffix(name, ".min.css") {
 			return
 		}
 		switch filepath.Ext(name) {
-		case ".go", ".js", ".java":
+		case ".go", ".js", ".java", ".css":
 			out = append(out, filepath.ToSlash(rel))
 		}
 	}
@@ -293,6 +294,43 @@ func commentStyleFiles(t *testing.T) []string {
 	return out
 }
 
+// cssBlockRe finds a block comment of a CSS file.
+var cssBlockRe = regexp.MustCompile(`(?s)/\*(.*?)\*/`)
+
+// styleSource answers the text of one source file for the comment scans.
+//
+// A CSS file has block comments only. styleSource writes each block
+// comment that starts a line as whole line comments, and it puts a code
+// line after each block. Thus two blocks never join into one paragraph.
+// A comment after a declaration is short by nature, and
+// the scan steps over it, the same as in a Go file.
+func styleSource(rel string) (string, error) {
+	src, err := readRepoFile(rel)
+	if err != nil || filepath.Ext(rel) != ".css" {
+		return src, err
+	}
+	return cssLineComments(src), nil
+}
+
+// cssLineComments writes each block comment of src that starts a line as
+// whole line comments. It drops each other line.
+func cssLineComments(src string) string {
+	var b strings.Builder
+	for _, m := range cssBlockRe.FindAllStringSubmatchIndex(src, -1) {
+		lineStart := strings.LastIndexByte(src[:m[0]], '\n') + 1
+		if strings.TrimSpace(src[lineStart:m[0]]) != "" {
+			continue
+		}
+		for _, line := range strings.Split(src[m[2]:m[3]], "\n") {
+			line = strings.TrimSpace(line)
+			line = strings.TrimSpace(strings.TrimPrefix(line, "*"))
+			b.WriteString("// " + line + "\n")
+		}
+		b.WriteString("x\n")
+	}
+	return b.String()
+}
+
 // No file may hold a comment style fault.
 //
 // The failure names the file and the count. Repair the comment. The
@@ -301,7 +339,7 @@ func commentStyleFiles(t *testing.T) []string {
 func TestNoCommentStyleFault(t *testing.T) {
 	read := 0
 	for _, rel := range commentStyleFiles(t) {
-		src, err := readRepoFile(rel)
+		src, err := styleSource(rel)
 		if err != nil {
 			t.Fatalf("cannot read %s: %v", rel, err)
 		}
@@ -542,6 +580,7 @@ func TestCommentStyleScanReachesEachTree(t *testing.T) {
 		"backend/internal/app/handlers.go",
 		"backend/internal/app/handlers_test.go",
 		"backend/frontend/html/js/OMN-Go/omn-go-core.js",
+		"backend/frontend/html/css/OMN-Go/omn-go-core.css",
 		"backend/frontend/test/header.test.js",
 		"android/app/src/main/java/net/basov/omngo/MainActivity.java",
 		"android/test/java/net/basov/omngo/OmnConfigTest.java",
@@ -556,8 +595,8 @@ func TestCommentStyleScanReachesEachTree(t *testing.T) {
 		}
 	}
 	for _, f := range files {
-		if strings.HasSuffix(f, ".min.js") {
-			t.Errorf("the scan reached the vendored script %s", f)
+		if strings.HasSuffix(f, ".min.js") || strings.HasSuffix(f, ".min.css") {
+			t.Errorf("the scan reached the vendored file %s", f)
 		}
 	}
 }
@@ -607,7 +646,7 @@ func countCommentVersions(src string, blocks bool) int {
 func TestNoVersionNumberInComments(t *testing.T) {
 	read := 0
 	for _, rel := range commentStyleFiles(t) {
-		src, err := readRepoFile(rel)
+		src, err := styleSource(rel)
 		if err != nil {
 			t.Fatalf("cannot read %s: %v", rel, err)
 		}
@@ -723,5 +762,28 @@ func TestCommentShare(t *testing.T) {
 	if commentShareCeiling > commentShareTarget && share < commentShareCeiling-10 {
 		t.Errorf("the share is %d per mille, and the ceiling is %d. Lower commentShareCeiling to %d.",
 			share, commentShareCeiling, share+1)
+	}
+}
+
+// The CSS reader must give the scans each block comment that starts a
+// line, and no other text.
+func TestCSSCommentReaderFindsEachBlock(t *testing.T) {
+	src := ".a { color: red; } /* a comment after a declaration that is far too long for one sentence of the rule, and it goes on and on and on */\n" +
+		"/* One block; with a semicolon. */\n" +
+		".b { margin: 0; }\n" +
+		"    /* A block inside a rule, from 26.09.61. */\n" +
+		"/* Two lines\n   of one block. */\n"
+	got := cssLineComments(src)
+	want := "// One block; with a semicolon.\nx\n" +
+		"// A block inside a rule, from 26.09.61.\nx\n" +
+		"// Two lines\n// of one block.\nx\n"
+	if got != want {
+		t.Fatalf("cssLineComments gave\n%s\nwant\n%s", got, want)
+	}
+	if c := countCommentStyle(got); c.semicolon != 1 || c.long != 0 {
+		t.Errorf("the scan of the CSS comments counted %+v, want one semicolon", c)
+	}
+	if n := countCommentVersions(got, false); n != 1 {
+		t.Errorf("the version scan of the CSS comments counted %d, want 1", n)
 	}
 }

@@ -1,13 +1,5 @@
-/* The Status page, /OMNGoStatus.html.
+/* The Status page, /OMNGoStatus.html. */
 
-   Only templates/status_page.html loads this file, and a note page never
-   does. That is the same arrangement as omn-go-logs.css and
-   Bookmarker.css.
-
-   It was inline in that template until 26.09.61. */
-
-/* Each color comes from the design tokens in omn-go-core.css. This page
-   therefore follows the light, dark and auto theme, like each other page. */
 .omn-st-actions { display:flex; flex-wrap:wrap; gap:0.5em; margin:0.6em 0 1em 0; }
 .omn-st-btn {
     display:inline-flex; align-items:center; min-height:2.4em;
@@ -19,9 +11,8 @@
 .omn-st-btn[disabled] { opacity:0.5; cursor:default; }
 .omn-st-section { margin:0 0 1.2em 0; }
 .omn-st-section h3 { margin:0 0 0.3em 0; color:var(--omn-text-strong); font-size:1.05em; }
-/* The page body renders inside #omn-preview, where a table gets the markdown
-   look: a 2px blue border and striped rows. Those rules carry an id, so
-   these carry #omn-preview too. */
+/* "#omn-preview table" rules give a table a frame and stripes. These rules
+   also start with #omn-preview, thus they are as specific. */
 #omn-preview .omn-st-table { width:100%; border-collapse:collapse; border:0; }
 #omn-preview .omn-st-table td {
     padding:0.3em 0.4em; vertical-align:top; font-size:0.95em;

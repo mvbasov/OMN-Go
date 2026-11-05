@@ -1,12 +1,11 @@
-/* omn-go-config.css: the Config page. */
+/* The Config page. */
 
 .omn-config-form {
     margin-top: 20px;
 }
 
-/* -- Screen switching: the root menu and each settings group are sibling
-   .omn-config-screen blocks; exactly one carries .omn-active at a time (see the
-   hash-driven navigation in omn-go-config.js). -- */
+/* The menu and each group of settings are .omn-config-screen blocks. One of
+   them has .omn-active. omn-go-config.js sets it from the hash of the address. */
 .omn-config-screen {
     display: none;
 }
@@ -15,8 +14,7 @@
     display: block;
 }
 
-/* -- Root menu: full-width rows sized as comfortable touch targets
-   (Android WebView is the primary consumer of this page). -- */
+/* The menu. Each row is a large target for a finger. */
 .omn-config-menu {
     display: flex;
     flex-direction: column;
@@ -24,7 +22,7 @@
     margin-top: 20px;
 }
 
-/* -- Sub-screen header: back control + group title -- */
+/* The head of a group: the back control and the title */
 .omn-config-subhead {
     display: flex;
     align-items: center;
@@ -61,7 +59,7 @@
     color: var(--omn-text-strong);
 }
 
-/* -- Unsaved-changes cues (mirrors the editor's saved/unsaved dot) -- */
+/* Marks of a change that is not saved */
 .omn-config-menu-dirty {
     display: flex;
     align-items: center;
@@ -119,7 +117,7 @@
     color: var(--omn-text-faint);
 }
 
-/* -- Git server cards -- */
+/* Git servers */
 .omn-git-server-card {
     padding: 1rem;
     margin-bottom: 1rem;
@@ -159,8 +157,8 @@
     min-height: 60px;
 }
 
-/* The fingerprint of the server key is one long word. The line must break
-   at each character, or the word runs past the right edge of a phone. */
+/* The fingerprint of a server key is one long word. It breaks at each
+   character, thus it stays inside the screen of a phone. */
 .omn-git-server-hostkey {
     overflow-wrap: anywhere;
     word-break: break-all;

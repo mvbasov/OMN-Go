@@ -1,10 +1,8 @@
-/* omn-go-search.css: the search panel and the search page. omnLoadModule
-   loads it with omn-go-search.js. */
+/* The search panel and the search page. omnLoadModule loads this file with
+   omn-go-search.js. */
 
-/* -- Search overlay (omnSearchOpen in omn-go-api.js) --
-   Anchored to the top of the viewport rather than centred: results grow
-   downwards, and a panel that re-centres itself as the list changes length is
-   unusable to type into. */
+/* The search panel is at the top of the screen. The list of results grows
+   down, and the field stays in one place. */
 .omn-search-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -13,11 +11,11 @@
     align-items: flex-start;
     justify-content: center;
     padding: 8vh 12px 12px;
-    z-index: 70;                 /* above the modals (50) and progress (60) */
+    z-index: 70;                 /* above the modals (50) and the progress overlay (60) */
 }
 
 .omn-search-overlay[hidden] {
-    display: none;               /* [hidden] alone loses to display:flex */
+    display: none;               /* [hidden] alone loses to display: flex */
 }
 
 .omn-search-card {
@@ -42,12 +40,8 @@
     border-bottom: 1px solid var(--omn-border-soft);
 }
 
-/* The control that runs the search. Same glyph and same place as the submit
-   button of the results page (.omn-search-page-submit), and styled from the same
-   tokens, so the two read as one control in two places - only the shape
-   differs, because this one sits in a row of round icon buttons rather than
-   beside a full-width field. The dialog used to lead with a magnifier that
-   did nothing; it is gone, so the one on screen is the one to press. */
+/* The search button. It has the glyph and the tokens of the button of the
+   results page (.omn-search-page-submit). */
 .omn-search-go {
     display: flex;
     align-items: center;
@@ -67,12 +61,9 @@
     background: var(--omn-accent-hover);
 }
 
-/* The search dialog's own wait. It carries .omn-progress-track and
-   .omn-progress-fill (section 6) as well, so a wait looks the same here as
-   in the sync overlay - the indeterminate sweep and its reduced-motion
-   fallback come with them. Only the placement is local: a hairline directly
-   under the field that causes it, square and full width, so it reads as the
-   edge of the input filling up. */
+/* The progress bar of the panel. It also has .omn-progress-track and
+   .omn-progress-fill of the core stylesheet. Here it is a thin line under
+   the field. */
 .omn-search-progress {
     flex: 0 0 auto;
     height: 3px;
@@ -80,14 +71,14 @@
 }
 
 .omn-search-progress[hidden] {
-    display: none;               /* the card is a flex column - be explicit */
+    display: none;               /* the card is a flex column */
 }
 
 .omn-search-input {
     flex: 1 1 auto;
     min-width: 0;
     padding: 6px 4px;
-    font-size: 16px;             /* 16px stops iOS/WebView zooming on focus */
+    font-size: 16px;             /* 16px stops the zoom of a WebView on focus */
     color: var(--omn-text);
     background: transparent;
     border: none;
@@ -136,9 +127,7 @@
     white-space: nowrap;
 }
 
-/* A document heading in global scope: the note a group of snippets came from.
-   Page scope has no equivalent - there, every row is from the page you are
-   already looking at. */
+/* In global scope, the note of a group of results. */
 .omn-search-doc {
     display: flex;
     align-items: baseline;
@@ -179,8 +168,8 @@
     font-size: 11px;
 }
 
-/* Only clickable when there is a choice to make: with global search off the
-   scope row is a label, not a control. */
+/* A chip is a control only when there is a choice. With global search off,
+   the scope row is a label. */
 .omn-search-chip[role="button"] {
     cursor: pointer;
 }
@@ -225,8 +214,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* A hit inside a script or a fenced block. Marked, never ranked down: code
-   in notes is a normal thing to search for. */
+/* A match in a script or a code block. It gets a mark and keeps its rank. */
 .omn-search-ctx {
     flex: 0 0 auto;
     color: var(--omn-text-faint);
@@ -239,7 +227,7 @@
     min-width: 0;
     font-size: 13px;
     line-height: 1.4;
-    overflow-wrap: anywhere;     /* a long unbroken token must not widen the card */
+    overflow-wrap: anywhere;     /* a long word must not widen the card */
 }
 
 .omn-search-status {
@@ -250,12 +238,8 @@
     border-top: 1px solid var(--omn-border-soft);
 }
 
-/* "See all results", in the scope row rather than at the foot of the list.
-   margin-left:auto parks it at the far end, opposite the chips, so it reads as
-   a way out of the panel rather than as one more thing to search.
-
-   No display property here on purpose: setting one would beat [hidden]'s
-   display:none, and hidden is how it comes and goes with the query. */
+/* "See all results". The [hidden] attribute shows and hides it, thus this
+   rule sets no display value. */
 .omn-search-seeall {
     margin-left: auto;
     padding: 2px 8px;
@@ -280,9 +264,7 @@
     outline-offset: 1px;
 }
 
-/* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
-   The shareable, JS-free counterpart to the dialog. Same match styling, laid
-   out for reading rather than for speed. */
+/* The results page, /OMNGoSearch.html. It works without JavaScript. */
 .omn-search-page {
     max-width: 900px;
 }
@@ -371,11 +353,8 @@
     line-height: 1.45;
 }
 
-/* A snippet is an <a> that opens the note at this line (snippetURL in
-   internal/search/search.go). It must read as the line it shows, not as a
-   blue underlined link: the <mark> on the matched word is the only color
-   that belongs here. The hover band is the row's affordance, and it is the
-   same one the search dialog gives its rows. */
+/* A snippet is a link that opens the note at its line (snippetURL in
+   internal/search). It looks like text. Only the <mark> has a color. */
 a.omn-search-snippet {
     color: inherit;
     text-decoration: none;
@@ -417,9 +396,7 @@ a.omn-search-snippet:focus-visible {
     font-size: 12px;
 }
 
-/* The page you get when global search is off. It is not an error page - the
-   address is legitimate and people link to it from their own notes - so it
-   reads as an explanation with a way forward, not as a miss. */
+/* The page when global search is off. It explains how to turn search on. */
 .omn-search-page.omn-is-disabled .omn-search-page-form,
 .omn-search-page.omn-is-disabled .omn-search-page-summary {
     display: none;
@@ -439,8 +416,7 @@ a.omn-search-snippet:focus-visible {
     margin: 0 0 10px 0;
 }
 
-/* The one thing to do on this page, so it looks like a button rather than
-   another sentence with an underline in it. */
+/* The one action of the page looks like a button. */
 .omn-search-page-cta {
     display: inline-block;
     padding: 6px 12px;
@@ -474,8 +450,8 @@ a.omn-search-snippet:focus-visible {
     padding: 12px 0;
 }
 
-/* A section label standing in for a line number in the dialog: the same slot,
-   so rows stay aligned, but allowed to be wide enough for a bookmark title. */
+/* In the panel, a section label takes the place of a line number. It can be
+   as wide as a bookmark title. */
 .omn-search-line.omn-search-section {
     font-variant-numeric: normal;
     max-width: 14em;
@@ -484,9 +460,8 @@ a.omn-search-snippet:focus-visible {
     white-space: nowrap;
 }
 
-/* The section a run of hits belongs to, on the results page. Sits above its
-   snippets and indents them under it, so "which entry was this in" is answered
-   by the shape of the list rather than by reading each line. */
+/* On the results page, the section of a group of matches. The matches are
+   indented under it. */
 .omn-search-section {
     margin: 6px 0 2px 0;
     font-size: 0.85rem;
