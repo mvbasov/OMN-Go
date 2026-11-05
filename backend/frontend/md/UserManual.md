@@ -256,7 +256,8 @@ First line of the actual note...
 - `Title` sets the page title. OMN-Go shows this title in the browser tab and in the page header.
 - OMN-Go updates `Modified` on every save. You never edit this line.
 - `Tags` renders each tag as a pill in the page header. Press a pill to open that tag on the [Tags page](#the-tags-page), which OMN-Go generates automatically.
-- OMN-Go also makes a `<meta>` tag in the compiled page from each header line.
+- `Stylesheet` loads one more stylesheet for this page, for example `Stylesheet: css/my-page.css`. The path is below `html/`. Write one line for each stylesheet. Your `omn-go-custom.css` still loads after it.
+- OMN-Go also makes a `<meta>` tag in the compiled page from each other header line.
 - If you save a page with no header block, OMN-Go adds a minimal one. It contains `Title`, `Date`, `Modified`, and `Author` from your configuration.
 
 ## Markdown in a nutshell

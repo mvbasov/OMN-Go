@@ -26,12 +26,7 @@
     <div id="lgBody" class="lg-body">Loading…</div>
 </div>
 <!--
-  The stylesheet and the script of this page. Neither one is inline, thus
-  each note page carries no byte of them. See section 4 of CLAUDE.md.
-
-  The link sits in the body and not in the head, the same as the Bookmarks
-  note. A browser reads it after the head, thus a rule here wins against a
-  rule of omn-go-core.css at equal specificity.
+  The script of this page. The Stylesheet: line of the page header names
+  omn-go-logs.css. See serveLogsPage in internal/app/log_handlers.go.
 -->
-<link rel="stylesheet" type="text/css" href="/css/OMN-Go/omn-go-logs.css" />
 <script src="/js/OMN-Go/omn-go-logs.js"></script>

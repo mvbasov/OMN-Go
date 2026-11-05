@@ -282,3 +282,23 @@ func TestTemplatesHoldNoInlineHandler(t *testing.T) {
 		}
 	}
 }
+
+// A template holds no style block. A style block of a template goes to each
+// page that the template makes, and no other page can use it. Put the rules
+// in a stylesheet of the page, and name it with a Stylesheet: line or a link.
+func TestTemplatesHoldNoStyleBlock(t *testing.T) {
+	templates, err := frontend.Templates.ReadDir("templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range templates {
+		name := "templates/" + e.Name()
+		src, rerr := frontend.Templates.ReadFile(name)
+		if rerr != nil {
+			t.Fatal(rerr)
+		}
+		if strings.Contains(strings.ToLower(string(src)), "<style") {
+			t.Errorf("%s holds a style block. Move the rules to a stylesheet.", name)
+		}
+	}
+}

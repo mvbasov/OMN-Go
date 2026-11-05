@@ -174,6 +174,32 @@ func TestRenderIndexPageLoadsCustomAssetsLast(t *testing.T) {
 	}
 }
 
+// A Stylesheet: line of the header block loads a page stylesheet. The link
+// is in the head and before omn-go-custom.css, thus a rule of the user still
+// wins. The link uses the asset prefix, thus a note at any depth and an
+// exported page find the file. The line makes no meta tag.
+func TestStylesheetHeaderLoadsAPageStylesheet(t *testing.T) {
+	rd := Renderer{Generator: "g"}
+	page := string(rd.CompilePageWithBody("Status", PageHeader("Status", "System", "css/OMN-Go/omn-go-status.css"), "<p>x</p>"))
+	link := `<link rel="stylesheet" href="/css/OMN-Go/omn-go-status.css">`
+	at, custom, head := strings.Index(page, link), strings.Index(page, "css/omn-go-custom.css"), strings.Index(page, "</head>")
+	if at < 0 || at > custom || custom > head {
+		t.Errorf("the page stylesheet is not in the head before omn-go-custom.css:\n%s", page[:head])
+	}
+	if strings.Contains(page, `name="stylesheet"`) {
+		t.Error("the Stylesheet: line made a meta tag")
+	}
+
+	note := string(rd.CompilePage("dir/Note", []byte("Title: N\nStylesheet: /css/mine.css\n\nbody")))
+	if !strings.Contains(note, `<link rel="stylesheet" href="../css/mine.css">`) {
+		t.Error("a note in a directory does not reach its stylesheet with a relative path")
+	}
+	plain := string(rd.CompilePage("Plain", []byte("Title: P\n\nbody")))
+	if strings.Count(plain, `rel="stylesheet"`) != strings.Count(string(rd.CompilePage("Plain", []byte("body"))), `rel="stylesheet"`) {
+		t.Error("a note with no Stylesheet: line got a page stylesheet")
+	}
+}
+
 func TestRenderEditorPage(t *testing.T) {
 	out := RenderEditorPage(EditorPageView{
 		Title:   `Weird'Page"Name`,

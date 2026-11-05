@@ -22,7 +22,7 @@ var dbBackupsPageTmpl = render.LoadTemplate("db_backups.html")
 // of the Config page opens it. The page gets its data from GET
 // /api/db/backups, thus the template needs no render.Fill().
 func (svc Service) ServeBackupsPage(w http.ResponseWriter, r *http.Request) {
-	svc.RenderPage(w, http.StatusOK, "DB_Backups", render.PageHeader("Database Backups", "Settings"), dbBackupsPageTmpl)
+	svc.RenderPage(w, http.StatusOK, "DB_Backups", render.PageHeader("Database Backups", "Settings", "css/OMN-Go/omn-go-db.css"), dbBackupsPageTmpl)
 }
 
 // HandleBackupCreate answers POST /api/db/backup?db=NAME.

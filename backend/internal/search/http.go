@@ -355,7 +355,7 @@ func (svc Service) ServeSearchPage(w http.ResponseWriter, r *http.Request) {
 	// change that.
 	if !cfg.SearchEnabled {
 		body := renderSearchPage(searchPageView{Disabled: true})
-		svc.RenderPage(w, http.StatusOK, "Search", render.PageHeader("Search", "System"), body)
+		svc.RenderPage(w, http.StatusOK, "Search", render.PageHeader("Search", "System", "css/OMN-Go/omn-go-search.css"), body)
 		return
 	}
 
@@ -381,5 +381,5 @@ func (svc Service) ServeSearchPage(w http.ResponseWriter, r *http.Request) {
 		title = "Search: " + query
 	}
 	body := renderSearchPage(view)
-	svc.RenderPage(w, http.StatusOK, title, render.PageHeader(title, "System"), body)
+	svc.RenderPage(w, http.StatusOK, title, render.PageHeader(title, "System", "css/OMN-Go/omn-go-search.css"), body)
 }

@@ -79,6 +79,7 @@ function shellScripts() {
 //	requests   Each call of fetch: {url, method, body}.
 //	dialogs    Each alert, confirm and prompt: {kind, text}.
 //	loads      The src of each script element that a script added.
+//	styles     The href of each stylesheet link that a script added.
 //	streams    Each EventSource that a script opened.
 //	went       Each address that a script opened in place of this page.
 //	replaced   Each address of went that took this page out of the history.
@@ -168,7 +169,7 @@ function newDomPage(opts) {
     page.console = { log() {}, info() {}, warn() {}, error() {}, debug() {}, trace() {}, table() {}, dir() {}, time() {}, timeEnd() {} };
 
     const h = {
-        page: page, document: doc, requests: [], dialogs: [], loads: [], streams: [],
+        page: page, document: doc, requests: [], dialogs: [], loads: [], styles: [], streams: [],
         opened: [], clipboard: [], timers: [], went: [], replaced: [],
         // server answers one request. A test replaces it. The default is
         // a JSON success with no data.
@@ -229,8 +230,24 @@ function newDomPage(opts) {
     };
 
     // A script element that a script adds to the head is a lazy file. The
-    // page runs that file and then calls onload, the same as a browser.
+    // page runs that file and then calls onload, the same as a browser. A
+    // stylesheet link goes to h.styles, and it calls onload too.
     const appendToHead = doc.head.appendChild.bind(doc.head);
+    const insertIntoHead = doc.head.insertBefore.bind(doc.head);
+    function loadStyle(el) {
+        if (el.tagName === 'LINK' && el.getAttribute('rel') === 'stylesheet') {
+            h.styles.push(el.getAttribute('href'));
+            setTimeout(function () {
+                if (typeof el.onload === 'function') el.onload();
+            }, 0);
+        }
+    }
+    doc.head.insertBefore = function (el, before) {
+        insertIntoHead(el, before);
+        loadStyle(el);
+        return el;
+    };
+    // appendChild of mini-dom calls insertBefore, thus loadStyle runs there.
     doc.head.appendChild = function (el) {
         appendToHead(el);
         if (el.tagName === 'SCRIPT' && el.getAttribute('src')) {

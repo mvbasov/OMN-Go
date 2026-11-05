@@ -103,7 +103,7 @@ func (a *App) handleEditExternal(w http.ResponseWriter, r *http.Request) {
 	if isPage {
 		viewURL = baseName + ".html"
 	}
-	header := fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\n\n",
+	header := fmt.Appendf(nil, "Title: Refresh %s\nDate: %s\nCategory: Action\nStylesheet: css/OMN-Go/omn-go-external.css\n\n",
 		name, noteheader.Stamp(time.Now()))
 	a.renderPage(w, http.StatusOK, name, header, a.getExternalEditPageBody(name, viewURL))
 }

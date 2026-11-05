@@ -11,8 +11,12 @@ import (
 )
 
 // PageHeader is the header block of a page that the server makes.
-func PageHeader(title, category string) []byte {
-	return []byte("Title: " + title + "\nCategory: " + category + "\n\n")
+func PageHeader(title, category string, stylesheets ...string) []byte {
+	h := "Title: " + title + "\nCategory: " + category + "\n"
+	for _, s := range stylesheets {
+		h += "Stylesheet: " + s + "\n"
+	}
+	return []byte(h + "\n")
 }
 
 // --- The page shell (index.html) ---
@@ -45,6 +49,7 @@ type IndexPageView struct {
 	IsAndroid   bool
 	AssetPrefix string // "", "../", "../../", … or "/" — see CompilePageWithBody
 	MetaTags    []MetaTagView
+	Stylesheets []string // the Stylesheet: lines of the header block
 	Tags        []string
 	PreviewHTML string
 }
@@ -54,6 +59,15 @@ func RenderIndexPage(v IndexPageView) string {
 	for _, m := range v.MetaTags {
 		fmt.Fprintf(&metaTags, "    <meta name=\"%s\" content=\"%s\" />\n",
 			EscapeHTML(m.Name), EscapeHTML(m.Value))
+	}
+
+	// A page stylesheet goes before omn-go-custom.css, thus a rule of the
+	// user still wins. The path is below html/, and the prefix makes it work
+	// at each depth and through file://.
+	var styles strings.Builder
+	for _, s := range v.Stylesheets {
+		fmt.Fprintf(&styles, "    <link rel=\"stylesheet\" href=\"%s%s\">\n",
+			v.AssetPrefix, EscapeHTML(strings.TrimPrefix(s, "/")))
 	}
 
 	condScripts := ""
@@ -84,6 +98,7 @@ func RenderIndexPage(v IndexPageView) string {
 		// needs no escape.
 		"ASSET_PREFIX": v.AssetPrefix,
 		"META_TAGS":    metaTags.String(),
+		"PAGE_STYLES":  styles.String(),
 		"COND_SCRIPTS": condScripts,
 		"TAGS_HTML":    tags.String(),
 		"PREVIEW_BODY": v.PreviewHTML,

@@ -41,7 +41,7 @@ var logsPageTmpl = render.LoadTemplate("logs_page.html")
 // Android has no terminal. Without this page, a person on a phone needs adb
 // logcat, or a second browser at the history endpoint.
 func (a *App) serveLogsPage(w http.ResponseWriter, r *http.Request) {
-	a.renderPage(w, http.StatusOK, "Log", render.PageHeader("Log", "System"), logsPageTmpl)
+	a.renderPage(w, http.StatusOK, "Log", render.PageHeader("Log", "System", "css/OMN-Go/omn-go-logs.css"), logsPageTmpl)
 }
 
 // handleLogHistory answers the ring of the last logx.HistoryCap lines, oldest

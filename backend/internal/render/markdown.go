@@ -245,6 +245,7 @@ func (rd *Renderer) CompilePageWithBody(name string, mdContent []byte, customBod
 		title = rawTitle
 	}
 	var metaTags []MetaTagView
+	var stylesheets []string
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) != 2 {
@@ -252,6 +253,10 @@ func (rd *Renderer) CompilePageWithBody(name string, mdContent []byte, customBod
 		}
 		k := strings.ToLower(strings.TrimSpace(parts[0]))
 		v := strings.TrimSpace(parts[1])
+		if k == "stylesheet" {
+			stylesheets = append(stylesheets, v)
+			continue
+		}
 		// RenderIndexPage escapes each meta name and value for the attribute.
 		metaTags = append(metaTags, MetaTagView{Name: k, Value: v})
 	}
@@ -291,6 +296,7 @@ func (rd *Renderer) CompilePageWithBody(name string, mdContent []byte, customBod
 		IsAndroid:   runtime.GOOS == "android",
 		AssetPrefix: assetPrefix,
 		MetaTags:    metaTags,
+		Stylesheets: stylesheets,
 		Tags:        tags,
 		PreviewHTML: renderedBody,
 	}

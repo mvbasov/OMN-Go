@@ -1,0 +1,508 @@
+/* omn-go-search.css: the search panel and the search page. omnLoadModule
+   loads it with omn-go-search.js. */
+
+/* -- Search overlay (omnSearchOpen in omn-go-api.js) --
+   Anchored to the top of the viewport rather than centred: results grow
+   downwards, and a panel that re-centres itself as the list changes length is
+   unusable to type into. */
+.omn-search-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--overlay-bg);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8vh 12px 12px;
+    z-index: 70;                 /* above the modals (50) and progress (60) */
+}
+
+.omn-search-overlay[hidden] {
+    display: none;               /* [hidden] alone loses to display:flex */
+}
+
+.omn-search-card {
+    width: 100%;
+    max-width: 640px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px var(--shadow-strong);
+    overflow: hidden;
+}
+
+.omn-search-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+/* The control that runs the search. Same glyph and same place as the submit
+   button of the results page (.search-page-submit), and styled from the same
+   tokens, so the two read as one control in two places - only the shape
+   differs, because this one sits in a row of round icon buttons rather than
+   beside a full-width field. The dialog used to lead with a magnifier that
+   did nothing; it is gone, so the one on screen is the one to press. */
+.omn-search-go {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.omn-search-go:hover {
+    background: var(--accent-hover);
+}
+
+/* The search dialog's own wait. It carries .omn-progress-track and
+   .omn-progress-fill (section 6) as well, so a wait looks the same here as
+   in the sync overlay - the indeterminate sweep and its reduced-motion
+   fallback come with them. Only the placement is local: a hairline directly
+   under the field that causes it, square and full width, so it reads as the
+   edge of the input filling up. */
+.omn-search-progress {
+    flex: 0 0 auto;
+    height: 3px;
+    border-radius: 0;
+}
+
+.omn-search-progress[hidden] {
+    display: none;               /* the card is a flex column - be explicit */
+}
+
+.omn-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 4px;
+    font-size: 16px;             /* 16px stops iOS/WebView zooming on focus */
+    color: var(--text);
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+.omn-search-close {
+    flex: 0 0 auto;
+    padding: 2px;
+    color: var(--text-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.omn-search-close:hover {
+    color: var(--text);
+}
+
+.omn-search-scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 12px;
+}
+
+.omn-search-chip {
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+}
+
+.omn-search-chip.is-active {
+    color: var(--bg-surface);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.omn-search-where {
+    color: var(--text-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A document heading in global scope: the note a group of snippets came from.
+   Page scope has no equivalent - there, every row is from the page you are
+   already looking at. */
+.omn-search-doc {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 12px 4px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.omn-search-doc:hover {
+    background: var(--bg-hover);
+}
+
+.omn-search-doc-title {
+    flex: 0 1 auto;
+    font-weight: 600;
+    color: var(--text-strong);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.omn-search-doc-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.omn-search-note {
+    padding: 4px 12px 8px;
+    color: var(--text-faint);
+    font-size: 11px;
+}
+
+/* Only clickable when there is a choice to make: with global search off the
+   scope row is a label, not a control. */
+.omn-search-chip[role="button"] {
+    cursor: pointer;
+}
+
+.omn-search-chip[role="button"]:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.omn-search-chip.is-active[role="button"]:hover {
+    color: var(--bg-surface);
+}
+
+.omn-search-results {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+}
+
+.omn-search-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.omn-search-row:hover,
+.omn-search-row.is-active {
+    background: var(--bg-hover);
+}
+
+.omn-search-line {
+    flex: 0 0 auto;
+    min-width: 2.5em;
+    text-align: right;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A hit inside a script or a fenced block. Marked, never ranked down: code
+   in notes is a normal thing to search for. */
+.omn-search-ctx {
+    flex: 0 0 auto;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: -1px;
+}
+
+.omn-search-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;     /* a long unbroken token must not widen the card */
+}
+
+.omn-search-status {
+    flex: 0 0 auto;
+    padding: 7px 12px;
+    color: var(--text-faint);
+    font-size: 12px;
+    border-top: 1px solid var(--border-soft);
+}
+
+/* "See all results", in the scope row rather than at the foot of the list.
+   margin-left:auto parks it at the far end, opposite the chips, so it reads as
+   a way out of the panel rather than as one more thing to search.
+
+   No display property here on purpose: setting one would beat [hidden]'s
+   display:none, and hidden is how it comes and goes with the query. */
+.omn-search-seeall {
+    margin-left: auto;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.omn-search-seeall:hover {
+    border-color: var(--border);
+    background: var(--bg-hover);
+}
+
+.omn-search-seeall:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* -- Search results page (/OMNGoSearch.html, serveSearchPage) --
+   The shareable, JS-free counterpart to the dialog. Same match styling, laid
+   out for reading rather than for speed. */
+.search-page {
+    max-width: 900px;
+}
+
+.search-page-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.search-page-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 16px;
+    color: var(--text);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.search-page-submit {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.search-page-submit:hover {
+    background: var(--accent-hover);
+}
+
+.search-page-summary {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.search-page-note {
+    color: var(--text-faint);
+}
+
+.search-group {
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    font-size: 15px;
+    color: var(--text-heading);
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.search-group-count {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: normal;
+}
+
+.search-result {
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.search-result-title {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.search-result-path {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.search-result-tags {
+    margin-bottom: 4px;
+}
+
+.search-snippet {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+/* A snippet is an <a> that opens the note at this line (snippetURL in
+   internal/search/search.go). It must read as the line it shows, not as a
+   blue underlined link: the <mark> on the matched word is the only color
+   that belongs here. The hover band is the row's affordance, and it is the
+   same one the search dialog gives its rows. */
+a.search-snippet {
+    color: inherit;
+    text-decoration: none;
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: 0 -4px;
+}
+
+a.search-snippet:hover,
+a.search-snippet:focus-visible {
+    background: var(--bg-hover);
+}
+
+.search-snippet-line {
+    flex: 0 0 auto;
+    min-width: 3em;
+    text-align: right;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.search-snippet-ctx {
+    flex: 0 0 auto;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: -1px;
+}
+
+.search-snippet-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.search-result-note,
+.search-empty-hint {
+    color: var(--text-faint);
+    font-size: 12px;
+}
+
+/* The page you get when global search is off. It is not an error page - the
+   address is legitimate and people link to it from their own notes - so it
+   reads as an explanation with a way forward, not as a miss. */
+.search-page.is-disabled .search-page-form,
+.search-page.is-disabled .search-page-summary {
+    display: none;
+}
+
+.search-page-notice {
+    padding: 8px 0 4px 0;
+    max-width: 46em;
+}
+
+.search-page-notice h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.15rem;
+}
+
+.search-page-notice p {
+    margin: 0 0 10px 0;
+}
+
+/* The one thing to do on this page, so it looks like a button rather than
+   another sentence with an underline in it. */
+.search-page-cta {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.search-page-cta:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+.search-page-notice .search-page-note {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.search-page-notice kbd {
+    padding: 1px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-inset);
+    font-family: inherit;
+    font-size: 0.85em;
+}
+
+.search-empty {
+    padding: 12px 0;
+}
+
+/* A section label standing in for a line number in the dialog: the same slot,
+   so rows stay aligned, but allowed to be wide enough for a bookmark title. */
+.omn-search-line.omn-search-section {
+    font-variant-numeric: normal;
+    max-width: 14em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The section a run of hits belongs to, on the results page. Sits above its
+   snippets and indents them under it, so "which entry was this in" is answered
+   by the shape of the list rather than by reading each line. */
+.search-section {
+    margin: 6px 0 2px 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.search-section a {
+    text-decoration: none;
+}
+
+.search-section a:hover {
+    text-decoration: underline;
+}
+
+.search-section + .search-snippet,
+.search-section ~ .search-snippet {
+    margin-left: 10px;
+}

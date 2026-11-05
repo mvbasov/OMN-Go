@@ -1,0 +1,249 @@
+/* omn-go-files.css: the Files page (/OMNGoFiles.html). */
+
+/* -- Directory index (/OMNGoFiles.html) --
+   Built to read like a browser's file:/// listing: one directory at a time, a
+   breadcrumb above it, one row per entry. Every color comes from a token, so
+   the page follows the theme without a dark-mode block of its own. */
+.files-page {
+    padding: 4px 0 16px;
+}
+
+/* -- The first screen: one button per tree -- */
+/* One column at EVERY width, on purpose. A wide screen gets a narrower page
+   rather than three columns: one layout to build, one to test, and each target
+   stays the size of a thumb. The pattern is the start-page button of Welcome
+   (.omn-start-button), with its own classes because this page is server-built
+   markup and that one is written in a note. */
+.files-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 46em;
+    margin: 4px 0 8px;
+}
+
+.files-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-sizing: border-box;
+    min-height: 72px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: var(--start-notes-bg);
+    color: var(--start-btn-text);
+    text-decoration: none;
+    text-indent: 0;
+    box-shadow: 0 2px 4px var(--shadow);
+}
+
+.files-card:hover,
+.files-card:focus {
+    filter: brightness(1.12);
+}
+
+.files-card-served { background: var(--start-bookmarks-bg); }
+
+.files-card-source { background: #4c6b8a; }
+
+:root[data-theme="dark"] .files-card-source { background: #3f5a75; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) .files-card-source,
+    :root[data-theme="auto"] .files-card-source { background: #3f5a75; }
+}
+
+.files-card-icon {
+    font-size: 34px;
+    flex: 0 0 auto;
+}
+
+.files-card-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.files-card-title { font-size: 17px; font-weight: 600; }
+
+.files-card-where { font-size: 12px; opacity: 0.9; }
+
+.files-card-count { font-size: 11px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+
+/* -- The way back up -- */
+/* Each crumb carries its own trailing slash and NOTHING is written between
+   two of them, so the trail reads as the path it is: html/js/ . Until 26.08.53
+   the labels held a slash AND a separator span went between them, which made
+   the crumb of html/js/ read "html/ / js/". */
+.files-crumbs {
+    margin-bottom: 4px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.files-crumbs a {
+    text-decoration: none;
+}
+
+.files-crumbs a:hover {
+    text-decoration: underline;
+}
+
+.files-crumb-here {
+    font-weight: 600;
+    color: var(--text-strong);
+}
+
+/* The totals of the subtree, then how many rows of THIS directory are worth a
+   second look. The wording keeps the two apart: "below" belongs to the totals. */
+.files-summary {
+    margin: 2px 0 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The key: folded by default, and it lists only the words that this directory
+   actually uses. On a real installation most screens use one word or none, so
+   the key is for the reader who meets a word for the first time. <details> is
+   the browser's own control - no script, and it stays open while the page
+   lives. */
+.files-legend {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.files-legend > summary {
+    width: fit-content;
+    padding: 2px 0;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.files-legend > summary:hover {
+    color: var(--accent);
+}
+
+.files-legend > div {
+    padding: 1px 0 1px 14px;
+}
+
+.files-legend b { font-weight: 600; }
+
+.files-empty,
+.files-more {
+    padding: 6px 0;
+    color: var(--text-faint);
+    font-size: 13px;
+}
+
+.files-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* -- One row, two lines -- */
+/* The name owns the first line and shares it with one word: what the file is.
+   The facts go on the second line. Two lines is deliberate at every width, and
+   it replaces the one-line row of 26.08.53, where the facts and the name
+   competed for the same space and a long name broke one character per line on
+   a phone. */
+.files-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 1px 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.files-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.files-name a {
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.files-name a:hover {
+    text-decoration: underline;
+}
+
+/* Directories are the navigation on this page, so they are the one thing that
+   looks heavier than a file. */
+.files-dir .files-name a {
+    font-weight: 600;
+}
+
+/* What the file IS, as a type mark. Every ligature used here is in the bundled
+   subset of the icon font, so the column costs no new asset. */
+.files-kind {
+    font-size: 16px;
+    color: var(--text-dim);
+    flex: 0 0 auto;
+}
+
+.files-state {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.files-facts {
+    flex: 1 0 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-left: 22px;   /* under the name, clear of the type mark */
+}
+
+.files-size,
+.files-meta {
+    flex: 0 0 auto;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Colour says what HAPPENS to a file, and only that. The word beside it says
+   what the file is, and "app-owned" is written out on the second line of every
+   row it applies to - color is a hint, never the carrier. */
+.files-c-app     { color: var(--file-app); }
+
+.files-c-alert   { color: var(--file-alert); }
+
+.files-c-keep    { color: var(--file-keep); }
+
+.files-c-derived { color: var(--file-derived); }
+
+.files-c-plain   { color: var(--file-plain); }
+
+/* Only where editing a file in place makes sense - never for images, fonts or
+   anything else the editor would corrupt. */
+.files-edit {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 1px 6px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.files-edit:hover {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+}

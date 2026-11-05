@@ -204,5 +204,5 @@ func (a *App) restartProcess() {
 
 // serveConfigPage answers /Config.html. The page has no .md and no cache.
 func (a *App) serveConfigPage(w http.ResponseWriter, r *http.Request) {
-	a.renderPage(w, http.StatusOK, "Config", render.PageHeader("Config", "Settings"), a.getConfigPageBody())
+	a.renderPage(w, http.StatusOK, "Config", render.PageHeader("Config", "Settings", "css/OMN-Go/omn-go-config.css"), a.getConfigPageBody())
 }

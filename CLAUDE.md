@@ -287,9 +287,12 @@ harness of step 12.
 6. Write each API handler on the Service. Answer a JSON value with
    `render.WriteJSON`.
 7. Write `backend/frontend/html/js/OMN-Go/omn-go-<name>.js` and
-   `backend/frontend/html/css/OMN-Go/omn-go-<name>.css`. Load both with a
-   `<script src>` and a `<link>` at the end of the page. Put no style and no
-   script in the template.
+   `backend/frontend/html/css/OMN-Go/omn-go-<name>.css`. Load the script with
+   a `<script src>` at the end of the page. Name the stylesheet in the page
+   header: `render.PageHeader(title, "System", "css/OMN-Go/omn-go-<name>.css")`.
+   The server then puts the link in the head, before `omn-go-custom.css`. Put
+   no style and no script in the template. `TestTemplatesHoldNoStyleBlock`
+   holds the style part.
 8. Add the two files to `storage.VersionDependentAssets` and to
    `gitsync.GitignorePatterns`. Add the two lines to the text of
    `TestEnsureGitignoreFreshInstall`.
@@ -424,6 +427,10 @@ fail when you skip one of these steps.
   character to one character. A row that changes the length moves every span
   after it, and the marks land on the wrong words. Without the table, a search
   for `елка` opens `Ёлка` with nothing marked.
+* **A stylesheet loads only where a page needs it.** `omn-go-core.css` holds
+  what each note page uses. A system page names its own stylesheet with a
+  `Stylesheet:` line of its page header. A lazy file names its stylesheet in
+  `omnModuleStyles` of `omn-go-api.js`, and `omnLoadModule` loads both.
 * **Load order is a feature.** The custom files load last. A user rule then wins
   against an app rule at equal specificity. The editor page loads neither custom
   file. A broken custom file can never lock the user out of the editor that repairs

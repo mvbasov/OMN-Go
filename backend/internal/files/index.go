@@ -440,7 +440,7 @@ func (svc Service) writeFilesPage(w http.ResponseWriter, view filesPageView) {
 		title += ": " + strings.TrimSuffix(view.Dir, "/")
 	}
 	body := renderFilesPage(view)
-	svc.RenderPage(w, http.StatusOK, title, render.PageHeader(title, "System"), body)
+	svc.RenderPage(w, http.StatusOK, title, render.PageHeader(title, "System", "css/OMN-Go/omn-go-files.css"), body)
 }
 
 // filesCrumbs makes the breadcrumb, from the root of the tree to the current

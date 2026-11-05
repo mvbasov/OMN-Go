@@ -212,9 +212,35 @@ if (window.location.protocol !== 'file:') {
     // html/, and the asset prefix of the shell is relative for such a
     // page. An absolute path answers from each of them.
     const omnModuleLoads = {};
+
+    // omnModuleStyles names the stylesheet of a lazy file. The file shows
+    // nothing before its stylesheet is there, thus the load waits for both.
+    const omnModuleStyles = { 'omn-go-search.js': 'omn-go-search.css' };
+
+    // omnLoadStyle puts one stylesheet before omn-go-custom.css, thus a rule
+    // of the user still wins. A page that names the stylesheet already
+    // answers at once. A failed stylesheet does not stop the script.
+    function omnLoadStyle(file) {
+        const href = '/css/OMN-Go/' + file;
+        if (document.querySelector('link[href$="/' + file + '"]')) return Promise.resolve();
+        return new Promise(function (resolve) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = href;
+            link.onload = function () { resolve(); };
+            link.onerror = function () { resolve(); };
+            const custom = document.querySelector('link[href*="omn-go-custom.css"]');
+            if (custom && custom.parentNode === document.head) {
+                document.head.insertBefore(link, custom);
+            } else {
+                document.head.appendChild(link);
+            }
+        });
+    }
+
     function omnLoadModule(file) {
         if (omnModuleLoads[file]) return omnModuleLoads[file];
-        omnModuleLoads[file] = new Promise(function (resolve, reject) {
+        const script = new Promise(function (resolve, reject) {
             const el = document.createElement('script');
             el.src = '/js/OMN-Go/' + file;
             // async = false keeps the execution order of two injected
@@ -228,6 +254,8 @@ if (window.location.protocol !== 'file:') {
             };
             document.head.appendChild(el);
         });
+        const style = omnModuleStyles[file] ? omnLoadStyle(omnModuleStyles[file]) : Promise.resolve();
+        omnModuleLoads[file] = Promise.all([script, style]).then(function () {});
         return omnModuleLoads[file];
     }
     window.omnLoadModule = omnLoadModule;

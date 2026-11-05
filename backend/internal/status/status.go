@@ -268,7 +268,7 @@ var statusPageTmpl = render.LoadTemplate("status_page.html")
 // ServeStatusPage answers /OMNGoStatus.html. The page reads /api/status and
 // shows the answer. It holds no facts of its own.
 func (svc Service) ServeStatusPage(w http.ResponseWriter, r *http.Request) {
-	svc.RenderPage(w, http.StatusOK, "Status", render.PageHeader("Status", "System"), statusPageTmpl)
+	svc.RenderPage(w, http.StatusOK, "Status", render.PageHeader("Status", "System", "css/OMN-Go/omn-go-status.css"), statusPageTmpl)
 }
 
 // parseStatusSections changes the "sections" parameter into a set. Empty

@@ -78,6 +78,8 @@ function status(h) {
 test('the search control loads its file and opens the dialog with the focus in the box', async () => {
     const h = await openDialog(false);
     assert.deepStrictEqual(h.loads, ['/js/OMN-Go/omn-go-search.js']);
+    // The panel has a stylesheet of its own, and the load waits for it.
+    assert.deepStrictEqual(h.styles, ['/css/OMN-Go/omn-go-search.css']);
     assert.strictEqual(h.$('.omn-search-overlay').hidden, false);
     assert.strictEqual(h.document.activeElement, h.$('.omn-search-input'));
     assert.strictEqual(status(h), 'Type at least 2 characters');

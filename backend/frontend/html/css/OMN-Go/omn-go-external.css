@@ -1,0 +1,48 @@
+/* omn-go-external.css: the wait page of the external editor. */
+
+.ext-edit-panel {
+    max-width: 600px;
+    margin: 40px auto;
+    background: var(--bg-surface);
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px var(--shadow);
+    border: 1px solid var(--border-card);
+    text-align: center;
+}
+
+.ext-edit-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.ext-edit-title {
+    margin-top: 0;
+    color: var(--text-strong);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.ext-edit-msg {
+    color: var(--text-muted);
+    font-size: 16px;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+.ext-edit-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.2s;
+    box-shadow: 0 2px 5px var(--shadow-strong);
+}
+
+.ext-edit-btn:hover {
+    background: var(--accent-hover);
+}
