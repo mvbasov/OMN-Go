@@ -157,7 +157,7 @@ The background of a panel, a dialog, a card and an input field. The picture show
 
 ### --omn-bg-band
 
-The background of the page header and of the page footer. In the editor, it is the background of the tool bar, the find bar, the line numbers and the status line.
+The background of the page header and of the page footer. In the editor, it is the background of the tool bar, the find bar, the line numbers and the status line. A button of a note uses it as its background.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -165,7 +165,7 @@ The background of the page header and of the page footer. In the editor, it is t
 
 ### --omn-bg-inset
 
-The background of an inset box. The picture shows the "Receive a note" box of the Incoming page. The title arrow, the Config menu items and the buttons of the Status and Log pages also use it.
+The background of an inset box. The picture shows the "Receive a note" box of the Incoming page. The title arrow, the Config menu items and the buttons of the Status and Log pages also use it. A text field, a list and a text area of a note use it as their background.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -173,7 +173,7 @@ The background of an inset box. The picture shows the "Receive a note" box of th
 
 ### --omn-bg-hover
 
-The background of a control under the pointer, and of the selected line of a list. The picture shows the selected result line of the search dialog. The header buttons and the tag marks use it under the pointer.
+The background of a control under the pointer, and of the selected line of a list. The picture shows the selected result line of the search dialog. The header buttons, the tag marks and the buttons of a note use it under the pointer.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -207,7 +207,7 @@ The body text of a note and the text of most controls. It also sets the color of
 
 ### --omn-text-strong
 
-The page title. The titles of the search results, of the Config cards and of the dialogs also use it.
+The page title. The titles of the search results, of the Config cards and of the dialogs also use it. The text of a button in a note also uses it.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -265,7 +265,7 @@ The border of a large card. The picture shows the Config card. The progress card
 
 ### --omn-border-strong
 
-The border of a button of the page header. The search dialog, the "Receive a note" box and the editor tool buttons also use it.
+The border of a button of the page header. The search dialog, the "Receive a note" box and the editor tool buttons also use it. The buttons and the fields of a note also use it.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -275,7 +275,7 @@ The border of a button of the page header. The search dialog, the "Receive a not
 
 ### --omn-accent
 
-The main accent color. The picture shows the search button and the active chip of the search dialog. The progress bar, the Config menu icons, the editor Save button and the "File:" line of the metadata panel also use it. The links in a note do not use it. They use the `--omn-link` tokens.
+The main accent color. The picture shows the search button and the active chip of the search dialog. The progress bar, the Config menu icons, the editor Save button and the "File:" line of the metadata panel also use it. The links in a note do not use it. They use the `--omn-link` tokens. A field of a note uses it for its focus frame, and a check box and a radio button of a note use it for their mark.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -283,7 +283,7 @@ The main accent color. The picture shows the search button and the active chip o
 
 ### --omn-accent-hover
 
-An accent button under the pointer. The picture shows the search button of the search dialog under the pointer.
+An accent button under the pointer. The picture shows the search button of the search dialog under the pointer. The text of a button in a note also uses it under the pointer.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -590,5 +590,5 @@ A scheme sets these tokens the same as the other tokens. The table gives the par
 | `--omn-mark-ink` | `#000000` | `#000000` | The text on the marks `omn-bg-yellow` and `omn-bg-aqua`. |
 | `--omn-overlay-bg` | `rgba(0, 0, 0, 0.7)` | `rgba(0, 0, 0, 0.7)` | The dark layer behind a dialog. |
 | `--omn-shadow` | `rgba(0, 0, 0, 0.1)` | `rgba(0, 0, 0, 0.4)` | The shadow of a card, a panel, a dialog and a start button. |
-| `--omn-shadow-soft` | `rgba(0, 0, 0, 0.05)` | `rgba(0, 0, 0, 0.25)` | The shadow of a git server card of the Config page. |
+| `--omn-shadow-soft` | `rgba(0, 0, 0, 0.05)` | `rgba(0, 0, 0, 0.25)` | The shadow of a git server card of the Config page, and of a button in a note. |
 | `--omn-shadow-strong` | `rgba(0, 0, 0, 0.2)` | `rgba(0, 0, 0, 0.6)` | A dark shadow: the search dialog, the progress card and the backup dialog. |

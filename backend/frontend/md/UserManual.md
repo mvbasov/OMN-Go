@@ -1041,6 +1041,8 @@ To change one color everywhere, set its palette value in your stylesheet. The pa
 :root { --omn-light-accent: #8e44ad; --omn-dark-accent: #c39bd3; }
 ```
 
+A button, a text field, a list, a text area, a check box and a radio button in a note follow the theme. They use the colors of the palette, for example `--omn-bg-band` for a button and `--omn-bg-inset` for a field. These rules have no specificity, thus each rule of your own wins over them. A control with an `omn-` class has the style of its class only.
+
 Put your code in a block scope, as in a note script (see [Scripting Rules](ScriptRules)). A `var` at the top level of the file becomes a global name on each page.
 
 One page is different. The [Bookmarks](Bookmarks) page loads `css/OMN-Go/Bookmarker.css` from the note. The browser reads that stylesheet after the head. To change that page, give your rule a higher specificity.

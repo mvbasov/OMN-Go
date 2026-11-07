@@ -1480,6 +1480,43 @@ mark.omn-search-hit.omn-search-hit-current {
     color: var(--omn-link-hover);
 }
 
+/* Form controls in a note. :where() gives these rules no specificity. A
+   control with an "omn-" class has the style of its class only. */
+:where(#omn-preview) :where(input:not([class*="omn-"]):not([type="checkbox"], [type="radio"], [type="button"], [type="submit"],
+        [type="reset"], [type="color"], [type="range"], [type="file"], [type="image"],
+        [type="hidden"]),
+        select:not([class*="omn-"]), textarea:not([class*="omn-"])) {
+    background-color: var(--omn-bg-inset);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border-strong);
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+:where(#omn-preview) :where(input:not([class*="omn-"]):focus, select:not([class*="omn-"]):focus, textarea:not([class*="omn-"]):focus) {
+    border-color: var(--omn-accent);
+    outline: 1px solid var(--omn-accent);
+}
+:where(#omn-preview) :where(button:not([class*="omn-"]), input:not([class*="omn-"]):is([type="button"], [type="submit"], [type="reset"])) {
+    background-color: var(--omn-bg-band);
+    color: var(--omn-text-strong);
+    border: 1px solid var(--omn-border-strong);
+    border-radius: 6px;
+    padding: 4px 12px;
+    box-shadow: 0 1px 2px var(--omn-shadow-soft);
+    cursor: pointer;
+}
+:where(#omn-preview) :where(button:not([class*="omn-"]):hover, input:not([class*="omn-"]):is([type="button"], [type="submit"], [type="reset"]):hover) {
+    background-color: var(--omn-bg-hover);
+    border-color: var(--omn-accent);
+    color: var(--omn-accent-hover);
+}
+:where(#omn-preview) :where(button:not([class*="omn-"]):active, input:not([class*="omn-"]):is([type="button"], [type="submit"], [type="reset"]):active) {
+    transform: translateY(1px);
+}
+:where(#omn-preview) :where(input:not([class*="omn-"]):is([type="checkbox"], [type="radio"])) {
+    accent-color: var(--omn-accent);
+}
+
 /* Table of contents */
 #omn-toc {
     border: solid var(--omn-text) 1px;

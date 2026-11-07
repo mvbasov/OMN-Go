@@ -34,6 +34,20 @@ div#omn-preview button.omn-tag {
   border-radius: 0.5rem;
   outline: none;
 }
+/* The buttons have the look of a button in a note. */
+div#omn-preview button.omn-colexp,
+div#omn-preview button.omn-tag {
+  background-color: var(--omn-bg-band);
+  color: var(--omn-text-strong);
+  border: 1px solid var(--omn-border-strong);
+  cursor: pointer;
+}
+div#omn-preview button.omn-colexp:hover,
+div#omn-preview button.omn-tag:hover {
+  background-color: var(--omn-bg-hover);
+  border-color: var(--omn-accent);
+  color: var(--omn-accent-hover);
+}
 div#omn-preview button.omn-tag-special {
   background: var(--omn-bookmark-special-bg);
 }
