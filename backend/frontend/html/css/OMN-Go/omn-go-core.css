@@ -1259,7 +1259,7 @@ mark.omn-search-hit.omn-search-hit-current {
 
 /* ===== 7. Panel pages ===== */
 
-.omn-config-panel {
+.omn-card {
     max-width: 600px;
     margin: 0 auto;
     background: var(--omn-bg-surface);
@@ -1268,7 +1268,7 @@ mark.omn-search-hit.omn-search-hit-current {
     box-shadow: 0 4px 12px var(--omn-shadow);
     border: 1px solid var(--omn-border-card);
 }
-.omn-config-title {
+.omn-card-title {
     margin-top: 0;
     color: var(--omn-text-strong);
     font-size: 24px;
@@ -1277,8 +1277,8 @@ mark.omn-search-hit.omn-search-hit-current {
     padding-bottom: 10px;
 }
 
-.omn-config-menu-item,
-.omn-config-link-btn {
+.omn-card-menu-item,
+.omn-card-link-btn {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -1295,88 +1295,50 @@ mark.omn-search-hit.omn-search-hit-current {
     box-sizing: border-box;
     transition: background 0.15s, border-color 0.15s;
 }
-.omn-config-menu-item:hover,
-.omn-config-link-btn:hover {
+.omn-card-menu-item:hover,
+.omn-card-link-btn:hover {
     background: var(--omn-bg-hover);
     border-color: var(--omn-border-strong);
 }
-.omn-config-menu-icon {
+.omn-card-menu-icon {
     flex: 0 0 auto;
     font-size: 24px;
     color: var(--omn-accent);
 }
-.omn-config-menu-text {
+.omn-card-menu-text {
     display: flex;
     flex-direction: column;
     gap: 2px;
     flex: 1 1 auto;
     min-width: 0;
 }
-.omn-config-menu-name {
+.omn-card-menu-name {
     font-weight: 600;
     font-size: 16px;
     color: var(--omn-text-strong);
 }
-.omn-config-menu-desc {
+.omn-card-menu-desc {
     font-size: 13px;
     color: var(--omn-text-faint);
 }
-.omn-config-menu-chevron {
+.omn-card-menu-chevron {
     flex: 0 0 auto;
     font-size: 22px;
     color: var(--omn-text-dim);
 }
 
-.omn-config-link-row {
+.omn-card-link-row {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-.omn-config-field {
+.omn-card-field {
     margin-bottom: 20px;
 }
-.omn-config-label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--omn-text-heading);
-}
-.omn-config-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--omn-border);
-    border-radius: 4px;
-    box-sizing: border-box;
-    background: var(--omn-bg-surface);
-    color: var(--omn-text);
-}
-.omn-config-checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.omn-config-hint {
+.omn-card-hint {
     color: var(--omn-text-faint);
     display: block;
     margin-top: 5px;
-}
-.omn-config-save-btn {
-    background: var(--omn-success);
-    color: var(--omn-on-accent);
-    border: none;
-    padding: 12px 20px;
-    border-radius: 4px;
-    font-weight: bold;
-    cursor: pointer;
-    width: 100%;
-    font-size: 16px;
-    transition: background 0.2s;
-}
-.omn-config-save-btn:hover {
-    background: var(--omn-success-hover);
-}
-.omn-config-save-row {
-    margin-top: 20px;
 }
 
 /* ===== 8. JS console ===== */
@@ -1621,6 +1583,6 @@ mark.omn-search-hit.omn-search-hit-current {
 @media (max-width: 600px) {
     .omn-panel { right: 10px; left: 10px; width: auto; box-sizing: border-box; }
     .omn-modal { width: 90%; }
-    .omn-config-panel { padding: 16px; }
-    .omn-config-menu-desc { font-size: 12px; }
+    .omn-card { padding: 16px; }
+    .omn-card-menu-desc { font-size: 12px; }
 }

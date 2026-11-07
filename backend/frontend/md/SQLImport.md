@@ -2,6 +2,7 @@ Title: SQL Import
 Category: Settings
 Author: Mikhail Basov
 Tags: Database, SQL, OMN-Go, OMN-Go app
+Stylesheet: css/OMN-Go/omn-go-config.css
 
 # SQL Import
 
@@ -12,18 +13,18 @@ Import an SQL dump into a server-side database. Two dialects are understood:
 
 The dump is applied through the normal `/api/sql` endpoint in batches, each batch one transaction. After a successful import, go to the <a href="/db_backups">Database Backups</a> page and press **Backup now** — the import itself does not create a backup.
 
-<div class="omn-config-panel">
-    <div class="omn-config-field">
+<div class="omn-card">
+    <div class="omn-card-field">
         <label class="omn-config-label">Target database name</label>
         <input type="text" id="sqlImpDb" class="omn-config-input" placeholder="mydata" />
-        <span class="omn-config-hint">Letters, digits, '_' and '-', max 64 chars. The database is created if it does not exist. Importing into an existing database ADDS to it (or fails on conflicts) — it does not clear it first.</span>
+        <span class="omn-card-hint">Letters, digits, '_' and '-', max 64 chars. The database is created if it does not exist. Importing into an existing database ADDS to it (or fails on conflicts) — it does not clear it first.</span>
     </div>
-    <div class="omn-config-field">
+    <div class="omn-card-field">
         <label class="omn-config-label">SQL dump</label>
         <textarea id="sqlImpText" class="omn-config-input" rows="12" placeholder="Paste the dump here, or load a file below" spellcheck="false"></textarea>
         <input type="file" id="sqlImpFile" accept=".sql,.txt,text/*" />
     </div>
-    <div class="omn-config-field">
+    <div class="omn-card-field">
         <label class="omn-config-label">Dialect</label>
         <select id="sqlImpDialect" class="omn-config-input">
             <option value="auto" selected>Auto-detect</option>
@@ -31,14 +32,14 @@ The dump is applied through the normal `/api/sql` endpoint in batches, each batc
             <option value="websql">websqldump.js (re-parsed)</option>
         </select>
     </div>
-    <div class="omn-config-field omn-config-checkbox-row">
+    <div class="omn-card-field omn-config-checkbox-row">
         <input type="checkbox" id="sqlImpNull" checked />
         <label class="omn-config-label">websqldump: treat the value "null" as SQL NULL</label>
     </div>
-    <div class="omn-config-field omn-config-save-row">
+    <div class="omn-card-field omn-config-save-row">
         <button type="button" class="omn-config-save-btn" onclick="sqlImportRun()">Import</button>
     </div>
-    <div class="omn-config-field">
+    <div class="omn-card-field">
         <pre id="sqlImpLog" style="white-space:pre-wrap;max-height:40vh;overflow:auto;"></pre>
     </div>
 </div>

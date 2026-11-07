@@ -359,10 +359,10 @@ func renderNotFoundPage(v notFoundView) string {
 	suggestion := ""
 	if v.Suggested != "" && safeLocalPath(v.Suggested) {
 		esc := render.EscapeHTML(v.Suggested)
-		suggestion = fmt.Sprintf(`    <div class="omn-config-field omn-notfound-suggest">
+		suggestion = fmt.Sprintf(`    <div class="omn-card-field omn-notfound-suggest">
         <span class="omn-notfound-suggest-label">Did you mean</span>
         <a href="%s" class="omn-notfound-suggest-link">%s</a>
-        <span class="omn-config-hint">A note of that name exists. A link written as [text](name) asks the server for a file called "name"; note links need the .html suffix - [text](name.html).</span>
+        <span class="omn-card-hint">A note of that name exists. A link written as [text](name) asks the server for a file called "name"; note links need the .html suffix - [text](name.html).</span>
     </div>
 `, esc, esc)
 	}

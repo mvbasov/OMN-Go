@@ -27,7 +27,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById('omn-config-form');
     if (!form) return;
-    const panel = form.closest('.omn-config-panel') || document;
+    const panel = form.closest('.omn-card') || document;
     const menu = document.getElementById('omn-config-menu');
     const screens = panel.querySelectorAll('.omn-config-screen');
 

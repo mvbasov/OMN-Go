@@ -55,9 +55,9 @@ func (a *App) pageHandler(p systemPage) http.HandlerFunc {
 
 // serveRefusalPage tells a caller without the role how to get it.
 func (a *App) serveRefusalPage(w http.ResponseWriter, title string) {
-	body := `<div class="omn-config-panel">` +
-		`<h2 class="omn-config-title">` + title + `</h2>` +
-		`<p class="omn-config-hint">This page is for the admin of this device. ` +
+	body := `<div class="omn-card">` +
+		`<h2 class="omn-card-title">` + title + `</h2>` +
+		`<p class="omn-card-hint">This page is for the admin of this device. ` +
 		`Log in as admin on a note page, then open the page again.</p>` +
 		`</div>`
 	a.renderPage(w, http.StatusOK, title, render.PageHeader(title, "System"), body)

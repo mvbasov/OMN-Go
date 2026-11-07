@@ -1,4 +1,4 @@
-<div class="omn-config-panel">
+<div class="omn-card">
     <!-- Root screen: a list of large tap targets, one per settings group.
          Selecting one opens its sub-screen (see .omn-config-screen blocks
          below); the sub-screen's back control returns here. Navigation is
@@ -8,7 +8,7 @@
          The "cfg-" prefix keeps these hashes from colliding with the
          scroll-to-anchor handling in omn-go-highlight.js. -->
     <div id="omn-config-menu" class="omn-config-screen omn-active">
-        <h2 class="omn-config-title">Settings</h2>
+        <h2 class="omn-card-title">Settings</h2>
 
         <div id="omn-config-menu-dirty" class="omn-config-menu-dirty" hidden>
             <span class="omn-config-dirty-dot omn-dirty"></span>
@@ -17,61 +17,61 @@
         </div>
 
         <nav class="omn-config-menu">
-            <button type="button" class="omn-config-menu-item" data-goto="general">
-                <i class="material-icons omn-config-menu-icon">tune</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">General</span>
-                    <span class="omn-config-menu-desc">Author, theme, editor</span>
+            <button type="button" class="omn-card-menu-item" data-goto="general">
+                <i class="material-icons omn-card-menu-icon">tune</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">General</span>
+                    <span class="omn-card-menu-desc">Author, theme, editor</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="network">
-                <i class="material-icons omn-config-menu-icon">wifi</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">Network &amp; Access</span>
-                    <span class="omn-config-menu-desc">Port, passwords, LAN sharing</span>
+            <button type="button" class="omn-card-menu-item" data-goto="network">
+                <i class="material-icons omn-card-menu-icon">wifi</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">Network &amp; Access</span>
+                    <span class="omn-card-menu-desc">Port, passwords, LAN sharing</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="backups">
-                <i class="material-icons omn-config-menu-icon">storage</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">DB Backups</span>
-                    <span class="omn-config-menu-desc">Backups, SQL import, upload limit</span>
+            <button type="button" class="omn-card-menu-item" data-goto="backups">
+                <i class="material-icons omn-card-menu-icon">storage</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">DB Backups</span>
+                    <span class="omn-card-menu-desc">Backups, SQL import, upload limit</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="android">
-                <i class="material-icons omn-config-menu-icon">android</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">Android Integration</span>
-                    <span class="omn-config-menu-desc">intent: links, Termux commands</span>
+            <button type="button" class="omn-card-menu-item" data-goto="android">
+                <i class="material-icons omn-card-menu-icon">android</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">Android Integration</span>
+                    <span class="omn-card-menu-desc">intent: links, Termux commands</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="search">
-                <i class="material-icons omn-config-menu-icon">search</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">Search</span>
-                    <span class="omn-config-menu-desc">Global search index and its content</span>
+            <button type="button" class="omn-card-menu-item" data-goto="search">
+                <i class="material-icons omn-card-menu-icon">search</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">Search</span>
+                    <span class="omn-card-menu-desc">Global search index and its content</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="logging">
-                <i class="material-icons omn-config-menu-icon">bug_report</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">Logging</span>
-                    <span class="omn-config-menu-desc">Message levels and subsystems</span>
+            <button type="button" class="omn-card-menu-item" data-goto="logging">
+                <i class="material-icons omn-card-menu-icon">bug_report</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">Logging</span>
+                    <span class="omn-card-menu-desc">Message levels and subsystems</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
-            <button type="button" class="omn-config-menu-item" data-goto="git">
-                <i class="material-icons omn-config-menu-icon">cloud_sync</i>
-                <span class="omn-config-menu-text">
-                    <span class="omn-config-menu-name">Git Sync</span>
-                    <span class="omn-config-menu-desc">Remote servers and SSH keys</span>
+            <button type="button" class="omn-card-menu-item" data-goto="git">
+                <i class="material-icons omn-card-menu-icon">cloud_sync</i>
+                <span class="omn-card-menu-text">
+                    <span class="omn-card-menu-name">Git Sync</span>
+                    <span class="omn-card-menu-desc">Remote servers and SSH keys</span>
                 </span>
-                <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                <i class="material-icons omn-card-menu-chevron">chevron_right</i>
             </button>
             <!-- The links to the system pages with a menu line, from the
                  page-access table in page_access.go. A link opens a page
@@ -104,11 +104,11 @@
                 <button type="button" class="omn-config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
                 <h2 class="omn-config-subtitle">General</h2>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Author Name</label>
                 <input type="text" id="omn-cfg-author" name="author" value="%%AUTHOR%%" class="omn-config-input" />
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Theme</label>
                 <select id="omn-cfg-theme" name="theme" class="omn-config-input">
                     <option value="auto" %%THEME_AUTO%%>Auto (follow system)</option>
@@ -116,15 +116,15 @@
                     <option value="dark" %%THEME_DARK%%>Dark</option>
                 </select>
             </div>
-            <div class="omn-config-field omn-config-checkbox-row">
+            <div class="omn-card-field omn-config-checkbox-row">
                 <input type="checkbox" id="omn-cfg-internal-ed" name="use_internal_editor" value="true" %%USE_INTERNAL_EDITOR_CHECKED%% />
                 <label class="omn-config-label">Use Internal Editor</label>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Desktop External Cmd</label>
                 <input type="text" id="omn-cfg-desktop-ext-cmd" name="desktop_ext_cmd" value="%%DESKTOP_EXT_CMD%%" class="omn-config-input" />
             </div>
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -135,7 +135,7 @@
                 <button type="button" class="omn-config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
                 <h2 class="omn-config-subtitle">Network &amp; Access</h2>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Server Port</label>
                 <input type="number" id="omn-cfg-port" name="server_port" value="%%SERVER_PORT%%" class="omn-config-input" required />
             </div>
@@ -144,25 +144,25 @@
                  data-secret marks the box for omn-go-config.js: an empty box
                  that the reader did not touch leaves the stored password as
                  it is. See the config-reveal and config-save actions. -->
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Admin Password</label>
                 <input type="password" id="omn-cfg-admin-pwd" name="admin_password" value="" data-secret="admin_password" autocomplete="new-password" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679; unchanged" class="omn-config-input" />
             </div>
-            <div class="omn-config-field">
-                <button type="button" class="omn-config-link-btn" data-reveal data-action="config-reveal">
+            <div class="omn-card-field">
+                <button type="button" class="omn-card-link-btn" data-reveal data-action="config-reveal">
                     <i class="material-icons">visibility</i>
                     <span data-reveal-label>Show passwords</span>
                 </button>
-                <span class="omn-config-hint">A box that stays empty keeps the password that this device already holds. Type in a box to change that password. Empty a revealed box to remove that password.</span>
+                <span class="omn-card-hint">A box that stays empty keeps the password that this device already holds. Type in a box to change that password. Empty a revealed box to remove that password.</span>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-share-lan" name="share_lan" value="true" %%SHARE_LAN_CHECKED%% />
                     <label class="omn-config-label">Share on LAN</label>
                 </div>
-                <span class="omn-config-hint">When off, the server answers only this device (127.0.0.1 / localhost). When on, it listens on all network interfaces, and other devices can connect. Each write from another device needs the admin password. The change applies after a restart of the application.</span>
+                <span class="omn-card-hint">When off, the server answers only this device (127.0.0.1 / localhost). When on, it listens on all network interfaces, and other devices can connect. Each write from another device needs the admin password. The change applies after a restart of the application.</span>
             </div>
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -173,40 +173,40 @@
                 <button type="button" class="omn-config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
                 <h2 class="omn-config-subtitle">DB Backups</h2>
             </div>
-            <div class="omn-config-field omn-config-link-row">
-                <a href="/db_backups" class="omn-config-link-btn">
-                    <i class="material-icons omn-config-menu-icon">backup</i>
-                    <span class="omn-config-menu-text">
-                        <span class="omn-config-menu-name">Database Backups</span>
-                        <span class="omn-config-menu-desc">Create, restore and download snapshots</span>
+            <div class="omn-card-field omn-card-link-row">
+                <a href="/db_backups" class="omn-card-link-btn">
+                    <i class="material-icons omn-card-menu-icon">backup</i>
+                    <span class="omn-card-menu-text">
+                        <span class="omn-card-menu-name">Database Backups</span>
+                        <span class="omn-card-menu-desc">Create, restore and download snapshots</span>
                     </span>
-                    <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                    <i class="material-icons omn-card-menu-chevron">chevron_right</i>
                 </a>
-                <a href="/SQLImport.html" class="omn-config-link-btn">
-                    <i class="material-icons omn-config-menu-icon">file_upload</i>
-                    <span class="omn-config-menu-text">
-                        <span class="omn-config-menu-name">SQL Import</span>
-                        <span class="omn-config-menu-desc">Load an SQL dump into a database</span>
+                <a href="/SQLImport.html" class="omn-card-link-btn">
+                    <i class="material-icons omn-card-menu-icon">file_upload</i>
+                    <span class="omn-card-menu-text">
+                        <span class="omn-card-menu-name">SQL Import</span>
+                        <span class="omn-card-menu-desc">Load an SQL dump into a database</span>
                     </span>
-                    <i class="material-icons omn-config-menu-chevron">chevron_right</i>
+                    <i class="material-icons omn-card-menu-chevron">chevron_right</i>
                 </a>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Hostname (device label)</label>
                 <input type="text" id="omn-cfg-hostname" name="hostname" value="%%HOSTNAME%%" class="omn-config-input" />
-                <span class="omn-config-hint">Identifies this device in database backup filenames (e.g. pixel7, desktop). Letters, digits, '_' and '-' only; anything else is replaced. Clearing the field resets it to the OS hostname.</span>
+                <span class="omn-card-hint">Identifies this device in database backup filenames (e.g. pixel7, desktop). Letters, digits, '_' and '-' only; anything else is replaced. Clearing the field resets it to the OS hostname.</span>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Backup Prune Depth</label>
                 <input type="number" id="omn-cfg-backup-prune-depth" name="backup_prune_depth" value="%%BACKUP_PRUNE_DEPTH%%" class="omn-config-input" min="1" step="1" />
-                <span class="omn-config-hint">How many backups to keep per database on the Database Backups page; creating a new backup deletes the oldest beyond this count. Default 3.</span>
+                <span class="omn-card-hint">How many backups to keep per database on the Database Backups page; creating a new backup deletes the oldest beyond this count. Default 3.</span>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Max Upload Size (MB)</label>
                 <input type="number" id="omn-cfg-max-upload-mb" name="max_upload_size_mb" value="%%MAX_UPLOAD_SIZE_MB%%" class="omn-config-input" min="1" step="1" required />
-                <span class="omn-config-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
+                <span class="omn-card-hint">Limits how large an image or JSON file can be when uploaded from the editor (drag-and-drop) or shared into Quick Notes from Android. Default 3 MB.</span>
             </div>
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -217,30 +217,30 @@
                 <button type="button" class="omn-config-back" data-back aria-label="Back to settings"><i class="material-icons">arrow_back</i></button>
                 <h2 class="omn-config-subtitle">Android Integration</h2>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Fullscreen mode</label>
                 <select id="omn-cfg-android-fullscreen" name="android_fullscreen" class="omn-config-input">
                     <option value="off" %%ANDROID_FULLSCREEN_OFF%%>Off (show status bar)</option>
                     <option value="fullscreen" %%ANDROID_FULLSCREEN_FULLSCREEN%%>Fullscreen (hide status bar)</option>
                     <option value="immersive" %%ANDROID_FULLSCREEN_IMMERSIVE%%>Immersive (hide status and navigation bars)</option>
                 </select>
-                <span class="omn-config-hint">Which system bars the Android app hides. Immersive also hides the navigation bar; swipe from the edge to bring the bars back temporarily. Applies as soon as you save - no restart needed. Android only; ignored on desktop and in LAN browsers.</span>
+                <span class="omn-card-hint">Which system bars the Android app hides. Immersive also hides the navigation bar; swipe from the edge to bring the bars back temporarily. Applies as soon as you save - no restart needed. Android only; ignored on desktop and in LAN browsers.</span>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-enable-intent-uri" name="enable_intent_uri" value="true" %%ENABLE_INTENT_URI_CHECKED%% />
                     <label class="omn-config-label">Enable intent: links</label>
                 </div>
-                <span class="omn-config-hint">Lets a note launch Android "intent:" URIs when tapped in the app - e.g. opening a Settings screen with [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;). Off by default. Android only; ignored on desktop and in LAN browsers.</span>
+                <span class="omn-card-hint">Lets a note launch Android "intent:" URIs when tapped in the app - e.g. opening a Settings screen with [Wi-Fi](intent:#Intent;action=android.settings.WIRELESS_SETTINGS;end;). Off by default. Android only; ignored on desktop and in LAN browsers.</span>
             </div>
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-enable-termux-intent" name="enable_termux_intent" value="true" %%ENABLE_TERMUX_INTENT_CHECKED%% />
                     <label class="omn-config-label">Enable Termux commands</label>
                 </div>
-                <span class="omn-config-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
+                <span class="omn-card-hint">Additionally allows notes to run shell commands via Termux (RUN_COMMAND). Requires "Enable intent: links" above to also be on, Termux installed with allow-external-apps=true, and its RUN_COMMAND permission granted; each command asks for confirmation before it runs. <strong>Security:</strong> notes arriving via git sync or LAN editing could contain commands - leave this off unless you author your own notes.</span>
             </div>
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -252,19 +252,19 @@
                 <h2 class="omn-config-subtitle">Search</h2>
             </div>
 
-            <div class="omn-config-field">
-                <span class="omn-config-hint">Searching the page you have open always works and needs nothing - no index, no settings, no memory. Everything below is about searching <em>all</em> your notes at once, which does need an index.</span>
+            <div class="omn-card-field">
+                <span class="omn-card-hint">Searching the page you have open always works and needs nothing - no index, no settings, no memory. Everything below is about searching <em>all</em> your notes at once, which does need an index.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-search-enabled" name="search_enabled" value="true" %%SEARCH_ENABLED_CHECKED%% />
                     <label class="omn-config-label">Enable global search</label>
                 </div>
-                <span class="omn-config-hint">Builds an index of the content selected below and keeps it in memory - roughly half the size of the text it covers (about 3 MB for 2000 notes, 13 MB for 10000). Leave this off on a device short of memory; page search keeps working either way.</span>
+                <span class="omn-card-hint">Builds an index of the content selected below and keeps it in memory - roughly half the size of the text it covers (about 3 MB for 2000 notes, 13 MB for 10000). Leave this off on a device short of memory; page search keeps working either way.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Include in the index</label>
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-search-kind-md" name="search_kinds" value="md" %%SEARCH_KINDS_MD%% />
@@ -294,18 +294,18 @@
                     <input type="checkbox" id="omn-cfg-search-kind-user-calendars" name="search_kinds" value="user_calendars" %%SEARCH_KINDS_USER_CALENDARS%% />
                     <label class="omn-config-label">Calendars (html/user_calendars)</label>
                 </div>
-                <span class="omn-config-hint">Every kind you add is more memory held for as long as the app runs. Unticking all of them means the index covers nothing.</span>
+                <span class="omn-card-hint">Every kind you add is more memory held for as long as the app runs. Unticking all of them means the index covers nothing.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-search-bundled" name="search_bundled" value="true" %%SEARCH_BUNDLED_CHECKED%% />
                     <label class="omn-config-label">Also index OMN-Go's own scripts</label>
                 </div>
-                <span class="omn-config-hint">katex.min.js, omn-go-core.js and the rest of the app's own code. They are several times the size of a typical note collection and rarely what you are looking for - but useful if you want to grep the app itself.</span>
+                <span class="omn-card-hint">katex.min.js, omn-go-core.js and the rest of the app's own code. They are several times the size of a typical note collection and rarely what you are looking for - but useful if you want to grep the app itself.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Search in</label>
                 <div class="omn-config-checkbox-row">
                     <input type="radio" id="omn-cfg-search-scope-all" name="search_scope" value="all" %%SEARCH_SCOPE_ALL%% />
@@ -315,15 +315,15 @@
                     <input type="radio" id="omn-cfg-search-scope-page" name="search_scope" value="page" %%SEARCH_SCOPE_PAGE%% />
                     <label class="omn-config-label">The open page only</label>
                 </div>
-                <span class="omn-config-hint">Where a search starts. The search box can switch for a single query without changing this.</span>
+                <span class="omn-card-hint">Where a search starts. The search box can switch for a single query without changing this.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Index status</label>
-                <span class="omn-config-hint">%%SEARCH_INDEX_STATUS%%</span>
+                <span class="omn-card-hint">%%SEARCH_INDEX_STATUS%%</span>
             </div>
 
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -339,11 +339,11 @@
                 <h2 class="omn-config-subtitle">Logging</h2>
             </div>
 
-            <div class="omn-config-field">
-                <span class="omn-config-hint">The app writes a message for each thing it does. A message has a subsystem in brackets and a level in parentheses, for example <code>[sync] (debug) Staging file: Todo.md</code>. Open the browser console to read them.</span>
+            <div class="omn-card-field">
+                <span class="omn-card-hint">The app writes a message for each thing it does. A message has a subsystem in brackets and a level in parentheses, for example <code>[sync] (debug) Staging file: Todo.md</code>. Open the browser console to read them.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Levels</label>
                 <div class="omn-config-checkbox-row">
                     <input type="checkbox" id="omn-cfg-log-debug" name="log_debug" value="true" %%LOG_DEBUG_CHECKED%% />
@@ -353,16 +353,16 @@
                     <input type="checkbox" id="omn-cfg-log-info" name="log_info" value="true" %%LOG_INFO_CHECKED%% />
                     <label class="omn-config-label">Info - the result of an operation</label>
                 </div>
-                <span class="omn-config-hint">Both are off until you ask for them. Errors have no switch and always appear.</span>
+                <span class="omn-card-hint">Both are off until you ask for them. Errors have no switch and always appear.</span>
             </div>
 
-            <div class="omn-config-field">
+            <div class="omn-card-field">
                 <label class="omn-config-label">Subsystems</label>
 %%LOG_TAG_BOXES%%
-                <span class="omn-config-hint">A debug or info message appears when its level is on and its subsystem is ticked here. An error appears whatever you tick.</span>
+                <span class="omn-card-hint">A debug or info message appears when its level is on and its subsystem is ticked here. An error appears whatever you tick.</span>
             </div>
 
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>
@@ -376,15 +376,15 @@
             <!-- The SSH key box and the key password box of each slot are
                  empty for the same reason as the two password boxes of the
                  Network screen. See the note there. -->
-            <div class="omn-config-field">
-                <button type="button" class="omn-config-link-btn" data-reveal data-action="config-reveal">
+            <div class="omn-card-field">
+                <button type="button" class="omn-card-link-btn" data-reveal data-action="config-reveal">
                     <i class="material-icons">visibility</i>
                     <span data-reveal-label>Show keys and passwords</span>
                 </button>
-                <span class="omn-config-hint">A box that stays empty keeps the key, or the password, that this device already holds.</span>
+                <span class="omn-card-hint">A box that stays empty keeps the key, or the password, that this device already holds.</span>
             </div>
 %%GIT_SERVERS%%
-            <div class="omn-config-field omn-config-save-row">
+            <div class="omn-card-field omn-config-save-row">
                 <span class="omn-config-dirty-indicator"><span class="omn-config-dirty-dot omn-clean"></span><span class="omn-config-dirty-label"></span></span>
                 <button type="button" class="omn-config-save-btn" data-action="config-save">Save Configuration</button>
             </div>

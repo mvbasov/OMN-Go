@@ -1,5 +1,5 @@
 /* The page of a missing address, and the page of a file that is not text.
-   The pages also use .omn-config-panel and .omn-config-link-btn of the core
+   The pages also use .omn-card and .omn-card-link-btn of the core
    stylesheet. */
 
 .omn-notfound-lead {

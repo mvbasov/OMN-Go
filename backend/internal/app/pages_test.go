@@ -107,11 +107,11 @@ func TestEachMenuRowHasALinkOnTheConfigPage(t *testing.T) {
 			continue
 		}
 		rows++
-		if !strings.Contains(body, `<a class="omn-config-menu-item" href="`+p.path+`">`) {
+		if !strings.Contains(body, `<a class="omn-card-menu-item" href="`+p.path+`">`) {
 			t.Errorf("the Config page menu has no link to %s", p.path)
 		}
 	}
-	if n := strings.Count(body, `<a class="omn-config-menu-item" href=`); n != rows {
+	if n := strings.Count(body, `<a class="omn-card-menu-item" href=`); n != rows {
 		t.Errorf("the Config page menu has %d links, and the table has %d menu rows", n, rows)
 	}
 }

@@ -168,3 +168,43 @@
     .omn-git-server-grid { grid-template-columns: 1fr; }
     .omn-config-subtitle { font-size: 18px; }
 }
+
+/* The fields and the Save button of the Config page. */
+.omn-config-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--omn-text-heading);
+}
+.omn-config-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--omn-border);
+    border-radius: 4px;
+    box-sizing: border-box;
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
+}
+.omn-config-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.omn-config-save-btn {
+    background: var(--omn-success);
+    color: var(--omn-on-accent);
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+.omn-config-save-btn:hover {
+    background: var(--omn-success-hover);
+}
+.omn-config-save-row {
+    margin-top: 20px;
+}
