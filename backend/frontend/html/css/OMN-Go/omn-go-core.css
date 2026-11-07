@@ -40,6 +40,9 @@
     --omn-light-border-title:         #eaecef;   /* line under a panel title */
     --omn-light-accent:               #0056b3;   /* links, primary buttons */
     --omn-light-accent-hover:         #004494;
+    --omn-light-link:                 #0000ee;   /* link in a note */
+    --omn-light-link-visited:         #551a8b;   /* visited link */
+    --omn-light-link-hover:           #0000ee;   /* link under the pointer */
     --omn-light-success:              #28a745;   /* save, confirm */
     --omn-light-success-hover:        #218838;
     --omn-light-danger:               #dc3545;   /* cancel, delete */
@@ -127,6 +130,9 @@
     --omn-dark-border-title:          #3a3e41;
     --omn-dark-accent:                #4d9fff;
     --omn-dark-accent-hover:          #6cb0ff;
+    --omn-dark-link:                  #9e9eff;
+    --omn-dark-link-visited:          #d0adf0;
+    --omn-dark-link-hover:            #9e9eff;
     --omn-dark-success:               #28a745;
     --omn-dark-success-hover:         #218838;
     --omn-dark-danger:                #dc3545;
@@ -218,6 +224,9 @@
     --omn-border-title: var(--omn-light-border-title);
     --omn-accent: var(--omn-light-accent);
     --omn-accent-hover: var(--omn-light-accent-hover);
+    --omn-link: var(--omn-light-link);
+    --omn-link-visited: var(--omn-light-link-visited);
+    --omn-link-hover: var(--omn-light-link-hover);
     --omn-success: var(--omn-light-success);
     --omn-success-hover: var(--omn-light-success-hover);
     --omn-danger: var(--omn-light-danger);
@@ -310,6 +319,9 @@
     --omn-border-title: var(--omn-dark-border-title);
     --omn-accent: var(--omn-dark-accent);
     --omn-accent-hover: var(--omn-dark-accent-hover);
+    --omn-link: var(--omn-dark-link);
+    --omn-link-visited: var(--omn-dark-link-visited);
+    --omn-link-hover: var(--omn-dark-link-hover);
     --omn-success: var(--omn-dark-success);
     --omn-success-hover: var(--omn-dark-success-hover);
     --omn-danger: var(--omn-dark-danger);
@@ -401,6 +413,9 @@
         --omn-border-title: var(--omn-dark-border-title);
         --omn-accent: var(--omn-dark-accent);
         --omn-accent-hover: var(--omn-dark-accent-hover);
+        --omn-link: var(--omn-dark-link);
+        --omn-link-visited: var(--omn-dark-link-visited);
+        --omn-link-hover: var(--omn-dark-link-hover);
         --omn-success: var(--omn-dark-success);
         --omn-success-hover: var(--omn-dark-success-hover);
         --omn-danger: var(--omn-dark-danger);
@@ -1452,6 +1467,18 @@ mark.omn-search-hit.omn-search-hit-current {
 .omn-icon-xs { font-size: 16px; margin-right: 4px; }
 
 /* ===== 9. Markdown content ===== */
+
+/* Links. :where() gives these rules no specificity. Thus a link with a class
+   of its own, for example a start button, keeps its own color. */
+:where(#omn-preview a:link) {
+    color: var(--omn-link);
+}
+:where(#omn-preview a:visited) {
+    color: var(--omn-link-visited);
+}
+:where(#omn-preview a:hover) {
+    color: var(--omn-link-hover);
+}
 
 /* Table of contents */
 #omn-toc {

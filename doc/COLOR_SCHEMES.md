@@ -96,6 +96,9 @@ Some tokens have no picture. [Tokens with no picture](#tokens-with-no-picture) g
 | Text | [`--omn-text-dim`](#tokens-with-no-picture) | `#888888` | `#7a8086` |
 | Borders | [`--omn-border-title`](#tokens-with-no-picture) | `#eaecef` | `#3a3e41` |
 | Accent and state | [`--omn-on-accent`](#tokens-with-no-picture) | `#ffffff` | `#ffffff` |
+| Links | [`--omn-link`](#tokens-with-no-picture) | `#0000ee` | `#9e9eff` |
+| Links | [`--omn-link-visited`](#tokens-with-no-picture) | `#551a8b` | `#d0adf0` |
+| Links | [`--omn-link-hover`](#tokens-with-no-picture) | `#0000ee` | `#9e9eff` |
 | Files page | [`--omn-file-app`](#tokens-with-no-picture) | `#9a5b00` | `#f0a13c` |
 | Files page | [`--omn-file-alert`](#tokens-with-no-picture) | `#b3261e` | `#ff8a80` |
 | Files page | [`--omn-file-keep`](#tokens-with-no-picture) | `#1f7a35` | `#5ec97a` |
@@ -272,7 +275,7 @@ The border of a button of the page header. The search dialog, the "Receive a not
 
 ### --omn-accent
 
-The main accent color. The picture shows the search button and the active chip of the search dialog. The progress bar, the Config menu icons, the editor Save button and the "File:" line of the metadata panel also use it. The links in a note do not use it. They have the link color of the browser.
+The main accent color. The picture shows the search button and the active chip of the search dialog. The progress bar, the Config menu icons, the editor Save button and the "File:" line of the metadata panel also use it. The links in a note do not use it. They use the `--omn-link` tokens.
 
 | Light palette | Dark palette |
 | --- | --- |
@@ -549,6 +552,9 @@ A scheme sets these tokens the same as the other tokens. The table gives the par
 | `--omn-text-dim` | `#888888` | `#7a8086` | Small quiet text: the note path and the line number in the search dialog, the counts of the Search page, the facts of the Files page and the line numbers of the editor. |
 | `--omn-border-title` | `#eaecef` | `#3a3e41` | The line below the title and below each subtitle of the Config page. |
 | `--omn-on-accent` | `#ffffff` | `#ffffff` | The text and the icon on a filled button, for example the search button, the Save button of a changed Config page and an active button of the editor. |
+| `--omn-link` | `#0000ee` | `#9e9eff` | A link in a note or on a panel page. A link with a class of its own keeps its own color. |
+| `--omn-link-visited` | `#551a8b` | `#d0adf0` | A visited link. |
+| `--omn-link-hover` | `#0000ee` | `#9e9eff` | A link under the mouse pointer. The default is the same as `--omn-link`, thus the color does not change. |
 | `--omn-file-app` | `#9a5b00` | `#f0a13c` | The state word of a file that an update of OMN-Go replaces. |
 | `--omn-file-alert` | `#b3261e` | `#ff8a80` | The state word of a file that an update replaces, when the copy on the device differs. |
 | `--omn-file-keep` | `#1f7a35` | `#5ec97a` | The state word of a file that OMN-Go keeps. |
