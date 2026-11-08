@@ -36,6 +36,9 @@ export GOTOOLCHAIN=local
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO_ROOT"
 
+# The bind step runs from this path on each host. See step_bind.
+BIND_DIR=/tmp/omn-go-src
+
 step_tools() {
     go get -tool \
         "golang.org/x/mobile/cmd/gobind@$XMOBILE_VERSION" \
@@ -57,8 +60,23 @@ step_bind() {
     # -androidapi is the minSdk of android/app/build.gradle. A library for
     # a higher level can fail to load on the lowest Android that installs
     # the APK.
+    #
+    # The fixed directory: gomobile writes a go.mod in its temporary
+    # directory, with "replace net.basov.omngo => <this directory>". Go
+    # records that path in libgojni.so, also with -trimpath. The build
+    # thus runs from one fixed path on each host, through a symbolic link.
+    # Go reads the path from PWD, thus it records the link and not the
+    # real directory.
+    if [ -e "$BIND_DIR" ] && [ ! -L "$BIND_DIR" ]; then
+        echo "build_aar.sh: $BIND_DIR exists and is not a symbolic link" >&2
+        exit 1
+    fi
+    ln -sfn "$REPO_ROOT" "$BIND_DIR"
+    cd "$BIND_DIR"
     mkdir -p android/app/libs
     gomobile bind -trimpath -target=android -androidapi 23 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+    cd "$REPO_ROOT"
+    rm -f "$BIND_DIR"
 }
 
 case "${1:-all}" in

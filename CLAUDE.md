@@ -658,8 +658,11 @@ subject line, also when it has no list.
   passwords of `.env` as BuildKit secrets. Do not add a second Dockerfile for one
   kind of build.
 * The stages:
-  * `go_env`: Go, the JDK, Node and go.sum.
-  * `base_env`: `go_env` plus the Android SDK, the NDK, Gradle and gomobile.
+  * `sys_env`: Go and the Debian packages: the JDK and Node.
+  * `android_env`: `sys_env` plus the Android SDK, the NDK and Gradle. It reads no file
+    of the repository, thus a change of `go.mod` or of the script does not start it again.
+  * `go_env`: `sys_env` plus go.mod and go.sum.
+  * `base_env`: `android_env` plus the files of `go_env`, gobind and gomobile.
   * `test`: the quality gate.
   * `project_builder`: the artifacts.
   * `export`: the artifacts alone. This is the default target.
@@ -680,8 +683,9 @@ subject line, also when it has no list.
   `minSdk`. When the recipe on the F-Droid server changes, copy it into
   `metadata/` first. The tests then show each difference.
 * **Two builds of one commit give the same APK.** `gomobile bind` has `-trimpath`, and
-  `build.gradle` removes the dependency list from the APK. `TestAndroidBuildIsTheSameOnEachHost`
-  holds both rules. The F-Droid recipe has no `-trimpath` yet.
+  `build.gradle` removes the dependency list from the APK. Go records the directory of
+  the module in `libgojni.so`, also with `-trimpath`, thus the script binds from the fixed
+  path `/tmp/omn-go-src`. `TestAndroidBuildIsTheSameOnEachHost` holds the three rules. The F-Droid recipe has no `-trimpath` yet.
 * **Two GitHub workflows.** `test.yml` builds the `test` stage alone on each push to
   `master` and on each pull request. It needs no secret. `android-gomobile-release.yml`
   builds the artifacts, and a tag push makes the release. Run the gate alone on a

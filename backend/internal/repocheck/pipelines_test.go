@@ -181,6 +181,7 @@ func TestGradleVersionsAgree(t *testing.T) {
 var (
 	pipeBindRe     = regexp.MustCompile(`(?m)^\s*gomobile bind [^\n]*`)
 	pipeLdflagsRe  = regexp.MustCompile(`-ldflags="[^"]*"`)
+	pipeBindDirRe  = regexp.MustCompile(`(?m)^BIND_DIR=/[^\s$]+$`)
 	pipeXMobileRe  = regexp.MustCompile(`(?m)^XMOBILE_VERSION=(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$`)
 	pipeGetToolRe  = regexp.MustCompile(`(?m)^\s*go get -tool`)
 	pipeToolPathRe = regexp.MustCompile(`"golang\.org/x/mobile/cmd/(gobind|gomobile)@\$XMOBILE_VERSION"`)
@@ -192,8 +193,17 @@ var (
 // -ldflags, -trimpath stops the build. The Android Gradle plugin encrypts
 // its dependency list with a new random key for each build. Thus
 // build.gradle must remove the list from the APK.
+//
+// Go also records the directory of the module in libgojni.so, because
+// gomobile names it in a replace line. -trimpath does not remove that
+// path. The script thus runs the bind step from one fixed path on each
+// host.
 func TestAndroidBuildIsTheSameOnEachHost(t *testing.T) {
-	lines := pipeBindRe.FindAllString(pipeRead(t, pipeScript), -1)
+	script := pipeRead(t, pipeScript)
+	if !pipeBindDirRe.MatchString(script) || !strings.Contains(script, `cd "$BIND_DIR"`) {
+		t.Errorf("%s does not run the bind step from a fixed BIND_DIR=/<path>", pipeScript)
+	}
+	lines := pipeBindRe.FindAllString(script, -1)
 	if len(lines) != 1 {
 		t.Errorf("%s has %d gomobile bind lines, want 1", pipeScript, len(lines))
 	}

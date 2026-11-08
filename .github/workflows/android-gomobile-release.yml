@@ -40,15 +40,14 @@ jobs:
       # (local/build.sh) and GitLab. It holds all stages in one BuildKit
       # graph. See the header of the Dockerfile for the reason.
       #
-      # --cache-from/--cache-to type=gha persists BOTH the layer cache and
-      # the /go/pkg/mod, go-build, and gradle cache-mount contents in
-      # GitHub's Actions cache between workflow runs - without it, every
-      # run would start cold regardless of how the Dockerfile is laid out,
-      # since GitHub Actions runners are fresh VMs each time.
-      # mode=max also caches the base_env stage's layers, not just the
-      # final image, so an unchanged go.mod/toolchain setup is skipped
-      # entirely on the next run, not just de-duplicated at the Go-module
-      # level.
+      # --cache-from/--cache-to type=gha keeps the LAYER cache in GitHub's
+      # Actions cache between workflow runs. mode=max also keeps the layers
+      # of the inner stages (sys_env, android_env, go_env, base_env), thus
+      # an unchanged toolchain set-up is skipped on the next run. The
+      # contents of the --mount=type=cache directories (/go/pkg/mod,
+      # go-build, gradle, /tmp/dl) are NOT exported: BuildKit keeps them on
+      # the builder only, and each runner is a new VM. A step that must run
+      # again thus downloads again here.
       #
       # Signing material is passed as BuildKit secrets (NOT --build-arg), so
       # it never lands in the image layers or `docker history`. The secret
@@ -56,8 +55,6 @@ jobs:
       # key_alias, key_password. env= reads the value from the step env below;
       # src= reads the keystore file decoded in the previous step.
       #
-      # --load makes the result available to the classic `docker create`/
-      # `docker cp` steps further down.
       # Export ONLY the build outputs to ./artifacts via the `export` stage,
       # instead of --load'ing the multi-GB toolchain image into the Docker
       # daemon and copying files out of a container. No image tar / daemon

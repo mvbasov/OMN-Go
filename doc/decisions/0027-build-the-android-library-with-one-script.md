@@ -1,7 +1,7 @@
 # 0027. Build the Android library with one script
 
 * Status: accepted
-* Version: 26.11.11
+* Version: 26.11.11, 26.11.12
 * Code: `android/build_aar.sh`, `Dockerfile`,
   `backend/internal/repocheck/pipelines_test.go`
 
@@ -31,6 +31,12 @@ A new x/mobile can also ask for a newer Go. With `GOTOOLCHAIN=auto`, Go then
 downloads a second compiler and reports no error. That breaks the rule that
 the image and the recipe use the same compiler.
 
+gomobile writes a `go.mod` in its temporary directory, with
+`replace net.basov.omngo => <the directory of the module>`. Go records that
+path in `libgojni.so`, also with `-trimpath`. A check on 2026-11-09 showed
+that. The Docker build uses `/app`, and F-Droid uses its own build
+directory. The two libraries thus could not be the same.
+
 The gomobile steps were in three files: `Dockerfile.base`, `Dockerfile`, and
 `Dockerfile.ci`, and a fourth copy was in the F-Droid recipe. The recipe copy
 had no `-trimpath`.
@@ -41,6 +47,9 @@ had no `-trimpath`.
   and the one `gomobile bind` line.
 * `XMOBILE_VERSION` in that script is the only pin of x/mobile. The script
   sets `GOTOOLCHAIN=local`.
+* The bind step runs from the fixed path `/tmp/omn-go-src`, a symbolic link
+  to the checkout. Go reads the path from `PWD`, thus it records the link
+  and not the real directory.
 * One `Dockerfile` builds the local, GitHub and GitLab artifacts. It calls
   the script with `tools`, `init` and `bind`, one step for each image layer.
 * The F-Droid recipe can call the script with no argument. That is a
@@ -64,8 +73,9 @@ had no `-trimpath`.
 * A change of a flag or of the x/mobile version is a change in this tree.
   When the recipe calls the script, F-Droid takes the change with the next
   `f` tag, with no new merge request.
-* A change of the script starts the `go_env` and `base_env` stages again.
-  The download caches keep that step short.
+* A change of the script or of `go.mod` starts `go_env` and the last step of
+  `base_env` again. The Android SDK and the NDK are in `android_env`, which
+  reads no file of the repository, thus they do not download again.
 * `TestXMobileHasOnePinnedVersion` holds the pin, `GOTOOLCHAIN=local`, and
   the rule that the `Dockerfile` has no gomobile step of its own.
 * The recipe still installs build-tools 33.0.1, and it has no `-trimpath`.
