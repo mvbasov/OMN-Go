@@ -5,3 +5,6 @@
 • Add vcf, .ics and .vcs support
 • Refactor code
 • Extend code test coverage
+• Rewrite css variable names to project uniq
+• Unify builds
+
