@@ -5,6 +5,10 @@ plugins {
 android {
     namespace 'net.basov.omngo'
     compileSdk 34
+    // The Dockerfile installs the same build-tools and the same NDK.
+    // TestPipelinesAgreeOnTheBuildTools and TestPipelinesAgreeOnTheNDK
+    // compare the values.
+    buildToolsVersion "34.0.0"
     ndkVersion "25.2.9519653"
 
     defaultConfig {
@@ -21,8 +25,8 @@ android {
         // and omn-go-compat in index.html says so on screen when it is not.
         minSdk 23
         targetSdk 34
-        versionCode 2611010
-        versionName "26.11.10"
+        versionCode 2611011
+        versionName "26.11.11"
     }
 
 
@@ -36,14 +40,8 @@ android {
     // this flavor (already used for the F-Droid launcher icon variant) -
     // no extra wiring needed for that part.
     //
-    // NOTE for CI: adding flavors changes the generated Gradle task
-    // names. `gradle assembleRelease` (used by Dockerfile.ci today) is
-    // no longer valid on its own - it becomes `assembleStandardRelease`
-    // / `assembleFdroidRelease` (or `assembleRelease` still works as an
-    // umbrella task that builds BOTH flavors' release variants, if
-    // that's preferred). Not changed here since the desktop/Docker build
-    // pipeline is out of scope for this change - flag for a follow-up
-    // once ready to wire the F-Droid build path into CI.
+    // The flavors give the task names. The Dockerfile runs
+    // assembleStandardRelease. The F-Droid recipe runs the fdroid flavor.
     flavorDimensions "distribution"
     productFlavors {
         standard {

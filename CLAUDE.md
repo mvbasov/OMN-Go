@@ -102,7 +102,7 @@ Do not remove a constraint without an instruction from the maintainer.
 | `backend/frontend/templates/` | Server-side page fragments. Embedded as `frontend.Templates`. Never extracted to disk. |
 | `backend/frontend/html/` | `js/`, `css/`, `css/fonts/`, `json/`, `favicon.ico`. Embedded as `frontend.Static`. Extracted to the storage directory on demand. The user can edit these files with `?edit=true`. |
 | `backend/frontend/md/` | The bundled system notes. Examples: `Welcome.md`, `UserManual.md`, `Database.md`, `ScriptRules.md`. Also a `Test/OMN-Go/` demonstration tree. |
-| `android/` | Hand-written Gradle files and plain Java. The three components are `MainActivity.java`, `ServerService.java` and `ExportProvider.java`. `MainActivity` holds the life cycle and stays below 800 lines. Each other task is a plain class beside it: `WebViewSetup`, `Fullscreen`, `ShareIn`, `ShareOut`, `IntentBridge` and `Shortcuts`. `OmnConfig` and `OmnText` import no Android package, and `android/test/` holds a test of each. See `doc/decisions/0022-divide-main-activity-into-plain-classes.md`. The build generates `android/app/libs/omngo.aar` with `gomobile bind`. |
+| `android/` | Hand-written Gradle files and plain Java. The three components are `MainActivity.java`, `ServerService.java` and `ExportProvider.java`. `MainActivity` holds the life cycle and stays below 800 lines. Each other task is a plain class beside it: `WebViewSetup`, `Fullscreen`, `ShareIn`, `ShareOut`, `IntentBridge` and `Shortcuts`. `OmnConfig` and `OmnText` import no Android package, and `android/test/` holds a test of each. See `doc/decisions/0022-divide-main-activity-into-plain-classes.md`. `android/build_aar.sh` makes `android/app/libs/omngo.aar` with `gomobile bind`. It holds each gomobile step and the x/mobile version. See `doc/decisions/0027-build-the-android-library-with-one-script.md`. |
 | `local/` | Maintainer scripts. The Docker context excludes this directory. The build never ships it. |
 | `fastlane/metadata/android/en-US/` | Store metadata and `changelogs/<versionCode>.txt`. Each changelog line starts with `•`. |
 | `metadata/` | `net.basov.omngo.fdroid.yml`, the F-Droid build recipe. |
@@ -123,18 +123,24 @@ update these files.
 
 * The module is `net.basov.omngo`. The language version is `go 1.25`. go-git v5.19.2
   needs Go 1.25 or later, thus the line cannot go lower.
-* The toolchain image is `golang:1.26.0-bookworm`. The F-Droid recipe builds
-  with the srclib `go@go1.26.0`, thus the two builds use the same compiler.
-  Change the image, the recipe and
+* The toolchain image is `golang:1.26.0-trixie`, with JDK 21. The F-Droid
+  server runs Debian trixie with JDK 21. The F-Droid recipe builds with the
+  srclib `go@go1.26.0`, thus the two builds use the same compiler. Change the
+  image, the recipe and
   `backend/internal/repocheck/testdata/binary_size_baseline.json` together.
-* Each build fetches the newest `golang.org/x/mobile` with `go get -tool`. That
-  version needs Go 1.26.0, thus the real build uses Go 1.26 and not Go 1.25.
+* `XMOBILE_VERSION` in `android/build_aar.sh` is the only pin of
+  `golang.org/x/mobile`. Each build installs that version with `go get -tool`.
+  That version needs Go 1.26.0, thus the real build uses Go 1.26 and not Go 1.25.
+  A new version can raise `golang.org/x/crypto`, `x/net` and `x/sys` in the
+  library. Change the pin on purpose, and only in the script.
+* The script sets `GOTOOLCHAIN=local`. A module that needs a newer Go then
+  stops the build. With `auto`, Go downloads a second compiler without a message.
 * The module has three direct dependencies. Each one has its own `require` line:
   `github.com/yuin/goldmark`, `github.com/go-git/go-git/v5`, and
   `modernc.org/sqlite`. Keep this set small. A new dependency needs a reason and
   maintainer approval.
-* **The build generates `go.sum` inside the container.** `Dockerfile.base` writes it
-  to `/root/lockfiles`. The `test` and `project_builder` stages restore it. The host has no Go
+* **The build generates `go.sum` inside the container.** The `go_env` stage of the
+  `Dockerfile` writes it to `/root/lockfiles`. The `test` and `project_builder` stages restore it. The host has no Go
   toolchain. Remember this before you change `go.mod`.
 * The driver is `modernc.org/sqlite`, because it is pure Go and works with
   `CGO_ENABLED=0`.
@@ -646,16 +652,20 @@ subject line, also when it has no list.
 
 * The Docker build is the reference build. The host needs no Go, no Android Studio,
   and no Gradle.
-* The build has two files. `Dockerfile.base` makes the toolchain image and stores
-  `go.sum`. `Dockerfile` then runs the gate and builds the artifacts. `local/build.sh`
-  runs both files and copies the artifacts to `output-binaries/`. `Dockerfile.ci`
-  holds the same stages in one file for GitHub and GitLab. Keep the three in step.
+* **The build has one file, the `Dockerfile`.** The local build, GitHub and GitLab
+  build it with the same stages and the same four secret ids. `local/build.sh`
+  builds the `export` stage into `output-binaries/`. It gives the keystore and the
+  passwords of `.env` as BuildKit secrets. Do not add a second Dockerfile for one
+  kind of build.
 * The stages:
   * `go_env`: Go, the JDK, Node and go.sum.
   * `base_env`: `go_env` plus the Android SDK, the NDK, Gradle and gomobile.
   * `test`: the quality gate.
   * `project_builder`: the artifacts.
-  * `export`: the artifacts alone. Only `Dockerfile.ci` has this stage.
+  * `export`: the artifacts alone. This is the default target.
+* **The gomobile steps are in `android/build_aar.sh`.** The `Dockerfile` calls it with
+  `tools`, `init` and `bind`. The F-Droid recipe can call it with no argument. Do not
+  write a gomobile step into the `Dockerfile` or into the recipe.
 * **Quality gate.** The `test` stage runs `go vet ./backend/... && go test ./backend/...`
   after `go mod tidy`. The JDK and Node of `go_env` also run the Java test and the
   JavaScript tests. `project_builder` copies `/gate-passed` from the `test` stage, thus
@@ -663,8 +673,9 @@ subject line, also when it has no list.
   the gate and prints a warning. Do not use that argument for work that you push.
 * **The three builds must agree.**
   `backend/internal/repocheck/pipelines_test.go` compares the Android API level,
-  the Go version and the NDK. It reads the Docker files and
-  `android/app/build.gradle`. It also reads the last version in
+  the Go version, the NDK, the build-tools, the Gradle version and the x/mobile pin.
+  It reads the `Dockerfile`, `android/build_aar.sh`, `android/app/build.gradle` and
+  `gradle-wrapper.properties`. It also reads the last version in
   `metadata/net.basov.omngo.fdroid.yml`. `-androidapi` must be the same as
   `minSdk`. When the recipe on the F-Droid server changes, copy it into
   `metadata/` first. The tests then show each difference.
@@ -674,11 +685,11 @@ subject line, also when it has no list.
 * **Two GitHub workflows.** `test.yml` builds the `test` stage alone on each push to
   `master` and on each pull request. It needs no secret. `android-gomobile-release.yml`
   builds the artifacts, and a tag push makes the release. Run the gate alone on a
-  device with `docker buildx build --target test .` after `local/build.sh` made the
-  base image one time.
+  device with `docker buildx build --target test .`.
 * Desktop targets are `linux/amd64` and `windows/amd64`. The binary name is
-  `omn-go-v${VERSION}-desktop-<os>-<arch>`. A release build uses `-trimpath` and
-  `-ldflags="-s -w"`.
+  `omn-go-v${VERSION}-desktop-<os>-<arch>`. A release build uses `CGO_ENABLED=0`,
+  `-trimpath` and `-ldflags="-s -w"`, the same flags as `TestBinarySize`. The Linux
+  binary thus needs no C library on the computer of the user.
 * Pass `-ldflags` on the `go build` command line. Keep `GOFLAGS` for single-word
   flags only. The `go` command splits `GOFLAGS` on spaces and drops an unknown flag
   without a message.
@@ -690,7 +701,9 @@ subject line, also when it has no list.
   it. A job rule alone leaves a pipeline that holds no job, and GitLab reports that
   as a fault. `.github/workflows/sync-gitlab.yml` mirrors each branch push and each
   tag, thus a branch push reaches GitLab and must make no pipeline.
-* The Android build tools stay pinned at 34.0.0. **The image follows the build. The
+* The Android build tools stay pinned at 34.0.0, with `buildToolsVersion` in
+  `android/app/build.gradle`. That is the default of AGP 8.2.2, thus the pin does
+  not change the F-Droid build. **The image follows the build. The
   build does not follow the image.** Never change the Gradle configuration to suit
   the Docker image.
 

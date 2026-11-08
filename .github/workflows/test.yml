@@ -1,4 +1,4 @@
-# The fast quality gate. It builds the test stage of Dockerfile.ci and
+# The fast quality gate. It builds the test stage of the Dockerfile and
 # nothing else. That stage runs go vet and each test: Go, Java and
 # JavaScript. It uses the same image, the same Go version and the same
 # commands as the release build. It needs no Android tool and no secret.
@@ -32,7 +32,6 @@ jobs:
       - name: Run the quality gate
         run: |
           docker buildx build \
-            -f Dockerfile.ci \
             --target test \
             --progress plain \
             --cache-from type=gha,scope=omngo-test \

@@ -2,6 +2,7 @@
 .github/
 .gitignore
 .env
+**/*.keystore
 doc/
 !doc/decisions/
 local/

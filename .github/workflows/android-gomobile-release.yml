@@ -36,16 +36,9 @@ jobs:
         run: |
           echo "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/omn-go.keystore"
 
-      # Built from Dockerfile.ci - a merged, single-BuildKit-graph version
-      # of Dockerfile.base + Dockerfile (see that file's header comment
-      # for why). setup-buildx-action's builder uses the `docker-container`
-      # driver, which runs BuildKit in an isolated container that does NOT
-      # share the runner's local Docker daemon image store: two separate
-      # `docker buildx build` calls, where the second does
-      # `FROM omn-go-base:latest`, fail trying to PULL that name from a
-      # registry instead of reusing what the first `--load`ed. Building
-      # both stages as one graph sidesteps that - there's no cross-
-      # invocation image reference for it to fail to resolve.
+      # Built from the Dockerfile, the same file as the local build
+      # (local/build.sh) and GitLab. It holds all stages in one BuildKit
+      # graph. See the header of the Dockerfile for the reason.
       #
       # --cache-from/--cache-to type=gha persists BOTH the layer cache and
       # the /go/pkg/mod, go-build, and gradle cache-mount contents in
@@ -59,7 +52,7 @@ jobs:
       #
       # Signing material is passed as BuildKit secrets (NOT --build-arg), so
       # it never lands in the image layers or `docker history`. The secret
-      # ids must match what Dockerfile.ci mounts: keystore, keystore_password,
+      # ids must match what the Dockerfile mounts: keystore, keystore_password,
       # key_alias, key_password. env= reads the value from the step env below;
       # src= reads the keystore file decoded in the previous step.
       #
@@ -72,7 +65,6 @@ jobs:
       - name: Build and export artifacts
         run: |
           docker buildx build \
-            -f Dockerfile.ci \
             --target export \
             --output type=local,dest=artifacts \
             --secret id=keystore,src="${RUNNER_TEMP}/omn-go.keystore" \

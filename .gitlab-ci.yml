@@ -77,7 +77,6 @@ build_job:
     # push hiccup never fails the job - artifacts are already exported by then.
     - |
       docker buildx build \
-        -f Dockerfile.ci \
         --target export \
         --output type=local,dest=artifacts \
         --secret id=keystore,src=/tmp/omn-go.keystore \

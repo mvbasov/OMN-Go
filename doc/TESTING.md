@@ -261,8 +261,8 @@ Four rules keep it correct with no edit, and a test holds each one:
 Gradle reads a source set only under `android/app/src`, thus it never
 compiles this directory and the F-Droid build cannot see it.
 
-**Node is in `Dockerfile.base` and `Dockerfile.ci` only.** Those two build
-the GitHub artifacts. The F-Droid build server installs what the recipe
+**Node is in the `Dockerfile` only.** It builds the local, GitHub and GitLab
+artifacts. The F-Droid build server installs what the recipe
 names, and the recipe names no Node.
 
 `OmnConfig.java` and `OmnText.java` ARE in `src/main`, thus F-Droid

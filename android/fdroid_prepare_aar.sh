@@ -12,10 +12,10 @@
 # the srclibs:/$$GoBackend$$ wiring in detail).
 #
 # WHAT ACTUALLY HAPPENS NOW: that separate repository was never created.
-# metadata/net.basov.omngo.fdroid.yml's prebuild: step instead
+# metadata/net.basov.omngo.fdroid.yml's build: step instead
 # bootstraps a Go toolchain and runs `gomobile bind` directly, in-tree,
 # producing android/app/libs/omngo.aar itself - no srclib, no separate
-# repo, and no call into this script. If that ever changes back to a
-# srclib-based split build, this script (or something like it) would
-# need to be wired back into that recipe's prebuild: - until then it is
-# dead code, left in place only in case that direction is revisited.
+# repo, and no call into this script. android/build_aar.sh holds those
+# gomobile steps for the Dockerfile, and the recipe can call it. This
+# script is dead code, left in place only in case a srclib-based split
+# build is revisited.

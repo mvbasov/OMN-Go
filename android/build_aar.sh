@@ -1,0 +1,78 @@
+#!/bin/sh
+# android/build_aar.sh
+#
+# Makes android/app/libs/omngo.aar from ./backend with gomobile. This
+# script is the only place that holds the gomobile steps of the Android
+# build. The Dockerfile calls it. The F-Droid recipe can call it too, thus
+# a change of a flag or of the x/mobile version needs no change of the
+# recipe. See doc/decisions/0027-build-the-android-library-with-one-script.md.
+#
+# USAGE (from any directory):
+#   sh android/build_aar.sh          # all steps, in this sequence: tools, tidy, init, bind
+#   sh android/build_aar.sh tools    # add the pinned x/mobile tools to go.mod and download the modules
+#   sh android/build_aar.sh init     # install gobind and gomobile, then run gomobile init
+#   sh android/build_aar.sh bind     # make android/app/libs/omngo.aar
+#
+# The Dockerfile runs the steps one at a time, because each step has its
+# own image layer and cache. The F-Droid recipe runs all steps.
+#
+# The script needs Go, and $GOPATH/bin on PATH. The bind step also needs
+# ANDROID_HOME and the NDK that android/app/build.gradle names.
+
+set -eu
+
+# THE ONE PIN OF golang.org/x/mobile. A "go get -tool" with no version
+# takes the newest x/mobile. That version can also raise golang.org/x/crypto,
+# golang.org/x/net and golang.org/x/sys, and these modules go into
+# libgojni.so. Two builds of one commit on two days then give two
+# different libraries. Change this value on purpose, and only here.
+XMOBILE_VERSION=v0.0.0-20261011034528-197770444867
+
+# Use only the Go that the build installed. With "auto", Go downloads a
+# newer toolchain when a module asks for it. The build then uses a second
+# compiler and reports no error. With "local", the build stops.
+export GOTOOLCHAIN=local
+
+REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$REPO_ROOT"
+
+step_tools() {
+    go get -tool \
+        "golang.org/x/mobile/cmd/gobind@$XMOBILE_VERSION" \
+        "golang.org/x/mobile/cmd/gomobile@$XMOBILE_VERSION"
+    go mod download
+}
+
+step_init() {
+    # go.mod names the tools, thus "go install" takes the pinned version.
+    go install golang.org/x/mobile/cmd/gobind golang.org/x/mobile/cmd/gomobile
+    gomobile init
+}
+
+step_bind() {
+    # -trimpath is a flag of gomobile, and not of the linker. gomobile
+    # writes the generated Go code into a new temporary directory for each
+    # run. Without -trimpath, libgojni.so holds that path.
+    #
+    # -androidapi is the minSdk of android/app/build.gradle. A library for
+    # a higher level can fail to load on the lowest Android that installs
+    # the APK.
+    mkdir -p android/app/libs
+    gomobile bind -trimpath -target=android -androidapi 23 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+}
+
+case "${1:-all}" in
+    tools) step_tools ;;
+    init)  step_init ;;
+    bind)  step_bind ;;
+    all)
+        step_tools
+        go mod tidy
+        step_init
+        step_bind
+        ;;
+    *)
+        echo "usage: sh android/build_aar.sh [all|tools|init|bind]" >&2
+        exit 2
+        ;;
+esac

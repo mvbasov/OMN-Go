@@ -48,13 +48,16 @@ if [ ! -d "$SDKCACHE/ndk/$NDK_DIR" ]; then
     rm -f /tmp/ndk.zip
 fi
 
-# 3. SDK platform + build-tools (one-time) — same versions as the Docker build.
-#    F-Droid python sdkmanager; each package quoted so the ';' survives.
+# 3. SDK platform (one-time). F-Droid python sdkmanager; the package is
+#    quoted so the ';' survives.
+#    No build-tools here. The prebuild: line of the recipe installs them, the
+#    same as on the F-Droid server. android/app/build.gradle asks for 34.0.0.
+#    The build log thus shows if the server must download that version.
 if ! ls -d "$SDKCACHE"/platforms/android-34 >/dev/null 2>&1; then
-    echo "==> installing platforms;android-34 build-tools;33.0.1 ..."
+    echo "==> installing platforms;android-34 ..."
     podman run --rm -v "$SDKCACHE":/opt/android-sdk:z --entrypoint /bin/bash "$IMAGE" \
         -c 'export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk; \
-            yes | sdkmanager "platforms;android-34" "build-tools;33.0.1"'
+            yes | sdkmanager "platforms;android-34"'
 fi
 
 # 4. Register the NDK path in config.yml (persists on the /build mount)

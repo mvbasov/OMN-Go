@@ -10,11 +10,11 @@
 #
 # WHY THIS EXISTS: these files are committed to the repo so the app is
 # fully offline out of the box (see UserManual.md) and so
-# local/build.sh / Dockerfile.base builds don't need network access.
+# the Docker build (Dockerfile, local/build.sh) does not need to fetch them.
 # But F-Droid's own build recipe (metadata/net.basov.omngo.fdroid.yml)
 # would rather fetch-and-verify third-party binaries at build time than
 # trust ones already sitting in the source tree - this script is called
-# from that recipe's prebuild: step for exactly that reason. It is not
+# from that recipe's build: step for exactly that reason. It is not
 # used by the normal Docker pipeline, which keeps using the committed
 # copies as-is (this script is safe to run there too - it just
 # re-fetches and overwrites the same files - but nothing currently

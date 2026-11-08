@@ -22,8 +22,8 @@ package repocheck
 // binary and no sync carries it. TestFrontendTestsAreNotShipped holds
 // that.
 //
-// THE F-DROID BUILD NEVER RUNS THEM. Node is in Dockerfile.base and
-// Dockerfile.ci, which build the GitHub artifacts. The F-Droid recipe
+// THE F-DROID BUILD NEVER RUNS THEM. Node is in the Dockerfile, which
+// builds the GitHub artifacts and the local artifacts. The F-Droid recipe
 // builds the committed Gradle configuration on its own server and
 // installs nothing from those files. The recipe needs no change.
 
@@ -156,8 +156,8 @@ func TestJavaScriptUnitTests(t *testing.T) {
 		t.Fatalf("no test file under frontend/test: %v", err)
 	}
 
-	// The file list and not the directory. A directory argument needs a
-	// newer node than Debian bookworm carries.
+	// The file list and not the directory. The node of Debian bookworm
+	// did not accept a directory argument, and a list works with each node.
 	coverDir := t.TempDir()
 	args := append([]string{"--test"}, files...)
 	cmd := exec.Command(node, args...)

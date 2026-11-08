@@ -27,7 +27,7 @@ PROMPT_EOF
 FILES=(
     "doc/initial_prompt.md"
     "Dockerfile"
-    "Dockerfile.base"
+    "android/build_aar.sh"
     "go.mod"
     "main_desktop.go"
     "backend/internal/app/server.go"

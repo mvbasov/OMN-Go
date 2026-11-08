@@ -1,38 +1,58 @@
 #!/bin/bash
-if [ ! -f android/app/omn-go.keystore ]; then \
-   keytool -genkey -v -keystore app/omn-go.keystore \
-           -alias omn-go -keyalg RSA -keysize 2048 \
-           -validity 10000 -storepass omn-go123 -keypass omn-go123 \
-           -dname "CN=OMN-Go, O=Basov"; \
-fi 
+# local/build.sh - the local build of the desktop binaries and of the APKs.
+#
+# It builds the same Dockerfile, the same stages and the same secret ids as
+# GitHub and GitLab. The artifacts go to ./output-binaries/.
+#
+# USAGE (from any directory):
+#   bash local/build.sh               # the normal build
+#   bash local/build.sh --no-cache    # each other argument goes to "docker buildx build"
+#
+# THE SIGNING MATERIAL.
+#   android/app/omn-go.keystore   The keystore. The script makes one when it is absent.
+#   .env                          KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD,
+#                                 one NAME=value line each. Optional.
+# Git ignores both files, and .dockerignore keeps both out of the build context.
+# They go to the build only as BuildKit secrets.
 
-# 0. Build descktop and android binary
-echo "-------- STAGE 1 -------"
-docker buildx build -f Dockerfile.base -t omn-go-base:latest .
-echo "-------- STAGE 2 -------"
-docker buildx build -t omn-go-builder:latest . \
-   $(grep -v '^#' .env | xargs -I {} echo --build-arg {})
+set -euo pipefail
 
-## Extract the keystore after first run
-#docker create --name tmp omn-go-builder
-#docker cp tmp:/app/android/app/omn-go.keystore android/app/
-#docker rm tmp
+cd "$(dirname "$0")/.."
 
-# 1. Clean up the old directory 
+KEYSTORE=android/app/omn-go.keystore
+
+# Read only the three names from .env. The file is not run as a script.
+if [ -f .env ]; then
+    while IFS='=' read -r name value; do
+        case "$name" in
+            KEYSTORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD) export "$name=$value" ;;
+        esac
+    done < .env
+fi
+export KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD:-omn-go123}"
+export KEY_ALIAS="${KEY_ALIAS:-omn-go}"
+export KEY_PASSWORD="${KEY_PASSWORD:-omn-go123}"
+
+if [ ! -f "$KEYSTORE" ]; then
+    echo "-------- make $KEYSTORE --------"
+    keytool -genkey -v -keystore "$KEYSTORE" \
+            -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+            -dname "CN=OMN-Go, O=Basov"
+fi
+
 rm -rf ./output-binaries/
 
-# 2. Recreate a fresh, empty directory
-mkdir -p ./output-binaries/
+echo "-------- build --------"
+docker buildx build \
+    --target export \
+    --output type=local,dest=output-binaries \
+    --secret id=keystore,src="$KEYSTORE" \
+    --secret id=keystore_password,env=KEYSTORE_PASSWORD \
+    --secret id=key_alias,env=KEY_ALIAS \
+    --secret id=key_password,env=KEY_PASSWORD \
+    "$@" \
+    .
 
-# 3. Create the temporary container from the latest build image
-docker create --name omn-go-extract omn-go-builder
-
-# 4. Copy the CONTENTS of the bin folder (using the critical /. syntax)
-docker cp omn-go-extract:/app/bin/. ./output-binaries/
-
-# 5. Clean up the temporary container
-docker rm omn-go-extract
-
-# 6. Show result
 ls -l ./output-binaries/
-echo "Binaries successfully extracted to perfectly clean ./output-binaries/ directory!"
+echo "The artifacts are in ./output-binaries/."
