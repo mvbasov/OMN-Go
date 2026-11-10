@@ -57,6 +57,30 @@ public class ServerService extends Service {
      */
     private static boolean backendStarted = false;
 
+    /**
+     * Counts down when Backend.startServer() returned. At that point the
+     * storage directory and config.json are ready, and Go waits for the
+     * bind. See awaitBackend.
+     */
+    private static final java.util.concurrent.CountDownLatch backendReturned =
+            new java.util.concurrent.CountDownLatch(1);
+
+    /**
+     * Blocks until the Go server listens, or until the time is over.
+     * Answers false when the time is over. Call it on a worker thread, and
+     * never on the main thread.
+     *
+     * Two steps, because Backend.waitUntilReady() returns at once when
+     * Backend.startServer() did not start yet. The latch closes that gap.
+     */
+    static boolean awaitBackend(long timeoutMs) throws InterruptedException {
+        if (!backendReturned.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+            return false;
+        }
+        Backend.waitUntilReady();
+        return true;
+    }
+
     private PowerManager.WakeLock wakeLock;
 
     // ---------------------------------------------------------------
@@ -283,9 +307,27 @@ public class ServerService extends Service {
             // The Go runtime cannot ask Android which applicationId it
             // runs under, and /api/status reports it. Set before the
             // server starts, so the first status request already has it.
-            Backend.setAndroidPackage(getPackageName());
-            Backend.startServer(storageDir(this), BuildConfig.DEFAULT_SERVER_PORT);
+            //
+            // A worker thread, and not the main thread, which runs each
+            // onStartCommand. The first start of a new version writes the
+            // shipped files again and compiles each page again, and that
+            // takes seconds. On the main thread, the activity could not
+            // draw its first frame in that time, and the screen stayed
+            // black. MainActivity waits with awaitBackend.
             backendStarted = true;
+            final String dir = storageDir(this);
+            final String pkg = getPackageName();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Backend.setAndroidPackage(pkg);
+                        Backend.startServer(dir, BuildConfig.DEFAULT_SERVER_PORT);
+                    } finally {
+                        backendReturned.countDown();
+                    }
+                }
+            }, "omn-go-start").start();
         }
 
         // Sticky, thus the LAN-sharing server comes back when the system

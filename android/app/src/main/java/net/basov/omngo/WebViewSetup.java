@@ -19,6 +19,8 @@ final class WebViewSetup {
     static void build(final MainActivity a) {
         // Create Native Loading Layout
         android.widget.FrameLayout rootLayout = new android.widget.FrameLayout(a);
+        // The color of omn_start_background in res/values/themes.xml, the
+        // window background before this layout.
         rootLayout.setBackgroundColor(android.graphics.Color.parseColor("#f9f9f9"));
 
         final android.widget.ProgressBar progressBar = new android.widget.ProgressBar(a);

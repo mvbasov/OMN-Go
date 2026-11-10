@@ -100,7 +100,7 @@
         android:label="OMN-Go"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@style/OmnGoTheme">
         <activity
             android:name=".MainActivity"
             android:exported="true"

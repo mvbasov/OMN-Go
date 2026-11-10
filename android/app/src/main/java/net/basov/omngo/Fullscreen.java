@@ -13,7 +13,7 @@ final class Fullscreen {
     //
     // The app used to be unconditionally fullscreen, through
     // Theme.NoTitleBar.Fullscreen in AndroidManifest.xml. That theme is
-    // still declared. It is what makes the DEFAULT case, with the status
+    // still the parent of OmnGoTheme (res/values/themes.xml). It is what makes the DEFAULT case, with the status
     // bar hidden, draw correctly from the very first frame. No visible bar
     // flashes away once this code runs. applyFullscreenMode() then takes
     // over as the single authority for what is shown.

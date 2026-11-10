@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The theme of the application. It is Theme.NoTitleBar.Fullscreen with
+      one change: the window background. Android draws that background from
+      the tap on the icon until the first frame of MainActivity. The parent
+      theme has a black background. This color is the color of the layout
+      with the spinner (WebViewSetup.build), thus the screen goes from the
+      background to the spinner with no black screen. On Android 12 and
+      later, the system splash screen also uses this color.
+    -->
+    <style name="OmnGoTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@color/omn_start_background</item>
+    </style>
+
+    <!-- The same value as the root layout of WebViewSetup.build. -->
+    <color name="omn_start_background">#f9f9f9</color>
+</resources>
