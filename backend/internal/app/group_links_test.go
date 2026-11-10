@@ -20,7 +20,7 @@ var fileGroups = map[string]string{
 	"config_app.go": "config", "app_version.go": "config",
 
 	"render_app.go":  "render",
-	"storage_app.go": "storage",
+	"storage_app.go": "storage", "start_stage.go": "storage",
 
 	"files_app.go":    "files",
 	"exchange_app.go": "exchange",

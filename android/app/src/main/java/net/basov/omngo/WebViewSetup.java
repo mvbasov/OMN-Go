@@ -30,6 +30,23 @@ final class WebViewSetup {
         pbParams.gravity = android.view.Gravity.CENTER;
         progressBar.setLayoutParams(pbParams);
 
+        // The work of the start, under the spinner. See
+        // MainActivity.showStartStage. The spinner stays at the center,
+        // because each later page load shows it there with no text.
+        float dp = a.getResources().getDisplayMetrics().density;
+        a.startText = new android.widget.TextView(a);
+        a.startText.setText("Starting");
+        a.startText.setTextColor(android.graphics.Color.parseColor("#666666"));
+        a.startText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+        a.startText.setGravity(android.view.Gravity.CENTER);
+        a.startText.setPadding((int) (24 * dp), 0, (int) (24 * dp), 0);
+        android.widget.FrameLayout.LayoutParams textParams = new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        textParams.gravity = android.view.Gravity.CENTER;
+        textParams.topMargin = (int) (64 * dp);
+        a.startText.setLayoutParams(textParams);
+
         // Initialize WebView
         a.webView = new WebView(a);
         a.webView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
@@ -95,6 +112,7 @@ final class WebViewSetup {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(android.view.View.GONE);
+                a.startText.setVisibility(android.view.View.GONE);
                 // A save on the Config page reloads it. That is what makes
                 // a "Fullscreen mode" change apply at once, and not at the
                 // next app start.
@@ -107,6 +125,7 @@ final class WebViewSetup {
             public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
                                         android.webkit.WebResourceError error) {
                 progressBar.setVisibility(android.view.View.GONE);
+                a.startText.setVisibility(android.view.View.GONE);
                 super.onReceivedError(view, request, error);
             }
             @Override
@@ -237,6 +256,7 @@ final class WebViewSetup {
         });
         rootLayout.addView(a.webView);
         rootLayout.addView(progressBar);
+        rootLayout.addView(a.startText);
         a.setContentView(rootLayout);
     }
 }

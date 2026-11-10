@@ -22,6 +22,9 @@ import net.basov.omngo.backend.Backend;
 // package, and nothing outside the package reads them.
 public class MainActivity extends Activity {
     WebView webView;
+    // The text under the spinner of the start screen. WebViewSetup makes it,
+    // showStartStage writes it, and the first loaded page hides it.
+    android.widget.TextView startText;
     // The name of the note that the external editor has open. WebViewSetup
     // sets it for an "omngo://edit" address, and onActivityResult reads it.
     String currentEditingName;
@@ -150,13 +153,23 @@ public class MainActivity extends Activity {
         // thread thus draws the spinner of WebViewSetup at once, also while
         // the first start of a new version writes and compiles its files.
         // This thread waits until the server listens, and then the main
-        // thread loads the start page. The time limit only guards against
-        // a server that never starts: the load then shows the error.
+        // thread loads the start page. While it waits, it reads the work of
+        // the start two times per second, and the text under the spinner
+        // shows it. The time limit only guards against a server that never
+        // starts: the load then shows the error.
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    ServerService.awaitBackend(BACKEND_START_TIMEOUT_MS);
+                    long deadline = System.currentTimeMillis() + BACKEND_START_TIMEOUT_MS;
+                    boolean returned = false;
+                    while (!returned && System.currentTimeMillis() < deadline) {
+                        returned = ServerService.awaitBackendReturn(START_STAGE_POLL_MS);
+                        showStartStage(Backend.startStage());
+                    }
+                    if (returned) {
+                        Backend.waitUntilReady();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -164,6 +177,7 @@ public class MainActivity extends Activity {
                     @Override
                     public void run() {
                         if (!isFinishing() && !isDestroyed()) {
+                            showStartStage("Opening the page");
                             loadStartPage();
                         }
                     }
@@ -174,6 +188,23 @@ public class MainActivity extends Activity {
 
     // The longest wait for the Go server. See onCreate.
     private static final long BACKEND_START_TIMEOUT_MS = 120000;
+
+    // The time between two reads of the start stage: two reads per second.
+    private static final long START_STAGE_POLL_MS = 500;
+
+    // showStartStage writes the work of the start under the spinner. Any
+    // thread can call it. An empty stage shows "Starting". WebViewSetup
+    // hides the text when the first page is loaded.
+    void showStartStage(final String stage) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (startText != null) {
+                    startText.setText(stage == null || stage.isEmpty() ? "Starting" : stage);
+                }
+            }
+        });
+    }
 
     // loadStartPage loads the first page of this start. It runs on the main
     // thread, after the Go server listens.

@@ -84,8 +84,9 @@ func (l Layout) PageHTML(name string) string {
 // user, and it stays. A new version calls it, because a compiled page holds
 // the page shell of the old templates. See
 // doc/decisions/0026-compile-each-page-again-after-a-new-version.md. The
-// function answers the count of removed pages.
-func DropCompiledPages(l Layout) (int, error) {
+// function answers the count of removed pages. progress receives the count
+// after each removal, with no whole count.
+func DropCompiledPages(l Layout, progress Progress) (int, error) {
 	root := l.HTML()
 	removed := 0
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -103,6 +104,7 @@ func DropCompiledPages(l Layout) (int, error) {
 			return err
 		}
 		removed++
+		progress.report(removed, 0)
 		return nil
 	})
 	if os.IsNotExist(err) {

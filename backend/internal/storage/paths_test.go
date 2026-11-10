@@ -134,9 +134,18 @@ func TestDropCompiledPagesRemovesOnlyCompiledPages(t *testing.T) {
 	own := l.HTML("js", "demo.html")
 	write(own, "<p>mine</p>")
 
-	n, err := DropCompiledPages(l)
+	var counts []int
+	n, err := DropCompiledPages(l, func(done, total int) {
+		if total != 0 {
+			t.Errorf("progress total = %d, want 0: the walk does not know the whole count", total)
+		}
+		counts = append(counts, done)
+	})
 	if err != nil || n != 2 {
 		t.Fatalf("DropCompiledPages = %d, %v, want 2, nil", n, err)
+	}
+	if len(counts) != 2 || counts[0] != 1 || counts[1] != 2 {
+		t.Errorf("progress counts = %v, want [1 2]", counts)
 	}
 	for _, name := range []string{"Doc", "sub/Deep"} {
 		if FileExists(l.PageHTML(name)) {
@@ -151,7 +160,7 @@ func TestDropCompiledPagesRemovesOnlyCompiledPages(t *testing.T) {
 	}
 
 	// A storage directory with no html/ is not a fault.
-	if n, err := DropCompiledPages(Layout(t.TempDir())); n != 0 || err != nil {
+	if n, err := DropCompiledPages(Layout(t.TempDir()), nil); n != 0 || err != nil {
 		t.Errorf("an empty storage directory: %d, %v", n, err)
 	}
 }

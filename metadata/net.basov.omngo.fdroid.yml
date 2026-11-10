@@ -741,9 +741,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 26.11.15-fdroid
-    versionCode: 26110151
-    commit: COMMIT_OF_v26.11.15f
+  - versionName: 26.11.16-fdroid
+    versionCode: 26110161
+    commit: COMMIT_OF_v26.11.16f
     subdir: android/app
     sudo:
       - apt-get update
@@ -771,9 +771,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 26.11.15-fdroid
-    versionCode: 26110152
-    commit: COMMIT_OF_v26.11.15f
+  - versionName: 26.11.16-fdroid
+    versionCode: 26110162
+    commit: COMMIT_OF_v26.11.16f
     subdir: android/app
     sudo:
       - apt-get update
@@ -801,9 +801,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 26.11.15-fdroid
-    versionCode: 26110153
-    commit: COMMIT_OF_v26.11.15f
+  - versionName: 26.11.16-fdroid
+    versionCode: 26110163
+    commit: COMMIT_OF_v26.11.16f
     subdir: android/app
     sudo:
       - apt-get update
@@ -831,9 +831,9 @@ Builds:
       - cd android/app
     ndk: 25.2.9519653
 
-  - versionName: 26.11.15-fdroid
-    versionCode: 26110154
-    commit: COMMIT_OF_v26.11.15f
+  - versionName: 26.11.16-fdroid
+    versionCode: 26110164
+    commit: COMMIT_OF_v26.11.16f
     subdir: android/app
     sudo:
       - apt-get update
@@ -868,5 +868,5 @@ VercodeOperation:
   - '%c * 10 + 2'
   - '%c * 10 + 3'
   - '%c * 10 + 4'
-CurrentVersion: 26.11.15-fdroid
-CurrentVersionCode: 26110154
+CurrentVersion: 26.11.16-fdroid
+CurrentVersionCode: 26110164

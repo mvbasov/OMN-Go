@@ -60,6 +60,7 @@ func (a *App) initStorage(overrideDir string) {
 	a.refreshEmbeddedAssets()
 
 	// 2. Read the configuration.
+	setStartStage("Reading the settings")
 	a.loadConfig(a.layout().Config())
 
 	// The index struct exists from the start. It stays empty until a person

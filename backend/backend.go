@@ -1,5 +1,5 @@
 // Package backend is the facade of OMN-Go for gomobile and for
-// main_desktop.go. It holds six functions, the version and the build
+// main_desktop.go. It holds seven functions, the version and the build
 // commit. gomobile makes a Java binding for each exported name, thus this
 // package exports nothing else. The application is in package internal/app.
 package backend
@@ -18,6 +18,11 @@ func StartServer(storageDir string, defaultPort int) {
 // WaitUntilReady blocks until the server listens, or until the bind fails.
 // main_desktop.go calls it before it opens the browser.
 func WaitUntilReady() { app.WaitUntilReady() }
+
+// StartStage answers the work of the start that runs now, for example
+// "Updating the application files: 34 of 120", or "" after the bind.
+// MainActivity.java shows it under the spinner of the start screen.
+func StartStage() string { return app.StartStage() }
 
 // ServerPort answers the port of the server, or 0 before StartServer.
 func ServerPort() int { return app.ServerPort() }

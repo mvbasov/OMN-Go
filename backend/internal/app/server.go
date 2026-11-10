@@ -189,6 +189,7 @@ func startServer(storageDir string, defaultPort int) *App {
 	// Set it before initStorage, which writes config.json on a fresh install.
 	a.defaultPort = defaultPort
 	setRunningApp(a)
+	setStartStage("Preparing the storage")
 
 	a.initStorage(storageDir) // Execute synchronously to ensure config is loaded instantly
 
@@ -209,6 +210,7 @@ func startServer(storageDir string, defaultPort int) *App {
 			}
 		})
 		cfg := a.config.Get()
+		setStartStage("Starting the server")
 
 		// The socket decides who can connect. With "Share on LAN" off, the
 		// listener binds the loopback address alone. See
@@ -237,6 +239,7 @@ func startServer(storageDir string, defaultPort int) *App {
 		}
 		if err != nil {
 			a.log(logx.Server).Errf("Server failed to bind %s: %v", bindAddr, err)
+			setStartStage("")
 			close(a.ready) // unblock any waiter rather than hang forever
 			return
 		}
@@ -245,6 +248,7 @@ func startServer(storageDir string, defaultPort int) *App {
 		a.setBoundAddress(listener.Addr().String())
 
 		a.log(logx.Server).Infof("OMN-Go Backend running on %s", bindAddr)
+		setStartStage("")
 		close(a.ready)
 
 		if err := http.Serve(listener, a.connectionMiddleware(a.Router)); err != nil {

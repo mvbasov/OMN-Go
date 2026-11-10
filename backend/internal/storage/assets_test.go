@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"net.basov.omngo/backend/frontend"
+	"net.basov.omngo/backend/internal/logx"
 )
 
 // Each version-dependent file must be in the embed. When a file is not there,
@@ -200,4 +201,26 @@ func TestEachAppScriptAndStyleIsVersionDependent(t *testing.T) {
 				"gitsync.GitignorePatterns.", rel)
 		}
 	}
+}
+
+// The start screen of Android counts the files of the list. progress gets
+// each file of VersionDependentAssets one time, in sequence, also a file
+// that stays the same. A second start with the same version reports nothing.
+func TestRefreshEmbeddedAssetsReportsProgress(t *testing.T) {
+	a := &testApp{StorageDir: t.TempDir()}
+	l, log := a.layout(), a.log(logx.Assets)
+	total := len(VersionDependentAssets)
+	next := 1
+	RefreshEmbeddedAssets(l, "1.0", log, func(done, all int) {
+		if done != next || all != total {
+			t.Errorf("progress(%d, %d), want (%d, %d)", done, all, next, total)
+		}
+		next++
+	})
+	if next != total+1 {
+		t.Errorf("progress came %d times, want %d", next-1, total)
+	}
+	RefreshEmbeddedAssets(l, "1.0", log, func(done, all int) {
+		t.Errorf("progress(%d, %d) on a start with the same version", done, all)
+	})
 }

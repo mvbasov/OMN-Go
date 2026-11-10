@@ -222,10 +222,22 @@ func embeddedTwinOf(rel string) []byte {
 	return data
 }
 
+// Progress receives the count of the work that is done and the whole count.
+// The whole count is 0 when it is not known. A nil Progress is allowed.
+type Progress func(done, total int)
+
+// report calls p when p is not nil.
+func (p Progress) report(done, total int) {
+	if p != nil {
+		p(done, total)
+	}
+}
+
 // RefreshEmbeddedAssets writes each changed version-dependent file, and it
 // answers the count of files that it wrote or removed. It runs at each start,
-// and it does nothing when the stamp holds version.
-func RefreshEmbeddedAssets(l Layout, version string, log logx.Logger) int {
+// and it does nothing when the stamp holds version. progress receives each
+// file of the list, also a file that stays the same.
+func RefreshEmbeddedAssets(l Layout, version string, log logx.Logger, progress Progress) int {
 	verFile := l.File(AssetsVersionFilename)
 	prev := AssetsVersion(l) // "" on the first run
 	if prev == version {
@@ -245,7 +257,8 @@ func RefreshEmbeddedAssets(l Layout, version string, log logx.Logger) int {
 	// directory must never see two copies of one script. See RetiredAssets.
 	refreshed := removeRetiredAssets(l, backupDir, log)
 
-	for _, rel := range VersionDependentAssets {
+	for i, rel := range VersionDependentAssets {
+		progress.report(i+1, len(VersionDependentAssets))
 		embedData, eerr := frontend.Static.ReadFile(rel)
 		if eerr != nil {
 			// The list names the file, but this build does not embed it.

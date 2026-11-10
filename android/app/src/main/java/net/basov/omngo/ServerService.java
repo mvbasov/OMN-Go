@@ -60,25 +60,21 @@ public class ServerService extends Service {
     /**
      * Counts down when Backend.startServer() returned. At that point the
      * storage directory and config.json are ready, and Go waits for the
-     * bind. See awaitBackend.
+     * bind. See awaitBackendReturn.
      */
     private static final java.util.concurrent.CountDownLatch backendReturned =
             new java.util.concurrent.CountDownLatch(1);
 
     /**
-     * Blocks until the Go server listens, or until the time is over.
-     * Answers false when the time is over. Call it on a worker thread, and
-     * never on the main thread.
-     *
-     * Two steps, because Backend.waitUntilReady() returns at once when
-     * Backend.startServer() did not start yet. The latch closes that gap.
+     * Blocks until Backend.startServer() returned, or until the time is
+     * over. Answers false when the time is over. Call it on a worker
+     * thread, and never on the main thread. After true, call
+     * Backend.waitUntilReady() for the bind. That call alone returns at
+     * once when Backend.startServer() did not start yet. The latch closes
+     * that gap.
      */
-    static boolean awaitBackend(long timeoutMs) throws InterruptedException {
-        if (!backendReturned.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
-            return false;
-        }
-        Backend.waitUntilReady();
-        return true;
+    static boolean awaitBackendReturn(long timeoutMs) throws InterruptedException {
+        return backendReturned.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     private PowerManager.WakeLock wakeLock;
@@ -313,7 +309,7 @@ public class ServerService extends Service {
             // shipped files again and compiles each page again, and that
             // takes seconds. On the main thread, the activity could not
             // draw its first frame in that time, and the screen stayed
-            // black. MainActivity waits with awaitBackend.
+            // black. MainActivity waits with awaitBackendReturn.
             backendStarted = true;
             final String dir = storageDir(this);
             final String pkg = getPackageName();

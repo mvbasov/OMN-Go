@@ -94,7 +94,7 @@ Do not remove a constraint without an instruction from the maintainer.
 | Path | Contents |
 | --- | --- |
 | `main_desktop.go` | The only file in `package main`. It holds the only build tag: `//go:build !android`. |
-| `backend/` | `package backend`, the facade for gomobile and for `main_desktop.go`. `backend.go` holds its six functions, and `version.go` holds `APP_VERSION`. |
+| `backend/` | `package backend`, the facade for gomobile and for `main_desktop.go`. `backend.go` holds its seven functions, and `version.go` holds `APP_VERSION` and the build commit. |
 | `backend/internal/app/` | `package app`, the application. It holds the `App` type, the server, the routes, the handlers and the pages. Each `*_app.go` file gives the values of the App to one package of `backend/internal/`. |
 | `backend/internal/repocheck/` | `package repocheck`, which holds only tests. Each test reads the files of the repository and checks a rule that spans more than one package or more than one language. |
 | `backend/internal/` | The other packages. `textmatch` holds the search matcher, and `noteheader` holds the header block. `logx` holds the log tags and the log hub. `config` holds the settings and their store. `storage` holds the storage layout, the application files and the plain files beside the notes. `render` holds the page compile, the page shell, the Tags page and the JSON answer. `db` holds the SQLite databases of the notes and their backups. `gitsync` holds the git sync and the host keys. `search` holds the page search and the global search index. `files` holds the Files page. `exchange` holds the export and the import of a note. `status` holds the Status page and /api/status. `testkit` holds the stand-in of the App for the tests of the feature packages. Only test files import it. |
@@ -161,15 +161,15 @@ update these files.
   a hook in `connectGroups`.
 * **Keep the exported surface small.** Export only what the Android layer or
   the desktop entry point calls. The Android layer calls `StartServer`,
-  `AssetsRefreshed`, `SetAndroidPackage` and `SetLANAddresses`.
-  `main_desktop.go` calls `StartServer`, `WaitUntilReady` and `ServerPort`.
-  These six functions are the facade in `backend/backend.go`. Each one calls
-  the function of the same name in `package app`. Write everything else as a
-  lowercase method on `*App`.
-* `package app` exports the type `App`, the six functions and `SetVersion`.
-  Only `backend/backend.go` calls them. `SetVersion` gives `APP_VERSION` to
-  the app, because `package app` cannot import `backend`. Do not add an
-  exported name.
+  `WaitUntilReady`, `StartStage`, `AssetsRefreshed`, `SetAndroidPackage` and
+  `SetLANAddresses`. `main_desktop.go` calls `StartServer`, `WaitUntilReady`
+  and `ServerPort`. These seven functions are the facade in
+  `backend/backend.go`. Each one calls the function of the same name in
+  `package app`. Write everything else as a lowercase method on `*App`.
+* `package app` exports the type `App`, the seven functions, `SetVersion` and
+  `SetBuildCommit`. Only `backend/backend.go` calls them. `SetVersion` and
+  `SetBuildCommit` give `APP_VERSION` and the build commit to the app, because
+  `package app` cannot import `backend`. Do not add an exported name.
 * **Names.** Use `handleXxx` for an API endpoint. Use `serveXxx` for a page or an
   asset. Use `renderXxxPage` with an `xxxView` struct. Use `normalizeXxx` for value
   repair. Write a predicate as a question: `storage.IsLocalOnlyPath`,

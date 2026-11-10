@@ -42,7 +42,7 @@ func (a *testApp) layout() Layout { return Layout(a.StorageDir) }
 func (a *testApp) log(tag logx.Tag) logx.Logger { return logx.New(tag, &a.filter, &a.logs) }
 
 func (a *testApp) refreshEmbeddedAssets() {
-	RefreshEmbeddedAssets(a.layout(), version, a.log(logx.Assets))
+	RefreshEmbeddedAssets(a.layout(), version, a.log(logx.Assets), nil)
 }
 
 func (a *testApp) syncNoteFilesToHTML() {
