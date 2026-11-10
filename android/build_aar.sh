@@ -39,6 +39,19 @@ cd "$REPO_ROOT"
 # The bind step runs from this path on each host. See step_bind.
 BIND_DIR=/tmp/omn-go-src
 
+# THE COMMIT OF THE BUILD. The status page shows it. OMN_GO_COMMIT and
+# OMN_GO_COMMIT_TIME come from the caller: the Dockerfile has them as build
+# arguments, because its build context holds no .git. When they are absent
+# and the checkout is a git repository (the F-Droid build), the script asks
+# git. The F-Droid value never has "-dirty": fdroidserver changes files of the
+# checkout, and the library must be the same as the library of the GitHub
+# build of the same commit. Only local/build.sh adds "-dirty".
+if [ -z "${OMN_GO_COMMIT:-}" ] && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    OMN_GO_COMMIT=$(git -C "$REPO_ROOT" rev-parse HEAD)
+    OMN_GO_COMMIT_TIME=$(git -C "$REPO_ROOT" log -1 --format=%cI)
+fi
+GO_LDFLAGS="-s -w -X net.basov.omngo/backend.buildCommit=${OMN_GO_COMMIT:-} -X net.basov.omngo/backend.buildCommitTime=${OMN_GO_COMMIT_TIME:-}"
+
 step_tools() {
     go get -tool \
         "golang.org/x/mobile/cmd/gobind@$XMOBILE_VERSION" \
@@ -74,7 +87,7 @@ step_bind() {
     ln -sfn "$REPO_ROOT" "$BIND_DIR"
     cd "$BIND_DIR"
     mkdir -p android/app/libs
-    gomobile bind -trimpath -target=android -androidapi 23 -javapkg net.basov.omngo -ldflags="-s -w" -o android/app/libs/omngo.aar ./backend
+    gomobile bind -trimpath -target=android -androidapi 23 -javapkg net.basov.omngo -ldflags="$GO_LDFLAGS" -o android/app/libs/omngo.aar ./backend
     cd "$REPO_ROOT"
     rm -f "$BIND_DIR"
 }

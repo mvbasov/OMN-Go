@@ -666,6 +666,13 @@ subject line, also when it has no list.
   * `test`: the quality gate.
   * `project_builder`: the artifacts.
   * `export`: the artifacts alone. This is the default target.
+* **The binaries hold the commit of the build.** `-ldflags -X` sets `buildCommit` and
+  `buildCommitTime` of package `backend`, and the Server section of the status page
+  shows them. The build context has no `.git`, thus the caller gives the build
+  arguments `OMN_GO_COMMIT` and `OMN_GO_COMMIT_TIME`: `local/build.sh`, the GitHub
+  workflow and `.gitlab-ci.yml`. Only `local/build.sh` adds `-dirty`. The F-Droid build
+  asks git in `android/build_aar.sh`, with no `-dirty`. `TestBuildCommitHasOneName`
+  compares the names. See `doc/decisions/0028-record-the-commit-of-the-build.md`.
 * **The gomobile steps are in `android/build_aar.sh`.** The `Dockerfile` calls it with
   `tools`, `init` and `bind`. The F-Droid recipe can call it with no argument. Do not
   write a gomobile step into the `Dockerfile` or into the recipe.

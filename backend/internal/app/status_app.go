@@ -17,6 +17,8 @@ func (a *App) statusService() status.Service {
 		Layout:          a.layout(),
 		Config:          a.config.Get(),
 		Version:         version,
+		BuildCommit:     buildCommit,
+		BuildCommitTime: buildCommitTime,
 		StartedAt:       a.startedAt,
 		BoundAddr:       addr,
 		ActiveConns:     a.activeConnCount(),

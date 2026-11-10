@@ -521,3 +521,60 @@ func TestStatusPageIsAReaderOfTheEndpoint(t *testing.T) {
 		t.Error("the template holds an inline style")
 	}
 }
+
+// The Server section names the commit of the build. A hash gives the address
+// of the commit, also with "-dirty". A build with no commit says "unknown",
+// and other text stays as it is, with no address.
+func TestStatusBuildCommit(t *testing.T) {
+	const hash = "0123456789abcdef0123456789abcdef01234567"
+	cases := []struct {
+		commit, wantValue, wantURL string
+	}{
+		{"", "unknown", ""},
+		{hash, hash, buildCommitURLBase + hash},
+		{hash + "-dirty", hash + "-dirty", buildCommitURLBase + hash},
+		{"0123abc", "0123abc", ""},
+		{hash + "-other", hash + "-other", ""},
+	}
+	for _, c := range cases {
+		value, url := buildCommitFields(c.commit)
+		if value != c.wantValue || url != c.wantURL {
+			t.Errorf("buildCommitFields(%q) = %q, %q, want %q, %q", c.commit, value, url, c.wantValue, c.wantURL)
+		}
+	}
+
+	a := newTestApp(t)
+	svc := a.statusService()
+	svc.BuildCommit = hash + "-dirty"
+	svc.BuildCommitTime = "2026-11-10T10:27:00+03:00"
+
+	rec := httptest.NewRecorder()
+	svc.HandleStatus(rec, httptest.NewRequest(http.MethodGet, "/api/status?sections=server", nil))
+	var res statusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if res.Server == nil || res.Server.BuildCommit != hash+"-dirty" ||
+		res.Server.BuildCommitTime != svc.BuildCommitTime ||
+		res.Server.BuildCommitURL != buildCommitURLBase+hash {
+		t.Errorf("server section = %+v", res.Server)
+	}
+
+	rec = httptest.NewRecorder()
+	svc.HandleStatus(rec, httptest.NewRequest(http.MethodGet, "/api/status?format=md", nil))
+	for _, want := range []string{
+		"| build_commit | " + hash + "-dirty |",
+		"| build_commit_time | 2026-11-10T10:27:00+03:00 |",
+		"| build_commit_url | " + buildCommitURLBase + hash + " |",
+	} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("markdown misses %q", want)
+		}
+	}
+
+	res2, _ := getStatus(t, newTestApp(t), "")
+	if res2.Server.BuildCommit != "unknown" || res2.Server.BuildCommitURL != "" {
+		t.Errorf("no commit: build_commit = %q, url = %q, want unknown and no url",
+			res2.Server.BuildCommit, res2.Server.BuildCommitURL)
+	}
+}

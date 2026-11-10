@@ -99,3 +99,4 @@ the status of the old record to `replaced by NNNN`.
 | [0025](0025-serve-a-contact-and-a-calendar-as-plain-text.md) | Serve a contact and a calendar as plain text. | `internal/config/content_types.go`, `internal/config/user_files.go` |
 | [0026](0026-compile-each-page-again-after-a-new-version.md) | Compile each page again after a new version. | `internal/storage/paths.go`, `storage_app.go` |
 | [0027](0027-build-the-android-library-with-one-script.md) | Build the Android library with one script. | `android/build_aar.sh`, `Dockerfile`, `internal/repocheck/pipelines_test.go` |
+| [0028](0028-record-the-commit-of-the-build.md) | Record the commit of the build. | `version.go`, `android/build_aar.sh`, `Dockerfile`, `internal/status/collect.go` |

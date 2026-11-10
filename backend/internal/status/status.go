@@ -118,17 +118,21 @@ type statusResponse struct {
 // statusServer holds no listen ADDRESS. The listener binds "::" or "0.0.0.0",
 // and "[::]:8080" answers no question. The port is the useful half, and
 // share_lan with lan_urls tells the rest.
+// build_commit is the commit of the build. The Git section is the git sync.
 type statusServer struct {
-	AppVersion  string   `json:"app_version"`
-	Started     string   `json:"started"`
-	UptimeS     int64    `json:"uptime_s"`
-	BindPort    int      `json:"bind_port"`
-	ShareLAN    bool     `json:"share_lan"`
-	LANURLs     []string `json:"lan_urls"`
-	ActiveConns int64    `json:"active_conns"`
-	Hostname    string   `json:"hostname"`
-	GOOS        string   `json:"goos"`
-	GOARCH      string   `json:"goarch"`
+	AppVersion      string   `json:"app_version"`
+	BuildCommit     string   `json:"build_commit"`
+	BuildCommitTime string   `json:"build_commit_time"`
+	BuildCommitURL  string   `json:"build_commit_url,omitempty"`
+	Started         string   `json:"started"`
+	UptimeS         int64    `json:"uptime_s"`
+	BindPort        int      `json:"bind_port"`
+	ShareLAN        bool     `json:"share_lan"`
+	LANURLs         []string `json:"lan_urls"`
+	ActiveConns     int64    `json:"active_conns"`
+	Hostname        string   `json:"hostname"`
+	GOOS            string   `json:"goos"`
+	GOARCH          string   `json:"goarch"`
 }
 
 // statusConfig is the config section, in the order of the config table.

@@ -58,6 +58,10 @@
 
     // Every value goes in through textContent. A commit subject, a path
     // and a remote name are content, not markup.
+    //
+    // A key that ends with "_url" and holds an https address becomes a link,
+    // for example build_commit_url. The address is the href and also the
+    // text. Each other address stays text.
     function row(table, key, value) {
         var tr = document.createElement('tr');
         var k = document.createElement('td');
@@ -65,7 +69,16 @@
         k.textContent = key;
         var v = document.createElement('td');
         v.className = 'omn-st-val';
-        v.textContent = value;
+        if (/_url$/.test(key) && /^https:\/\//.test(value)) {
+            var a = document.createElement('a');
+            a.href = value;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = value;
+            v.appendChild(a);
+        } else {
+            v.textContent = value;
+        }
         tr.appendChild(k);
         tr.appendChild(v);
         table.appendChild(tr);

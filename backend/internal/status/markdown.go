@@ -29,8 +29,15 @@ func renderStatusMarkdown(res *statusResponse) string {
 	}
 
 	if s := res.Server; s != nil {
-		table("Server", [][2]string{
+		rows := [][2]string{
 			{"app_version", s.AppVersion},
+			{"build_commit", s.BuildCommit},
+			{"build_commit_time", s.BuildCommitTime},
+		}
+		if s.BuildCommitURL != "" {
+			rows = append(rows, [2]string{"build_commit_url", s.BuildCommitURL})
+		}
+		table("Server", append(rows, [][2]string{
 			{"started", s.Started},
 			{"uptime_s", strconv.FormatInt(s.UptimeS, 10)},
 			{"bind_port", strconv.Itoa(s.BindPort)},
@@ -40,7 +47,7 @@ func renderStatusMarkdown(res *statusResponse) string {
 			{"hostname", s.Hostname},
 			{"goos", s.GOOS},
 			{"goarch", s.GOARCH},
-		})
+		}...))
 	}
 	if c := res.Config; c != nil {
 		rows := make([][2]string, 0, len(c))

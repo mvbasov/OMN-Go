@@ -41,6 +41,20 @@ if [ ! -f "$KEYSTORE" ]; then
             -dname "CN=OMN-Go, O=Basov"
 fi
 
+# The commit of the build, for the status page. A changed or a new file
+# that git does not ignore adds "-dirty". Outside a git checkout, the build
+# gets no commit, and the status page shows "unknown".
+COMMIT_ARGS=()
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    commit=$(git rev-parse HEAD)
+    if [ -n "$(git status --porcelain)" ]; then
+        commit="$commit-dirty"
+    fi
+    COMMIT_ARGS=(--build-arg "OMN_GO_COMMIT=$commit"
+                 --build-arg "OMN_GO_COMMIT_TIME=$(git log -1 --format=%cI)")
+    echo "-------- commit $commit --------"
+fi
+
 rm -rf ./output-binaries/
 
 echo "-------- build --------"
@@ -51,6 +65,7 @@ docker buildx build \
     --secret id=keystore_password,env=KEYSTORE_PASSWORD \
     --secret id=key_alias,env=KEY_ALIAS \
     --secret id=key_password,env=KEY_PASSWORD \
+    "${COMMIT_ARGS[@]}" \
     "$@" \
     .
 

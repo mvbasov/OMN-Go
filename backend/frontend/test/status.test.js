@@ -83,6 +83,27 @@ test('a value with markup stays text', async () => {
     assert.strictEqual(h.document.querySelectorAll('#omn-st-body b').length, 0);
 });
 
+test('an https address in a _url key is a link, and each other address is text', async () => {
+    const commit = 'https://github.com/mvbasov/OMN-Go/commit/0123456789abcdef0123456789abcdef01234567';
+    const h = await open([], {
+        server: {
+            build_commit: '0123456789abcdef0123456789abcdef01234567-dirty',
+            build_commit_url: commit,
+            other_url: 'javascript:alert(1)',
+            remote: 'https://example.org/notes.git',
+        },
+    });
+    const links = h.document.querySelectorAll('#omn-st-body a');
+    assert.strictEqual(links.length, 1, 'only build_commit_url must be a link');
+    assert.strictEqual(links[0].getAttribute('href'), commit);
+    assert.strictEqual(links[0].textContent, commit);
+    assert.strictEqual(links[0].getAttribute('rel'), 'noopener');
+    const all = rows(h);
+    assert.ok(all.indexOf('build_commit = 0123456789abcdef0123456789abcdef01234567-dirty') >= 0, all.join('\n'));
+    assert.ok(all.indexOf('other_url = javascript:alert(1)') >= 0, 'an address with no https stays text');
+    assert.ok(all.indexOf('remote = https://example.org/notes.git') >= 0, 'a key with no _url stays text');
+});
+
 test('the Storage button asks for its section only on a press, and adds it to the page', async () => {
     const seen = [];
     const h = await open(seen);

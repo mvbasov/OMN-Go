@@ -14,3 +14,15 @@ func SetVersion(v string) {
 	version = v
 	generator = "OMN-Go " + v
 }
+
+// The commit of the build. See backend/version.go.
+var (
+	buildCommit     string
+	buildCommitTime string
+)
+
+// SetBuildCommit records the commit of the build. Call it before StartServer.
+func SetBuildCommit(commit, commitTime string) {
+	buildCommit = commit
+	buildCommitTime = commitTime
+}

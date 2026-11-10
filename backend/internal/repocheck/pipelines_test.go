@@ -123,13 +123,27 @@ func pipeFirst(t *testing.T, re *regexp.Regexp, rel, what string) string {
 	return m[1]
 }
 
+// pipeCallsScript tells whether a build block of the recipe runs
+// android/build_aar.sh. Such a block holds no gomobile step of its own, and
+// the script holds the values.
+func pipeCallsScript(block string) bool {
+	return strings.Contains(block, "sh "+pipeScript)
+}
+
 // The Android API level of the native library must be minSdk. The
 // library of a higher level can fail to load on the lowest Android that
-// installs the APK. minSdk 23 is Android 6.
+// installs the APK. minSdk 23 is Android 6. A recipe block that runs the
+// script has the value of the script. An older block holds its own value.
 func TestPipelinesAgreeOnTheAndroidAPILevel(t *testing.T) {
 	want := pipeFirst(t, pipeMinSdkRe, pipeGradle, "minSdk")
 	pipeSame(t, "-androidapi", pipeScript, want, pipeAll(pipeAndroidAPIRe, pipeRead(t, pipeScript)))
 	for _, b := range pipeLastRecipeBlocks(t) {
+		if pipeCallsScript(b) {
+			if got := pipeAll(pipeAndroidAPIRe, b); len(got) > 0 {
+				t.Errorf("the last F-Droid version runs %s and also names -androidapi %v", pipeScript, got)
+			}
+			continue
+		}
 		pipeSame(t, "-androidapi", "the last F-Droid version", want, pipeAll(pipeAndroidAPIRe, b))
 	}
 }
@@ -162,12 +176,18 @@ func TestPipelinesAgreeOnTheNDK(t *testing.T) {
 
 // The build-tools of the Docker image must be the version that
 // build.gradle pins. Without that package in the image, Gradle downloads
-// it on each build. The F-Droid recipe is not compared yet: its prebuild
-// line names a version that the build does not use. See
+// it on each build. A recipe block that runs the script must install the
+// same version in its prebuild line. An older block named 33.0.1, which the
+// build did not use, thus the test does not compare it. See
 // doc/decisions/0027-build-the-android-library-with-one-script.md.
 func TestPipelinesAgreeOnTheBuildTools(t *testing.T) {
 	want := pipeFirst(t, pipeBtGradleRe, pipeGradle, "buildToolsVersion")
 	pipeSame(t, "the build-tools", pipeDockerfile, want, pipeAll(pipeBtDockerRe, pipeRead(t, pipeDockerfile)))
+	for _, b := range pipeLastRecipeBlocks(t) {
+		if pipeCallsScript(b) {
+			pipeSame(t, "the build-tools", "the last F-Droid version", want, pipeAll(pipeBtDockerRe, b))
+		}
+	}
 }
 
 // The Docker image installs Gradle from a zip file. F-Droid reads the
@@ -247,6 +267,27 @@ func TestXMobileHasOnePinnedVersion(t *testing.T) {
 	for _, step := range []string{"tools", "init", "bind"} {
 		if !strings.Contains(docker, "sh "+pipeScript+" "+step) {
 			t.Errorf("the Dockerfile does not run \"sh %s %s\"", pipeScript, step)
+		}
+	}
+}
+
+// The status page shows the commit of the build. The build sets two
+// variables of package backend with -ldflags -X. A wrong name in -X gives no
+// error: the variable then stays empty. The Dockerfile (desktop binaries)
+// and the script (Android library) must thus name the variables that
+// backend/version.go declares.
+func TestBuildCommitHasOneName(t *testing.T) {
+	version := pipeRead(t, "backend/version.go")
+	for _, name := range []string{"buildCommit", "buildCommitTime"} {
+		decl := regexp.MustCompile(`(?m)^\s*` + name + `\s+string\s*$`)
+		if !decl.MatchString(version) {
+			t.Errorf("backend/version.go declares no string variable %s", name)
+		}
+		flag := "-X net.basov.omngo/backend." + name + "="
+		for _, rel := range []string{pipeDockerfile, pipeScript} {
+			if !strings.Contains(pipeRead(t, rel), flag) {
+				t.Errorf("%s has no %q", rel, flag)
+			}
 		}
 	}
 }

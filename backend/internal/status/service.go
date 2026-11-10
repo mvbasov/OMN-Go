@@ -18,6 +18,8 @@ type Service struct {
 	Layout          storage.Layout
 	Config          config.Config
 	Version         string        // APP_VERSION of the build
+	BuildCommit     string        // the commit of the build, or "" when the build gave none
+	BuildCommitTime string        // the commit time in RFC 3339, or ""
 	StartedAt       time.Time     // the start of the server
 	BoundAddr       string        // the address of the listener, or "" before the bind
 	ActiveConns     int64         // the open connections

@@ -171,15 +171,26 @@ RUN cp /root/lockfiles/go.mod /root/lockfiles/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go mod tidy
 
+# The commit of the build, for the status page. The build context holds no
+# .git, thus the caller gives the commit: local/build.sh, the GitHub
+# workflow and .gitlab-ci.yml. A build without them shows "unknown". Both
+# arguments are here, in the last stage, thus a new commit starts no
+# toolchain stage again. RUN sees each ARG as an environment variable, and
+# android/build_aar.sh reads them from there.
+ARG OMN_GO_COMMIT=
+ARG OMN_GO_COMMIT_TIME=
+
 # The desktop binaries. CGO_ENABLED=0 for both targets: the binary then
 # needs no C library on the computer of the user, and it does not depend
 # on the C library of the image. TestBinarySize builds with the same flags.
+# The -X values are the same as in android/build_aar.sh.
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     VERSION=$(awk -F'"' '/APP_VERSION =/ {print $2}' backend/version.go) && \
     export GOFLAGS="-trimpath" CGO_ENABLED=0 && \
-    GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
-    GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
+    GO_LDFLAGS="-s -w -X net.basov.omngo/backend.buildCommit=${OMN_GO_COMMIT} -X net.basov.omngo/backend.buildCommitTime=${OMN_GO_COMMIT_TIME}" && \
+    GOOS=linux GOARCH=amd64 go build -ldflags="$GO_LDFLAGS" -o "bin/omn-go-v${VERSION}-desktop-linux-amd64" main_desktop.go && \
+    GOOS=windows GOARCH=amd64 go build -ldflags="$GO_LDFLAGS" -o "bin/omn-go-v${VERSION}-desktop-windows-amd64.exe" main_desktop.go
 
 # The Go library of the Android package (android/app/libs/omngo.aar).
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \

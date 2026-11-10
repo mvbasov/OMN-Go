@@ -1,7 +1,7 @@
 // Package backend is the facade of OMN-Go for gomobile and for
-// main_desktop.go. It holds six functions and the version. gomobile makes a
-// Java binding for each exported name, thus this package exports nothing
-// else. The application is in package internal/app.
+// main_desktop.go. It holds six functions, the version and the build
+// commit. gomobile makes a Java binding for each exported name, thus this
+// package exports nothing else. The application is in package internal/app.
 package backend
 
 import "net.basov.omngo/backend/internal/app"
@@ -11,6 +11,7 @@ import "net.basov.omngo/backend/internal/app"
 // with none, and 0 gives 8080. ServerService.java calls it.
 func StartServer(storageDir string, defaultPort int) {
 	app.SetVersion(APP_VERSION)
+	app.SetBuildCommit(buildCommit, buildCommitTime)
 	app.StartServer(storageDir, defaultPort)
 }
 

@@ -68,6 +68,8 @@ jobs:
             --secret id=keystore_password,env=KEYSTORE_PASSWORD \
             --secret id=key_alias,env=KEY_ALIAS \
             --secret id=key_password,env=KEY_PASSWORD \
+            --build-arg "OMN_GO_COMMIT=$(git rev-parse HEAD)" \
+            --build-arg "OMN_GO_COMMIT_TIME=$(git log -1 --format=%cI)" \
             --cache-from type=gha,scope=omngo \
             --cache-to type=gha,mode=max,scope=omngo \
             .
