@@ -168,7 +168,10 @@ type Filter struct {
 	Tags  map[Tag]bool
 }
 
-// Enabled is the test of logLineEnabled for the tag of l.
+// Enabled tells whether a line of level lvl with the tag of l reaches stdout
+// and the browser console. An error always does. A debug or info line needs
+// its level on and its tag checked. Before the first filter is stored, it
+// allows faults only, the same as a fresh install.
 func (l Logger) Enabled(lvl Level) bool {
 	if lvl == LevelError {
 		return true

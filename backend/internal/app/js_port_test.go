@@ -25,7 +25,7 @@ const backendDir = "../.."
 // The log filter, on both sides
 // ----------------------------------------------------------------------
 //
-// One decision has two implementations. logLineEnabled in log_app.go says
+// One decision has two implementations. logx.Logger.Enabled says
 // whether a line reaches stdout. logLinePrints in omn-go-api.js says
 // whether the same line reaches the browser console.
 //
@@ -87,7 +87,7 @@ func TestLogFilterPortAgreesWithTheRealJavaScript(t *testing.T) {
 					for _, info := range []bool{true, false} {
 						cfg := config.Config{LogDebug: debug, LogInfo: info, LogTags: set}
 						a.applyLogFilter(cfg)
-						want = append(want, a.logLineEnabled(lvl, tag))
+						want = append(want, a.log(tag).Enabled(lvl))
 						cases = append(cases, jsFilterCase{
 							Level: string(lvl), Tag: string(tag),
 							Debug: debug, Info: info,
@@ -160,7 +160,7 @@ process.stdout.write(JSON.stringify({ got: out }));
 			continue
 		}
 		t.Errorf("the two sides disagree for level %q, tag %q, debug=%v, info=%v, tags=%q.\n"+
-			"  logLineEnabled in log_app.go says %v\n"+
+			"  logx.Logger.Enabled says %v\n"+
 			"  logLinePrints in omn-go-api.js says %v\n"+
 			"  A person then sees a quiet stdout and a loud console, or the reverse.",
 			c.Level, c.Tag, c.Debug, c.Info, c.Tags, want[i], answer.Got[i])

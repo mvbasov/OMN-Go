@@ -53,38 +53,38 @@ func TestEmitLogLineShape(t *testing.T) {
 	}
 }
 
-// TestLogLineEnabled pins the two axes. A fault always prints. A debug or an
+// TestLoggerEnabled pins the two axes. A fault always prints. A debug or an
 // info line needs its level on and its tag ticked. A reader who asks for
 // less noise never asks for fewer faults.
-func TestLogLineEnabled(t *testing.T) {
+func TestLoggerEnabled(t *testing.T) {
 	a := newTestApp(t)
 
 	a.applyLogFilter(config.Config{LogDebug: false, LogInfo: false, LogTags: config.LogTagsDefault})
-	if !a.logLineEnabled(logx.LevelError, logx.Sync) {
+	if !a.log(logx.Sync).Enabled(logx.LevelError) {
 		t.Error("an error was filtered out with both levels off")
 	}
-	if a.logLineEnabled(logx.LevelDebug, logx.Sync) || a.logLineEnabled(logx.LevelInfo, logx.Sync) {
+	if a.log(logx.Sync).Enabled(logx.LevelDebug) || a.log(logx.Sync).Enabled(logx.LevelInfo) {
 		t.Error("a quiet level printed with both levels off")
 	}
 
 	a.applyLogFilter(config.Config{LogDebug: true, LogInfo: true, LogTags: []string{"assets"}})
-	if !a.logLineEnabled(logx.LevelDebug, logx.Assets) {
+	if !a.log(logx.Assets).Enabled(logx.LevelDebug) {
 		t.Error("a ticked tag was filtered out with debug on")
 	}
-	if a.logLineEnabled(logx.LevelDebug, logx.Sync) {
+	if a.log(logx.Sync).Enabled(logx.LevelDebug) {
 		t.Error("an unticked tag printed with debug on")
 	}
-	if !a.logLineEnabled(logx.LevelError, logx.Sync) {
+	if !a.log(logx.Sync).Enabled(logx.LevelError) {
 		t.Error("an error was filtered out by an unticked tag")
 	}
 
 	// Before loadConfig runs the cache is empty. Every line the application
 	// writes that early is a fault, so faults only is the safe answer.
 	fresh := &App{}
-	if !fresh.logLineEnabled(logx.LevelError, logx.Server) {
+	if !fresh.log(logx.Server).Enabled(logx.LevelError) {
 		t.Error("an error was filtered out before the config loaded")
 	}
-	if fresh.logLineEnabled(logx.LevelInfo, logx.Server) {
+	if fresh.log(logx.Server).Enabled(logx.LevelInfo) {
 		t.Error("an info line printed before the config loaded")
 	}
 }
@@ -98,7 +98,7 @@ func TestLogHistoryHoldsASuppressedLine(t *testing.T) {
 	a := newTestApp(t)
 	a.applyLogFilter(config.Config{LogDebug: false, LogInfo: false, LogTags: []string{}})
 
-	if a.logLineEnabled(logx.LevelDebug, logx.Sync) {
+	if a.log(logx.Sync).Enabled(logx.LevelDebug) {
 		t.Fatal("the filter lets a debug line through, thus this test proves nothing")
 	}
 	a.log(logx.Sync).Debugf("a step that stdout never shows")

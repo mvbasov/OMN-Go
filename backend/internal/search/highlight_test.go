@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"net.basov.omngo/backend/frontend"
 	"net.basov.omngo/backend/internal/textmatch"
@@ -386,13 +385,12 @@ func TestFoldTableHasAFrontendCopy(t *testing.T) {
 	}
 
 	// Every row must keep the length, in both copies. A fold that grows
-	// moves every span after it, and the marks land on the wrong words.
+	// moves every span after it, and the marks land on the wrong words. In
+	// Go a rune is always one rune. omn-go-highlight.js reads one UTF-16
+	// unit at a time, thus each side of a row must fit in one unit.
 	for from, to := range textmatch.FoldTable {
-		if len(string(from)) != len(string(from)) || to == 0 {
-			t.Errorf("row %q is not one rune to one rune", from)
-		}
-		if utf8.RuneCountInString(string(to)) != 1 {
-			t.Errorf("textmatch.FoldTable maps %q to %d runes, want 1", from, utf8.RuneCountInString(string(to)))
+		if from > 0xFFFF || to > 0xFFFF || to == 0 {
+			t.Errorf("row %q to %q is not one character to one character in JavaScript", from, to)
 		}
 	}
 

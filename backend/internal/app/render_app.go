@@ -89,9 +89,3 @@ func (a *App) serveTagsPage(w http.ResponseWriter, r *http.Request) {
 func (a *App) writeJSON(w http.ResponseWriter, code int, v any) {
 	render.WriteJSON(w, code, v, a.log(logx.Server))
 }
-
-// writeJSONError answers {"status": "error", "message": msg} with the HTTP
-// status code.
-func (a *App) writeJSONError(w http.ResponseWriter, code int, msg string) {
-	a.writeJSON(w, code, render.JSONStatus{Status: "error", Message: msg})
-}

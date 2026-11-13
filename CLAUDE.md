@@ -178,8 +178,9 @@ update these files.
 * **Branch on `runtime.GOOS`, not on a build tag.** The tree holds one build tag.
 * **Errors.** Wrap an error with `fmt.Errorf("...: %w", err)`. Send the HTTP failure
   of a plain-text endpoint with `http.Error(w, msg, code)`.
-* **JSON answers.** Send each JSON answer with `a.writeJSON(w, code, v)`. Send a JSON
-  failure with `a.writeJSONError(w, code, msg)`. Do not write a second JSON encoder.
+* **JSON answers.** Send each JSON answer with `writeJSON(w, code, v)`. Send a JSON
+  failure with `writeJSONError(w, code, msg)` of the feature package. Both call
+  `render.WriteJSON`. Do not write a second JSON encoder.
   `TestOnlyWriteJSONEncodesAnAnswer` enforces this. `doc/API.md` section 1.4 fixes
   the response shapes. A response is plain-text status words, or JSON with
   `"status":"success"` or `"status":"error"`, or `text/event-stream` for `/api/logs`.
@@ -214,7 +215,7 @@ update these files.
     `omn-go-sync.js` is the only caller and it is a separate file.
     `TestEverySyncLineReachesTheOverlay` runs a whole sync and sends each
     line that it wrote through the real JavaScript.
-  * `logLinePrints` in `omn-go-api.js` and `logLineEnabled` in `log_app.go`
+  * `logLinePrints` in `omn-go-api.js` and `logx.Logger.Enabled` in `logx/hub.go`
     are two implementations of one decision. The page needs the answer
     without the server, thus rule 7 of section 1 allows the pair with a test.
     `TestLogFilterPortAgreesWithTheRealJavaScript` compares them.

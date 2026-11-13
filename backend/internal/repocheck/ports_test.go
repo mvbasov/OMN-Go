@@ -49,15 +49,6 @@ func portsJS(t *testing.T, name string) string {
 	return string(raw)
 }
 
-// portsJava reads MainActivity.java, which sits outside the Go module.
-//
-// A tree with no android/ directory skips the test rather than fails it.
-// The Docker build and the CI build both hold the full tree, thus the
-// rule still has a guard where it counts.
-func portsJava(t *testing.T) string {
-	return portsJavaFile(t, "MainActivity.java")
-}
-
 // portsJavaConfig reads the class that holds the config rules.
 //
 // OmnConfig.java holds the one reader, and it imports no Android package,
@@ -67,6 +58,11 @@ func portsJavaConfig(t *testing.T) string {
 	return portsJavaFile(t, "OmnConfig.java")
 }
 
+// portsJavaFile reads one Java class, which sits outside the Go module.
+//
+// A tree with no android/ directory skips the test rather than fails it.
+// The Docker build and the CI build both hold the full tree, thus the
+// rule still has a guard where it counts.
 func portsJavaFile(t *testing.T, name string) string {
 	t.Helper()
 	path := filepath.Join(repoRoot, "android", "app", "src", "main", "java", "net", "basov", "omngo", name)

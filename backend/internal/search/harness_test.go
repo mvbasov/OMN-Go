@@ -40,8 +40,6 @@ func (a *testApp) dropSearchIndex() { a.searchService().DropIndex() }
 
 func (a *testApp) searchIndexStatus() string { return a.searchService().IndexStatus() }
 
-func (a *testApp) globalSearchAvailable() bool { return a.searchService().GlobalAvailable() }
-
 func (a *testApp) markSearchIndexDirty() { a.search.MarkDirty() }
 
 func (a *testApp) handleSearch(w http.ResponseWriter, r *http.Request) {

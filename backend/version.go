@@ -1,7 +1,7 @@
 package backend
 
 // APP_VERSION is the global application version
-const APP_VERSION = "26.11.16"
+const APP_VERSION = "26.11.17"
 
 // The commit of the build and its time, set with -ldflags -X. They are not
 // exported, because gomobile binds each exported name. See

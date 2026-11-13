@@ -1,17 +1,21 @@
-package app
+package render
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"net.basov.omngo/backend/internal/logx"
 )
 
 // An error answer carries the status code, the JSON content type and the
-// shape of section 1.4 of doc/API.md.
+// shape of section 1.4 of doc/API.md. The writeJSONError of each feature
+// package sends this value through WriteJSON.
 func TestWriteJSONErrorShape(t *testing.T) {
 	w := httptest.NewRecorder()
-	newTestApp(t).writeJSONError(w, http.StatusBadRequest, `bad "name"`)
+	WriteJSON(w, http.StatusBadRequest, JSONStatus{Status: "error", Message: `bad "name"`},
+		newTestApp(t).log(logx.Server))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("the code is %d, want 400", w.Code)

@@ -50,6 +50,7 @@ const (
 	TierTypo
 )
 
+// String names the tier in the failure message of a test.
 func (t Tier) String() string {
 	switch t {
 	case TierPhrase:
