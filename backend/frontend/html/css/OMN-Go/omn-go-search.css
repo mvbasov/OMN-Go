@@ -11,7 +11,7 @@
     align-items: flex-start;
     justify-content: center;
     padding: 8vh 12px 12px;
-    z-index: 70;                 /* above the modals (50), below a dialog (80) */
+    z-index: var(--omn-layer-search);   /* the list of layers is in omn-go-core.css */
 }
 
 .omn-search-overlay[hidden] {

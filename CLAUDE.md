@@ -436,7 +436,12 @@ fail when you skip one of these steps.
   destroys data. The Android Back key and Escape close the top layer
   through `omnCloseTopLayer` of `omn-go-core.js`: a dialog, then the search
   overlay, then a panel. Open and close a panel only with `omnShowPanel`,
-  `omnHidePanel` or `omnTogglePanel`. Only one panel shows at a time. A native dialog of the Android layer stays native when it guards an
+  `omnHidePanel` or `omnTogglePanel`. Only one panel shows at a time.
+- A button of a page uses `.omn-btn`, with `.omn-btn-primary` for the main
+  action and `.omn-btn-large` for a button that is the whole page. Do not
+  write a button class for one page. A z-index is a token of the list of
+  layers in section 6 of `omn-go-core.css`, or 0 or 1 for an order inside
+  one element. `TestEachZIndexIsALayer` holds the rule. A native dialog of the Android layer stays native when it guards an
   action that a note script must not start, for example the Termux question
   of `IntentBridge.java`.
 * **A lazy file gives its work through `omnLazyActions`.** Call `OMN.action` in

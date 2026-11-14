@@ -238,3 +238,69 @@ func TestEachNameInATemplateHasThePrefix(t *testing.T) {
 		t.Fatalf("only %d names were read, thus this test proves little", checked)
 	}
 }
+
+// ----------------------------------------------------------------------
+// The layers of the page
+// ----------------------------------------------------------------------
+
+// cssLayersRe finds the list of layers in section 6 of omn-go-core.css.
+var cssLayersRe = regexp.MustCompile(`:root\s*\{((?:\s*--omn-layer-[a-z-]+:\s*\d+;)+)\s*\}`)
+
+// cssZIndexRe finds each z-index declaration of a stylesheet.
+var cssZIndexRe = regexp.MustCompile(`z-index:\s*([^;}]+)`)
+
+// cssLayerVarRe reads the name of a layer from a z-index value.
+var cssLayerVarRe = regexp.MustCompile(`^var\((--omn-layer-[a-z-]+)\)$`)
+
+// Each z-index of a stylesheet of OMN-Go is a layer of the list in
+// omn-go-core.css, or 0 or 1. The values 0 and 1 give an order inside one
+// element, for example the tag list inside the bookmark panel. A number
+// such as 60 is a layer outside the list, and nothing tells which layer it
+// covers. Each layer of the list is in use.
+func TestEachZIndexIsALayer(t *testing.T) {
+	core, err := frontend.Static.ReadFile("html/css/OMN-Go/omn-go-core.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := cssLayersRe.FindStringSubmatch(cssCommentRe.ReplaceAllString(string(core), ""))
+	if m == nil {
+		t.Fatal("omn-go-core.css has no :root block with the --omn-layer- tokens")
+	}
+	layers := map[string]bool{}
+	for _, d := range cssDeclRe.FindAllStringSubmatch(m[1], -1) {
+		layers[d[1]] = false
+	}
+	if len(layers) < 5 {
+		t.Fatalf("the list of layers has %d tokens", len(layers))
+	}
+	seen := 0
+	for name, src := range appStylesheets(t) {
+		text := cssCommentRe.ReplaceAllString(src, "")
+		for _, z := range cssZIndexRe.FindAllStringSubmatch(text, -1) {
+			seen++
+			value := strings.TrimSpace(z[1])
+			if value == "0" || value == "1" {
+				continue
+			}
+			v := cssLayerVarRe.FindStringSubmatch(value)
+			if v == nil {
+				t.Errorf("%s has z-index: %s. Use a layer of the list in omn-go-core.css, "+
+					"or 0 or 1 for an order inside one element.", name, value)
+				continue
+			}
+			if _, ok := layers[v[1]]; !ok {
+				t.Errorf("%s uses %s, which is not in the list of layers", name, v[1])
+				continue
+			}
+			layers[v[1]] = true
+		}
+	}
+	if seen < 5 {
+		t.Fatalf("the scan found %d z-index declarations", seen)
+	}
+	for layer, used := range layers {
+		if !used {
+			t.Errorf("no stylesheet uses the layer %s. Remove it from the list.", layer)
+		}
+	}
+}

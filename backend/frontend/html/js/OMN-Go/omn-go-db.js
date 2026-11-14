@@ -167,8 +167,8 @@
                 '<span class="omn-dbb-meta">' + (db.sqlite_exists ? kb(db.size) + ' · ' + ts(db.mtime) : 'no .sqlite file') +
                 ' · ' + db.backups.length + ' backup(s)</span>' +
                 '<span style="flex:1"></span>' +
-                '<button type="button" class="omn-dbb-btn" data-action="dbb-details" data-arg="' + esc(db.name) + '">Details</button>' +
-                (db.sqlite_exists ? '<button type="button" class="omn-dbb-btn" data-action="dbb-backup" data-arg="' + esc(db.name) + '">Backup now</button>' : '') +
+                '<button type="button" class="omn-btn" data-action="dbb-details" data-arg="' + esc(db.name) + '">Details</button>' +
+                (db.sqlite_exists ? '<button type="button" class="omn-btn" data-action="dbb-backup" data-arg="' + esc(db.name) + '">Backup now</button>' : '') +
                 '</div>');
             const det = ['<div class="omn-dbb-details" id="omn-dbb-details-' + esc(db.name) + '" style="display:none;">'];
             if (db.backups.length === 0) det.push('<div class="omn-dbb-meta">No backups.</div>');
@@ -180,7 +180,7 @@
                           ' · ' + bk.objects + ' obj · ' + bk.rows + ' rows · ' + kb(bk.size) + '</span>'
                         : '<span class="omn-dbb-meta omn-dbb-error">invalid: ' + esc(bk.error || '?') + '</span>') +
                     '<span style="flex:1"></span>' +
-                    (bk.valid ? '<button type="button" class="omn-dbb-btn" data-action="dbb-restore" data-arg="' + esc(db.name) + '" data-file="' + esc(bk.file) + '">Restore</button>' : '') +
+                    (bk.valid ? '<button type="button" class="omn-btn" data-action="dbb-restore" data-arg="' + esc(db.name) + '" data-file="' + esc(bk.file) + '">Restore</button>' : '') +
                     '<a href="/db_backup/' + encodeURIComponent(db.name) + '/' + encodeURIComponent(bk.file) +
                     '" class="omn-dbb-meta">view</a>' +
                     '</div>');

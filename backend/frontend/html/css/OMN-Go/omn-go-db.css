@@ -17,14 +17,3 @@
 .omn-dbb-dot.omn-st-missing      { background:var(--omn-state-info); }
 .omn-dbb-dot.omn-st-none         { background:var(--omn-state-off); }
 .omn-dbb-dot.omn-st-invalid      { background:var(--omn-state-error); }
-
-.omn-dbb-btn {
-    cursor:pointer;
-    background:var(--omn-bg-surface);
-    color:var(--omn-text);
-    border:1px solid var(--omn-border);
-    border-radius:4px;
-    padding:0.3em 0.8em;
-    font-size:0.9em;
-}
-.omn-dbb-btn:hover { background:var(--omn-bg-hover); }

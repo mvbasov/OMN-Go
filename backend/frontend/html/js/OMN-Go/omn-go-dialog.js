@@ -167,8 +167,6 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('data-omn-dialog', opts.kind || 'choice');
-        // .omn-overlay has display: none, and a script shows it.
-        overlay.style.display = 'flex';
 
         const box = makeElement('div', 'omn-modal');
         if (opts.width) box.style.width = opts.width;

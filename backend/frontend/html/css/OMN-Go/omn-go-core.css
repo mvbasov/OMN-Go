@@ -854,25 +854,6 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     gap: 8px;
     flex-wrap: wrap;
 }
-.omn-incoming-btn {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    color: var(--omn-on-accent);
-    background: var(--omn-accent);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.omn-incoming-btn:hover {
-    background: var(--omn-accent-hover);
-}
-.omn-incoming-btn[disabled] {
-    opacity: 0.6;
-    cursor: default;
-}
 .omn-incoming-status {
     margin-top: 8px;
     min-height: 1.2em;
@@ -885,14 +866,31 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 
 /* ===== 6. Overlays, modals, panels and buttons ===== */
 
+/* The layers of the page, from the bottom to the top. Each element that
+   covers the page takes its z-index from this list, and from no other
+   number. TestEachZIndexIsALayer holds the rule. omnCloseTopLayer in
+   omn-go-core.js closes a dialog, the search overlay and a panel in this
+   order. The code hides the progress bar before it shows a dialog. The JS
+   console is a tool for the developer, thus it is above each layer. */
+:root {
+    --omn-layer-panel: 40;
+    --omn-layer-search: 70;
+    --omn-layer-dialog: 80;
+    --omn-layer-progress: 1200;
+    --omn-layer-console-button: 9999;
+    --omn-layer-console: 10000;
+}
+
+/* The backdrop of a dialog of omn-go-dialog.js. Only that file makes it,
+   see TestNoDialogMarkupOutsideOmnDialog. */
 .omn-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: var(--omn-overlay-bg);
-    display: none;   /* a script sets display: flex */
+    display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    z-index: var(--omn-layer-dialog);
 }
 
 .omn-modal {
@@ -932,7 +930,7 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     padding: 15px;
     box-shadow: 0 4px 8px var(--omn-shadow);
     width: 300px;
-    z-index: 40;
+    z-index: var(--omn-layer-panel);
 }
 .omn-panel h3 { margin-top: 0; }
 .omn-panel button {
@@ -948,12 +946,6 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     gap: 10px;
 }
 
-/* The dialogs of omn-go-dialog.js. A dialog can open above the search
-   overlay (70), thus it has a higher z-index. The progress overlay (1200) stays above a dialog. The code hides
-   the progress bar before it shows a dialog. */
-.omn-dialog {
-    z-index: 80;
-}
 /* A wide dialog never goes past the edge of a small screen. 72px is the
    margin of 16px on each side and the padding of 20px of .omn-modal. */
 .omn-dialog .omn-modal {
@@ -1069,6 +1061,55 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     cursor: default;
 }
 
+/* The buttons of a page. A page adds .omn-btn to a button or a link. Each
+   button of a dialog or a panel gets its look from ".omn-modal button" and
+   ".omn-panel button" above.
+
+     .omn-btn            Plain, for example Reload, Copy or Details.
+     .omn-btn-primary    A color: the main action, in the accent color.
+     .omn-btn-large      A size: one big button that is the whole page.
+
+   The Config form (.omn-config-save-btn) keeps its own classes. A note can
+   copy that form, for example SQLImport. */
+.omn-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 2.4em;
+    padding: 0.3em 0.9em;
+    border-radius: 6px;
+    border: 1px solid var(--omn-border);
+    background: var(--omn-bg-inset);
+    color: var(--omn-text);
+    font-size: 0.95em;
+    text-decoration: none;
+    cursor: pointer;
+}
+.omn-btn:hover {
+    background: var(--omn-bg-hover);
+    border-color: var(--omn-border-strong);
+}
+.omn-btn[disabled] {
+    opacity: 0.5;
+    cursor: default;
+}
+.omn-btn-primary {
+    background: var(--omn-accent);
+    border-color: var(--omn-accent);
+    color: var(--omn-on-accent);
+}
+.omn-btn-primary:hover {
+    background: var(--omn-accent-hover);
+    border-color: var(--omn-accent-hover);
+}
+.omn-btn-large {
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 0 2px 5px var(--omn-shadow-strong);
+}
+
 /* The tag field of the bookmark panel. The wrapper takes the bottom margin of
    ".omn-panel input", thus the field has none. */
 .omn-panel .omn-tag-input-wrap {
@@ -1090,7 +1131,8 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     border: 1px solid var(--omn-border-strong);
     border-radius: 4px;
     box-shadow: 0 4px 6px var(--omn-shadow);
-    z-index: 60;
+    /* An order inside the panel, which is a layer of its own. */
+    z-index: 1;
 }
 .omn-tag-suggestion-item {
     padding: 6px 10px;
@@ -1173,7 +1215,7 @@ mark.omn-search-hit.omn-search-hit-current {
 .omn-progress-overlay {
     position: fixed;
     inset: 0;
-    z-index: 1200;
+    z-index: var(--omn-layer-progress);
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -1428,7 +1470,7 @@ mark.omn-search-hit.omn-search-hit-current {
     width: 80%; height: 80%;
     background: var(--omn-console-bg);
     color: var(--omn-console-text);
-    z-index: 10000;
+    z-index: var(--omn-layer-console);
     border: 2px solid var(--omn-console-border);
     border-radius: 8px;
     flex-direction: column;
@@ -1499,7 +1541,7 @@ mark.omn-search-hit.omn-search-hit-current {
     position: fixed;
     bottom: 4px;
     left: 8px;
-    z-index: 9999;
+    z-index: var(--omn-layer-console-button);
     margin-left: 0;
 }
 .omn-icon-sm { font-size: 18px; }
