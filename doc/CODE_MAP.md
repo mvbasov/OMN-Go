@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.28. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.29. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -231,7 +231,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Script: [`omn-go-config.js`](../backend/frontend/html/js/OMN-Go/omn-go-config.js). Style: [`omn-go-config.css`](../backend/frontend/html/css/OMN-Go/omn-go-config.css).
 - Endpoints: `GET /api/config`, `POST /api/config`, `POST /api/restart`.
 - Go: `serveConfigPage`, `handleConfigPost`, `applyConfigChange` in [`app/config_handlers.go`](../backend/internal/app/config_handlers.go). The page: [`app/config_page.go`](../backend/internal/app/config_page.go).
-- The settings themselves: the type `Config` in [`config/config.go`](../backend/internal/config/config.go). The table of the fields: `configFields` in [`config/fields.go`](../backend/internal/config/fields.go). The values of the page: [`config/page_values.go`](../backend/internal/config/page_values.go).
+- The settings themselves: the type `Config` in [`config/config.go`](../backend/internal/config/config.go). `config.Load` reads `config.json`, and `config.Save` is its only writer. The table of the fields: `configFields` in [`config/fields.go`](../backend/internal/config/fields.go). The values of the page: [`config/page_values.go`](../backend/internal/config/page_values.go).
 - Android: [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java) reads `config.json` directly for four settings.
 
 ### 5.4 Git sync

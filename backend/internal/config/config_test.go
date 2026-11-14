@@ -1,7 +1,10 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"net.basov.omngo/backend/internal/logx"
@@ -102,5 +105,31 @@ func TestNormalizeSearchScope(t *testing.T) {
 		if got := NormalizeSearchScope(in); got != want {
 			t.Errorf("NormalizeSearchScope(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// Save and Load agree. A field that Save drops or renames comes back empty
+// after the next start, and the person loses the setting.
+func TestSaveThenLoadGivesTheSameConfig(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	if err := Save(p, Config{ServerPort: 9090, Theme: "dark"}); err != nil {
+		t.Fatal(err)
+	}
+	var got Config
+	Load(&got, p, 8080, logx.New(logx.Config, &atomic.Value{}, &logx.Hub{}))
+	if got.ServerPort != 9090 || got.Theme != "dark" {
+		t.Errorf("Load gave port %d and theme %q, want 9090 and dark", got.ServerPort, got.Theme)
+	}
+}
+
+// A write that fails answers an error. persistConfig then answers 500, and
+// the page does not say "Saved". The path here is a directory.
+func TestSaveReportsAWriteFault(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	if err := os.Mkdir(p, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(p, Config{}); err == nil {
+		t.Error("Save over a directory answered no error")
 	}
 }

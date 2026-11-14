@@ -56,6 +56,7 @@ Do not remove a constraint without an instruction from the maintainer.
    `writeNoteFile` is the only writer of a note source in package `app`. It
    writes through `storage.ReplaceFile`, a temporary file and a rename.
    `noteheader.New` is the only header of a new note.
+   `config.Save` is the only writer of `config.json`.
    `storage.ResolvePageName` is the only name resolver.
    `hasRole` is the only role check. `systemPages` is the only page-access table.
    `storage.Layout` is the only code that joins a name to `StorageDir`.

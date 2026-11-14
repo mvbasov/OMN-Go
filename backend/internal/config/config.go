@@ -338,11 +338,8 @@ func Load(c *Config, configPath string, fallbackPort int, log logx.Logger) {
 			// Write NO MimeTypes MAP. A fresh install overrides nothing. See
 			// LegacyMimeSeeds.
 		}
-		data, err := json.MarshalIndent(*c, "", "  ")
-		if err != nil {
-			log.Errf("loadConfig: failed to marshal default config: %v", err)
-		} else if err := os.WriteFile(configPath, data, 0644); err != nil {
-			log.Errf("loadConfig: failed to write default config.json: %v", err)
+		if err := Save(configPath, *c); err != nil {
+			log.Errf("loadConfig: %v", err)
 		}
 	} else {
 		data, readErr := os.ReadFile(configPath)
@@ -377,13 +374,22 @@ func Load(c *Config, configPath string, fallbackPort int, log logx.Logger) {
 	// Remove a map that an older version wrote, thus the table of the build
 	// answers again. See dropLegacyMimeSeed.
 	if dropLegacyMimeSeed(log, c) {
-		data, err := json.MarshalIndent(*c, "", "  ")
-		if err != nil {
-			log.Errf("loadConfig: failed to marshal config after the mime-type repair: %v", err)
-		} else if err := os.WriteFile(configPath, data, 0644); err != nil {
-			log.Errf("loadConfig: failed to write config.json after the mime-type repair: %v", err)
+		if err := Save(configPath, *c); err != nil {
+			log.Errf("loadConfig: %v", err)
 		}
 	}
+}
+
+// Save writes c to configPath as indented JSON. Only Save writes config.json.
+func Save(configPath string, c Config) error {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal the configuration: %w", err)
+	}
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("write %s: %w", configPath, err)
+	}
+	return nil
 }
 
 // LogFilter answers the log switches of c. See applyLogFilter of package
