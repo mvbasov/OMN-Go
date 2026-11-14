@@ -211,6 +211,8 @@ test('a save that the server refuses keeps the panel and its text', async () => 
     assert.strictEqual(h.hidden('#omn-bm-panel'), false);
     assert.strictEqual(h.$('#omn-bm-url').value, 'https://example.org/');
     assert.strictEqual(h.page.location.reloads, 0);
+    // The person learns that the bookmark is not stored.
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'The bookmark was not saved.');
 });
 
 test('a shared text with an address opens the bookmark panel', async () => {

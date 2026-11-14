@@ -470,7 +470,9 @@ of `source` again at once.
 | Status | Body |
 | --- | --- |
 | `200` | The **resolved** target name, e.g. `local/test` — plain text, no trailing newline |
+| `200` | The same, when the new page exists but the link line of `source` could not be written. The log holds the fault |
 | `400` | `Missing fields` when `target` or `title` is empty |
+| `500` | `Failed to create the page` when the new page cannot be written |
 
 ---
 
@@ -504,6 +506,7 @@ again.
 | --- | --- |
 | `200` | `Saved` |
 | `200` | *(empty body, nothing written)* when `note` is empty |
+| `500` | `Failed to save` when the read or the write of `QuickNotes.md` fails. An absent `QuickNotes.md` is not a fault: the first entry makes it |
 
 ---
 
@@ -541,7 +544,8 @@ it.
 
 | Status | Body |
 | --- | --- |
-| `200` | `Saved` — also returned when `Bookmarks.md` is missing or lacks the marker, in which case nothing was written |
+| `200` | `Saved` |
+| `500` | `Failed to save` when `Bookmarks.md` is missing, lacks the marker, or cannot be written. Nothing was written |
 
 ---
 

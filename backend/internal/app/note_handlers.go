@@ -138,13 +138,51 @@ func (a *App) resolveNewPageTarget(source, target string) string {
 	return dir + "/" + target
 }
 
+// writeNoteFile is the only writer of a note source in package app. It makes
+// the directory of md/<baseName>.md and writes content there.
+func (a *App) writeNoteFile(baseName string, content []byte) error {
+	mdPath := a.layout().MD(filepath.FromSlash(baseName + ".md"))
+	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
+		return fmt.Errorf("make the directory of %q: %w", baseName, err)
+	}
+	if err := os.WriteFile(mdPath, content, 0644); err != nil {
+		return fmt.Errorf("write %q: %w", baseName, err)
+	}
+	return nil
+}
+
+// writeNoteSource writes a note source and compiles its page. It answers
+// the fault of the write. A compile fault goes to the log only: the HTML is
+// a cache, and serveHTMLPage compiles the note again at the next view.
+func (a *App) writeNoteSource(baseName string, content []byte) error {
+	if err := a.writeNoteFile(baseName, content); err != nil {
+		return err
+	}
+	if _, err := a.renderAndCache(baseName, content); err != nil {
+		a.log(logx.Page).Errf("compile %q: %v", baseName, err)
+	}
+	return nil
+}
+
+// failSave logs the fault of a save and answers 500 with a general text. A
+// caller on the LAN can read the answer, thus it holds no path.
+func (a *App) failSave(w http.ResponseWriter, where string, err error) {
+	a.log(logx.Page).Errf("%s: %v", where, err)
+	http.Error(w, "Failed to save", http.StatusInternalServerError)
+}
+
 func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	note := r.FormValue("note")
 	if note == "" {
 		return
 	}
 	path := a.layout().MD("QuickNotes.md")
-	data, _ := os.ReadFile(path)
+	// An absent note is correct: the first quick note makes it.
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		a.failSave(w, "handleQuickNote", err)
+		return
+	}
 	lines := strings.Split(string(data), "\n")
 
 	insertIdx := 0
@@ -161,14 +199,10 @@ func (a *App) handleQuickNote(w http.ResponseWriter, r *http.Request) {
 	newContent := append(lines[:insertIdx], append([]string{entry}, lines[insertIdx:]...)...)
 	fullMarkdown := strings.Join(newContent, "\n")
 	fullMarkdown = a.ensureHeaderModified(fullMarkdown, "Quick Notes")
-	os.WriteFile(path, []byte(fullMarkdown), 0644)
-
-	// renderAndCache is the only writer of html/*.html. See
-	// internal/render/cache.go.
-	if _, err := a.renderAndCache("QuickNotes", []byte(fullMarkdown)); err != nil {
-		a.log(logx.Page).Errf("handleQuickNote: %v", err)
+	if err := a.writeNoteSource("QuickNotes", []byte(fullMarkdown)); err != nil {
+		a.failSave(w, "handleQuickNote", err)
+		return
 	}
-
 	w.Write([]byte("Saved"))
 }
 
@@ -209,17 +243,21 @@ func (a *App) handleBookmark(w http.ResponseWriter, r *http.Request) {
 	entry := "  " + string(bmJson) + ",\n"
 
 	data, err := os.ReadFile(path)
-	if err == nil {
-		content := string(data)
-		marker := "<!-- Don't edit body below this line -->"
-		if strings.Contains(content, marker) {
-			newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
-			newContent = a.ensureHeaderModified(newContent, "Incoming bookmarks")
-			os.WriteFile(path, []byte(newContent), 0644)
-			if _, err := a.renderAndCache("Bookmarks", []byte(newContent)); err != nil {
-				a.log(logx.Page).Errf("handleBookmark: %v", err)
-			}
-		}
+	if err != nil {
+		a.failSave(w, "handleBookmark", err)
+		return
+	}
+	content := string(data)
+	marker := "<!-- Don't edit body below this line -->"
+	if !strings.Contains(content, marker) {
+		a.failSave(w, "handleBookmark", fmt.Errorf("the note Bookmarks has no marker line %q", marker))
+		return
+	}
+	newContent := strings.Replace(content, marker, marker+"\n"+entry, 1)
+	newContent = a.ensureHeaderModified(newContent, "Incoming bookmarks")
+	if err := a.writeNoteSource("Bookmarks", []byte(newContent)); err != nil {
+		a.failSave(w, "handleBookmark", err)
+		return
 	}
 	w.Write([]byte("Saved"))
 }
@@ -272,18 +310,11 @@ func (a *App) handleGetNote(w http.ResponseWriter, r *http.Request) {
 	if embedData, embedErr := frontend.Static.ReadFile(embedPath); embedErr == nil {
 		data = embedData
 	} else {
-		timestamp := noteheader.Stamp(time.Now())
-		authorLine := ""
-		if a.config.Get().Author != "" {
-			authorLine = fmt.Sprintf("\nAuthor: %s", a.config.Get().Author)
-		}
-		data = []byte(fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", baseName, timestamp, authorLine))
+		data = []byte(noteheader.New(baseName, a.config.Get().Author, time.Now()))
 	}
 
-	if mkErr := os.MkdirAll(filepath.Dir(mdPath), 0755); mkErr != nil {
-		a.log(logx.Page).Errf("handleGetNote: failed to create directory for %q: %v", baseName, mkErr)
-	} else if writeErr := os.WriteFile(mdPath, data, 0644); writeErr != nil {
-		a.log(logx.Page).Errf("handleGetNote: failed to persist new page %q: %v", baseName, writeErr)
+	if err := a.writeNoteFile(baseName, data); err != nil {
+		a.log(logx.Page).Errf("handleGetNote: %v", err)
 	}
 
 	w.Write(data)
@@ -308,17 +339,14 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 	target = storage.ContainedName(a.resolveNewPageTarget(source, target))
 	source = storage.ContainedName(source)
 
-	now := noteheader.Stamp(time.Now())
-
-	targetMdPath := a.layout().MD(target + ".md")
-	if _, err := os.Stat(targetMdPath); os.IsNotExist(err) {
-		authorLine := ""
-		if a.config.Get().Author != "" {
-			authorLine = fmt.Sprintf("\nAuthor: %s", a.config.Get().Author)
+	// storage.FileExists and not os.Stat: a fault of the path is not a page.
+	if !storage.FileExists(a.layout().MD(target + ".md")) {
+		header := noteheader.New(title, a.config.Get().Author, time.Now())
+		if err := a.writeNoteFile(target, []byte(header)); err != nil {
+			a.log(logx.Page).Errf("handleNewPage: %v", err)
+			http.Error(w, "Failed to create the page", http.StatusInternalServerError)
+			return
 		}
-		defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nModified: %s\nCategory: Notes%s\n\n", title, now, now, authorLine)
-		os.MkdirAll(filepath.Dir(targetMdPath), 0755)
-		os.WriteFile(targetMdPath, []byte(defaultContent), 0644)
 	}
 
 	if source != "" {
@@ -351,9 +379,9 @@ func (a *App) handleNewPage(w http.ResponseWriter, r *http.Request) {
 			}
 
 			content = a.ensureHeaderModified(content, source)
-			os.WriteFile(sourceMdPath, []byte(content), 0644)
-
-			if _, err := a.renderAndCache(source, []byte(content)); err != nil {
+			// The new page exists already. A link that the server cannot
+			// write is a fault for the log, and not a failed request.
+			if err := a.writeNoteSource(source, []byte(content)); err != nil {
 				a.log(logx.Page).Errf("handleNewPage: %v", err)
 			}
 		}
@@ -372,7 +400,7 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 
-	mdPath, htmlPath, baseName, isPage := a.resolvePageName(name)
+	_, htmlPath, baseName, isPage := a.resolvePageName(name)
 
 	if !isPage {
 		// The last of the four guards, and the one that matters, because
@@ -400,25 +428,9 @@ func (a *App) handleSaveNote(w http.ResponseWriter, r *http.Request) {
 
 	content = a.ensureHeaderModified(content, baseName)
 
-	// Write the markdown source first. When the write fails, answer with a
-	// failure. Do not compile content that did not reach the disk.
-	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
-		a.log(logx.Page).Errf("handleSaveNote: mkdir failed for %q: %v", baseName, err)
-		http.Error(w, "Failed to save", http.StatusInternalServerError)
+	if err := a.writeNoteSource(baseName, []byte(content)); err != nil {
+		a.failSave(w, "handleSaveNote", err)
 		return
 	}
-	if err := os.WriteFile(mdPath, []byte(content), 0644); err != nil {
-		a.log(logx.Page).Errf("handleSaveNote: write failed for %q: %v", baseName, err)
-		http.Error(w, "Failed to save", http.StatusInternalServerError)
-		return
-	}
-
-	// The HTML is a derived cache. When its write fails, the note is safe,
-	// and serveHTMLPage compiles it again at the next view because the .md is
-	// newer. The save is not a failure.
-	if _, err := a.renderAndCache(baseName, []byte(content)); err != nil {
-		a.log(logx.Page).Errf("handleSaveNote: %v", err)
-	}
-
 	w.Write([]byte("Saved"))
 }

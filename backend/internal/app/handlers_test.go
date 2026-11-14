@@ -906,3 +906,116 @@ func TestHandleSaveNoteReplacesTheNote(t *testing.T) {
 		}
 	}
 }
+
+// The first quick note makes QuickNotes.md. An absent note is the normal
+// state of a new install, and not a fault.
+func TestQuickNoteMakesTheNoteWhenItIsAbsent(t *testing.T) {
+	a := newTestApp(t)
+	p := filepath.Join(a.StorageDir, "md", "QuickNotes.md")
+	os.Remove(p)
+	rec := postForm(t, a.handleQuickNote, "/api/quick", url.Values{"note": {"x"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	got, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "Title: Quick Notes") || !strings.Contains(string(got), "\nx\n") {
+		t.Errorf("QuickNotes.md does not hold the header and the note:\n%s", got)
+	}
+}
+
+// A quick note that does not reach the disk must answer 500. The page then
+// keeps the text, and the person does not lose it. A directory at the path
+// of the note makes the write fail, also for root, who runs the gate.
+func TestQuickNoteReportsAWriteFault(t *testing.T) {
+	a := newTestApp(t)
+	saveBlock(t, a, "md/QuickNotes.md", true)
+	rec := postForm(t, a.handleQuickNote, "/api/quick", url.Values{"note": {"x"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status %d, want 500", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != "Failed to save" {
+		t.Errorf("body %q, want %q", got, "Failed to save")
+	}
+}
+
+// A bookmark that the server cannot store must answer 500, and not
+// "Saved". Each case below lost the bookmark with a "Saved" answer before.
+func TestBookmarkReportsEachFault(t *testing.T) {
+	const noMarker = "Title: Incoming bookmarks\n\nno marker line\n"
+	for _, tc := range []struct {
+		why     string
+		prepare func(t *testing.T, a *App)
+	}{
+		{"Bookmarks.md is absent", func(t *testing.T, a *App) {
+			os.Remove(filepath.Join(a.StorageDir, "md", "Bookmarks.md"))
+		}},
+		{"Bookmarks.md has no marker line", func(t *testing.T, a *App) {
+			baseWriteMD(t, a, "Bookmarks.md", noMarker)
+		}},
+		{"a directory is at the path", func(t *testing.T, a *App) {
+			os.Remove(filepath.Join(a.StorageDir, "md", "Bookmarks.md"))
+			saveBlock(t, a, "md/Bookmarks.md", true)
+		}},
+	} {
+		a := newTestApp(t)
+		tc.prepare(t, a)
+		rec := postForm(t, a.handleBookmark, "/api/bookmark", url.Values{"url": {"https://example.org"}})
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("%s: status %d, want 500", tc.why, rec.Code)
+		}
+		if got := strings.TrimSpace(rec.Body.String()); got != "Failed to save" {
+			t.Errorf("%s: body %q, want %q", tc.why, got, "Failed to save")
+		}
+		if tc.why == "Bookmarks.md has no marker line" {
+			got, _ := os.ReadFile(filepath.Join(a.StorageDir, "md", "Bookmarks.md"))
+			if string(got) != noMarker {
+				t.Errorf("%s: the note changed:\n%s", tc.why, got)
+			}
+		}
+	}
+}
+
+// A new page that cannot be written must answer 500. Before, the handler
+// made no page and answered the name, and the editor then opened a page
+// that did not exist. A FILE where the directory must be makes the fault.
+func TestNewPageReportsAWriteFault(t *testing.T) {
+	a := newTestApp(t)
+	saveBlock(t, a, "md/sub", false)
+	rec := postForm(t, a.handleNewPage, "/api/newpage", url.Values{"target": {"sub/New"}, "title": {"T"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status %d, want 500", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != "Failed to create the page" {
+		t.Errorf("body %q, want %q", got, "Failed to create the page")
+	}
+}
+
+// A new page gets the header of noteheader.New. A second request for the
+// same page must not write over the page that exists.
+func TestNewPageHeader(t *testing.T) {
+	a := newTestApp(t)
+	rec := postForm(t, a.handleNewPage, "/api/newpage", url.Values{"target": {"Fresh"}, "title": {"My title"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	p := filepath.Join(a.StorageDir, "md", "Fresh.md")
+	first, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(first)
+	if !strings.HasPrefix(src, "Title: My title\nDate: ") ||
+		!strings.Contains(src, "\nModified: ") || !strings.Contains(src, "\nCategory: Notes\n") {
+		t.Errorf("the header of the new page is wrong:\n%s", src)
+	}
+	rec = postForm(t, a.handleNewPage, "/api/newpage", url.Values{"target": {"Fresh"}, "title": {"Other"}})
+	if rec.Code != http.StatusOK {
+		t.Errorf("second request: status %d, want 200", rec.Code)
+	}
+	if again, _ := os.ReadFile(p); string(again) != src {
+		t.Errorf("the second request changed the page:\n%s", again)
+	}
+}

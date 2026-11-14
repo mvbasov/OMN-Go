@@ -53,6 +53,8 @@ Do not remove a constraint without an instruction from the maintainer.
 7. **Give each decision one authority.** Each decision has one implementation.
    `noteheader.Parse` is the only header-block parser.
    `render.Renderer.RenderAndCache` is the only writer of `html/<name>.html`.
+   `writeNoteFile` is the only writer of a note source in package `app`, and
+   `noteheader.New` is the only header of a new note.
    `storage.ResolvePageName` is the only name resolver.
    `hasRole` is the only role check. `systemPages` is the only page-access table.
    `storage.Layout` is the only code that joins a name to `StorageDir`.

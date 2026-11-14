@@ -186,3 +186,23 @@ func TestStampIsUTC(t *testing.T) {
 		}
 	}
 }
+
+// New is the header of each new note. Its text is fixed: notes of each
+// device must look the same, and Parse must read it as a header with no body.
+func TestNew(t *testing.T) {
+	now := time.Date(2026, 11, 14, 15, 4, 5, 0, time.FixedZone("MSK", 3*3600))
+	const stamp = "2026-11-14 12:04:05"
+	for _, tc := range []struct{ author, want string }{
+		{"", "Title: T\nDate: " + stamp + "\nModified: " + stamp + "\nCategory: Notes\n\n"},
+		{"Ann", "Title: T\nDate: " + stamp + "\nModified: " + stamp + "\nCategory: Notes\nAuthor: Ann\n\n"},
+	} {
+		got := New("T", tc.author, now)
+		if got != tc.want {
+			t.Errorf("author %q: got %q, want %q", tc.author, got, tc.want)
+		}
+		b := Parse(got)
+		if !b.HasHeader || b.Body != "" {
+			t.Errorf("author %q: Parse gives HasHeader %v and Body %q", tc.author, b.HasHeader, b.Body)
+		}
+	}
+}

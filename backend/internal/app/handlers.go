@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -64,19 +63,12 @@ func (a *App) serveHTMLPage(w http.ResponseWriter, r *http.Request, path string)
 
 func (a *App) recompileMarkdownPage(name, mdPath string, errMd error) {
 	if os.IsNotExist(errMd) {
-		embedData, err := frontend.Static.ReadFile("md/" + name + ".md")
-		if err == nil {
-			os.MkdirAll(filepath.Dir(mdPath), 0755)
-			os.WriteFile(mdPath, embedData, 0644)
-		} else {
-			timestamp := noteheader.Stamp(time.Now())
-			authorLine := ""
-			if a.config.Get().Author != "" {
-				authorLine = fmt.Sprintf("\nAuthor: %s", a.config.Get().Author)
-			}
-			defaultContent := fmt.Sprintf("Title: %s\nDate: %s\nCategory: Notes%s\n\n", name, timestamp, authorLine)
-			os.MkdirAll(filepath.Dir(mdPath), 0755)
-			os.WriteFile(mdPath, []byte(defaultContent), 0644)
+		data, err := frontend.Static.ReadFile("md/" + name + ".md")
+		if err != nil {
+			data = []byte(noteheader.New(name, a.config.Get().Author, time.Now()))
+		}
+		if err := a.writeNoteFile(name, data); err != nil {
+			a.log(logx.Page).Errf("recompileMarkdownPage: %v", err)
 		}
 	}
 

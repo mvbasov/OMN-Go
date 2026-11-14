@@ -194,3 +194,15 @@ const StampLayout = "2006-01-02 15:04:05"
 func Stamp(t time.Time) string {
 	return t.UTC().Format(StampLayout)
 }
+
+// New answers the header block of a new note, with the empty line after
+// it. Date and Modified hold the same time. An empty author gives no
+// Author line.
+func New(title, author string, now time.Time) string {
+	stamp := Stamp(now)
+	header := "Title: " + title + "\nDate: " + stamp + "\nModified: " + stamp + "\nCategory: Notes\n"
+	if author != "" {
+		header += "Author: " + author + "\n"
+	}
+	return header + "\n"
+}

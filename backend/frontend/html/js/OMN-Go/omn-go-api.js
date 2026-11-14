@@ -412,6 +412,9 @@ if (window.location.protocol !== 'file:') {
             window.omnHidePanel('omn-quick-panel');
             await window.omnAlert('Saved.');
             window.location.reload();
+        } else {
+            // The panel stays open with the text, thus the person can try again.
+            await window.omnAlert('The note was not saved.');
         }
     });
 
@@ -427,6 +430,8 @@ if (window.location.protocol !== 'file:') {
             document.querySelectorAll('#omn-bm-panel input, #omn-bm-panel textarea').forEach(el => el.value = '');
             await window.omnAlert('Saved.');
             window.location.reload();
+        } else {
+            await window.omnAlert('The bookmark was not saved.');
         }
     });
 

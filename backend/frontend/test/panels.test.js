@@ -109,3 +109,22 @@ test('Escape closes an open panel, and a used Escape does not', () => {
     assert.ok(!shown(h, 'omn-quick-panel'));
     assert.strictEqual(escape(h).defaultPrevented, false, 'Escape with no layer is not used');
 });
+
+// A quick note that the server refuses keeps the panel open with its text,
+// and a dialog says so. Before, the page did nothing, and the person did
+// not know that the note was lost.
+test('a quick note that the server refuses stays in the panel', async () => {
+    const h = notePage();
+    h.server = function (request) {
+        if (request.url === '/api/quick') return { httpStatus: 500, text: 'Failed to save' };
+        return { status: 'success' };
+    };
+    h.page.omnShowPanel('omn-quick-panel');
+    h.$('#omn-quick-text').value = 'a thought';
+    h.press('[data-action="quick-note-save"]');
+    await h.settle();
+    assert.ok(shown(h, 'omn-quick-panel'), 'the panel closed');
+    assert.strictEqual(h.$('#omn-quick-text').value, 'a thought');
+    assert.strictEqual(h.page.location.reloads, 0);
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'The note was not saved.');
+});

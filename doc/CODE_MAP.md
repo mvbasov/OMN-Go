@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.24. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.25. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -156,7 +156,7 @@ Thus the chain is: `data-action` in a template, `OMN.action` in a script, `fetch
 
 1. The editor page is [`templates/editor.html`](../backend/frontend/templates/editor.html) with the script [`omn-go-editor.js`](../backend/frontend/html/js/OMN-Go/omn-go-editor.js).
 2. The script sends the text to `POST /api/save`.
-3. `handleSaveNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go) sets the `Modified:` line of the header block. It writes `md/<name>.md`.
+3. `handleSaveNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go) sets the `Modified:` line of the header block. `writeNoteSource` writes `md/<name>.md` and compiles the page.
 4. It calls `renderAndCache`, which compiles the page and writes `html/<name>.html`.
 5. `renderAndCache` also tells the search index that a page changed. See `connectGroups` in [`app/server.go`](../backend/internal/app/server.go).
 
@@ -197,7 +197,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Page: the note box, `#omn-quick-panel` in [`templates/modals.html`](../backend/frontend/templates/modals.html). The page `QuickNotes`. Each way to open or close a panel goes through `omnShowPanel`, `omnHidePanel` and `omnTogglePanel` in [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js). Only one panel shows at a time.
 - Script: actions `quick-note-save` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js) and `quick-note-copy` in [`omn-go-share.js`](../backend/frontend/html/js/OMN-Go/omn-go-share.js).
 - Endpoint: `POST /api/quick`.
-- Go: `handleQuickNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go). It adds the text to `md/QuickNotes.md`.
+- Go: `handleQuickNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go). It adds the text to `md/QuickNotes.md` with `writeNoteSource`. A failed write answers 500, and the page says "The note was not saved."
 - Android: the second launcher icon is `QuickNoteAlias` in [`android/app/src/main/AndroidManifest.xml`](../android/app/src/main/AndroidManifest.xml). `isQuickNoteAliasLaunch` in [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java) opens the page with `?quicknote=1`.
 
 #### Bookmarks
@@ -205,7 +205,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Page: the bookmark form, `#omn-bm-panel` in [`templates/modals.html`](../backend/frontend/templates/modals.html). The page `Bookmarks`.
 - Scripts: [`omn-go-bookmark.js`](../backend/frontend/html/js/OMN-Go/omn-go-bookmark.js) (the form), action `bookmark-save` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js). The page itself: [`Bookmarker.js`](../backend/frontend/html/js/OMN-Go/Bookmarker.js) and [`Bookmarker.css`](../backend/frontend/html/css/OMN-Go/Bookmarker.css).
 - Endpoint: `POST /api/bookmark`.
-- Go: `handleBookmark` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go). It adds one line to the script block of `md/Bookmarks.md`.
+- Go: `handleBookmark` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go). It adds one line to the script block of `md/Bookmarks.md` with `writeNoteSource`. A failed write answers 500, and the page says "The bookmark was not saved."
 - Android: a shared link arrives in `loadStartPage` of [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java). It opens the page with `?share_text=`. The load function of [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js) then opens the form.
 - Manual for the person: [`md/BookmarksHowTo.md`](../backend/frontend/md/BookmarksHowTo.md).
 
