@@ -92,6 +92,7 @@ var GitignorePatterns = []string{
 	"/html/js/OMN-Go/omn-go-sync.js",
 	"/html/js/OMN-Go/omn-go-bookmark.js",
 	"/html/js/OMN-Go/omn-go-search.js",
+	"/html/js/OMN-Go/omn-go-dbbackups.js",
 	"/html/js/OMN-Go/omn-go-dialog.js",
 	"/html/js/OMN-Go/omn-go-logs.js",
 	"/html/js/OMN-Go/omn-go-status.js",

@@ -327,7 +327,7 @@ func TestModalsInjectedAtServeTime(t *testing.T) {
 	if !strings.Contains(compiled, `<div id="omn-go-modals-slot"></div>`) {
 		t.Fatalf("compiled/cached page missing the modals slot marker:\n%s", compiled)
 	}
-	for _, modal := range []string{`id="omn-login-overlay"`, `id="omn-quick-panel"`, `id="omn-bm-panel"`} {
+	for _, modal := range []string{`id="omn-quick-panel"`, `id="omn-bm-panel"`} {
 		if strings.Contains(compiled, modal) {
 			t.Errorf("modal %s was baked into the cached page (should be serve-time only)", modal)
 		}
@@ -337,7 +337,7 @@ func TestModalsInjectedAtServeTime(t *testing.T) {
 	if strings.Contains(served, `<div id="omn-go-modals-slot"></div>`) {
 		t.Error("modals slot was not replaced at serve time")
 	}
-	for _, want := range []string{`id="omn-login-overlay"`, `id="omn-quick-panel"`, `id="omn-bm-panel"`, `id="omn-incoming"`} {
+	for _, want := range []string{`id="omn-quick-panel"`, `id="omn-bm-panel"`, `id="omn-incoming"`} {
 		if !strings.Contains(served, want) {
 			t.Errorf("served page missing injected modal %s", want)
 		}

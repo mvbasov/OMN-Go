@@ -319,22 +319,30 @@ if (window.location.protocol !== 'file:') {
     // omnSearchOpen keeps its name, because the User Manual promises it.
     window.OMN.action('search', function () { window.omnSearchOpen(); });
 
+    // askLogin shows the login dialog until the server accepts the
+    // password. The dialog has no Cancel, and Escape and the Back key do
+    // nothing: the page under it needs a login. A wrong password shows
+    // "Invalid password." in the dialog, and the dialog stays open.
+    function askLogin() {
+        return window.omnDialog({
+            kind: 'login',
+            title: 'OMN-Go Login',
+            closable: false,
+            fields: [{ type: 'password', placeholder: 'Admin Password', autocomplete: 'current-password' }],
+            check: async function (answer) {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'password=' + encodeURIComponent(answer.input)
+                });
+                return res.ok ? '' : 'Invalid password.';
+            },
+            buttons: [{ label: 'Enter', value: true, default: true }],
+        });
+    }
+
     // The actions of this block need the server. The else branch at the end
     // of this file gives each one a stub for a page from disk.
-    window.OMN.action('login', async function () {
-        const pwd = document.getElementById('omn-pwd-input').value;
-        const res = await fetch('/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'password=' + encodeURIComponent(pwd)
-        });
-        if(res.ok) {
-            document.getElementById('omn-login-overlay').style.display = 'none';
-            document.getElementById('omn-main-ui').style.display = 'flex';
-        } else {
-            await window.omnAlert('Invalid password.');
-        }
-    });
 
     function toCamelCase(str) {
         let words = str.split(/[-_\s]+/);
@@ -604,31 +612,25 @@ if (window.location.protocol !== 'file:') {
     }
 
     window.checkSession = async function() {
-        // #omn-login-overlay is a server-injected modal. See injectRuntimeVars.
-        // An exported page and an offline page have no login gate. When
-        // the element is absent, leave the visible content alone rather
-        // than read a property of null. #omn-main-ui stays in the page, and
-        // the guard covers it for the same reason.
-        const overlay = document.getElementById('omn-login-overlay');
+        // An exported page and an offline page have no login gate. When the
+        // server sends a page, InjectRuntimeVars puts the modals into
+        // #omn-go-modals-slot. A page that still holds the empty slot is
+        // thus a copy from disk.
         const main = document.getElementById('omn-main-ui');
-        if (!overlay || !main) return;
+        if (!main || document.getElementById('omn-go-modals-slot')) return;
         // An admin hint cookie means that this browser logged in. The
         // server still tests the signed cookie on each request. An old
         // "guest" hint gives no role. See doc/decisions/0018-keep-one-role.md.
-        if (roleHint() === 'admin') {
-            overlay.style.display = 'none';
-            main.style.display = 'flex';
-        } else {
-            // Check if server is configured with public role or check backend
+        if (roleHint() !== 'admin') {
+            // Only the answer 401 needs a login. The device itself and a
+            // server with no admin password get each other answer.
             const test = await fetch('/api/config');
             if (test.status === 401) {
-                overlay.style.display = 'flex';
                 main.style.display = 'none';
-            } else {
-                overlay.style.display = 'none';
-                main.style.display = 'flex';
+                await askLogin();
             }
         }
+        main.style.display = 'flex';
     };
 
     // GoOMN Log Interceptor - Bridges Go background logs to JS UI
@@ -894,7 +896,7 @@ if (window.location.protocol !== 'file:') {
     // names are the actions of the lazy files. A page from disk never loads
     // such a file.
     [
-        'login', 'new-page', 'quick-note-save', 'bookmark-save', 'search',
+        'new-page', 'quick-note-save', 'bookmark-save', 'search',
         'bookmark-panel', 'sync',
     ].forEach(function (name) {
         window.OMN.action(name, function () { printDebug(name); });

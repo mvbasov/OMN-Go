@@ -174,7 +174,7 @@ loads `Bookmarker.js` after the scripts of `index.html`, with `bookmarks`
 as the list of the note. `opts.search` and `opts.hash` are the query and
 the fragment of the address, and `opts.storage` fills `localStorage`.
 
-Fifteen test files use these pages:
+Sixteen test files use these pages:
 
 | File | What it holds |
 | --- | --- |
@@ -182,13 +182,14 @@ Fifteen test files use these pages:
 | `bookmark.test.js` | The panel, the tag list, Save, the share from Android and `omnGoInsertCapture`. |
 | `config.test.js` | A save sends no secret that the person did not type. A reveal alone changes nothing. The menu, the Back control and the mark of a change. |
 | `search.test.js` | The dialog sends no request while the person types. The two scopes, the keys, and the address of a chosen line. |
-| `session.test.js` | The hint cookie, the answer 401 and the login box. |
+| `session.test.js` | The hint cookie, the answer 401 and the login dialog. A wrong password shows in the dialog. Escape and Back do not close it. A page from disk has no login. |
 | `editor-view.test.js` | An expansion keeps the view of the editor, from the Tab key and from the toolbar button. |
 | `editor-page.test.js` | A load that failed switches the save off. The save, Cancel, the jump to a line, the selection cycle, the two view toggles and a dropped file. |
 | `editor-find.test.js` | The find bar: the count, the steps, the three modes, and the text after Replace and Replace all. |
 | `bookmarker.test.js` | The bookmark page of `Bookmarker.js`: the list, the tags, the search, the address of the page and the options of the device. |
 | `nav.test.js` | The four answers to a press on a link of a note. The overlay of a slow page shows after 300 ms, and only for a press that leaves the page. |
 | `share.test.js` | The metadata panel writes each value as text. Send, the two copy controls, and the two ways to the clipboard. |
+| `dbbackups.test.js` | The Database Backups page: the list, and the dialogs of Backup and Restore. Cancel sends nothing, and Cancel is the default of Restore. |
 | `status.test.js` | The Status page asks for a slow section only on a press. Each kind of value has its form, and each value is text. |
 | `logs-page.test.js` | The Log page: the history, the new lines, the boxes of the filter, and a copy of the lines that show. |
 | `compat.test.js` | The notice of an old browser: the limit of 85, one notice, and the close mark. |

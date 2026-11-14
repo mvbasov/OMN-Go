@@ -14,23 +14,39 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { newDomPage, shellScripts } = require('./dom-page.js');
+const { Event } = require('./mini-dom.js');
 
 // loaded answers a note page after its load events. prepare gets the page
-// before the scripts run, thus it can set the cookie and the server.
+// before the scripts run, thus it can set the cookie and the server. The
+// test types into the login dialog itself, thus the page keeps it open.
 async function loaded(prepare) {
     const h = newDomPage();
+    h.keepDialogs = true;
     if (prepare) prepare(h);
     h.load(shellScripts()).ready();
     await h.settle();
     return h;
 }
 
+// loginDialog answers the open login dialog, or null.
+function loginDialog(h) {
+    return h.document.querySelector('.omn-dialog[data-omn-dialog="login"]');
+}
+
 function boxShown(h) {
-    return h.$('#omn-login-overlay').style.display === 'flex' && h.$('#omn-main-ui').style.display === 'none';
+    return loginDialog(h) !== null && h.$('#omn-main-ui').style.display === 'none';
 }
 
 function pageShown(h) {
-    return h.$('#omn-login-overlay').style.display === 'none' && h.$('#omn-main-ui').style.display === 'flex';
+    return loginDialog(h) === null && h.$('#omn-main-ui').style.display === 'flex';
+}
+
+// login types a password into the dialog and presses Enter.
+async function login(h, password) {
+    const dialog = loginDialog(h);
+    dialog.querySelector('input').value = password;
+    dialog.querySelector('[data-omn-default]').click();
+    await h.settle();
 }
 
 test('the hint cookie shows the page with no request', async () => {
@@ -69,9 +85,9 @@ test('a correct password closes the box, and the page sends it one time', async 
         };
     });
     assert.ok(boxShown(h));
-    h.$('#omn-pwd-input').value = 'p&ss word';
-    h.press('[data-action="login"]');
-    await h.settle();
+    const field = loginDialog(h).querySelector('input');
+    assert.strictEqual(field.type, 'password');
+    await login(h, 'p&ss word');
     const logins = h.requests.filter(function (r) { return r.url === '/login'; });
     assert.strictEqual(logins.length, 1);
     assert.strictEqual(logins[0].method, 'POST');
@@ -84,9 +100,31 @@ test('a wrong password keeps the box and tells the person', async () => {
     const h = await loaded(function (h) {
         h.server = function () { return { httpStatus: 401, text: 'no' }; };
     });
-    h.$('#omn-pwd-input').value = 'wrong';
-    h.press('[data-action="login"]');
+    await login(h, 'wrong');
+    assert.ok(boxShown(h));
+    // The error is a line of the login dialog. A second dialog would wait
+    // behind the login dialog and never show.
+    assert.strictEqual(loginDialog(h).querySelector('.omn-dialog-error').textContent, 'Invalid password.');
+    assert.strictEqual(h.dialogs.length, 1);
+});
+
+test('Escape and the Back key do not close the login dialog', async () => {
+    const h = await loaded(function (h) {
+        h.server = function () { return { httpStatus: 401, text: 'no' }; };
+    });
+    const dialog = loginDialog(h);
+    dialog.querySelector('input').dispatchEvent(new Event('keydown', { bubbles: true, cancelable: true, key: 'Escape' }));
+    assert.strictEqual(h.page.omnCloseTopLayer(), true, 'the WebView would go back');
     await h.settle();
     assert.ok(boxShown(h));
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Invalid password.');
+});
+
+test('a page from disk has no login gate and asks the server nothing', async () => {
+    // A copy from disk still holds the empty slot of the modals.
+    const h = newDomPage({ body: '<div id="omn-main-ui"></div><div id="omn-go-modals-slot"></div>' });
+    h.server = function () { return { httpStatus: 401, text: 'no' }; };
+    h.load(shellScripts()).ready();
+    await h.settle();
+    assert.strictEqual(loginDialog(h), null);
+    assert.deepStrictEqual(h.requests.filter(function (r) { return r.url === '/api/config'; }), []);
 });

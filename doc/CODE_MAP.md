@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.20. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.21. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -256,7 +256,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 
 #### Database backups
 
-- Page: `/db_backups`. Template: [`templates/db_backups.html`](../backend/frontend/templates/db_backups.html). This template holds its own script. Style: [`omn-go-db.css`](../backend/frontend/html/css/OMN-Go/omn-go-db.css).
+- Page: `/db_backups`. Template: [`templates/db_backups.html`](../backend/frontend/templates/db_backups.html). Script: [`omn-go-dbbackups.js`](../backend/frontend/html/js/OMN-Go/omn-go-dbbackups.js). Backup and Restore ask with `omnDialog`. Style: [`omn-go-db.css`](../backend/frontend/html/css/OMN-Go/omn-go-db.css).
 - Endpoints: `POST /api/db/backup`, `GET /api/db/backups`, `POST /api/db/restore`.
 - Go: [`app/db_app.go`](../backend/internal/app/db_app.go), then [`db/backup_http.go`](../backend/internal/db/backup_http.go). Create: [`db/backup_create.go`](../backend/internal/db/backup_create.go). Restore: [`db/backup_restore.go`](../backend/internal/db/backup_restore.go).
 
@@ -311,7 +311,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Settings: `share_lan`, `admin_password`.
 - The server address: `startServer` in [`app/server.go`](../backend/internal/app/server.go). With `share_lan` off, the server listens on `127.0.0.1` only.
 - Who is admin: `isLocalConnection`, `hasRole`, `authMiddleware` in [`app/middleware.go`](../backend/internal/app/middleware.go).
-- Login: `handleLogin` and the session cookie in [`app/session.go`](../backend/internal/app/session.go). The login panel: `#omn-login-overlay` in [`templates/modals.html`](../backend/frontend/templates/modals.html), action `login` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js).
+- Login: `handleLogin` and the session cookie in [`app/session.go`](../backend/internal/app/session.go). The login dialog: `checkSession` and `askLogin` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js). Only the answer 401 of `/api/config` shows it. It is an `omnDialog` with no Cancel.
 - A request from another site: [`app/request_guard.go`](../backend/internal/app/request_guard.go).
 - The role of each endpoint: the third value of each `a.route` line in [`app/server.go`](../backend/internal/app/server.go). The role of each system page: `systemPages` in [`app/page_access.go`](../backend/internal/app/page_access.go).
 
@@ -391,7 +391,7 @@ A template is a page fragment with tokens such as `%%TITLE_HTML%%`. The Go funct
 | Template | Page, and the Go file that fills it |
 | --- | --- |
 | [`templates/index.html`](../backend/frontend/templates/index.html) | The shell of each page: header, buttons, footer, script list. Go: [`render/pages.go`](../backend/internal/render/pages.go) |
-| [`templates/modals.html`](../backend/frontend/templates/modals.html) | The panels and dialogs: login, note box, bookmark form, commit, conflict, receive box. Go: [`render/pages.go`](../backend/internal/render/pages.go) |
+| [`templates/modals.html`](../backend/frontend/templates/modals.html) | The panels: note box, bookmark form, receive box. The dialogs come from `omnDialog`. Go: [`render/pages.go`](../backend/internal/render/pages.go) |
 | [`templates/editor.html`](../backend/frontend/templates/editor.html) | The editor. Go: [`render/editor_page.go`](../backend/internal/render/editor_page.go) |
 | [`templates/config_page.html`](../backend/frontend/templates/config_page.html) | The Config page. Go: [`app/config_page.go`](../backend/internal/app/config_page.go) |
 | [`templates/search_page.html`](../backend/frontend/templates/search_page.html) | The search page. Go: [`search/page.go`](../backend/internal/search/page.go) |
@@ -433,6 +433,7 @@ Scripts of one page:
 | [`omn-go-editor.js`](../backend/frontend/html/js/OMN-Go/omn-go-editor.js) | The editor. |
 | [`omn-go-config.js`](../backend/frontend/html/js/OMN-Go/omn-go-config.js) | The Config page. |
 | [`omn-go-status.js`](../backend/frontend/html/js/OMN-Go/omn-go-status.js) | The Status page. |
+| [`omn-go-dbbackups.js`](../backend/frontend/html/js/OMN-Go/omn-go-dbbackups.js) | The Database Backups page. |
 | [`omn-go-logs.js`](../backend/frontend/html/js/OMN-Go/omn-go-logs.js) | The Log page. |
 | [`Bookmarker.js`](../backend/frontend/html/js/OMN-Go/Bookmarker.js) | The Bookmarks page. |
 

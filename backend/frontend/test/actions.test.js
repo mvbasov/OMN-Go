@@ -152,7 +152,9 @@ function shellActions() {
 
 test('each control of the page shell has an action, from the server and from disk', () => {
     const names = shellActions();
-    assert.ok(names.length >= 15, 'the scan found ' + names.length + ' actions in the shell');
+    // The floor shows that the scan still reads the templates. It is not
+    // the number of the actions.
+    assert.ok(names.length >= 10, 'the scan found ' + names.length + ' actions in the shell');
     for (const protocol of ['http:', 'file:']) {
         const { page } = loadPage(protocol);
         for (const name of names) {

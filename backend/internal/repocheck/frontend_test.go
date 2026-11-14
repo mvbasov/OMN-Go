@@ -122,17 +122,9 @@ func TestDocumentedCoreAPIIsExported(t *testing.T) {
 // A modal that hides by class must have a rule that shows it again
 // ----------------------------------------------------------------------
 //
-// dialogMarkupAllowed names the overlays that a template can still hold.
-// The login overlay moves to omnDialog in a later version. Then this list
-// is empty.
-var dialogMarkupAllowed = map[string]bool{"omn-login-overlay": true}
-
 // dialogClassRe finds the class omn-overlay or omn-modal as a whole word.
 // The class omn-modal-buttons-row of a panel does not match.
 var dialogClassRe = regexp.MustCompile(`(^|[\s"'])omn-(overlay|modal)([\s"']|$)`)
-
-// divIDRe finds the id of a div that starts on a line.
-var divIDRe = regexp.MustCompile(`<div\s+id="([^"]+)"`)
 
 // TestNoDialogMarkupOutsideOmnDialog keeps each dialog in omnDialog of
 // omn-go-dialog.js. A template or a script that builds an overlay of its
@@ -140,8 +132,7 @@ var divIDRe = regexp.MustCompile(`<div\s+id="([^"]+)"`)
 // keys and the Back key of omnDialog.
 //
 // The test reads each template and each script of OMN-Go. A line with the
-// class omn-overlay or omn-modal fails, unless it is in omn-go-dialog.js or
-// in an overlay of dialogMarkupAllowed.
+// class omn-overlay or omn-modal fails, unless it is in omn-go-dialog.js.
 func TestNoDialogMarkupOutsideOmnDialog(t *testing.T) {
 	type source struct{ dir, glob string }
 	scanned := 0
@@ -163,16 +154,8 @@ func TestNoDialogMarkupOutsideOmnDialog(t *testing.T) {
 				t.Fatalf("read %s: %v", name, err)
 			}
 			scanned++
-			// inside is the id of the allowed overlay that the line is in.
-			inside := ""
 			for i, line := range strings.Split(string(data), "\n") {
-				if m := divIDRe.FindStringSubmatch(line); m != nil {
-					inside = ""
-					if dialogMarkupAllowed[m[1]] {
-						inside = m[1]
-					}
-				}
-				if !dialogClassRe.MatchString(line) || inside != "" {
+				if !dialogClassRe.MatchString(line) {
 					continue
 				}
 				t.Errorf("%s:%d builds a dialog of its own. Use omnDialog of "+
@@ -209,9 +192,14 @@ var dataActionRe = regexp.MustCompile(`data-action="([^"]+)"`)
 var actionCallRe = regexp.MustCompile(`\baction\('([a-z0-9-]+)'`)
 
 // Each data-action of a template has a function. A shipped script gives it,
-// or the script block of a template does.
+// or the script block of a template does. A script can also build a control
+// in its markup, for example the list of omn-go-dbbackups.js. Such a control
+// is a use of its action, the same as a control of a template.
 func TestEachDataActionHasAFunction(t *testing.T) {
 	registered := map[string]bool{}
+	used := map[string]bool{}
+	// builtBy names the script that builds a control of each action.
+	builtBy := map[string]string{}
 	scripts, err := frontend.Static.ReadDir("html/js/OMN-Go")
 	if err != nil {
 		t.Fatal(err)
@@ -227,12 +215,15 @@ func TestEachDataActionHasAFunction(t *testing.T) {
 		for _, m := range actionCallRe.FindAllStringSubmatch(string(src), -1) {
 			registered[m[1]] = true
 		}
+		for _, m := range dataActionRe.FindAllStringSubmatch(string(src), -1) {
+			used[m[1]] = true
+			builtBy[m[1]] = e.Name()
+		}
 	}
 	if len(registered) == 0 {
 		t.Fatal("the scan found no OMN.action call, thus this test proves nothing")
 	}
 
-	used := map[string]bool{}
 	templates, err := frontend.Templates.ReadDir("templates")
 	if err != nil {
 		t.Fatal(err)
@@ -261,6 +252,12 @@ func TestEachDataActionHasAFunction(t *testing.T) {
 	}
 	if len(used) == 0 {
 		t.Fatal("the scan found no data-action in the templates, thus this test proves nothing")
+	}
+	for name, file := range builtBy {
+		if !registered[name] {
+			t.Errorf("%s builds a control with data-action=%q, and no script calls "+
+				"OMN.action('%s', ...). The control does nothing.", file, name, name)
+		}
 	}
 	for name := range registered {
 		if !used[name] {

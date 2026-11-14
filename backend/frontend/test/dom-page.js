@@ -33,15 +33,18 @@ function template(name, values) {
         });
 }
 
-// shellBody answers the body of a note page: the body of index.html and
-// the modals that the server adds when it serves the page. values fills
-// the placeholders of index.html, for example PREVIEW_BODY.
+// shellBody answers the body of a note page as the server sends it: the
+// body of index.html, with modals.html in place of #omn-go-modals-slot.
+// values fills the placeholders of index.html, for example PREVIEW_BODY.
 function shellBody(values) {
     const index = template('index.html', values);
     const open = index.indexOf('<body>');
     const close = index.indexOf('</body>');
     assert.ok(open >= 0 && close > open, 'index.html has no body element');
-    return index.slice(open + '<body>'.length, close) + template('modals.html');
+    const slot = '<div id="omn-go-modals-slot"></div>';
+    const body = index.slice(open + '<body>'.length, close);
+    assert.ok(body.indexOf(slot) >= 0, 'index.html has no modals slot');
+    return body.replace(slot, function () { return template('modals.html'); });
 }
 
 // shellScripts answers the application scripts that index.html names, in

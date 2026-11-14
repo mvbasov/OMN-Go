@@ -948,9 +948,8 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     gap: 10px;
 }
 
-/* The dialogs of omn-go-dialog.js. A dialog can open above another layer:
-   the login overlay (50) or the search overlay (70). Thus it has a higher
-   z-index. The progress overlay (1200) stays above a dialog. The code hides
+/* The dialogs of omn-go-dialog.js. A dialog can open above the search
+   overlay (70), thus it has a higher z-index. The progress overlay (1200) stays above a dialog. The code hides
    the progress bar before it shows a dialog. */
 .omn-dialog {
     z-index: 80;
