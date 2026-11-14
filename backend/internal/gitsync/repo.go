@@ -114,6 +114,8 @@ var GitignorePatterns = []string{
 	"/md/UserManual.md",
 	"/md/local/",
 	"/db/",
+	// The temporary file of a write. See storage.ReplaceFile.
+	"*" + storage.TempSuffix,
 	GitignoreLocalOnlyPattern,
 }
 

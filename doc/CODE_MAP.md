@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.25. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.26. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -156,7 +156,7 @@ Thus the chain is: `data-action` in a template, `OMN.action` in a script, `fetch
 
 1. The editor page is [`templates/editor.html`](../backend/frontend/templates/editor.html) with the script [`omn-go-editor.js`](../backend/frontend/html/js/OMN-Go/omn-go-editor.js).
 2. The script sends the text to `POST /api/save`.
-3. `handleSaveNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go) sets the `Modified:` line of the header block. `writeNoteSource` writes `md/<name>.md` and compiles the page.
+3. `handleSaveNote` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go) sets the `Modified:` line of the header block. `writeNoteSource` writes `md/<name>.md` through a temporary file (`storage.ReplaceFile`) and compiles the page.
 4. It calls `renderAndCache`, which compiles the page and writes `html/<name>.html`.
 5. `renderAndCache` also tells the search index that a page changed. See `connectGroups` in [`app/server.go`](../backend/internal/app/server.go).
 

@@ -164,3 +164,44 @@ func TestDropCompiledPagesRemovesOnlyCompiledPages(t *testing.T) {
 		t.Errorf("an empty storage directory: %d, %v", n, err)
 	}
 }
+
+// ReplaceFile writes the new text, and it leaves no temporary file. A
+// temporary file that a stop of the process left behind does not stop the
+// next write.
+func TestReplaceFileWritesAndLeavesNoTemporaryFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "Note.md")
+	if err := os.WriteFile(p, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p+TempSuffix, []byte("left by a stop"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReplaceFile(p, []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != "new" {
+		t.Errorf("the file holds %q, want %q", got, "new")
+	}
+	if _, err := os.Stat(p + TempSuffix); err == nil {
+		t.Error("the temporary file stays after the write")
+	}
+}
+
+// A write that cannot finish answers the error, keeps the old content, and
+// removes its temporary file. The target here is a directory, thus the
+// rename fails.
+func TestReplaceFileKeepsTheOldContentOnAFault(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "Note.md")
+	if err := os.MkdirAll(filepath.Join(p, "inside"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReplaceFile(p, []byte("new")); err == nil {
+		t.Fatal("a write over a directory answered no error")
+	}
+	if _, err := os.Stat(filepath.Join(p, "inside")); err != nil {
+		t.Errorf("the directory changed: %v", err)
+	}
+	if _, err := os.Stat(p + TempSuffix); err == nil {
+		t.Error("the temporary file stays after a failed write")
+	}
+}

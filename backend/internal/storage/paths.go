@@ -138,3 +138,32 @@ func IsLocalOnlyPath(name string) bool {
 	}
 	return false
 }
+
+// TempSuffix ends the name of the temporary file of ReplaceFile.
+// gitsync.GitignorePatterns holds "*" + TempSuffix.
+const TempSuffix = ".omn-tmp"
+
+// ReplaceFile writes data to a temporary file beside p and renames it to p.
+// A stop of the process during the write thus leaves the old file whole. A
+// temporary file that an earlier stop left behind gets written over.
+func ReplaceFile(p string, data []byte) error {
+	tmp := p + TempSuffix
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, p)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
+}

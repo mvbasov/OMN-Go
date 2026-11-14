@@ -145,7 +145,7 @@ func (a *App) writeNoteFile(baseName string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
 		return fmt.Errorf("make the directory of %q: %w", baseName, err)
 	}
-	if err := os.WriteFile(mdPath, content, 0644); err != nil {
+	if err := storage.ReplaceFile(mdPath, content); err != nil {
 		return fmt.Errorf("write %q: %w", baseName, err)
 	}
 	return nil

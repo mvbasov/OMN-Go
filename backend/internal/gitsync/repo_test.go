@@ -168,6 +168,7 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"/md/UserManual.md\n" +
 		"/md/local/\n" +
 		"/db/\n" +
+		"*.omn-tmp\n" +
 		"local-*\n"
 
 	got, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
