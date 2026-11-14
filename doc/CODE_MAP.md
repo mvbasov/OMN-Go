@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.26. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.27. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -411,7 +411,7 @@ Scripts that each page loads, in this order:
 | --- | --- |
 | [`omn-go-compat.js`](../backend/frontend/html/js/OMN-Go/omn-go-compat.js) | The notice for a WebView that is too old. The only ES5 file. |
 | [`omn-go-console.js`](../backend/frontend/html/js/OMN-Go/omn-go-console.js) | The console of the page. |
-| [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js) | `OMN.action` and the press listener. The header controls. The panels and `omnCloseTopLayer`. The progress indicator. The work at the load of a page. |
+| [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js) | `OMN.action` and the press listener. The header controls. The panels and `omnCloseTopLayer`. The notice (`omnNotice`, `omnNoticeAfterLoad`). The progress indicator. The work at the load of a page. |
 | [`omn-go-highlight.js`](../backend/frontend/html/js/OMN-Go/omn-go-highlight.js) | The marks of the search terms in the page. |
 | [`omn-go-nav.js`](../backend/frontend/html/js/OMN-Go/omn-go-nav.js) | A press on a link of a note. |
 | [`omn-go-share.js`](../backend/frontend/html/js/OMN-Go/omn-go-share.js) | Send a note, copy, the page link, the metadata panel. |

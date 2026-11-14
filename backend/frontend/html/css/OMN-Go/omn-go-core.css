@@ -870,12 +870,14 @@ details.omn-incoming[open] > summary.omn-incoming-head {
    covers the page takes its z-index from this list, and from no other
    number. TestEachZIndexIsALayer holds the rule. omnCloseTopLayer in
    omn-go-core.js closes a dialog, the search overlay and a panel in this
-   order. The code hides the progress bar before it shows a dialog. The JS
-   console is a tool for the developer, thus it is above each layer. */
+   order. A notice of omnNotice is above a dialog. The code hides the
+   progress bar before it shows a dialog. The JS console is a tool for the
+   developer, thus it is above each layer. */
 :root {
     --omn-layer-panel: 40;
     --omn-layer-search: 70;
     --omn-layer-dialog: 80;
+    --omn-layer-notice: 90;
     --omn-layer-progress: 1200;
     --omn-layer-console-button: 9999;
     --omn-layer-console: 10000;
@@ -1059,6 +1061,23 @@ details.omn-incoming[open] > summary.omn-incoming-head {
 .omn-modal button:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+/* The notice of omnNotice in omn-go-core.js: one line at the bottom. */
+.omn-notice {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: var(--omn-bg-surface);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border-strong);
+    box-shadow: 0 4px 6px var(--omn-shadow);
+    z-index: var(--omn-layer-notice);
+    cursor: pointer;
 }
 
 /* The buttons of a page. A page adds .omn-btn to a button or a link. Each

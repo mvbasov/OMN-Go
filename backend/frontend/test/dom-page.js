@@ -89,6 +89,8 @@ function shellScripts() {
 //	opened     Each call of window.open: {url, target}.
 //	clipboard  Each text that a script wrote with the Clipboard API.
 //	timers     The timers of the page, after h.holdTimers().
+//	session    The sessionStorage of the page, as a plain object.
+//	           opts.session gives its values before the load.
 //
 // A test sets h.server to answer a request, and h.confirm, h.prompt,
 // h.choose and h.fill to answer a dialog.
@@ -181,6 +183,14 @@ function newDomPage(opts) {
         prompt: function () { return null; },
         choose: function () { return null; },
         fill: function () { return null; },
+        session: Object.assign({}, opts.session || {}),
+    };
+    page.sessionStorage = {
+        getItem: function (key) {
+            return Object.prototype.hasOwnProperty.call(h.session, key) ? h.session[key] : null;
+        },
+        setItem: function (key, value) { h.session[key] = String(value); },
+        removeItem: function (key) { delete h.session[key]; },
     };
 
     // fetch gives the request to h.server. The answer of h.server is the

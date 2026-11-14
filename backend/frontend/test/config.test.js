@@ -134,7 +134,8 @@ test('Save sends each setting and no secret that the person did not type', async
     // After the save the page is clean and loads again.
     assert.strictEqual(h.$('#omn-config-menu-dirty').hidden, true);
     assert.strictEqual(h.page.location.reloads, 1);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Configuration saved. The page loads again.');
+    // The result is a notice for the next page, and not a dialog.
+    assert.strictEqual(h.session['omn-notice'], 'Configuration saved.');
 });
 
 test('Save sends a secret that the person typed, also an empty one', async () => {

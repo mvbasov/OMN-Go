@@ -410,7 +410,7 @@ if (window.location.protocol !== 'file:') {
         if(res.ok) {
             document.getElementById('omn-quick-text').value = '';
             window.omnHidePanel('omn-quick-panel');
-            await window.omnAlert('Saved.');
+            window.omnNoticeAfterLoad('Saved.');
             window.location.reload();
         } else {
             // The panel stays open with the text, thus the person can try again.
@@ -428,7 +428,7 @@ if (window.location.protocol !== 'file:') {
         if(res.ok) {
             window.omnHidePanel('omn-bm-panel');
             document.querySelectorAll('#omn-bm-panel input, #omn-bm-panel textarea').forEach(el => el.value = '');
-            await window.omnAlert('Saved.');
+            window.omnNoticeAfterLoad('Saved.');
             window.location.reload();
         } else {
             await window.omnAlert('The bookmark was not saved.');

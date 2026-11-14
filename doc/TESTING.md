@@ -169,12 +169,15 @@ the requests. The page has the `insertText` command of a browser, and
 `systemPage(template, script, server)` builds a system page: the shell
 with one template as its body, and the script of that page.
 
+Each page has a `sessionStorage` in memory. `h.session` holds its values,
+and `opts.session` fills it before the load.
+
 `bookmarkPage(bookmarks, opts)` builds the bookmark page: a note page that
 loads `Bookmarker.js` after the scripts of `index.html`, with `bookmarks`
 as the list of the note. `opts.search` and `opts.hash` are the query and
 the fragment of the address, and `opts.storage` fills `localStorage`.
 
-Seventeen test files use these pages:
+Eighteen test files use these pages:
 
 | File | What it holds |
 | --- | --- |
@@ -190,6 +193,7 @@ Seventeen test files use these pages:
 | `nav.test.js` | The four answers to a press on a link of a note. The overlay of a slow page shows after 300 ms, and only for a press that leaves the page. |
 | `share.test.js` | The metadata panel writes each value as text. Send, the two copy controls, and the two ways to the clipboard. |
 | `db.test.js` | The Database Backups page: the list, and the dialogs of Backup and Restore. Cancel sends nothing, and Cancel is the default of Restore. |
+| `notice.test.js` | The notice: its text, its time, one at a time, the press, and the notice for the next page after a save. A refused `sessionStorage` stops nothing. |
 | `panels.test.js` | One panel at a time, each way to open a panel, and the top layer: a dialog, then the search overlay, then a panel. Escape and the Back key. |
 | `status.test.js` | The Status page asks for a slow section only on a press. Each kind of value has its form, and each value is text. |
 | `logs-page.test.js` | The Log page: the history, the new lines, the boxes of the filter, and a copy of the lines that show. |

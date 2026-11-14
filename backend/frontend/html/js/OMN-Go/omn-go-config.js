@@ -246,7 +246,7 @@ window.OMN.action('config-save', async function () {
                 setTimeout(function(){ window.location.reload(); }, 3000);
                 return;
             }
-            await window.omnAlert('Configuration saved. The page loads again.');
+            window.omnNoticeAfterLoad('Configuration saved.');
             window.location.reload();
         } else {
             let msg = await res.text();

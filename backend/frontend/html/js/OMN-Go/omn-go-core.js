@@ -403,6 +403,51 @@ window.omnCloseTopLayer = function () {
     return true;
 };
 
+// --- The notice ---
+//
+// A dialog is for a question or a fault. A result that needs no answer is a
+// notice: one short line at the bottom of the screen. It goes away after
+// OMN_NOTICE_MS, or at a press on it. A second notice replaces the first,
+// thus the page never holds two. The text goes in with textContent.
+
+const OMN_NOTICE_MS = 2500;
+const OMN_NOTICE_KEY = 'omn-notice';
+let omnNoticeTimer = null;
+
+window.omnNotice = function (text) {
+    if (!document.body) return;
+    let el = document.querySelector('.omn-notice');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'omn-notice';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.addEventListener('click', function () { el.remove(); });
+        document.body.appendChild(el);
+    }
+    el.textContent = String(text);
+    clearTimeout(omnNoticeTimer);
+    omnNoticeTimer = setTimeout(function () { el.remove(); }, OMN_NOTICE_MS);
+};
+
+// omnNoticeAfterLoad keeps a notice for the next page, for a result that
+// loads the page again. The load listener below shows it. A WebView can
+// refuse sessionStorage. The notice is then lost, and nothing fails.
+window.omnNoticeAfterLoad = function (text) {
+    try {
+        window.sessionStorage.setItem(OMN_NOTICE_KEY, String(text));
+    } catch (e) { /* no storage: no notice */ }
+};
+
+function omnShowKeptNotice() {
+    let text = null;
+    try {
+        text = window.sessionStorage.getItem(OMN_NOTICE_KEY);
+        window.sessionStorage.removeItem(OMN_NOTICE_KEY);
+    } catch (e) { /* no storage: no notice */ }
+    if (text) window.omnNotice(text);
+}
+
 // toggle-panel and hide-panel take the id of the panel in data-arg.
 window.OMN.action('toggle-panel', function (el) { window.omnTogglePanel(el.getAttribute('data-arg')); });
 window.OMN.action('hide-panel', function (el) { window.omnHidePanel(el.getAttribute('data-arg')); });
@@ -412,6 +457,7 @@ window.OMN.action('hide-panel', function (el) { window.omnHidePanel(el.getAttrib
 // "window.onload=createTOC()". With a listener, this handler and the
 // window.onload of the note both run.
 window.addEventListener('load', () => {
+            omnShowKeptNotice();
             checkSession();
             applyPlatformUI();
             applyOfflineUI();

@@ -440,6 +440,9 @@ fail when you skip one of these steps.
   through `omnCloseTopLayer` of `omn-go-core.js`: a dialog, then the search
   overlay, then a panel. Open and close a panel only with `omnShowPanel`,
   `omnHidePanel` or `omnTogglePanel`. Only one panel shows at a time.
+- A dialog is for a question or a fault. A result that needs no answer is a
+  notice: `omnNotice(text)` of `omn-go-core.js`. A result that loads the page
+  again keeps its notice for the next page with `omnNoticeAfterLoad(text)`.
 - A button of a page uses `.omn-btn`, with `.omn-btn-primary` for the main
   action and `.omn-btn-large` for a button that is the whole page. Do not
   write a button class for one page. A z-index is a token of the list of
