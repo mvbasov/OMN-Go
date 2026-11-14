@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.31. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.32. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -464,6 +464,7 @@ The directory is [`android/app/src/main/java/net/basov/omngo/`](../android/app/s
 | [`Fullscreen.java`](../android/app/src/main/java/net/basov/omngo/Fullscreen.java) | The system bars. |
 | [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java) | The reader of `config.json`. |
 | [`OmnText.java`](../android/app/src/main/java/net/basov/omngo/OmnText.java) | Text rules that need no Android class, thus a plain test can run them. |
+| [`LocalServer.java`](../android/app/src/main/java/net/basov/omngo/LocalServer.java) | The one POST of the Android layer to its own server, with one retry for a cold start. |
 
 Other files of the Android layer:
 
@@ -583,7 +584,7 @@ After such a change, each page must compile again. The backend does that at each
 
 1. Add the intent filter to [`android/app/src/main/AndroidManifest.xml`](../android/app/src/main/AndroidManifest.xml).
 2. Read the intent in `loadStartPage` and in `onNewIntent` of [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java). Both need the same branch.
-3. Put the work into [`ShareIn.java`](../android/app/src/main/java/net/basov/omngo/ShareIn.java). Send the data to an endpoint of the backend.
+3. Put the work into [`ShareIn.java`](../android/app/src/main/java/net/basov/omngo/ShareIn.java). Send the data to an endpoint of the backend with `LocalServer.postWithRetry`.
 
 ### 10.12 Add a whole new page with its own endpoints
 

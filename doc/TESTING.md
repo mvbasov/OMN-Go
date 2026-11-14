@@ -47,9 +47,9 @@ App.
 The Java and the JavaScript tests are started BY a Go test. There is no
 second command and no second gate.
 
-* `backend/internal/repocheck/java_test.go` compiles and runs the two
-  files of `android/test/java/net/basov/omngo/`: `OmnConfigTest.java` and
-  `OmnTextTest.java`.
+* `backend/internal/repocheck/java_test.go` compiles and runs the three
+  files of `android/test/java/net/basov/omngo/`: `LocalServerTest.java`,
+  `OmnConfigTest.java` and `OmnTextTest.java`.
 * `backend/internal/repocheck/js_test.go` runs `node --test` over
   `backend/frontend/test/*.test.js`.
 
@@ -66,7 +66,9 @@ tools, thus the full set runs there.
 The Android build has ONE Gradle dependency, and rule 1 of `CLAUDE.md`
 section 1 says why. JUnit would be a second one. `OmnConfigTest.java` is
 therefore a plain `main` method with three check helpers of ten lines.
-`OmnTextTest.java` has the same form.
+`OmnTextTest.java` and `LocalServerTest.java` have the same form.
+`LocalServerTest.java` starts the small HTTP server of the JDK on
+`127.0.0.1` and sends real requests to it.
 
 The frontend has no build step, and rule 4 of `CLAUDE.md` says why. A test
 runner from npm would be the first `package.json` of this project.
@@ -284,9 +286,9 @@ compiles this directory and the F-Droid build cannot see it.
 artifacts. The F-Droid build server installs what the recipe
 names, and the recipe names no Node.
 
-`OmnConfig.java` and `OmnText.java` ARE in `src/main`, thus F-Droid
-compiles them. They add no dependency and no import outside `java.io` and
-`java.util`.
+`OmnConfig.java`, `OmnText.java` and `LocalServer.java` ARE in `src/main`,
+thus F-Droid compiles them. They add no dependency and no import outside
+`java.io`, `java.net` and `java.util`.
 
 ---
 

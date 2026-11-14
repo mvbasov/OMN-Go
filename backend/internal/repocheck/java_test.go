@@ -113,12 +113,14 @@ func TestFdroidFlavorStillExists(t *testing.T) {
 // runs those tests. A new class of this kind needs a row here and a test
 // there.
 var pureJavaSources = []string{
+	"android/app/src/main/java/net/basov/omngo/LocalServer.java",
 	"android/app/src/main/java/net/basov/omngo/OmnConfig.java",
 	"android/app/src/main/java/net/basov/omngo/OmnText.java",
 }
 
 // pureJavaTests lists the test of each class above.
 var pureJavaTests = []string{
+	"android/test/java/net/basov/omngo/LocalServerTest.java",
 	"android/test/java/net/basov/omngo/OmnConfigTest.java",
 	"android/test/java/net/basov/omngo/OmnTextTest.java",
 }

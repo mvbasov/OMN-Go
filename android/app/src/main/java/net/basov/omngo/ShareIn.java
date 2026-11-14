@@ -38,7 +38,7 @@ final class ShareIn {
     // A JSON FILE, A CONTACT AND A CALENDAR go to the upload route of
     // their tree, the same as a shared note goes to /api/import/note. The
     // server saves the file and puts a line for it on the Incoming notes
-    // page. This side repeats no rule of the server. See postUserFile.
+    // page. This side repeats no rule of the server. See postUserFileWithRetry.
     //
     // AN IMAGE goes to the Quick Notes page in two steps.
     //   1. Validate the shared file and copy it straight onto the same
@@ -156,21 +156,14 @@ final class ShareIn {
      *
      * The endpoint is admin only and this request comes from 127.0.0.1,
      * which bypasses that - the device is not a remote caller to its own
-     * server. The retry mirrors postQuickNoteWithRetry: a share can arrive
-     * during a cold start, while the Go side is still coming up.
+     * server. LocalServer.postWithRetry covers a cold start of the server.
      */
     void postImportedNote(byte[] body, String displayName) throws java.io.IOException {
-        String answer;
-        try {
-            answer = postImport(body, displayName);
-        } catch (java.io.IOException first) {
-            try {
-                Thread.sleep(1500);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            answer = postImport(body, displayName);
+        String target = a.serverBase() + "/api/import/note";
+        if (displayName != null && !displayName.isEmpty()) {
+            target += "?name=" + java.net.URLEncoder.encode(displayName, "UTF-8");
         }
+        String answer = LocalServer.postWithRetry(target, "text/markdown; charset=utf-8", body);
 
         String url = null;
         String base = null;
@@ -187,34 +180,6 @@ final class ShareIn {
         a.showToast(base != null ? ("Note imported: " + base) : "Note imported.");
         if (url != null && !url.isEmpty()) {
             openImportedNote(url);
-        }
-    }
-
-    String postImport(byte[] body, String displayName) throws java.io.IOException {
-        String target = a.serverBase() + "/api/import/note";
-        if (displayName != null && !displayName.isEmpty()) {
-            target += "?name=" + java.net.URLEncoder.encode(displayName, "UTF-8");
-        }
-        java.net.HttpURLConnection conn =
-            (java.net.HttpURLConnection) new java.net.URL(target).openConnection();
-        try {
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "text/markdown; charset=utf-8");
-            conn.setFixedLengthStreamingMode(body.length);
-            java.io.OutputStream os = conn.getOutputStream();
-            os.write(body);
-            os.close();
-
-            int code = conn.getResponseCode();
-            java.io.InputStream in = (code >= 400) ? conn.getErrorStream() : conn.getInputStream();
-            String text = in == null ? "" : OmnText.readAllUtf8(in);
-            if (code != 200) {
-                throw new java.io.IOException(OmnText.importErrorMessage(text, code));
-            }
-            return text;
-        } finally {
-            conn.disconnect();
         }
     }
 
@@ -358,51 +323,17 @@ final class ShareIn {
         }).start();
     }
 
-    // Sends a shared file to the upload route of its tree. One short retry
-    // covers a cold start, the same as postQuickNoteWithRetry.
+    // Sends a shared file to the upload route of its tree. See
+    // handleUploadUserFile in backend/internal/app/upload_handlers.go. The
+    // server gives the file its name and its extension, and saves it.
+    // incoming=1 makes the server put a line for the file on the Incoming
+    // notes page. LocalServer.postWithRetry covers a cold start of the server.
     void postUserFileWithRetry(byte[] body, String route, String displayName) throws java.io.IOException {
-        try {
-            postUserFile(body, route, displayName);
-        } catch (java.net.ConnectException first) {
-            try {
-                Thread.sleep(1500);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            postUserFile(body, route, displayName);
-        }
-    }
-
-    // POSTs the bytes of a file to route. See handleUploadUserFile in
-    // backend/internal/app/upload_handlers.go. The server gives the file
-    // its name and its extension, and saves it. incoming=1 makes the server
-    // put a line for the file on the Incoming notes page. A refusal shows
-    // the words of the server.
-    void postUserFile(byte[] body, String route, String displayName) throws java.io.IOException {
         String target = a.serverBase() + route + "?incoming=1";
         if (displayName != null && !displayName.isEmpty()) {
             target += "&name=" + java.net.URLEncoder.encode(displayName, "UTF-8");
         }
-        java.net.HttpURLConnection conn =
-            (java.net.HttpURLConnection) new java.net.URL(target).openConnection();
-        try {
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/octet-stream");
-            conn.setFixedLengthStreamingMode(body.length);
-            java.io.OutputStream os = conn.getOutputStream();
-            os.write(body);
-            os.close();
-
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                java.io.InputStream in = conn.getErrorStream();
-                String text = in == null ? "" : OmnText.readAllUtf8(in).trim();
-                throw new java.io.IOException(text.isEmpty() ? "server returned HTTP " + code : text);
-            }
-        } finally {
-            conn.disconnect();
-        }
+        LocalServer.postWithRetry(target, "application/octet-stream", body);
     }
 
     String queryDisplayName(android.net.Uri uri) {
@@ -454,45 +385,13 @@ final class ShareIn {
         }
     }
 
-    void postQuickNoteWithRetry(String note) throws java.io.IOException {
-        try {
-            postQuickNote(note);
-        } catch (java.io.IOException firstErr) {
-            // The Go server may still be in its start. That is the same
-            // race that the 1s postDelayed in MainActivity.onCreate already
-            // covers. One short retry covers a cold start that is a little
-            // slower than usual, and the note is not lost.
-            try {
-                Thread.sleep(1500);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-            postQuickNote(note);
-        }
-    }
-
     // POSTs note (already-built markdown) to /api/quick, appending it to
     // QuickNotes.md - see handleQuickNote in
-    // backend/internal/app/note_handlers.go.
-    void postQuickNote(String note) throws java.io.IOException {
-        java.net.URL url = new java.net.URL(a.serverBase() + "/api/quick");
-        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-        try {
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8");
-            String body = "note=" + java.net.URLEncoder.encode(note, "UTF-8");
-            byte[] bodyBytes = body.getBytes("UTF-8");
-            conn.setFixedLengthStreamingMode(bodyBytes.length);
-            java.io.OutputStream os = conn.getOutputStream();
-            os.write(bodyBytes);
-            os.close();
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                throw new java.io.IOException("server returned HTTP " + code);
-            }
-        } finally {
-            conn.disconnect();
-        }
+    // backend/internal/app/note_handlers.go. LocalServer.postWithRetry covers
+    // a cold start of the server.
+    void postQuickNoteWithRetry(String note) throws java.io.IOException {
+        byte[] body = ("note=" + java.net.URLEncoder.encode(note, "UTF-8")).getBytes("UTF-8");
+        LocalServer.postWithRetry(a.serverBase() + "/api/quick",
+            "application/x-www-form-urlencoded; charset=utf-8", body);
     }
 }
