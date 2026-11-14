@@ -130,6 +130,7 @@ var RetiredAssets = []string{
 	"html/css/katex.min.css",
 	"html/css/markdown.css",
 	"html/js/OMN-Go/omn-go-sse.js",
+	"html/js/OMN-Go/omn-go-dbbackups.js",
 }
 
 // RenamedAssets gives the current path for each app asset that got a new
@@ -138,7 +139,8 @@ var RetiredAssets = []string{
 // a page in an open browser and a note of the user can name the old file.
 // THE MAP ONLY GROWS.
 var RenamedAssets = map[string]string{
-	"html/js/OMN-Go/omn-go-sse.js": "html/js/OMN-Go/omn-go-api.js",
+	"html/js/OMN-Go/omn-go-sse.js":       "html/js/OMN-Go/omn-go-api.js",
+	"html/js/OMN-Go/omn-go-dbbackups.js": "html/js/OMN-Go/omn-go-db.js",
 }
 
 // RetiredFonts adds the old place of each web font to RetiredAssets. A font is
