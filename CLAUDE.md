@@ -574,10 +574,13 @@ fail when you skip one of these steps.
   three digits, with no leading zero. Examples: `26.10.1`, `26.09.37`,
   `26.09.100`.
 * **Bump the version in every commit.** The maintainer can ask for an exception.
-* A bump changes **two files**:
+* A bump changes **three files**:
   1. `backend/version.go`.
   2. `android/app/build.gradle`. Set `versionName`. Compute `versionCode` as
      `YY*100000 + MM*1000 + S`. Example: 26.09.100 gives 2609100.
+  3. `doc/CODE_MAP.md`: the line "State of the tree: version ...".
+* `TestVersionIsTheSameInEachFile` in `backend/internal/repocheck/version_test.go`
+  fails when the three files do not agree.
 * The F-Droid flavor multiplies `versionCode` by 10 and adds an offset for each ABI.
   See `android/app/fdroid-abi-versioncode.gradle`.
 * **The maintainer creates every tag.** Do not create a tag.

@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.29. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.30. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
