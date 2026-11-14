@@ -1,5 +1,7 @@
 # Color scheme tokens
 
+<!-- Summary: A list of the color tokens that a color scheme can set. For each token, it shows the part of a page that the token colors. It also tells how the scheme block in omn-go-custom.css works. -->
+
 This document shows the CSS custom properties (the tokens) that a color scheme sets. For each token, it shows the part of an OMN-Go page that the token colors.
 
 ## How a scheme works

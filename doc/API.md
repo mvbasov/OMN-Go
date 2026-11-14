@@ -1,5 +1,7 @@
 # OMN-Go Server API
 
+<!-- Summary: A reference for each HTTP endpoint of the OMN-Go server. For each endpoint, it gives the method, the parameters, the access rules and the answer. Use it to write a note script or a client. -->
+
 Reference for every HTTP endpoint that the backend exposes
 (`backend/internal/app/server.go`, `backend/internal/app/log_handlers.go`).
 

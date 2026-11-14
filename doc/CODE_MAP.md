@@ -1,5 +1,7 @@
 # OMN-Go code map
 
+<!-- Summary: A map from each feature of OMN-Go to the files that make it. It starts with the three layers, and then shows each package, file and class. Use it to find the place for a change. -->
+
 This document shows where each feature of OMN-Go is in the code. Use it to find the files that a change must touch.
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.

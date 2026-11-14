@@ -1,5 +1,7 @@
 # OMN-Go documentation — controlled vocabulary
 
+<!-- Summary: The controlled vocabulary of the OMN-Go documentation. It gives one name for each thing, the banned words and the style rules. Use it before you write or edit a document. -->
+
 Adopted 2026-08-02 during the ASD-STE100 (Simplified Technical English) pass over
 `README.md`, `full_description.txt`, `UserManual.md`, `Editor.md`,
 `AndroidIntents.md`, `ScriptRules.md`, `Database.md` and `API.md`.

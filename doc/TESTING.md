@@ -1,5 +1,7 @@
 # How OMN-Go is tested
 
+<!-- Summary: A description of the tests of OMN-Go: what each test examines and where it runs. It also tells what no automatic test reaches, and how to read the binary size report and the benchmarks. -->
+
 This document says what is tested, where each test runs, and what no test
 reaches. Read it before you add a test or change the build.
 
