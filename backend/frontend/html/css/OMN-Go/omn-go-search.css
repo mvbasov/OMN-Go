@@ -11,7 +11,7 @@
     align-items: flex-start;
     justify-content: center;
     padding: 8vh 12px 12px;
-    z-index: 70;                 /* above the modals (50) and the progress overlay (60) */
+    z-index: 70;                 /* above the modals (50), below a dialog (80) */
 }
 
 .omn-search-overlay[hidden] {

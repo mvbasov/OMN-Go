@@ -190,7 +190,7 @@ Fifteen test files use these pages:
 | `status.test.js` | The Status page asks for a slow section only on a press. Each kind of value has its form, and each value is text. |
 | `logs-page.test.js` | The Log page: the history, the new lines, the boxes of the filter, and a copy of the lines that show. |
 | `compat.test.js` | The notice of an old browser: the limit of 85, one notice, and the close mark. |
-| `dialog.test.js` | The dialogs of `omn-go-dialog.js`: the answers, Escape and Enter, text and not markup, one dialog at a time, and the focus. The question of the shortcut button on Android 8 and later. The New page form and its file name. |
+| `dialog.test.js` | The dialogs of `omn-go-dialog.js`: the answers, Escape, Enter and Tab, text and not markup, one dialog at a time, and the focus. The field types, the content blocks, the buttons with a hint, the check before close, and the Back key. The question of the shortcut button on Android 8 and later. The New page form and its file name. |
 
 A script that sets `location.href` leaves the page in a browser. The
 document of a test stays, thus `location.href` keeps the address of the

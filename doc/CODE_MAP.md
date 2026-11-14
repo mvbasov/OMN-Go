@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.17. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.19. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -327,6 +327,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 
 - A note on the home screen: action `add-shortcut` in [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js). On Android 8 and later it asks for Reliable or Quick with `omnDialog`. Then the address `omngo://shortcut` with `mode`, then `createNoteShortcut` in [`Shortcuts.java`](../android/app/src/main/java/net/basov/omngo/Shortcuts.java).
 - An `intent:` link and Termux: `handleIntentUri` in [`IntentBridge.java`](../android/app/src/main/java/net/basov/omngo/IntentBridge.java). The result comes back through `omnGoInsertCapture` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js). Settings: `enable_intent_uri`, `enable_termux_intent`. Manual: [`md/AndroidIntents.md`](../backend/frontend/md/AndroidIntents.md).
+- The Back key: `onBackPressed` in [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java). It asks `omnCloseTopLayer` of [`omn-go-dialog.js`](../backend/frontend/html/js/OMN-Go/omn-go-dialog.js) first. An open dialog takes the key, and else the WebView goes back.
 - The system bars: [`Fullscreen.java`](../android/app/src/main/java/net/basov/omngo/Fullscreen.java). Setting: `android_fullscreen`.
 - The spinner of the start: `showStartStage` in [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java). The text comes from [`app/start_stage.go`](../backend/internal/app/start_stage.go).
 - The background service and its notification: [`ServerService.java`](../android/app/src/main/java/net/basov/omngo/ServerService.java).
@@ -423,7 +424,7 @@ Scripts that a page loads at the first press of a control. `omnLazy` and `omnLaz
 | [`omn-go-sync.js`](../backend/frontend/html/js/OMN-Go/omn-go-sync.js) | Git sync: the buttons and the dialogs. |
 | [`omn-go-bookmark.js`](../backend/frontend/html/js/OMN-Go/omn-go-bookmark.js) | The bookmark form. |
 | [`omn-go-search.js`](../backend/frontend/html/js/OMN-Go/omn-go-search.js) | The search panel. |
-| [`omn-go-dialog.js`](../backend/frontend/html/js/OMN-Go/omn-go-dialog.js) | The dialogs of the application: `omnAlert`, `omnConfirm`, `omnPrompt`, `omnDialog`. The editor page loads it with a script element. |
+| [`omn-go-dialog.js`](../backend/frontend/html/js/OMN-Go/omn-go-dialog.js) | The dialogs of the application: `omnAlert`, `omnConfirm`, `omnPrompt`, `omnDialog`, and `omnCloseTopLayer` for the Back key. The editor page loads it with a script element. |
 
 Scripts of one page:
 

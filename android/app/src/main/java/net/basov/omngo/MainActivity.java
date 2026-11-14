@@ -374,13 +374,29 @@ public class MainActivity extends Activity {
         }
     }
 
+    // The page gets the Back key first. omnCloseTopLayer in omn-go-dialog.js
+    // cancels an open dialog and answers true. A page without that file, or
+    // with no open dialog, answers false, and the WebView goes back.
+    private static final String CLOSE_TOP_LAYER_JS =
+        "(function(){ try{ return typeof window.omnCloseTopLayer==='function' && "
+        + "window.omnCloseTopLayer()===true; }catch(e){ return false; } })();";
+
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
+        if (webView == null) {
             super.onBackPressed();
+            return;
         }
+        webView.evaluateJavascript(CLOSE_TOP_LAYER_JS, value -> {
+            if ("true".equals(value)) {
+                return;
+            }
+            if (webView.canGoBack()) {
+                webView.goBack();
+            } else {
+                super.onBackPressed();
+            }
+        });
     }
 
     @Override

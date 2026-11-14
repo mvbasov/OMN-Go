@@ -23,9 +23,10 @@ function open(h) {
     return all[0] || null;
 }
 
-// key sends a keydown to an element of the open dialog.
-function key(el, name) {
-    const event = new Event('keydown', { bubbles: true, key: name });
+// key sends a keydown to an element of the open dialog. more holds the
+// state of Shift and Ctrl, for example {shiftKey: true}.
+function key(el, name, more) {
+    const event = new Event('keydown', Object.assign({ bubbles: true, cancelable: true, key: name }, more || {}));
     el.dispatchEvent(event);
     return event;
 }
@@ -142,6 +143,219 @@ test('omnDialog answers the value of the pressed button of a choice', async () =
     const answer = await done;
     assert.strictEqual(answer.value, 'b');
     assert.strictEqual(answer.input, null);
+});
+
+test('a field can be a password or a textarea, and the answer holds each text', async () => {
+    const h = dialogPage();
+    const done = h.page.omnDialog({
+        kind: 'form',
+        fields: [
+            { label: 'Password', type: 'password', autocomplete: 'current-password' },
+            { label: 'Message', type: 'textarea', rows: 3, placeholder: 'Describe the change' },
+        ],
+        buttons: [{ label: 'Go', value: true, default: true }, { label: 'Cancel', value: false, cancel: true }],
+    });
+    const [pwd, text] = open(h).querySelectorAll('.omn-dialog-input');
+    assert.strictEqual(pwd.tagName, 'INPUT');
+    assert.strictEqual(pwd.type, 'password');
+    assert.strictEqual(pwd.getAttribute('autocomplete'), 'current-password');
+    assert.strictEqual(text.tagName, 'TEXTAREA');
+    assert.strictEqual(text.rows, 3);
+    assert.strictEqual(text.placeholder, 'Describe the change');
+    pwd.value = 'secret';
+    text.value = 'line 1\nline 2';
+    open(h).querySelector('[data-omn-default]').click();
+    const answer = await done;
+    assert.strictEqual(answer.inputs.join('|'), 'secret|line 1\nline 2');
+});
+
+test('Enter in a textarea makes a new line, and Ctrl+Enter presses the default button', async () => {
+    const h = dialogPage();
+    const done = h.page.omnDialog({
+        kind: 'form',
+        fields: [{ type: 'textarea' }],
+        buttons: [{ label: 'Save', value: 'saved', default: true }],
+    });
+    const text = open(h).querySelector('textarea');
+    const enter = key(text, 'Enter');
+    assert.strictEqual(enter.defaultPrevented, false, 'the browser gets no new line');
+    assert.notStrictEqual(open(h), null, 'Enter closed the dialog');
+    key(text, 'Enter', { ctrlKey: true });
+    assert.strictEqual((await done).value, 'saved');
+});
+
+test('the content blocks show as text: a paragraph, a warning, a table and a list', async () => {
+    const h = dialogPage();
+    // An unknown block shows nothing, and the console names it.
+    const errors = [];
+    h.page.console = { error: function () { errors.push(arguments[0]); } };
+    const shown = h.page.omnDialog({
+        text: '',
+        content: [
+            { p: 'Replace <b>db</b>?' },
+            { warning: 'The data is lost.' },
+            { table: [['Current:', '12 KB'], ['Backup:', 'a<i>.jsonl']] },
+            { list: ['md/A.md', 'md/<B>.md'] },
+            { unknown: 'x' },
+            null,
+        ],
+    });
+    const box = open(h);
+    assert.strictEqual(box.querySelector('b'), null);
+    assert.strictEqual(box.querySelector('i'), null);
+    assert.strictEqual(box.querySelector('.omn-dialog-p').textContent, 'Replace <b>db</b>?');
+    assert.strictEqual(box.querySelector('.omn-dialog-warning').textContent, 'The data is lost.');
+    const cells = box.querySelectorAll('.omn-dialog-table th, .omn-dialog-table td').map(function (c) { return c.textContent; });
+    assert.strictEqual(cells.join('|'), 'Current:|12 KB|Backup:|a<i>.jsonl');
+    const items = box.querySelectorAll('.omn-dialog-list li').map(function (li) { return li.textContent; });
+    assert.strictEqual(items.join('|'), 'md/A.md|md/<B>.md');
+    assert.strictEqual(errors.length, 1);
+    box.querySelector('button').click();
+    await shown;
+});
+
+test('a button with a hint has two lines, and a danger button is red', async () => {
+    const h = newDomPage({ body: '' }).load(['omn-go-dialog.js']).ready();
+    h.choose = function () { return 'Force Pull'; };
+    const done = h.page.omnDialog({
+        kind: 'choice',
+        text: 'Conflict.',
+        width: '500px',
+        buttons: [
+            { label: 'Force Pull', hint: 'Overwrites the tracked files.', value: 'pull_force', danger: true },
+            { label: 'Mark Files', hint: 'Puts markers into the files.', value: 'pull_mark' },
+            { label: 'Abort', value: 'abort', cancel: true },
+        ],
+    });
+    const box = open(h);
+    assert.strictEqual(box.querySelector('.omn-modal').style.width, '500px');
+    assert.ok(box.querySelector('.omn-modal-buttons-row').classList.contains('omn-dialog-buttons-column'));
+    const first = box.querySelector('button');
+    assert.strictEqual(first.querySelector('.omn-dialog-button-label').textContent, 'Force Pull');
+    assert.strictEqual(first.querySelector('.omn-dialog-button-hint').textContent, 'Overwrites the tracked files.');
+    assert.ok(first.classList.contains('omn-btn-danger'));
+    assert.ok(!box.querySelector('[data-omn-cancel]').classList.contains('omn-btn-danger'));
+    // h.choose finds a button with a hint by its label.
+    await h.settle();
+    assert.strictEqual((await done).value, 'pull_force');
+});
+
+test('check keeps the dialog open with its error text, and Cancel skips check', async () => {
+    const h = dialogPage();
+    const seen = [];
+    const done = h.page.omnDialog({
+        kind: 'form',
+        fields: [{ label: 'Message' }],
+        check: function (answer) {
+            seen.push(answer.value + ':' + answer.input);
+            return answer.input ? '' : 'Enter a commit message.';
+        },
+        buttons: [{ label: 'Commit', value: true, default: true }, { label: 'Cancel', value: false, cancel: true }],
+    });
+    const box = open(h);
+    const error = box.querySelector('.omn-dialog-error');
+    assert.strictEqual(error.textContent, '');
+    assert.strictEqual(error.getAttribute('role'), 'alert');
+    box.querySelector('[data-omn-default]').click();
+    await h.settle();
+    assert.strictEqual(open(h), box, 'an error closed the dialog');
+    assert.strictEqual(error.textContent, 'Enter a commit message.');
+
+    box.querySelector('.omn-dialog-input').value = 'Fix';
+    key(box.querySelector('.omn-dialog-input'), 'Enter');
+    const answer = await done;
+    assert.strictEqual(answer.value, true);
+    assert.strictEqual(seen.join(','), 'true:,true:Fix');
+
+    // Cancel closes the dialog without a call of check.
+    const canceled = h.page.omnDialog({
+        check: function () { throw new Error('check ran for Cancel'); },
+        buttons: [{ label: 'OK', value: true, default: true }, { label: 'Cancel', value: false, cancel: true }],
+    });
+    open(h).querySelector('[data-omn-cancel]').click();
+    assert.strictEqual((await canceled).value, false);
+});
+
+test('check can answer a Promise, and the buttons wait for it', async () => {
+    const h = dialogPage();
+    let finishCheck;
+    const done = h.page.omnDialog({
+        check: function () { return new Promise(function (resolve) { finishCheck = resolve; }); },
+        buttons: [{ label: 'Enter', value: true, default: true }],
+    });
+    const box = open(h);
+    const button = box.querySelector('button');
+    button.click();
+    assert.strictEqual(button.disabled, true, 'a second press can start while check runs');
+    assert.strictEqual(box.getAttribute('aria-busy'), 'true');
+    // The Back key does nothing while check runs.
+    assert.strictEqual(h.page.omnCloseTopLayer(), true);
+    finishCheck('Invalid password.');
+    await h.settle();
+    assert.strictEqual(button.disabled, false);
+    assert.strictEqual(box.querySelector('.omn-dialog-error').textContent, 'Invalid password.');
+    assert.strictEqual(box.getAttribute('aria-busy'), null);
+
+    button.click();
+    finishCheck('');
+    assert.strictEqual((await done).value, true);
+
+    // A check that fails shows the message of the error.
+    const failed = h.page.omnDialog({
+        check: function () { return Promise.reject(new Error('network down')); },
+        buttons: [{ label: 'OK', value: true, default: true }, { label: 'Cancel', value: false, cancel: true }],
+    });
+    open(h).querySelector('[data-omn-default]').click();
+    await h.settle();
+    assert.strictEqual(open(h).querySelector('.omn-dialog-error').textContent, 'network down');
+    open(h).querySelector('[data-omn-cancel]').click();
+    await failed;
+});
+
+test('omnCloseTopLayer cancels the open dialog, and answers false without one', async () => {
+    const h = dialogPage();
+    assert.strictEqual(h.page.omnCloseTopLayer(), false);
+    const done = h.page.omnConfirm('Go on?');
+    assert.strictEqual(h.page.omnCloseTopLayer(), true);
+    assert.strictEqual(await done, false);
+    assert.strictEqual(open(h), null);
+    assert.strictEqual(h.page.omnCloseTopLayer(), false);
+});
+
+test('a dialog that is not closable ignores Escape and the Back key', async () => {
+    const h = dialogPage();
+    const done = h.page.omnDialog({
+        kind: 'login',
+        closable: false,
+        fields: [{ type: 'password' }],
+        buttons: [{ label: 'Enter', value: true, default: true }],
+    });
+    const box = open(h);
+    const esc = key(box.querySelector('input'), 'Escape');
+    assert.ok(esc.defaultPrevented);
+    assert.strictEqual(h.page.omnCloseTopLayer(), true, 'the WebView would go back under the login');
+    assert.strictEqual(open(h), box);
+    box.querySelector('button').click();
+    assert.strictEqual((await done).value, true);
+});
+
+test('Tab and Shift+Tab keep the focus in the dialog', async () => {
+    const h = dialogPage();
+    const done = h.page.omnPrompt('Name:', 'x');
+    const box = open(h);
+    const field = box.querySelector('input');
+    const buttons = box.querySelectorAll('button');
+    const last = buttons[buttons.length - 1];
+    last.focus();
+    assert.ok(key(last, 'Tab').defaultPrevented);
+    assert.strictEqual(h.document.activeElement, field);
+    assert.ok(key(field, 'Tab', { shiftKey: true }).defaultPrevented);
+    assert.strictEqual(h.document.activeElement, last);
+    // Inside the dialog, Tab is left to the browser.
+    field.focus();
+    assert.strictEqual(key(field, 'Tab').defaultPrevented, false);
+    last.click();
+    await done;
 });
 
 // The shortcut button of omn-go-core.js. Android 8 and later has two ways

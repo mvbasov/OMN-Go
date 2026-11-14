@@ -429,7 +429,12 @@ fail when you skip one of these steps.
   browser, and on Android it is a native dialog of the WebView. Call the
   functions as properties of `window` and wait for the Promise:
   `if (await window.omnConfirm(text)) ...`. `TestNoBrowserDialog` holds the
-  rule. A native dialog of the Android layer stays native when it guards an
+  rule. `omnDialog` also gives a password field, a textarea, content blocks
+  (paragraph, warning, table, list), a check before the dialog closes, and a
+  dialog that only a button closes. The comment above `omnDialog` lists each
+  option. Cancel is a plain button. Give `danger` only to a button that
+  destroys data. The Android Back key cancels the open dialog through
+  `omnCloseTopLayer`. A native dialog of the Android layer stays native when it guards an
   action that a note script must not start, for example the Termux question
   of `IntentBridge.java`.
 * **A lazy file gives its work through `omnLazyActions`.** Call `OMN.action` in

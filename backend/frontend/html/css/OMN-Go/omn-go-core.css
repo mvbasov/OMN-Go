@@ -989,10 +989,19 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     gap: 10px;
 }
 
-/* The dialogs of omn-go-dialog.js. A dialog can open above another overlay,
-   for example above the login overlay, thus it has a higher z-index. */
+/* The dialogs of omn-go-dialog.js. A dialog can open above another layer:
+   the login overlay (50) or the search overlay (70). Thus it has a higher
+   z-index. The progress overlay (1200) stays above a dialog. The code hides
+   the progress bar before it shows a dialog. */
 .omn-dialog {
-    z-index: 60;
+    z-index: 80;
+}
+/* A wide dialog never goes past the edge of a small screen. 72px is the
+   margin of 16px on each side and the padding of 20px of .omn-modal. */
+.omn-dialog .omn-modal {
+    max-width: calc(100vw - 72px);
+    max-height: 90vh;
+    overflow-y: auto;
 }
 .omn-dialog-title {
     margin-top: 0;
@@ -1003,6 +1012,9 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     text-align: left;
     margin-bottom: 4px;
 }
+.omn-dialog textarea {
+    resize: vertical;
+}
 /* The text of a dialog can have line breaks and a long path. */
 .omn-dialog-text {
     margin: 0 0 15px;
@@ -1012,8 +1024,91 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     max-height: 60vh;
     overflow-y: auto;
 }
-.omn-btn-cancel {
+.omn-dialog-text:empty {
+    display: none;
+}
+/* The content blocks of a dialog: a paragraph, a warning, a table and a
+   list. */
+.omn-dialog-p,
+.omn-dialog-warning {
+    margin: 0 0 10px;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.omn-dialog-warning {
+    color: var(--omn-danger);
+    font-weight: bold;
+}
+.omn-dialog-table {
+    margin: 0 0 10px;
+    border-collapse: collapse;
+    text-align: left;
+}
+.omn-dialog-table th {
+    padding: 2px 12px 2px 0;
+    font-weight: normal;
+    color: var(--omn-text-muted);
+    vertical-align: top;
+    white-space: nowrap;
+}
+.omn-dialog-table td {
+    padding: 2px 0;
+    overflow-wrap: anywhere;
+}
+.omn-dialog-list {
+    margin: 0 0 10px;
+    padding: 8px 10px 8px 28px;
+    max-height: 160px;
+    overflow-y: auto;
+    text-align: left;
+    font-family: monospace;
+    word-break: break-all;
+    border: 1px solid var(--omn-border);
+    border-radius: 4px;
+    background: var(--omn-bg-inset);
+}
+/* The error line of the check function. It shows only with a text. */
+.omn-dialog-error {
+    margin: 0 0 10px;
+    text-align: left;
+    color: var(--omn-danger);
+}
+.omn-dialog-error:empty {
+    display: none;
+}
+/* Buttons with a second line stand one above the other. Each button keeps
+   its bottom margin, thus the row needs no gap. */
+.omn-dialog-buttons-column {
+    flex-direction: column;
+    gap: 0;
+}
+.omn-dialog-button-label {
+    display: block;
+    font-weight: bold;
+}
+.omn-dialog-button-hint {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.8em;
+}
+
+/* The roles of a button in a modal or a panel. The default is the accent
+   color of .omn-modal button. Cancel is plain. Red is only for an action
+   that destroys data. The selectors hold the element name, thus they are
+   stronger than ".omn-modal button" and ".omn-panel button". */
+.omn-modal button.omn-btn-cancel,
+.omn-panel button.omn-btn-cancel {
+    background: var(--omn-bg-inset);
+    color: var(--omn-text);
+    border: 1px solid var(--omn-border);
+}
+.omn-modal button.omn-btn-danger {
     background: var(--omn-danger);
+    color: var(--omn-on-accent);
+}
+.omn-modal button:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 /* The tag field of the bookmark panel. The wrapper takes the bottom margin of

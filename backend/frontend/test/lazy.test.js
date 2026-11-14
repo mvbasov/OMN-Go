@@ -120,6 +120,11 @@ test('each lazy file gives every action that omn-go-api.js promises, and no othe
     }
 });
 
+// notLazy names a function of a lazy file whose answer a caller reads at
+// once. omnLazy must not give it a stub. Before the file loads, no dialog
+// is open, and MainActivity.java reads "no function" as false.
+const notLazy = { 'omn-go-dialog.js': ['omnCloseTopLayer'] };
+
 test('no function of a lazy file is a name of window, except the promised names', () => {
     for (const [file, promised] of Object.entries(lazyMap())) {
         const before = Object.keys(newPage());
@@ -129,6 +134,7 @@ test('no function of a lazy file is a name of window, except the promised names'
             // The search file also puts its own helpers on window. This
             // test holds the files whose functions moved behind actions.
             if (file === 'omn-go-search.js') continue;
+            if ((notLazy[file] || []).indexOf(name) >= 0) continue;
             assert.ok(promised.names.indexOf(name) >= 0,
                 file + ' puts ' + name + ' on window, and omnLazy does not promise it. ' +
                 'Give the work an action, or write a const in the guard block.');

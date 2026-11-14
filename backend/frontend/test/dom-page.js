@@ -239,7 +239,8 @@ function newDomPage(opts) {
     //	confirm  OK when h.confirm answers true, and else Cancel.
     //	prompt   OK with the text of h.prompt, or Cancel for null.
     //	form     The texts of h.fill go into the fields, one after the other,
-    //	         each with an input event. Then OK, or Cancel for null.
+    //	         each with an input event. Then OK, or Cancel for null. A
+    //	         field can be an input or a textarea.
     //	choice   The button with the label of h.choose, or else Cancel.
     //
     // h.keepDialogs = true leaves each dialog open for the test.
@@ -286,8 +287,10 @@ function newDomPage(opts) {
             ok.click();
         } else {
             const label = h.choose(text);
+            // A button with a hint holds two lines. The label is the first.
             const chosen = el.querySelectorAll('button').find(function (b) {
-                return b.textContent === label;
+                const first = b.querySelector('.omn-dialog-button-label');
+                return (first ? first.textContent : b.textContent) === label;
             });
             (chosen || cancel).click();
         }
