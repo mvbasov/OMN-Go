@@ -343,7 +343,7 @@ OMN-Go serves your notes from `md/`, and each other file from `html/`. A link is
 
 Each copy keeps the modification time of its source. Thus the pair becomes stable: a start that comes after a save finds nothing to do.
 
-The copy in `md/` is the one that git synchronization carries with your notes. `.gitignore` keeps each `.txt` file below `html/` out of git, because it is only a copy. Two copies of one text in git is one too many. The second copy is what makes a merge conflict. After a download, OMN-Go makes the copy in `html/` again, thus the link operates immediately.
+The copy in `md/` is the one that git synchronization carries with your notes. The ignore rules of OMN-Go keep each `.txt` file below `html/` out of git, because it is only a copy. Two copies of one text in git is one too many. The second copy is what makes a merge conflict. After a download, OMN-Go makes the copy in `html/` again, thus the link operates immediately.
 
 Subdirectories stay: `md/project/data.txt` becomes `html/project/data.txt`.
 
@@ -668,7 +668,7 @@ automatically, a dialog gives three choices:
 - **Force Pull (Reset to Remote)** — makes the local notes match the
   remote exactly. **Destructive:** OMN-Go overwrites your local changes to
   tracked files. It deletes the local files that git does not track and
-  `.gitignore` does not list. OMN-Go never touches `config.json`.
+  the ignore rules do not list. OMN-Go never touches `config.json`.
 - **Mark Conflicts in Files** — writes both versions into the affected
   files, between the `<<<<<<<`, `=======` and `>>>>>>>` markers. Edit the
   files, then upload them.
@@ -702,11 +702,26 @@ Give a file or a directory a name that starts with `local-`. OMN-Go then keeps i
 
 The rule looks at the name of the file and at the name of each directory above it. The name must **start** with `local-`, and the capitals count. A file with the name `mylocal-data.json` is thus a normal file that goes to the other devices.
 
-A file with such a name is also safe from **Force Pull**. That command deletes a local file that git does not track, but it keeps a file that `.gitignore` matches.
+A file with such a name is also safe from **Force Pull**. That command deletes a local file that git does not track, but it keeps a file that the ignore rules match.
 
 If you give the `local-` name to a file that the other devices already have, the next upload removes that file from git. The file stays on this device. The next download deletes the copy on each other device. The upload dialog shows the name of such a file before you write the commit message.
 
 The older rule `/md/local/` stays. Each note in that one directory also stays on this device.
+
+### The ignore rules
+
+Two files tell git which files to leave out of the synchronization:
+
+| File | Who writes it | Goes to the other devices |
+| --- | --- | --- |
+| `.git/info/exclude` | OMN-Go, each time it opens the repository | No |
+| `.gitignore` | You | Yes |
+
+- OMN-Go keeps its own list in `.git/info/exclude`. The list names `config.json`, `db/`, the compiled pages, the app files and each `local-` name. A git program on your computer reads this file too. Do not edit it. OMN-Go writes it again.
+- OMN-Go never changes `.gitignore`. Write your own patterns there. A sync carries the file, thus each device uses your patterns.
+- A new version of OMN-Go can add a pattern to its list. That change stays on each device, thus it causes no conflict at the next download.
+- An older version wrote its list into `.gitignore`. Those lines stay, and they do no harm. You can delete them.
+- A line that starts with `!` in `.gitignore` can make git take a file that the list of OMN-Go leaves out. OMN-Go still keeps its own files out of each upload.
 
 ## Send and receive one note
 

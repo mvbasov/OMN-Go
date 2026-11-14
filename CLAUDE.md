@@ -77,6 +77,10 @@ Do not remove a constraint without an instruction from the maintainer.
    `gitsync.GitignoreLocalOnlyPattern` covers new files. A test compares the
    two. The pattern must stay last in `gitsync.GitignorePatterns`, because
    go-git reads patterns from the end.
+   The app never writes `.gitignore`. `gitsync.Service.WriteExcludeFile` writes
+   the list to `.git/info/exclude`, and `gitsync.Worktree` gives it to go-git.
+   Open each worktree with `gitsync.Worktree`. See
+   `doc/decisions/0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md`.
 10. **LAN sharing is off by default.** When `share_lan` is false, the listener binds
     `127.0.0.1`. The socket enforces the limit, not the authentication code. A local
     connection from `127.0.0.1`, `::1`, or `localhost` always counts as admin.
@@ -305,7 +309,7 @@ harness of step 12.
    holds the style part.
 8. Add the two files to `storage.VersionDependentAssets` and to
    `gitsync.GitignorePatterns`. Add the two lines to the text of
-   `TestEnsureGitignoreFreshInstall`.
+   `TestWriteExcludeFileFreshInstall`.
 9. Write `backend/internal/app/<name>_app.go`. It holds one method that makes
    the Service, and one method for each route. Give the file a group in
    `fileGroups`, and give the group a layer in `groupLayers`. Both are in
@@ -325,7 +329,7 @@ harness of step 12.
 
 `TestImportLayers`, `TestEachFileHasAGroup`, `TestGroupsUseOnlyLowerLayers`,
 `TestEachAppScriptAndStyleIsVersionDependent`,
-`TestVersionDependentAssetsAreGitignored`, `TestEnsureGitignoreFreshInstall`,
+`TestVersionDependentAssetsAreGitignored`, `TestWriteExcludeFileFreshInstall`,
 `TestBaseline_RouteSet`, `TestAPIRouteTable` and `TestEachFeatureHasItsParts`
 fail when you skip one of these steps.
 

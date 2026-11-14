@@ -42,9 +42,9 @@ directory could not tell which file belongs to whom.
   on disk would become a tracked file at the next commit, and the sync
   would copy it to each device. That is why `removeRetiredAssets` must
   delete it.
-* `.gitignore` keeps the line of the old name `omn-go-sse.js`. A device
-  with an older version adds that line again when it is absent. A delete
-  would thus change the file back and forth.
+* The app does not write `.gitignore`. Its patterns are in
+  `.git/info/exclude`. See
+  [0029](0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md).
 * `storage.RetiredAssets` and `storage.RenamedAssets` only grow. An
   install can skip any number of versions.
 * `TestEveryAppAssetIsUnderOMNGo` in

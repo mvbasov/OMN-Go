@@ -160,7 +160,7 @@ func (svc Service) statusGitDirtySection() (*statusGitDirty, error) {
 	if err != nil {
 		return &statusGitDirty{}, nil
 	}
-	wTree, err := repo.Worktree()
+	wTree, err := gitsync.Worktree(repo)
 	if err != nil {
 		return nil, fmt.Errorf("open worktree: %v", err)
 	}

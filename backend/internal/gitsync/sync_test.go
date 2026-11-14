@@ -282,7 +282,7 @@ func TestSyncHarnessGivesAnAuthThatParses(t *testing.T) {
 }
 
 // Service.GetOrInitRepo makes the repository on the first call and
-// opens it on each call after that. It also writes .gitignore. This is the
+// opens it on each call after that. It also writes .git/info/exclude. This is the
 // entry point of each sync, thus a fault here stops everything below it.
 func TestSyncHarnessInitializesTheStorageRepo(t *testing.T) {
 	a := gsApp(t, gsRemote(t))
@@ -297,8 +297,8 @@ func TestSyncHarnessInitializesTheStorageRepo(t *testing.T) {
 	if !gsExists(a, ".git") {
 		t.Error("Service.GetOrInitRepo wrote no .git directory")
 	}
-	if !gsExists(a, ".gitignore") {
-		t.Error("Service.GetOrInitRepo wrote no .gitignore")
+	if !gsExists(a, ".git/info/exclude") {
+		t.Error("Service.GetOrInitRepo wrote no .git/info/exclude")
 	}
 
 	// The second call opens the same repository and makes no second one.
@@ -878,8 +878,7 @@ func TestNonFastForwardReachesThePushConflictStatus(t *testing.T) {
 // file only when no .gitignore pattern matches it.
 func TestForcePullKeepsALocalOnlyFile(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
-	a.gitSync().EnsureGitignore()
-	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
+	a.gitSync().WriteExcludeFile()
 	writeAndAdd(t, a, wt, "md/Notes.md", "# Notes\n")
 	testCommit(t, wt, "first")
 

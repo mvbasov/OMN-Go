@@ -106,7 +106,7 @@ func (svc Service) HandleSyncPreview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
 		return
 	}
-	wTree, err := repo.Worktree()
+	wTree, err := Worktree(repo)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Worktree error: %v", err), 500)
 		return

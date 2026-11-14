@@ -171,8 +171,9 @@ parts, separated by a dot:
 | 3 | `HMAC-SHA256("role.expiry", key)`, in base64url with no padding |
 
 The key is 32 random bytes at `<StorageDir>/session_secret`. The application
-makes the file at the first login and gives it mode 0600. The file is in
-`.gitignore`, thus a sync never carries the key of one device to another.
+makes the file at the first login and gives it mode 0600. The ignore rules
+of the app name the file, thus a sync never carries the key of one device to
+another. See "The ignore rules" in the section of `POST /api/sync`.
 A cookie is therefore valid on the device that made it and on no other.
 
 The cookie lasts **30 days**. It is `HttpOnly` and `SameSite=Lax`. It is not
@@ -1789,18 +1790,44 @@ curl -X POST http://127.0.0.1:8080/api/sync \
      -d 'action=push' -d 'message=notes from phone'
 ```
 
+**The ignore rules.** Two files tell git which files to leave out:
+
+| File | Who writes it | Synced |
+| --- | --- | --- |
+| `<StorageDir>/.git/info/exclude` | The app, at each open of the repository | No |
+| `<StorageDir>/.gitignore` | The person, by hand | Yes, it is a tracked file |
+
+- `gitsync.Service.WriteExcludeFile` writes `gitsync.GitignorePatterns` to
+  `.git/info/exclude`. It writes the whole file, and only when the content
+  is different. The file starts with two comment lines that say this.
+- Command line git reads `.git/info/exclude` as a second `.gitignore`. A
+  sync never carries it, because it is below `.git`.
+- go-git refuses each path below `.git`, thus it cannot read the file. The
+  app gives go-git the same list in code: `gitsync.Worktree` sets it as the
+  `Excludes` of each worktree, and the status applies it.
+- The app never writes `.gitignore`. A change of that tracked file on each
+  device makes a pull conflict on the next device. See
+  `doc/decisions/0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md`.
+- `.gitignore` works as before, also a `.gitignore` in a subdirectory. A
+  pattern of the person goes there and reaches each device.
+- A `!` line in `.gitignore` can include again a file that
+  `.git/info/exclude` leaves out, because git gives `.gitignore` the
+  priority. The app does not depend on this order. `Excludes` and
+  `gitsync.Service.LoadGitignoreMatcher` put `GitignorePatterns` after
+  `.gitignore`, thus the list of the app wins for each status, commit, push,
+  preview and force pull.
+- An older install keeps the OMN-Go lines that the app wrote into
+  `.gitignore` before. They repeat `.git/info/exclude` and do no harm. The
+  person can delete them.
+
 **The local-only name rule.** A path stays on one device when a name in
 it starts with `local-`. This is the name of the file, or the name of a
-directory above it. The `.gitignore` pattern is the single line
-`local-*`, and it is the last line of the file. go-git reads the patterns from the end and stops at the
+directory above it. The ignore pattern is the single line
+`local-*`, and it is the last line of `GitignorePatterns`. go-git reads the patterns from the end and stops at the
 first match, thus a local-only name wins over a `!` negation, for example
 `html/images/local-map.svg`.
 
-The rule started as `/html/db_backup/local-*/`, which kept the backups of a
-`local-` database out of git. `gitsync.Service.EnsureGitignore` deletes that
-older line from an existing install and writes the general one.
-
-A `.gitignore` pattern does not remove a file from the git index. A file
+An ignore pattern does not remove a file from the git index. A file
 that git tracked before it got the name would thus keep its old behavior.
 A commit takes no new content, and a force pull writes the copy of the
 repository over the local file. `gitsync.Service.CommitLocalChanges` thus reads
@@ -1849,7 +1876,8 @@ there is anything to push. It commits nothing.
 | `action` | string | yes | Must be `upload` — nothing else is supported |
 
 The endpoint takes the files from `git status`. It removes anything that
-`.gitignore` matches, and it removes the root `config.json`. The
+the ignore rules match (see "The ignore rules" above), and it removes the
+root `config.json`. The
 `config.json` file is never synced, because it holds the secrets of one
 device. Database backups need no special handling. They are ordinary files
 under `html/db_backup/`, and the same scan finds them.

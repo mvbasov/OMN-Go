@@ -17,12 +17,8 @@ import (
 // The files at the top, for example config.json, use File.
 type Layout string
 
-// ConfigFilename and GitignoreFilename are files at the top of the storage
-// directory.
-const (
-	ConfigFilename    = "config.json"
-	GitignoreFilename = ".gitignore"
-)
+// ConfigFilename is a file at the top of the storage directory.
+const ConfigFilename = "config.json"
 
 // under joins the parts. Up to two elements need no new slice, and a note
 // path has one. BenchmarkSearchPage counts the allocations.

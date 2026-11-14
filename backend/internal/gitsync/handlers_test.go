@@ -508,13 +508,12 @@ func TestSyncPreviewSkipsAnIgnoredFile(t *testing.T) {
 	}
 }
 
-// The first preview after a pull lists .gitignore.
+// The first preview after a pull lists no file.
 //
-// Service.GetOrInitRepo writes .gitignore, and no commit carries it
-// until the first push of this device. The file is therefore a real pending
-// change, and the preview is right to name it. This test records that, so that
-// a reader of a bug report knows it is the design.
-func TestSyncPreviewListsTheGitignoreOfAFreshRepository(t *testing.T) {
+// The app keeps its ignore rules in .git/info/exclude, and git never lists a
+// file below .git. A new device thus has nothing to upload after its first
+// pull. See doc/decisions/0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md.
+func TestSyncPreviewListsNoFileOfAFreshRepository(t *testing.T) {
 	remote := gsRemote(t)
 	gsSeedRemote(t, remote, "first", map[string]string{"md/One.md": "one\n"})
 	a := gsApp(t, remote)
@@ -523,10 +522,8 @@ func TestSyncPreviewListsTheGitignoreOfAFreshRepository(t *testing.T) {
 	}
 
 	got := ghPreviewAnswer(t, ghPreview(t, a, "GET", "action=upload"))
-	if !ghHas(got.Files, ".gitignore") {
-		t.Errorf("the preview lists %v, and .gitignore is not in it. The app "+
-			"writes that file, and the first commit of a device carries it.",
-			got.Files)
+	if len(got.Files) != 0 {
+		t.Errorf("the preview of a fresh repository lists %v, want nothing", got.Files)
 	}
 }
 
@@ -541,11 +538,6 @@ func TestSyncPreviewAnswersAnArrayAndNeverNull(t *testing.T) {
 	if err := a.gitSync().SyncRepo("pull", ""); err != nil {
 		t.Fatalf("the first pull: %v", err)
 	}
-	// The push carries .gitignore away. See the test above.
-	if err := a.gitSync().SyncRepo("push", "the first commit of this device"); err != nil {
-		t.Fatalf("the push: %v", err)
-	}
-
 	w := ghPreview(t, a, "GET", "action=upload")
 	if !strings.Contains(w.Body.String(), `"files":[]`) {
 		t.Errorf("a clean tree answered %s, want an empty array under files",
@@ -690,13 +682,13 @@ func TestSyncPreviewListsATrackedIgnoredPathOneTime(t *testing.T) {
 //
 // WHICH GUARD DOES THE WORK. Two stand in handleSyncPreview: the gitignore
 // matcher, and a check of the name. The matcher is the one that acts.
-// Service.GetOrInitRepo backfills each line of
-// GitignorePatterns into .gitignore on EVERY open, thus config.json is
-// always covered by the time Service.LoadGitignoreMatcher reads the
-// file. The check by name is unreachable behind it.
+// Service.LoadGitignoreMatcher adds GitignorePatterns to each matcher, thus
+// config.json is always covered, also with no line for it in .gitignore. The
+// check by name is unreachable behind it.
 //
-// This test holds the OUTCOME and not one guard. It also holds the fact
-// that the chain rests on: the backfill puts the line back.
+// This test holds the OUTCOME and not one guard. It also holds the facts
+// that the chain rests on. .git/info/exclude names the file. The app leaves
+// the .gitignore of the person as it is.
 func TestSyncPreviewNeverListsConfigJSON(t *testing.T) {
 	remote := gsRemote(t)
 	gsSeedRemote(t, remote, "first", map[string]string{
@@ -709,8 +701,7 @@ func TestSyncPreviewNeverListsConfigJSON(t *testing.T) {
 	}
 	gsWrite(t, a, "config.json", "{\"share_lan\":true}\n")
 
-	// A person edits .gitignore and drops the line. The next open of the
-	// repository must put it back.
+	// A person edits .gitignore and drops the line. The rule must still act.
 	gsWrite(t, a, ".gitignore", "assets_version\n")
 
 	got := ghPreviewAnswer(t, ghPreview(t, a, "GET", "action=upload"))
@@ -720,9 +711,11 @@ func TestSyncPreviewNeverListsConfigJSON(t *testing.T) {
 				"promise to send each password. The list is %v", got.Files)
 		}
 	}
-	if !strings.Contains(gsRead(t, a, ".gitignore"), "config.json") {
-		t.Error("the open of the repository did not put the config.json line back. " +
-			"The matcher is then blind to it, and only the check by name stands.")
+	if !strings.Contains(gsRead(t, a, ".git/info/exclude"), "config.json") {
+		t.Error(".git/info/exclude does not name config.json")
+	}
+	if got := gsRead(t, a, ".gitignore"); got != "assets_version\n" {
+		t.Errorf("the app changed the .gitignore of the person to %q", got)
 	}
 }
 

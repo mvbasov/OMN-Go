@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.27. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.28. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -241,7 +241,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Endpoints: `POST /api/sync`, `GET /api/sync/preview`, `POST /api/sync/trust-host-key`.
 - Go: [`app/gitsync_app.go`](../backend/internal/app/gitsync_app.go), then `HandleSync` in [`gitsync/handlers.go`](../backend/internal/gitsync/handlers.go), then `SyncRepo` in [`gitsync/sync.go`](../backend/internal/gitsync/sync.go).
 - Pull: [`gitsync/pull.go`](../backend/internal/gitsync/pull.go). Push: [`gitsync/push.go`](../backend/internal/gitsync/push.go). Commit: [`gitsync/commit.go`](../backend/internal/gitsync/commit.go).
-- The repository, the remotes, `.gitignore` and the SSH key: [`gitsync/repo.go`](../backend/internal/gitsync/repo.go). Host keys: [`gitsync/host_keys.go`](../backend/internal/gitsync/host_keys.go).
+- The repository, the remotes, the ignore rules and the SSH key: [`gitsync/repo.go`](../backend/internal/gitsync/repo.go). `WriteExcludeFile` writes the ignore rules of the app to `.git/info/exclude`, for command line git. `Worktree` gives the same rules to go-git, which cannot read that file. The app never writes `.gitignore`. See `doc/decisions/0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md`. Host keys: [`gitsync/host_keys.go`](../backend/internal/gitsync/host_keys.go).
 - Settings: `git_servers`, `active_git_index`. The card of one git server slot: [`templates/git_server_card.html`](../backend/frontend/templates/git_server_card.html).
 
 ### 5.5 Database

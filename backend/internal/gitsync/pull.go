@@ -348,7 +348,7 @@ func (svc Service) syncPullForce(repo *git.Repository, wTree *git.Worktree, auth
 		tmpDir := svc.Layout.Git("tmp")
 		os.MkdirAll(tmpDir, 0755)
 		os.Setenv("TMPDIR", tmpDir)
-		svc.EnsureGitignore()
+		svc.WriteExcludeFile()
 	}
 
 	err := repo.Fetch(&git.FetchOptions{RemoteName: remoteName, Auth: auth, Progress: &syncProgressWriter{log: svc.Log(logx.Sync)}})

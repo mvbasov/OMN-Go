@@ -84,34 +84,20 @@ func headTree(t *testing.T, repo *git.Repository) *object.Tree {
 	return tree
 }
 
-// gitignoreLines returns the set of trimmed, non-empty lines of the sync
-// .gitignore currently on disk.
-func gitignoreLines(t *testing.T, a *testApp) map[string]int {
-	t.Helper()
-	content, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
-	if err != nil {
-		t.Fatalf("reading .gitignore: %v", err)
-	}
-	counts := map[string]int{}
-	for _, line := range strings.Split(string(content), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		counts[trimmed]++
-	}
-	return counts
+// excludePath answers the place of the file of WriteExcludeFile.
+func excludePath(a *testApp) string {
+	return filepath.Join(a.StorageDir, ".git", "info", "exclude")
 }
 
-// A fresh install writes the .gitignore straight from
-// GitignorePatterns. This pins the exact bytes, thus an accidental edit
-// to GitignorePatterns is caught. A reorder counts, and so does a
-// dropped or an added entry.
-func TestEnsureGitignoreFreshInstall(t *testing.T) {
+// A fresh install writes .git/info/exclude straight from GitignorePatterns.
+// This pins the exact bytes, thus an accidental edit to GitignorePatterns is
+// caught. A reorder counts, and so does a dropped or an added entry. The app
+// writes no .gitignore.
+func TestWriteExcludeFileFreshInstall(t *testing.T) {
 	a := &testApp{App: &testkit.App{StorageDir: t.TempDir()}}
-	a.gitSync().EnsureGitignore()
+	a.gitSync().WriteExcludeFile()
 
-	want := "# OMN-Go sync ignore\n" +
+	want := ExcludeFileHeader +
 		"config.json\n" +
 		"assets_version\n" +
 		"session_secret\n" +
@@ -171,98 +157,100 @@ func TestEnsureGitignoreFreshInstall(t *testing.T) {
 		"*.omn-tmp\n" +
 		"local-*\n"
 
-	got, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	got, err := os.ReadFile(excludePath(a))
 	if err != nil {
-		t.Fatalf("reading .gitignore: %v", err)
+		t.Fatalf("reading .git/info/exclude: %v", err)
 	}
 	if string(got) != want {
-		t.Errorf("fresh .gitignore mismatch:\n got %q\nwant %q", got, want)
+		t.Errorf("fresh .git/info/exclude mismatch:\n got %q\nwant %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(a.StorageDir, ".gitignore")); err == nil {
+		t.Error("WriteExcludeFile wrote a .gitignore")
 	}
 }
 
-// The backfill must add every GitignorePatterns entry that an existing
-// install misses. It matches a whole line, and not a substring.
-//
-// The regression that it guards. "*.woff" is a substring of "*.woff2",
-// thus a strings.Contains check would see an install that already has
-// "*.woff2" and answer that "*.woff" is present. A raw .woff font would
-// then stay committable.
-//
-// It must also NOT duplicate a pattern that is already there.
-func TestEnsureGitignoreBackfillLineExact(t *testing.T) {
+// The app never changes .gitignore. Git tracks that file, thus a change on
+// one device makes a pull conflict on the next device. An old install keeps
+// its old lines, and the lines of the person stay theirs.
+func TestWriteExcludeFileLeavesGitignoreAlone(t *testing.T) {
 	a := &testApp{App: &testkit.App{StorageDir: t.TempDir()}}
-	// An old install that predates most of the current list: it has *.woff2
-	// (the substring trap) but not *.woff, and is missing /db/ etc.
-	existing := "# OMN-Go sync ignore\nconfig.json\n*.html\n*.woff2\n/md/local/\n"
-	if err := os.WriteFile(filepath.Join(a.StorageDir, ".gitignore"), []byte(existing), 0644); err != nil {
+	old := "# OMN-Go sync ignore\nconfig.json\n/html/db_backup/local-*/\n*.bak\n"
+	gi := filepath.Join(a.StorageDir, ".gitignore")
+	if err := os.WriteFile(gi, []byte(old), 0644); err != nil {
 		t.Fatal(err)
 	}
+	a.gitSync().WriteExcludeFile()
+	if got := string(mustRead(t, gi)); got != old {
+		t.Errorf(".gitignore changed:\nbefore %q\nafter  %q", old, got)
+	}
+}
 
-	a.gitSync().EnsureGitignore()
+// An exclude file from an older version gets the list of this version. A
+// file that holds the list already is not written again. A write at each
+// open would give the file a new time for no reason.
+func TestWriteExcludeFileReplacesAnOldCopyOnly(t *testing.T) {
+	a := &testApp{App: &testkit.App{StorageDir: t.TempDir()}}
+	p := excludePath(a)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("config.json\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	a.gitSync().WriteExcludeFile()
+	want := ExcludeFileHeader + strings.Join(GitignorePatterns, "\n") + "\n"
+	if got := string(mustRead(t, p)); got != want {
+		t.Fatalf("the old copy stays:\n got %q\nwant %q", got, want)
+	}
 
-	counts := gitignoreLines(t, a)
-	// The substring case: *.woff must be added even though *.woff2 is present.
-	if counts["*.woff"] != 1 {
-		t.Errorf("*.woff appears %d time(s), want exactly 1 (substring-of-*.woff2 backfill)", counts["*.woff"])
+	past := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(p, past, past); err != nil {
+		t.Fatal(err)
 	}
-	// Already-present patterns are not duplicated.
-	if counts["*.woff2"] != 1 {
-		t.Errorf("*.woff2 appears %d time(s), want exactly 1 (no duplicate)", counts["*.woff2"])
+	a.gitSync().WriteExcludeFile()
+	fi, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if counts["config.json"] != 1 {
-		t.Errorf("config.json appears %d time(s), want exactly 1", counts["config.json"])
+	if !fi.ModTime().Equal(past) {
+		t.Error("WriteExcludeFile wrote a file that held the list already")
 	}
-	// Every pattern from the single source ends up present exactly once.
-	for _, patt := range GitignorePatterns {
-		if counts[patt] != 1 {
-			t.Errorf("pattern %q appears %d time(s), want exactly 1", patt, counts[patt])
+}
+
+// The status of a worktree from Worktree leaves out each file of
+// GitignorePatterns, with no .gitignore at all. go-git refuses each path below
+// .git, thus its status cannot read .git/info/exclude. The status page counts
+// the untracked files, and an ignored file must not count.
+func TestWorktreeStatusLeavesOutTheFilesOfTheList(t *testing.T) {
+	a := newTestApp(t)
+	repo, err := a.gitSync().GetOrInitRepo()
+	if err != nil {
+		t.Fatalf("Service.GetOrInitRepo: %v", err)
+	}
+	for _, rel := range []string{"config.json", "db/notes.sqlite", "md/Note.md"} {
+		full := filepath.Join(a.StorageDir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
 		}
 	}
-}
-
-// An already-complete .gitignore must be left byte-for-byte untouched. The
-// backfill finds nothing missing, thus it must not rewrite the file. Above
-// all it must not append a duplicate trailing block.
-func TestEnsureGitignoreNoRewriteWhenComplete(t *testing.T) {
-	a := &testApp{App: &testkit.App{StorageDir: t.TempDir()}}
-	a.gitSync().EnsureGitignore() // write the canonical file
-	before, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	wt, err := Worktree(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.gitSync().EnsureGitignore() // second pass must be a no-op
-	after, err := os.ReadFile(filepath.Join(a.StorageDir, ".gitignore"))
+	status, err := wt.Status()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(before) != string(after) {
-		t.Errorf("second Service.EnsureGitignore rewrote a complete file:\nbefore %q\nafter  %q", before, after)
+	for _, rel := range []string{"config.json", "db/notes.sqlite", ".gitignore"} {
+		if _, listed := status[rel]; listed {
+			t.Errorf("the status lists %s", rel)
+		}
 	}
-}
-
-// The general "local-*" rule replaced "/html/db_backup/local-*/". An
-// install that still has the old line must lose it, and it must get the
-// new one. The old line is not harmful, but two rules for one job drift
-// apart, and the file must stay equal to GitignorePatterns.
-func TestEnsureGitignoreDropsTheObsoleteLocalDatabaseRule(t *testing.T) {
-	a := &testApp{App: &testkit.App{StorageDir: t.TempDir()}}
-	existing := "# OMN-Go sync ignore\nconfig.json\n*.html\n/db/\n/html/db_backup/local-*/\n"
-	if err := os.WriteFile(filepath.Join(a.StorageDir, ".gitignore"), []byte(existing), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	a.gitSync().EnsureGitignore()
-
-	counts := gitignoreLines(t, a)
-	if counts["/html/db_backup/local-*/"] != 0 {
-		t.Errorf("the obsolete database rule is still in the file %d time(s)", counts["/html/db_backup/local-*/"])
-	}
-	if counts[GitignoreLocalOnlyPattern] != 1 {
-		t.Errorf("%q appears %d time(s), want exactly 1", GitignoreLocalOnlyPattern, counts[GitignoreLocalOnlyPattern])
-	}
-	// The two buggy negations must still go away.
-	if counts["!/html/images/"] != 0 || counts["!/html/images/icons/"] != 0 {
-		t.Error("a directory-only negation came back")
+	if _, listed := status["md/Note.md"]; !listed {
+		t.Error("the status does not list md/Note.md, thus the test proves nothing")
 	}
 }
 
@@ -312,13 +300,12 @@ func TestGitignoreMatchesEachLocalOnlyPath(t *testing.T) {
 // The preview must name it before that commit.
 func TestCommitLocalChangesUntracksALocalOnlyFile(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
-	a.gitSync().EnsureGitignore()
+	a.gitSync().WriteExcludeFile()
 
 	const localRel = "html/user_json/local-data.json"
 	const keepRel = "md/Notes.md"
 	writeAndAdd(t, a, wt, localRel, `{"device":"pixel7"}`)
 	writeAndAdd(t, a, wt, keepRel, "# Notes\n")
-	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
 	testCommit(t, wt, "before the rule")
 
 	// The preview must announce the removal, although no content changed.
@@ -415,13 +402,12 @@ func TestGitignoreExcludesDerivedTextCopies(t *testing.T) {
 // other device rebuilds its own copy from the md/ original it already has.
 func TestCommitLocalChangesUntracksADerivedTextCopy(t *testing.T) {
 	a, repo, wt := newTestRepo(t)
-	a.gitSync().EnsureGitignore()
+	a.gitSync().WriteExcludeFile()
 
 	const copyRel = "html/project/log.txt"
 	const srcRel = "md/project/log.txt"
 	writeAndAdd(t, a, wt, srcRel, "one\ntwo\n")
 	writeAndAdd(t, a, wt, copyRel, "one\ntwo\n")
-	writeAndAdd(t, a, wt, ".gitignore", string(mustRead(t, filepath.Join(a.StorageDir, ".gitignore"))))
 	testCommit(t, wt, "before the rule")
 
 	pending := a.gitSync().UntrackTrackedPaths(repo)

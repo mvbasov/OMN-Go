@@ -100,3 +100,4 @@ the status of the old record to `replaced by NNNN`.
 | [0026](0026-compile-each-page-again-after-a-new-version.md) | Compile each page again after a new version. | `internal/storage/paths.go`, `storage_app.go` |
 | [0027](0027-build-the-android-library-with-one-script.md) | Build the Android library with one script. | `android/build_aar.sh`, `Dockerfile`, `internal/repocheck/pipelines_test.go` |
 | [0028](0028-record-the-commit-of-the-build.md) | Record the commit of the build. | `version.go`, `android/build_aar.sh`, `Dockerfile`, `internal/status/collect.go` |
+| [0029](0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md) | Keep the ignore patterns of the app in .git/info/exclude. | `internal/gitsync/repo.go` |

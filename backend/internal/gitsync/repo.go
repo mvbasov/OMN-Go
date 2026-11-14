@@ -40,8 +40,8 @@ import (
 //	push.go      The push, and the test for commits that wait.
 //	handlers.go  The HTTP handlers of /api/sync.
 
-// GitignorePatterns is the one list for the sync .gitignore. EnsureGitignore
-// writes it for a new install, and it adds each missing line to an old one.
+// GitignorePatterns is the one list of the files that the app keeps out of
+// git. WriteExcludeFile, Worktree and LoadGitignoreMatcher read it.
 //
 // The order is part of the rule. A "!" line must follow the pattern that it
 // includes again. A negation of a directory alone, for example
@@ -124,94 +124,28 @@ var GitignorePatterns = []string{
 // with each segment of a path, at each depth.
 const GitignoreLocalOnlyPattern = storage.LocalOnlyPrefix + "*"
 
-// obsoleteGitignoreLines are the lines that EnsureGitignore deletes from an
-// existing file.
-var obsoleteGitignoreLines = map[string]bool{
-	// These lines negate a directory alone. See GitignorePatterns.
-	"!/html/images/":       true,
-	"!/html/images/icons/": true,
-	// The general local-* rule covers the same files.
-	"/html/db_backup/local-*/": true,
-	// These lines name the old places of the app files. removeRetiredAssets
-	// in internal/storage/assets.go deletes the files. See storage.RetiredAssets.
-	"/html/css/omn-go-core.css":           true,
-	"/html/css/Bookmarker.css":            true,
-	"/html/css/highlight.default.min.css": true,
-	"/html/css/katex.min.css":             true,
-	"/html/css/markdown.css":              true,
-	"/html/js/omn-go-compat.js":           true,
-	"/html/js/omn-go-core.js":             true,
-	"/html/js/omn-go-sse.js":              true,
-	"/html/js/omn-go-editor.js":           true,
-	"/html/js/auto-render.min.js":         true,
-	"/html/js/katex.min.js":               true,
-	"/html/js/highlight.min.js":           true,
-	"/html/js/Bookmarker.js":              true,
-	// NOT HERE: /html/js/OMN-Go/omn-go-sse.js, the old name of omn-go-api.js.
-	// A device with an older version adds that line again when it is absent,
-	// thus a delete here would change .gitignore back and forth.
-}
+// ExcludeFileHeader starts the file that WriteExcludeFile writes.
+const ExcludeFileHeader = "# OMN-Go writes this file at each open of the repository.\n" +
+	"# Write your own patterns in .gitignore.\n"
 
-func (svc Service) EnsureGitignore() {
-	gitignorePath := svc.Layout.File(storage.GitignoreFilename)
-	gitignoreBase := "# OMN-Go sync ignore\n" + strings.Join(GitignorePatterns, "\n") + "\n"
-	content, err := os.ReadFile(gitignorePath)
-	if os.IsNotExist(err) {
-		os.WriteFile(gitignorePath, []byte(gitignoreBase), 0644)
-		svc.Log(logx.Sync).Infof("Created .gitignore")
+// WriteExcludeFile writes GitignorePatterns to .git/info/exclude, for command
+// line git. No sync carries the file. The app does not write .gitignore. See
+// doc/decisions/0029-keep-the-ignore-patterns-of-the-app-in-git-info-exclude.md.
+func (svc Service) WriteExcludeFile() {
+	p := svc.Layout.Git("info", "exclude")
+	want := ExcludeFileHeader + strings.Join(GitignorePatterns, "\n") + "\n"
+	if got, err := os.ReadFile(p); err == nil && string(got) == want {
 		return
+	}
+	err := os.MkdirAll(filepath.Dir(p), 0755)
+	if err == nil {
+		err = storage.ReplaceFile(p, []byte(want))
 	}
 	if err != nil {
+		svc.Log(logx.Sync).Errf("cannot write .git/info/exclude: %v", err)
 		return
 	}
-
-	// Delete each obsolete line. The loop below cannot do it, because the
-	// lines are present. See obsoleteGitignoreLines.
-	rewritten := false
-	{
-		var kept []string
-		for _, line := range strings.Split(string(content), "\n") {
-			if obsoleteGitignoreLines[strings.TrimSpace(line)] {
-				rewritten = true
-				continue
-			}
-			kept = append(kept, line)
-		}
-		if rewritten {
-			content = []byte(strings.Join(kept, "\n"))
-		}
-	}
-
-	// Add each missing pattern to an existing file. Without this, an old
-	// install never ignores a new entry, for example the SQLite files in
-	// /db/. The test is a whole-line match, because "*.woff" is a substring
-	// of "*.woff2".
-	present := map[string]bool{}
-	for _, line := range strings.Split(string(content), "\n") {
-		present[strings.TrimSpace(line)] = true
-	}
-	var missing []string
-	for _, patt := range GitignorePatterns {
-		if !present[patt] {
-			missing = append(missing, patt)
-		}
-	}
-	appended := len(missing) > 0
-	if appended {
-		text := string(content)
-		if text != "" && !strings.HasSuffix(text, "\n") {
-			text += "\n"
-		}
-		content = []byte(text + strings.Join(missing, "\n") + "\n")
-	}
-
-	if rewritten || appended {
-		if err := os.WriteFile(gitignorePath, content, 0644); err != nil {
-			svc.Log(logx.Sync).Errf("cannot update .gitignore: %v", err)
-			return
-		}
-		svc.Log(logx.Sync).Infof("Updated .gitignore (rewritten=%v, appended=%v)", rewritten, appended)
-	}
+	svc.Log(logx.Sync).Infof("Wrote .git/info/exclude")
 }
 
 func (svc Service) GetOrInitRepo() (*git.Repository, error) {
@@ -237,13 +171,12 @@ func (svc Service) GetOrInitRepo() (*git.Repository, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open manually created repo: %v", err)
 		}
-		svc.EnsureGitignore()
+		svc.WriteExcludeFile()
 		svc.Log(logx.Sync).Infof("Repo initialized")
 	} else {
 		svc.Log(logx.Sync).Debugf("Repo opened successfully")
-		// Add each new pattern at each open. Without this, a commit can take
-		// a file that .gitignore must cover, for example a test image.
-		svc.EnsureGitignore()
+		// A new version can add a pattern, thus each open writes the list.
+		svc.WriteExcludeFile()
 	}
 
 	// Only a sync needs a remote, thus EnsureRemotesAndGetActive sets the
@@ -365,7 +298,7 @@ func (svc Service) manualGitInit(dir string) error {
 		return err
 	}
 	svc.protectGitDirs()
-	svc.EnsureGitignore()
+	svc.WriteExcludeFile()
 
 	config := []byte("[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n")
 	if err := os.WriteFile(filepath.Join(gitDir, "config"), config, 0644); err != nil {
@@ -383,10 +316,26 @@ func (svc Service) LoadGitignoreMatcher(wt *git.Worktree) (gitignore.Matcher, er
 	if err != nil {
 		return nil, err
 	}
+	return gitignore.NewMatcher(append(patterns, appPatterns()...)), nil
+}
+
+func appPatterns() []gitignore.Pattern {
+	out := make([]gitignore.Pattern, 0, len(GitignorePatterns))
 	for _, p := range GitignorePatterns {
-		patterns = append(patterns, gitignore.ParsePattern(p, nil))
+		out = append(out, gitignore.ParsePattern(p, nil))
 	}
-	return gitignore.NewMatcher(patterns), nil
+	return out
+}
+
+// Worktree answers the worktree of repo with GitignorePatterns as Excludes.
+// go-git cannot read .git/info/exclude, because it refuses each path below .git.
+func Worktree(repo *git.Repository) (*git.Worktree, error) {
+	wt, err := repo.Worktree()
+	if err != nil {
+		return nil, err
+	}
+	wt.Excludes = append(wt.Excludes, appPatterns()...)
+	return wt, nil
 }
 
 // manualStageFile writes the file into a new blob and sets its index entry.

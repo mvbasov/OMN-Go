@@ -276,7 +276,7 @@ func (svc Service) SyncRepo(action string, message string) error {
 	if err != nil {
 		return err
 	}
-	wTree, err := repo.Worktree()
+	wTree, err := Worktree(repo)
 	if err != nil {
 		return err
 	}

@@ -13,7 +13,7 @@ OMN-Go gives the `<script>` block of a note access to a real SQL database on the
 Each database is a SQLite file at `db/<name>.sqlite` in the storage directory of this device. OMN-Go creates the file the first time a note uses that name.
 
 - **Shared.** Everything that talks to *this one running server* uses the same database. Two browser tabs open to the same desktop application see the same rows immediately. A phone and a laptop that both connect to one device through [LAN sharing](UserManual#sharing-on-the-lan) also see the same rows immediately.
-- **OMN-Go never syncs the live `.sqlite` file** between separate installations. The `db/` directory is excluded from git on purpose, because it is in `.gitignore`. The `config.json` file is excluded in the same way. The server of the Android application and the server of the desktop application each keep their own `db/` directory. To move the *content* of a database between devices, create a **backup**. The backup travels with your notes through git. See [Database Backups](#database-backups) below.
+- **OMN-Go never syncs the live `.sqlite` file** between separate installations. The `db/` directory is excluded from git on purpose, because it is in the ignore rules of OMN-Go (see [The ignore rules](UserManual#the-ignore-rules)). The `config.json` file is excluded in the same way. The server of the Android application and the server of the desktop application each keep their own `db/` directory. To move the *content* of a database between devices, create a **backup**. The backup travels with your notes through git. See [Database Backups](#database-backups) below.
 - **Admin-only.** A caller on another device needs the admin password for the database API.
 
 ## Quick start
