@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.32. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.33. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -576,7 +576,7 @@ After such a change, each page must compile again. The backend does that at each
 ### 10.10 Add an Android feature that a page starts
 
 1. In the script, open an address: `window.location.href = 'omngo://mything?name=' + encodeURIComponent(value)`. Do it only when `IS_ANDROID` is true.
-2. In `shouldOverrideUrlLoading` of [`WebViewSetup.java`](../android/app/src/main/java/net/basov/omngo/WebViewSetup.java), add a branch for `omngo://mything`.
+2. In `shouldOverrideUrlLoading` of [`WebViewSetup.java`](../android/app/src/main/java/net/basov/omngo/WebViewSetup.java), add a branch for `omngo://mything`. Read each parameter with `android.net.Uri.parse(url).getQueryParameter("name")`, the same as the other branches. It decodes `%20` and `+` both as a space.
 3. Put the work into a class of its own, as [`Shortcuts.java`](../android/app/src/main/java/net/basov/omngo/Shortcuts.java) does. `MainActivity` must stay short.
 4. Put each text rule into [`OmnText.java`](../android/app/src/main/java/net/basov/omngo/OmnText.java), and add a test in [`android/test/`](../android/test/).
 

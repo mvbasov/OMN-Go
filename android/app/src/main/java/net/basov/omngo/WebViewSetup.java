@@ -140,24 +140,11 @@ final class WebViewSetup {
 
                 if (url != null && url.startsWith("omngo://shortcut")) {
                     try {
-                        String query = url.substring(url.indexOf('?') + 1);
-                        String name = null;
-                        String title = null;
-                        String mode = null;
-                        for (String param : query.split("&")) {
-                            int eq = param.indexOf('=');
-                            if (eq < 0) continue;
-                            String key = param.substring(0, eq);
-                            String value = android.net.Uri.decode(param.substring(eq + 1));
-                            if ("name".equals(key)) {
-                                name = value;
-                            } else if ("title".equals(key)) {
-                                title = value;
-                            } else if ("mode".equals(key)) {
-                                mode = value;
-                            }
-                        }
-                        a.shortcuts.createNoteShortcut(name, title, mode);
+                        android.net.Uri request = android.net.Uri.parse(url);
+                        a.shortcuts.createNoteShortcut(
+                            request.getQueryParameter("name"),
+                            request.getQueryParameter("title"),
+                            request.getQueryParameter("mode"));
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -166,11 +153,13 @@ final class WebViewSetup {
 
                 if (url != null && url.startsWith("omngo://edit")) {
                     try {
-                        String name = url.substring(url.indexOf("?name=") + 6);
-                        if (name.contains("&")) {
-                            name = name.split("&")[0];
+                        // The server writes the name with url.QueryEscape, which
+                        // writes a space as "+". getQueryParameter reads "+" as a
+                        // space, and Uri.decode does not.
+                        String name = android.net.Uri.parse(url).getQueryParameter("name");
+                        if (name == null || name.isEmpty()) {
+                            return true;
                         }
-                        name = android.net.Uri.decode(name);
                         a.currentEditingName = name;
 
                         IntentBridge.allowFileUriHandoff();
