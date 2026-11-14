@@ -988,6 +988,30 @@ details.omn-incoming[open] > summary.omn-incoming-head {
     display: flex;
     gap: 10px;
 }
+
+/* The dialogs of omn-go-dialog.js. A dialog can open above another overlay,
+   for example above the login overlay, thus it has a higher z-index. */
+.omn-dialog {
+    z-index: 60;
+}
+.omn-dialog-title {
+    margin-top: 0;
+}
+/* The label above a field of a dialog with two or more fields. */
+.omn-dialog-label {
+    display: block;
+    text-align: left;
+    margin-bottom: 4px;
+}
+/* The text of a dialog can have line breaks and a long path. */
+.omn-dialog-text {
+    margin: 0 0 15px;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 60vh;
+    overflow-y: auto;
+}
 .omn-btn-cancel {
     background: var(--omn-danger);
 }

@@ -406,6 +406,11 @@ fail when you skip one of these steps.
     stub fetches the file one time and then calls the real function. The body of
     each file sits inside the `file:` guard. Write each function there as a
     `const`. A `function` declaration of the block becomes a global name.
+  * `omn-go-dialog.js` holds the dialogs of the application: `omnAlert`,
+    `omnConfirm`, `omnPrompt` and `omnDialog`. Each one answers a Promise. A
+    note page and the Config page load the file through `omnLazy`. The editor
+    page has no `omn-go-api.js`, thus `editor.html` loads it with a script
+    element. A page from disk gets stubs that answer a closed dialog.
   * `omn-go-config.js` holds the whole Config page. Only
     `templates/config_page.html` names it. A note page never loads it.
   * `omn-go-editor.js` holds the standalone editor page. It uses `var` in an
@@ -419,6 +424,14 @@ fail when you skip one of these steps.
   * `omn-go-custom.js` and `omn-go-custom.css` are user files. They are empty on
     purpose. `omn-go-custom.js` stays independent. It keeps its own plain
     `<script>` element, and it loads last.
+* **Use the dialogs of `omn-go-dialog.js`, and never `alert()`, `confirm()` or
+  `prompt()` of the browser.** A dialog of the browser has the look of the
+  browser, and on Android it is a native dialog of the WebView. Call the
+  functions as properties of `window` and wait for the Promise:
+  `if (await window.omnConfirm(text)) ...`. `TestNoBrowserDialog` holds the
+  rule. A native dialog of the Android layer stays native when it guards an
+  action that a note script must not start, for example the Termux question
+  of `IntentBridge.java`.
 * **A lazy file gives its work through `omnLazyActions`.** Call `OMN.action` in
   the lazy file. Add the action to the `omnLazyActions` call of that file in
   `omn-go-api.js`, and to the stub list of the `else` branch. Use

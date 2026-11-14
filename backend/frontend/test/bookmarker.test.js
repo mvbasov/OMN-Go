@@ -369,9 +369,10 @@ test('the first visit stores the default options and shows no dialog', () => {
     assert.deepStrictEqual(h.dialogs, []);
 });
 
-test('an option of the address goes to the store and stays there', () => {
+test('an option of the address goes to the store and stays there', async () => {
     const query = '?config=' + encodeURIComponent('{"ignoreCase":false}');
     const h = bookmarkPage(BOOKMARKS, { search: query });
+    await h.settle();
     assert.strictEqual(stored(h).ignoreCase, false);
     assert.strictEqual(stored(h).stripAccents, true);
     assert.strictEqual(alerts(h)[0], 'URI params: {"ignoreCase":false}');
@@ -387,23 +388,26 @@ test('an option of the address goes to the store and stays there', () => {
     assert.deepStrictEqual(search(next, 'alpha'), []);
 });
 
-test('"config=show" shows the options and changes none', () => {
+test('"config=show" shows the options and changes none', async () => {
     const h = bookmarkPage(BOOKMARKS, { search: '?config=show', storage: { [KEY]: '{"stripAccents":false}' } });
+    await h.settle();
     assert.strictEqual(alerts(h).length, 2);
     assert.match(alerts(h)[1], /Effective: \{[^}]*"stripAccents": false/);
     assert.strictEqual(stored(h).stripAccents, false);
     assert.strictEqual(stored(h).ignoreCase, true);
 });
 
-test('an option that is not JSON gives a message and the defaults', () => {
+test('an option that is not JSON gives a message and the defaults', async () => {
     const h = bookmarkPage(BOOKMARKS, { search: '?config=%7Bbad' });
+    await h.settle();
     assert.match(alerts(h)[1], /^URI Config parsing error: /);
     assert.strictEqual(stored(h).ignoreCase, true);
     assert.deepStrictEqual(shown(h), ALL);
 });
 
-test('a store that is not JSON gives a message, and the page repairs it', () => {
+test('a store that is not JSON gives a message, and the page repairs it', async () => {
     const h = bookmarkPage(BOOKMARKS, { storage: { [KEY]: '{bad' } });
+    await h.settle();
     assert.match(alerts(h)[0], /^Storage Config parsing error: /);
     assert.strictEqual(stored(h).ignoreCase, true);
     assert.deepStrictEqual(shown(h), ALL);

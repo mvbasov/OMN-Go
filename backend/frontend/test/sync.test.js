@@ -53,7 +53,8 @@ test('the first press of a sync control loads omn-go-sync.js one time', async ()
     await h.settle();
     h.press(DOWNLOAD);
     await h.settle();
-    assert.deepStrictEqual(h.loads, ['/js/OMN-Go/omn-go-sync.js']);
+    // The question after the download loads the dialog file, one time too.
+    assert.deepStrictEqual(h.loads, ['/js/OMN-Go/omn-go-sync.js', '/js/OMN-Go/omn-go-dialog.js']);
     assert.deepStrictEqual(syncPosts(h), ['action=download', 'action=download']);
 });
 
@@ -169,7 +170,7 @@ test('an upload shows the files and sends the commit message', async () => {
     h.press('[data-action="commit-upload"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), []);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Please enter a commit message.');
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Enter a commit message.');
 
     h.$('#omn-commit-message').value = '  two notes  ';
     h.press('[data-action="commit-upload"]');
@@ -227,7 +228,7 @@ test('a preview that fails tells the person and sends no upload', async () => {
     h.server = serverWith({ '/api/sync/preview': { httpStatus: 500, text: 'fault' } });
     h.press(UPLOAD);
     await h.settle();
-    assert.strictEqual(h.dialogs[0].text, 'Failed to get pending changes');
+    assert.strictEqual(h.dialogs[0].text, 'Could not get the pending changes.');
     assert.deepStrictEqual(syncPosts(h), []);
     assert.strictEqual(h.$('.omn-progress-overlay').hidden, true);
 });
@@ -271,7 +272,7 @@ test('a force push with no message asks for one, and no message sends nothing', 
     h.press('[data-action="push-force"]');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), ['action=upload']);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Force push canceled — no commit message.');
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Force push canceled: no commit message.');
 
     // The person gives a message.
     h.$('#omn-push-conflict-modal').classList.remove('omn-hidden');

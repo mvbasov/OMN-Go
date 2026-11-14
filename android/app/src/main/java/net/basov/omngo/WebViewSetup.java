@@ -143,6 +143,7 @@ final class WebViewSetup {
                         String query = url.substring(url.indexOf('?') + 1);
                         String name = null;
                         String title = null;
+                        String mode = null;
                         for (String param : query.split("&")) {
                             int eq = param.indexOf('=');
                             if (eq < 0) continue;
@@ -152,9 +153,11 @@ final class WebViewSetup {
                                 name = value;
                             } else if ("title".equals(key)) {
                                 title = value;
+                            } else if ("mode".equals(key)) {
+                                mode = value;
                             }
                         }
-                        a.shortcuts.createNoteShortcut(name, title);
+                        a.shortcuts.createNoteShortcut(name, title, mode);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

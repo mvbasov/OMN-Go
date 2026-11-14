@@ -266,7 +266,10 @@ if (window.location.protocol !== 'file:') {
     // The stub answers with a Promise. Each name below is a control that a
     // person presses or that Android calls without reading the answer, thus
     // no caller loses anything. A function whose answer a caller reads must
-    // NOT be lazy. See omnGoInsertCapture and point 2 of the banner.
+    // NOT be lazy. See omnGoInsertCapture and point 2 of the banner. The one
+    // exception is a function that answers a Promise itself, for example
+    // omnConfirm. The caller waits for the Promise of the stub, and the
+    // stub gives the answer of the real Promise.
     function omnLazy(file, names) {
         names.forEach(function (name) {
             const stub = function () {
@@ -313,6 +316,9 @@ if (window.location.protocol !== 'file:') {
     omnLazy('omn-go-bookmark.js', ['handleShare', 'showBookmarkPanel']);
     omnLazyActions('omn-go-bookmark.js', ['bookmark-panel']);
     omnLazy('omn-go-search.js', ['omnSearchOpen']);
+    // The dialogs of the application. Each name answers a Promise. See
+    // omn-go-dialog.js.
+    omnLazy('omn-go-dialog.js', ['omnDialog', 'omnAlert', 'omnConfirm', 'omnPrompt']);
     // omnSearchOpen keeps its name, because the User Manual promises it.
     window.OMN.action('search', function () { window.omnSearchOpen(); });
 
@@ -329,7 +335,7 @@ if (window.location.protocol !== 'file:') {
             document.getElementById('omn-login-overlay').style.display = 'none';
             document.getElementById('omn-main-ui').style.display = 'flex';
         } else {
-            alert('Invalid Password');
+            await window.omnAlert('Invalid password.');
         }
     });
 
@@ -338,13 +344,38 @@ if (window.location.protocol !== 'file:') {
         return words.map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
     }
 
+    // fileNameOf makes a file name from a title: "my new note" gives
+    // "MyNewNote". Each other character becomes "-".
+    function fileNameOf(title) {
+        return toCamelCase(title).replace(/[^a-zA-Z0-9-]/g, '-');
+    }
+
+    // One dialog asks for the title and the file name. The file name
+    // follows the title while the person types. A file name that the
+    // person typed stops that. An empty file name starts it again.
     window.OMN.action('new-page', async function () {
-        let title = prompt("Enter New Page Title:");
+        let nameTyped = false;
+        const answer = await window.omnDialog({
+            kind: 'form',
+            title: 'New page',
+            text: 'The file name comes from the title. You can change it.',
+            fields: [{ label: 'Title' }, { label: 'File name' }],
+            onInput: function (inputs, index) {
+                if (index === 1) {
+                    nameTyped = inputs[1].value !== '';
+                } else if (!nameTyped) {
+                    inputs[1].value = fileNameOf(inputs[0].value);
+                }
+            },
+            buttons: [
+                { label: 'Create', value: true, default: true },
+                { label: 'Cancel', value: false, cancel: true },
+            ],
+        });
+        if (answer.value !== true) return;
+        const title = answer.inputs[0].trim();
         if (!title) return;
-        let camel = toCamelCase(title);
-        let safeName = camel.replace(/[^a-zA-Z0-9-]/g, '-');
-        let fileName = prompt("Confirm File Name:", safeName);
-        if (!fileName) return;
+        const fileName = answer.inputs[1].trim() || fileNameOf(title);
 
         let src = typeof currentNote !== 'undefined' ? currentNote : 'Welcome';
         const fd = new URLSearchParams();
@@ -362,7 +393,7 @@ if (window.location.protocol !== 'file:') {
             const resolvedTarget = await res.text();
             window.location.href = '/' + resolvedTarget + '.html?edit=true';
         } else {
-            alert("Failed to create new page!");
+            await window.omnAlert('The new page was not created.');
         }
     });
 
@@ -374,7 +405,7 @@ if (window.location.protocol !== 'file:') {
         if(res.ok) {
             document.getElementById('omn-quick-text').value = '';
             document.getElementById('omn-quick-panel').classList.add('omn-hidden');
-            alert('Saved!');
+            await window.omnAlert('Saved.');
             window.location.reload();
         }
     });
@@ -389,7 +420,7 @@ if (window.location.protocol !== 'file:') {
         if(res.ok) {
             document.getElementById('omn-bm-panel').classList.add('omn-hidden');
             document.querySelectorAll('#omn-bm-panel input, #omn-bm-panel textarea').forEach(el => el.value = '');
-            alert('Saved!');
+            await window.omnAlert('Saved.');
             window.location.reload();
         }
     });
@@ -875,6 +906,13 @@ if (window.location.protocol !== 'file:') {
     window.checkSession = function() { printDebug('checkSession'); };
     window.omnGoOpenDatabase = function() { printDebug('omnGoOpenDatabase'); };
     window.openDatabase = function() { printDebug('openDatabase'); };
+    // The dialogs of omn-go-dialog.js. A page from disk cannot load that
+    // file. Each stub gives the answer of a closed dialog: no value for
+    // omnAlert, false for omnConfirm, null for omnPrompt.
+    window.omnDialog = function() { printDebug('omnDialog'); return Promise.resolve({ value: null, input: null }); };
+    window.omnAlert = function() { printDebug('omnAlert'); return Promise.resolve(); };
+    window.omnConfirm = function() { printDebug('omnConfirm'); return Promise.resolve(false); };
+    window.omnPrompt = function() { printDebug('omnPrompt'); return Promise.resolve(null); };
     // Search needs the server: the panel queries /api/search, which does not
     // exist on a page opened from disk. The header button is .omn-server-only and
     // therefore already hidden here (applyOfflineUI) - these stubs cover a

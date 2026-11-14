@@ -58,9 +58,8 @@ if (window.location.protocol !== 'file:') {
 
         // The overlay is fed by the server's own "[sync]" log lines over
         // the /api/logs stream, so it reports real backend stages rather
-        // than a guess. It is torn down before any alert()/modal below,
-        // otherwise a blocking dialog would sit on top of a still-
-        // spinning bar.
+        // than a guess. The code removes it before each dialog below. A
+        // dialog on top of a bar that still turns gives a wrong message.
         let data, netErr = null;
         window.OMNProgress.show(SYNC_TITLES[action] || 'Sync');
         window.OMNProgress.stage('Contacting server…');
@@ -75,7 +74,7 @@ if (window.location.protocol !== 'file:') {
             window.OMNProgress.hide();
         }
         if (netErr) {
-            alert('Sync error: ' + netErr);
+            await window.omnAlert('Sync error: ' + netErr);
             return null;
         }
 
@@ -92,7 +91,9 @@ if (window.location.protocol !== 'file:') {
                 } else {
                     const list = (data.files && data.files.length)
                         ? '\n\nFiles in contention:\n' + data.files.join('\n') : '';
-                    const choice = confirm('Conflict!' + list + '\n\nOK to Force Pull (Keep Untracked), Cancel to Mark Files.');
+                    const choice = await window.omnConfirm('Conflict!' + list +
+                        '\n\nForce Pull keeps the untracked files. Mark Files puts conflict markers into the files.',
+                        'Force Pull', 'Mark Files');
                     if (choice) runSync('pull_force');
                     else runSync('pull_mark');
                 }
@@ -109,18 +110,19 @@ if (window.location.protocol !== 'file:') {
                 if (pModal) {
                     pModal.classList.remove('omn-hidden');
                 } else {
-                    const choice = confirm('Push rejected: the remote has new commits.\n\nOK to Force Push (destructive), Cancel to Abort.');
+                    const choice = await window.omnConfirm('Push rejected: the remote has new commits.\n\n' +
+                        'Force Push writes over the history of the remote.', 'Force Push', 'Abort');
                     if (choice) performPushForce();
                 }
                 return data;
             }
             case 'needs_commit_message':
-                alert('Please provide a commit message.');
+                await window.omnAlert('Give a commit message.');
                 return data;
             case 'host_key_changed':
                 return trustHostKey(data, action, opts);
             default:
-                alert('Sync failed: ' + (data.message || 'unknown error'));
+                await window.omnAlert('Sync failed: ' + (data.message || 'unknown error'));
                 return data;
         }
     };
@@ -130,19 +132,19 @@ if (window.location.protocol !== 'file:') {
     // the key only when the fingerprint is the one that the person saw. See
     // doc/decisions/0019-trust-the-host-key-on-first-use.md.
     async function trustHostKey(data, action, opts) {
-        const ok = confirm('The key of the git server changed.\n\n' +
+        const ok = await window.omnConfirm('The key of the git server changed.\n\n' +
             'Server: ' + data.host + '\n' +
             'Known key: ' + data.known + '\n' +
             'New key: ' + data.fingerprint + '\n\n' +
             'A changed key can mean that another machine answers for the server. ' +
             'Compare the new key with the key that the owner of the server gives you.\n\n' +
-            'OK trusts the new key and tries again. Cancel stops the sync.');
+            'Trust the new key to try again. Cancel stops the sync.', 'Trust the new key');
         if (!ok) return data;
         const fd = new URLSearchParams({ host: data.host, fingerprint: data.fingerprint });
         const res = await fetch('/api/sync/trust-host-key', { method: 'POST', body: fd });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            alert('The server did not store the new key: ' + (err.message || res.status));
+            await window.omnAlert('The server did not store the new key: ' + (err.message || res.status));
             return data;
         }
         return runSync(action, opts);
@@ -225,18 +227,17 @@ if (window.location.protocol !== 'file:') {
 
         let message = retryPushMessage || '';
         if (!message) {
-            message = window.prompt
-                ? (window.prompt('Force push requires a commit message.\n\nDescribe what this push changes on the remote:') || '').trim()
-                : '';
+            message = ((await window.omnPrompt('A force push needs a commit message.\n\n' +
+                'Describe what this push changes on the remote:', '', 'Force Push')) || '').trim();
             if (!message) {
-                alert('Force push canceled — no commit message.');
+                await window.omnAlert('Force push canceled: no commit message.');
                 return;
             }
         }
 
         const data = await runSync('push_force', { message });
         if (data && data.status === 'success') {
-            if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+            if (await window.omnConfirm('Upload complete.\n\nLoad the page again to see the new content?', 'Load again', 'Keep')) {
                 window.location.reload();
             }
         }
@@ -252,7 +253,7 @@ if (window.location.protocol !== 'file:') {
 
         const data = await runSync(action);
         if (data && data.status === 'success') {
-            if (confirm('Sync complete.\n\nWould you like to reload the page now to see updated content?')) {
+            if (await window.omnConfirm('Sync complete.\n\nLoad the page again to see the new content?', 'Load again', 'Keep')) {
                 window.location.reload();
             }
         }
@@ -277,11 +278,11 @@ if (window.location.protocol !== 'file:') {
         }
         try {
             if (err) {
-                alert('Error: ' + err);
+                await window.omnAlert('Error: ' + err);
                 return;
             }
             if (!res.ok) {
-                alert('Failed to get pending changes');
+                await window.omnAlert('Could not get the pending changes.');
                 return;
             }
             const files = (preview && preview.files) || [];
@@ -299,7 +300,7 @@ if (window.location.protocol !== 'file:') {
                 if (preview.unpushed) {
                     const data = await runSync('upload');
                     if (data && data.status === 'success') {
-                        if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+                        if (await window.omnConfirm('Upload complete.\n\nLoad the page again to see the new content?', 'Load again', 'Keep')) {
                             window.location.reload();
                         }
                     }
@@ -310,10 +311,10 @@ if (window.location.protocol !== 'file:') {
                 // configured, that is the part that matters.
                 var where = preview.remote ? ' on ' + preview.remote : '';
                 if (preview.remote_error) {
-                    alert('Nothing to commit.\n\nCould not reach the remote' + where +
+                    await window.omnAlert('Nothing to commit.\n\nCould not reach the remote' + where +
                           ' to check for unpushed commits:\n' + preview.remote_error);
                 } else {
-                    alert('Nothing to commit, and nothing to push' + where + '.');
+                    await window.omnAlert('Nothing to commit, and nothing to push' + where + '.');
                 }
                 return;
             }
@@ -322,21 +323,21 @@ if (window.location.protocol !== 'file:') {
             if (listEl) listEl.textContent = files.join('\n');
             document.getElementById('omn-commit-modal').style.display = 'flex';
         } catch(e) {
-            alert('Error: ' + e);
+            await window.omnAlert('Error: ' + e);
         }
     };
 
     const commitAndUpload = async function () {
         const message = document.getElementById('omn-commit-message').value.trim();
         if (!message) {
-            alert('Please enter a commit message.');
+            await window.omnAlert('Enter a commit message.');
             return;
         }
         hideCommitModal();
 
         const data = await runSync('upload', { message });
         if (data && data.status === 'success') {
-            if (confirm('Upload complete.\n\nWould you like to reload the page now to see updated content?')) {
+            if (await window.omnConfirm('Upload complete.\n\nLoad the page again to see the new content?', 'Load again', 'Keep')) {
                 window.location.reload();
             }
         }

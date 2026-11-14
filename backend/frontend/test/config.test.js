@@ -134,7 +134,7 @@ test('Save sends each setting and no secret that the person did not type', async
     // After the save the page is clean and loads again.
     assert.strictEqual(h.$('#omn-config-menu-dirty').hidden, true);
     assert.strictEqual(h.page.location.reloads, 1);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Configuration saved. Reloading...');
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Configuration saved. The page loads again.');
 });
 
 test('Save sends a secret that the person typed, also an empty one', async () => {
@@ -239,7 +239,7 @@ test('a save that the server refuses keeps the page marked and does not load aga
     h.press(SAVE);
     await h.settle();
     assert.strictEqual(h.dialogs[h.dialogs.length - 1].text,
-        'Failed to save configuration: server_port must be a number');
+        'Could not save the configuration: server_port must be a number');
     assert.strictEqual(h.page.location.reloads, 0);
     assert.strictEqual(h.$('#omn-config-menu-dirty').hidden, false, 'the page reads as saved after a refusal');
 });

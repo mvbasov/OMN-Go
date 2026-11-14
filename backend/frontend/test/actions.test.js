@@ -213,8 +213,13 @@ test('the title opens and closes the header', () => {
 
 test('the new page control sends the name to /api/newpage', async () => {
     const { page, clicks } = loadPage();
-    const answers = ['my new note', 'MyNewNote'];
-    page.prompt = function () { return answers.shift(); };
+    // The control asks with one form of omn-go-dialog.js. The person typed
+    // the title and kept the file name that came from it.
+    const asked = [];
+    page.omnDialog = async function (opts) {
+        asked.push(opts);
+        return { value: true, input: 'my new note', inputs: ['my new note', 'MyNewNote'] };
+    };
     page.currentNote = 'dir/Here';
     const requests = [];
     page.fetch = async function (url, opts) {
@@ -227,6 +232,9 @@ test('the new page control sends the name to /api/newpage', async () => {
         '/api/newpage', 'POST', 'source=dir%2FHere&target=MyNewNote&title=my+new+note',
     ]]);
     assert.strictEqual(page.location.href, '/dir/MyNewNote.html?edit=true');
+    assert.strictEqual(asked.length, 1, 'the control asks more than one time');
+    // The array comes from the realm of the page, thus the test compares text.
+    assert.strictEqual(asked[0].fields.map(function (f) { return f.label; }).join('|'), 'Title|File name');
 });
 
 test('no internal function of a control is a name of window', () => {

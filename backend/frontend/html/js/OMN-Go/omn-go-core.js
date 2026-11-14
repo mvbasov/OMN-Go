@@ -275,11 +275,36 @@ if (typeof currentNote === 'undefined') {
         // Title: header of the note, already exposed as the global `Title`
         // var, see index.html. The label uses "title" alone, thus a
         // shortcut reads "Grocery List" and not "note-42".
-        window.OMN.action('add-shortcut', function () {
+        //
+        // Android 8 (API 26) and later has two ways to pin a shortcut. The
+        // dialog asks which one, and "mode" gives the answer to
+        // Shortcuts.createNoteShortcut. An older Android has one way only,
+        // thus the page asks nothing there.
+        window.OMN.action('add-shortcut', async function () {
             if (typeof currentNote === 'undefined' || !currentNote) return;
             var label = (typeof Title !== 'undefined' && Title) ? Title : currentNote;
-            window.location.href = 'omngo://shortcut?name=' + encodeURIComponent(currentNote) +
+            var url = 'omngo://shortcut?name=' + encodeURIComponent(currentNote) +
                 '&title=' + encodeURIComponent(label);
+            var android = /Android (\d+)/.exec(navigator.userAgent || '');
+            if (android && Number(android[1]) >= 8 && typeof window.omnDialog === 'function') {
+                var answer = await window.omnDialog({
+                    kind: 'choice',
+                    title: 'Add "' + label + '" to the Home screen',
+                    text: 'Reliable always works and shows the OMN-Go icon. ' +
+                        'Android opens the Home screen, and you confirm there.\n\n' +
+                        'Quick tries to add the shortcut while you stay in OMN-Go. ' +
+                        'It often shows a generic icon, and some launchers do nothing. ' +
+                        'If the icon is wrong or no shortcut appears, use Reliable.',
+                    buttons: [
+                        { label: 'Reliable', value: 'reliable', default: true },
+                        { label: 'Quick', value: 'quick' },
+                        { label: 'Cancel', value: null, cancel: true },
+                    ],
+                });
+                if (!answer.value) return;
+                url += '&mode=' + answer.value;
+            }
+            window.location.href = url;
         });
 
 // The title of the page opens and closes the header. The arrow beside the

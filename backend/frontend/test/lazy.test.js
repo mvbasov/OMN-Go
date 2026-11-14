@@ -151,11 +151,13 @@ test('no lazy file reads a name that nothing defines', async () => {
         const { page, actions } = loadAlone(file);
         // What a real page has from omn-go-core.js and omn-go-api.js, as
         // properties of window. A lazy file may use each one.
-        // ONLY these two and window.OMN, and each one for a reason. A
+        // ONLY these names and window.OMN, and each one for a reason. A
         // function of a lazy file opens the progress overlay and subscribes
         // to the log stream before it does anything else. Without them the
         // call ends in a TypeError on the first line, and it never reaches
-        // the code that this test reads.
+        // the code that this test reads. The four dialog names are the stubs
+        // of omnLazy in omn-go-api.js, thus they are properties of window
+        // on a real page too. Each stub answers a closed dialog here.
         //
         // NOTHING ELSE GOES HERE. A name written here resolves as a BARE
         // name as well, because window is the global object of a page.
@@ -163,6 +165,10 @@ test('no lazy file reads a name that nothing defines', async () => {
         // fault then passed.
         page.OMNProgress = { show() {}, stage() {}, detail() {}, hide() {} };
         page.omnGoOnServerLog = () => () => {};
+        page.omnDialog = async () => ({ value: null, input: null });
+        page.omnAlert = async () => {};
+        page.omnConfirm = async () => false;
+        page.omnPrompt = async () => null;
 
         // Each promised name gets the argument 'upload'. Each action gets a
         // control whose data-arg is 'upload', which is the path of a sync

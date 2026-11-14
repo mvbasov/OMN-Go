@@ -88,5 +88,5 @@ test('a wrong password keeps the box and tells the person', async () => {
     h.press('[data-action="login"]');
     await h.settle();
     assert.ok(boxShown(h));
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Invalid Password');
+    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Invalid password.');
 });

@@ -191,11 +191,14 @@ test('Cancel with a change asks first, and No keeps the text', async () => {
     h.type('#omn-editor-text', 'changed');
     h.press('#omn-editor-cancel');
     assert.deepStrictEqual(h.dialogs, [{ kind: 'confirm', text: 'Discard unsaved changes?' }]);
+    await h.settle();
     assert.deepStrictEqual(h.went, []);
     assert.strictEqual(h.$('#omn-editor-text').value, 'changed');
+    assert.strictEqual(h.document.querySelector('.omn-dialog'), null, 'the dialog stays on the page after the answer');
 
     h.confirm = function () { return true; };
     h.press('#omn-editor-cancel');
+    await h.settle();
     assert.deepStrictEqual(h.went, ['/Note.html']);
     assert.strictEqual(saves(h).length, 0);
 });

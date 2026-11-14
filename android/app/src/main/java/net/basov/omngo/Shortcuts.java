@@ -61,10 +61,15 @@ final class Shortcuts {
     // Home-screen shortcuts ("add to home screen" for the current note)
     // ----------------------------------------------------------------------
     //
-    // Triggered by the .omn-android-only button in index.html (createNoteShortcut()
-    // in omn-go-core.js), which navigates to omngo://shortcut?name=... -
-    // intercepted in shouldOverrideUrlLoading of WebViewSetup, same pattern
-    // as omngo://edit.
+    // Triggered by the .omn-android-only button in index.html (the
+    // add-shortcut action in omn-go-core.js), which navigates to
+    // omngo://shortcut?name=...&title=...&mode=... - intercepted in
+    // shouldOverrideUrlLoading of WebViewSetup, same pattern as omngo://edit.
+    //
+    // mode is the choice of the reader: "reliable" or "quick". The page asks
+    // the question in a dialog of omn-go-dialog.js, thus the question has
+    // the look of the other dialogs of the app. The page asks only on
+    // Android 8 (API 26) and later. Without mode, the method uses Reliable.
     //
     // Deliberately built on the plain platform SDK only. There is no
     // androidx.core and no appcompat, which matches the size-conscious
@@ -83,7 +88,7 @@ final class Shortcuts {
     // ic_launcher_shortcut_foreground is drawn on top of it. The shortcut
     // foreground alone left a pinned shortcut that looked like a plain
     // white card. It did not match the real icon of the app.
-    void createNoteShortcut(final String name, final String title) {
+    void createNoteShortcut(final String name, final String title, final String mode) {
         if (name == null || name.isEmpty()) return;
         final String label = (title != null && !title.isEmpty()) ? title : name;
 
@@ -103,25 +108,12 @@ final class Shortcuts {
         if (android.os.Build.VERSION.SDK_INT >= 26) {
             // Two ways to place a shortcut on API 26+, with a real
             // trade-off between them. See the per-method comments below.
-            // No single answer is best for everyone, thus the code asks
-            // each time and hardcodes neither. Below API 26,
-            // ShortcutManager does not exist, and there is nothing to
-            // choose. The legacy broadcast is the only option there, see
-            // the else branch.
-            new android.app.AlertDialog.Builder(a)
-                .setTitle("Add \"" + label + "\" to Home screen")
-                .setMessage("Reliable always works with the correct OMN-Go icon, but takes you to your "
-                    + "Home screen to confirm.\n\n"
-                    + "Quick tries to add it without leaving OMN-Go, but on Android 8+ it often shows a "
-                    + "generic icon instead of OMN-Go's, and on some launchers it may silently do nothing at "
-                    + "all - if the icon looks wrong or nothing appears on your Home screen, use Reliable "
-                    + "instead.")
-                .setPositiveButton("Reliable", (d, w) ->
-                    pinShortcutViaShortcutManager(shortcutIntent, icon, label, name))
-                .setNegativeButton("Quick", (d, w) ->
-                    pinShortcutViaLegacyBroadcast(shortcutIntent, icon, label))
-                .setNeutralButton("Cancel", null)
-                .show();
+            // The reader chose one in the dialog of the page.
+            if ("quick".equals(mode)) {
+                pinShortcutViaLegacyBroadcast(shortcutIntent, icon, label);
+            } else {
+                pinShortcutViaShortcutManager(shortcutIntent, icon, label, name);
+            }
         } else {
             // Pre-Oreo (API 24-25). ShortcutManager does not exist yet,
             // thus the legacy broadcast is the only option. Nothing to ask.

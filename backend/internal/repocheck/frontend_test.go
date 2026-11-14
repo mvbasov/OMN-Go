@@ -302,3 +302,60 @@ func TestTemplatesHoldNoStyleBlock(t *testing.T) {
 		}
 	}
 }
+
+// browserDialogRe finds a call of a dialog of the browser: alert(),
+// confirm() or prompt(), also with "window." in front. omnAlert and the
+// other names of omn-go-dialog.js do not match.
+var browserDialogRe = regexp.MustCompile(`(^|[^\w.]|window\.)(alert|confirm|prompt)\s*\(`)
+
+// The application shows each message and each question with the dialogs of
+// omn-go-dialog.js: omnAlert, omnConfirm, omnPrompt and omnDialog. A dialog
+// of the browser has the look of the browser and not the look of the
+// application. On Android it is a native dialog of the WebView. The test
+// reads each script of the application and each template. It skips a line
+// that is a comment, and the vendored libraries.
+func TestNoBrowserDialog(t *testing.T) {
+	var files []string
+	scripts, err := frontend.Static.ReadDir("html/js/OMN-Go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range scripts {
+		if strings.HasSuffix(e.Name(), ".js") && !strings.HasSuffix(e.Name(), ".min.js") {
+			files = append(files, "html/js/OMN-Go/"+e.Name())
+		}
+	}
+	templates, err := frontend.Templates.ReadDir("templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range templates {
+		files = append(files, "templates/"+e.Name())
+	}
+	if len(files) < 10 {
+		t.Fatalf("only %d files were read, thus this test proves nothing", len(files))
+	}
+	for _, name := range files {
+		var src []byte
+		if strings.HasPrefix(name, "templates/") {
+			src, err = frontend.Templates.ReadFile(name)
+		} else {
+			src, err = frontend.Static.ReadFile(name)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "*") ||
+				strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "<!--") {
+				continue
+			}
+			if browserDialogRe.MatchString(line) {
+				t.Errorf("%s:%d calls a dialog of the browser: %s\n"+
+					"Use omnAlert, omnConfirm, omnPrompt or omnDialog of omn-go-dialog.js.",
+					name, i+1, trimmed)
+			}
+		}
+	}
+}

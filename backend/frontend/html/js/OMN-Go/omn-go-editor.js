@@ -867,8 +867,8 @@
         }
     }
 
-    function cancel() {
-        if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    async function cancel() {
+        if (dirty && !(await window.omnConfirm('Discard unsaved changes?', 'Discard', 'Keep editing'))) return;
         // Same reasoning as the save(true) branch above. A departure from
         // the editor without a save must not leave it in the back-stack
         // either.

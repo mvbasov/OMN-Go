@@ -188,7 +188,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 #### Create a page
 
 - Page: the *note_add* button of the page header.
-- Script: action `new-page` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js).
+- Script: action `new-page` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js). It asks for the title and the file name in one form of `omnDialog` in [`omn-go-dialog.js`](../backend/frontend/html/js/OMN-Go/omn-go-dialog.js). The file name follows the title until the person types one.
 - Endpoint: `POST /api/newpage`.
 - Go: `handleNewPage`, `resolveNewPageTarget` in [`app/note_handlers.go`](../backend/internal/app/note_handlers.go).
 
@@ -325,7 +325,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 
 ### 5.11 Features of the Android layer only
 
-- A note on the home screen: action `add-shortcut` in [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js), the address `omngo://shortcut`, then `createNoteShortcut` in [`Shortcuts.java`](../android/app/src/main/java/net/basov/omngo/Shortcuts.java).
+- A note on the home screen: action `add-shortcut` in [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js). On Android 8 and later it asks for Reliable or Quick with `omnDialog`. Then the address `omngo://shortcut` with `mode`, then `createNoteShortcut` in [`Shortcuts.java`](../android/app/src/main/java/net/basov/omngo/Shortcuts.java).
 - An `intent:` link and Termux: `handleIntentUri` in [`IntentBridge.java`](../android/app/src/main/java/net/basov/omngo/IntentBridge.java). The result comes back through `omnGoInsertCapture` in [`omn-go-api.js`](../backend/frontend/html/js/OMN-Go/omn-go-api.js). Settings: `enable_intent_uri`, `enable_termux_intent`. Manual: [`md/AndroidIntents.md`](../backend/frontend/md/AndroidIntents.md).
 - The system bars: [`Fullscreen.java`](../android/app/src/main/java/net/basov/omngo/Fullscreen.java). Setting: `android_fullscreen`.
 - The spinner of the start: `showStartStage` in [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java). The text comes from [`app/start_stage.go`](../backend/internal/app/start_stage.go).
@@ -423,6 +423,7 @@ Scripts that a page loads at the first press of a control. `omnLazy` and `omnLaz
 | [`omn-go-sync.js`](../backend/frontend/html/js/OMN-Go/omn-go-sync.js) | Git sync: the buttons and the dialogs. |
 | [`omn-go-bookmark.js`](../backend/frontend/html/js/OMN-Go/omn-go-bookmark.js) | The bookmark form. |
 | [`omn-go-search.js`](../backend/frontend/html/js/OMN-Go/omn-go-search.js) | The search panel. |
+| [`omn-go-dialog.js`](../backend/frontend/html/js/OMN-Go/omn-go-dialog.js) | The dialogs of the application: `omnAlert`, `omnConfirm`, `omnPrompt`, `omnDialog`. The editor page loads it with a script element. |
 
 Scripts of one page:
 

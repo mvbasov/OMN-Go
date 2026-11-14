@@ -110,8 +110,8 @@
         dbbShowModal('Backup ' + name, body, 'Create backup', async function() {
             // Serialising a whole database is not instant on a phone, and the
             // confirm dialog closes before it starts - without this the UI
-            // just sits there. Torn down before any alert(), so a blocking
-            // dialog never lands on top of a live progress bar.
+            // just sits there. The code removes the bar before the error
+            // dialog, thus the dialog never shows above a bar that turns.
             var err = null;
             window.OMNProgress.show('Database backup');
             window.OMNProgress.stage('Creating backup of ' + name + '…');
@@ -119,7 +119,7 @@
                 await api('/api/db/backup?db=' + encodeURIComponent(name), { method: 'POST' });
             } catch (e) { err = e; }
             window.OMNProgress.hide();
-            if (err) { alert('Backup failed: ' + err.message); return; }
+            if (err) { await window.omnAlert('Backup failed: ' + err.message); return; }
             load();
         });
     }
@@ -149,7 +149,7 @@
                           '&file=' + encodeURIComponent(file), { method: 'POST' });
             } catch (e) { err = e; }
             window.OMNProgress.hide();
-            if (err) { alert('Restore failed: ' + err.message); return; }
+            if (err) { await window.omnAlert('Restore failed: ' + err.message); return; }
             load();
         }, true);
     }

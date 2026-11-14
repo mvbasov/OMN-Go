@@ -145,13 +145,21 @@ loads the scripts that `index.html` names and sends the load events. The
 test then sets a server function, presses a control with `h.press(selector)`
 and reads `h.requests`, `h.dialogs` and the page.
 
+A dialog of `omn-go-dialog.js` goes into `h.dialogs` as `{kind, text}`. After
+one timer turn, the page presses a button of the dialog. `h.confirm(text)`
+chooses OK or Cancel, `h.prompt(text, value)` gives the text of the field or
+null for Cancel, and `h.choose(text)` gives the label of a button.
+`h.fill(text, values)` gives the texts of the fields of a form, or null for
+Cancel. The page types each text with an input event. A test that presses
+the buttons itself sets `h.keepDialogs = true`.
+
 `configPage()` builds the Config page from `config_page.html` and two git
 server cards, and it also loads `omn-go-config.js`. `mini-dom.js` has
 `FormData`, thus a test reads the body of a save the same as the server
 does.
 
 `editorPage(text, opts)` builds the editor from `editor.html` and loads
-`omn-go-editor.js` with `text` as the note. `opts.search` is the query of
+`omn-go-dialog.js` and `omn-go-editor.js` with `text` as the note. `opts.search` is the query of
 the address, `opts.storage` fills `localStorage`, and `opts.server` answers
 the requests. The page has the `insertText` command of a browser, and
 `opts.noInsertText` takes it away.
@@ -164,7 +172,7 @@ loads `Bookmarker.js` after the scripts of `index.html`, with `bookmarks`
 as the list of the note. `opts.search` and `opts.hash` are the query and
 the fragment of the address, and `opts.storage` fills `localStorage`.
 
-Fourteen test files use these pages:
+Fifteen test files use these pages:
 
 | File | What it holds |
 | --- | --- |
@@ -182,6 +190,7 @@ Fourteen test files use these pages:
 | `status.test.js` | The Status page asks for a slow section only on a press. Each kind of value has its form, and each value is text. |
 | `logs-page.test.js` | The Log page: the history, the new lines, the boxes of the filter, and a copy of the lines that show. |
 | `compat.test.js` | The notice of an old browser: the limit of 85, one notice, and the close mark. |
+| `dialog.test.js` | The dialogs of `omn-go-dialog.js`: the answers, Escape and Enter, text and not markup, one dialog at a time, and the focus. The question of the shortcut button on Android 8 and later. The New page form and its file name. |
 
 A script that sets `location.href` leaves the page in a browser. The
 document of a test stays, thus `location.href` keeps the address of the

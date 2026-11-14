@@ -486,6 +486,8 @@ function stripAccents(str) {
   return r;
 };
 
+// The omnAlert calls of this function do not wait for the reader. The
+// dialog file shows them one after the other, in the same sequence.
 function configuration(params = '') {
   var configDefault = {
     "stripAccents": true,
@@ -495,12 +497,12 @@ function configuration(params = '') {
   configDefault['configVersion'] = bVersion;
   var configURI = {};
   if (params !== '') {
-    alert('URI params: ' + params);
+    window.omnAlert('URI params: ' + params);
     try {
       if (params != 'show') 
         configURI = JSON.parse(params);
     } catch (e) {
-      alert('URI Config parsing error: ' + e);
+      window.omnAlert('URI Config parsing error: ' + e);
     }
   }
   var configStorage = {};
@@ -510,7 +512,7 @@ function configuration(params = '') {
         configStorage = JSON.parse(localStorage[configKey]);
         configStorage['storage'] = true;
       } catch (e) {
-        alert('Storage Config parsing error: ' + e);
+        window.omnAlert('Storage Config parsing error: ' + e);
         configStorage['storage'] = false;
       }
     } else {
@@ -529,7 +531,7 @@ function configuration(params = '') {
   if (localStorage != null)
     localStorage[configKey]= JSON.stringify(config);
   if (params !== '') {
-    alert(
+    window.omnAlert(
       'Configuration\n'
     + '—'.repeat(16) +'\n'
     + 'configKey: ' + configKey + '\n'

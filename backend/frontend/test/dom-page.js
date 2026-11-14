@@ -87,8 +87,8 @@ function shellScripts() {
 //	clipboard  Each text that a script wrote with the Clipboard API.
 //	timers     The timers of the page, after h.holdTimers().
 //
-// A test sets h.server to answer a request, and h.confirm and h.prompt to
-// answer a dialog.
+// A test sets h.server to answer a request, and h.confirm, h.prompt,
+// h.choose and h.fill to answer a dialog.
 function newDomPage(opts) {
     opts = opts || {};
     const page = newPage();
@@ -176,6 +176,8 @@ function newDomPage(opts) {
         server: function () { return { status: 'success' }; },
         confirm: function () { return false; },
         prompt: function () { return null; },
+        choose: function () { return null; },
+        fill: function () { return null; },
     };
 
     // fetch gives the request to h.server. The answer of h.server is the
@@ -228,6 +230,68 @@ function newDomPage(opts) {
         h.dialogs.push({ kind: 'prompt', text: String(text) });
         return h.prompt(String(text), value);
     };
+
+    // A dialog of omn-go-dialog.js is an element .omn-dialog in the body.
+    // The page records it in h.dialogs, the same as a dialog of the browser.
+    // After one timer turn, the page presses the button of the answer:
+    //
+    //	alert    OK.
+    //	confirm  OK when h.confirm answers true, and else Cancel.
+    //	prompt   OK with the text of h.prompt, or Cancel for null.
+    //	form     The texts of h.fill go into the fields, one after the other,
+    //	         each with an input event. Then OK, or Cancel for null.
+    //	choice   The button with the label of h.choose, or else Cancel.
+    //
+    // h.keepDialogs = true leaves each dialog open for the test.
+    const appendToBody = doc.body.appendChild.bind(doc.body);
+    doc.body.appendChild = function (el) {
+        const out = appendToBody(el);
+        if (el.classList && el.classList.contains('omn-dialog')) {
+            const kind = el.getAttribute('data-omn-dialog');
+            const text = el.querySelector('.omn-dialog-text').textContent;
+            h.dialogs.push({ kind: kind, text: text });
+            if (!h.keepDialogs) setTimeout(function () { answerDialog(el, kind, text); }, 0);
+        }
+        return out;
+    };
+    function answerDialog(el, kind, text) {
+        if (!el.parentNode) return;
+        const ok = el.querySelector('[data-omn-default]');
+        const cancel = el.querySelector('[data-omn-cancel]') || ok;
+        if (kind === 'alert') {
+            ok.click();
+        } else if (kind === 'confirm') {
+            (h.confirm(text) ? ok : cancel).click();
+        } else if (kind === 'prompt') {
+            const input = el.querySelector('.omn-dialog-input');
+            const value = h.prompt(text, input.value);
+            if (value === null || value === undefined) {
+                cancel.click();
+            } else {
+                input.value = String(value);
+                ok.click();
+            }
+        } else if (kind === 'form') {
+            const inputs = el.querySelectorAll('.omn-dialog-input');
+            const values = h.fill(text, inputs.map(function (i) { return i.value; }));
+            if (!values) {
+                cancel.click();
+                return;
+            }
+            values.forEach(function (value, index) {
+                if (value === undefined || value === null) return;
+                inputs[index].value = String(value);
+                inputs[index].dispatchEvent(new Event('input', { bubbles: true }));
+            });
+            ok.click();
+        } else {
+            const label = h.choose(text);
+            const chosen = el.querySelectorAll('button').find(function (b) {
+                return b.textContent === label;
+            });
+            (chosen || cancel).click();
+        }
+    }
 
     // A script element that a script adds to the head is a lazy file. The
     // page runs that file and then calls onload, the same as a browser. A
@@ -384,9 +448,9 @@ function systemPage(templateName, script, server, opts) {
 }
 
 // editorPage answers the editor page with text as the note, after the load
-// events and the load of the note. The editor is a page of its own: it has
-// the markup of editor.html and the script omn-go-editor.js, and no other
-// script of the application.
+// events and the load of the note. The editor is a page of its own. It has
+// the markup of editor.html and two scripts: omn-go-dialog.js and
+// omn-go-editor.js. It has no other script of the application.
 //
 // opts.search is the query of the address, for example "?line=3".
 // opts.storage gives the values that localStorage holds before the load.
@@ -439,7 +503,7 @@ async function editorPage(text, opts) {
         }
         return { status: 'success' };
     };
-    h.load(['omn-go-editor.js']).ready();
+    h.load(['omn-go-dialog.js', 'omn-go-editor.js']).ready();
     await h.settle();
     return h;
 }

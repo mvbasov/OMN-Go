@@ -183,13 +183,13 @@ window.OMN.action('config-reveal', async function (btn) {
     try {
         const res = await fetch('/api/config');
         if (res.status === 401 || res.status === 403) {
-            alert('Log in as admin on a note page to read the passwords.');
+            await window.omnAlert('Log in as admin on a note page to read the passwords.');
             return;
         }
-        if (!res.ok) { alert('Failed to read the configuration: ' + res.status); return; }
+        if (!res.ok) { await window.omnAlert('Could not read the configuration: ' + res.status); return; }
         cfg = await res.json();
     } catch (e) {
-        alert('Network error: ' + e);
+        await window.omnAlert('Network error: ' + e);
         return;
     }
 
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Each Save button of the page. See OMN.action in omn-go-core.js.
 window.OMN.action('config-save', async function () {
     const form = document.getElementById('omn-config-form');
-    if (!form) { alert('Config form not found'); return; }
+    if (!form) { await window.omnAlert('The configuration form is not on the page.'); return; }
     const fd = new FormData(form);
     // A secret box that the reader did not touch carries no meaning,
     // thus it must not reach the server at all. See the note above.
@@ -237,7 +237,7 @@ window.OMN.action('config-save', async function () {
             if (body === 'RestartRequired') {
                 // ShareLAN changed: the listen socket is bound once at
                 // startup, so the server must fully restart to rebind.
-                alert('LAN sharing changed - the application will now restart to apply it.\n\nDesktop: this page reloads automatically in a few seconds.\nAndroid: the app will close; reopen it manually.');
+                await window.omnAlert('LAN sharing changed. The application restarts to apply the change.\n\nDesktop: this page loads again after a few seconds.\nAndroid: the app closes. Open it again.');
                 try { await fetch('/api/restart', { method: 'POST' }); } catch (e) { /* connection drops as the server exits - expected */ }
                 // Desktop: the replacement process is up within ~1-3s
                 // (bind retry included); reload to reconnect. On
@@ -246,13 +246,13 @@ window.OMN.action('config-save', async function () {
                 setTimeout(function(){ window.location.reload(); }, 3000);
                 return;
             }
-            alert('Configuration saved. Reloading...');
+            await window.omnAlert('Configuration saved. The page loads again.');
             window.location.reload();
         } else {
             let msg = await res.text();
-            alert('Failed to save configuration: ' + msg);
+            await window.omnAlert('Could not save the configuration: ' + msg);
         }
     } catch (e) {
-        alert('Network error: ' + e);
+        await window.omnAlert('Network error: ' + e);
     }
 });
