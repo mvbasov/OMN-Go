@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.30. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.31. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -88,7 +88,7 @@ There are five paths. Before you add a feature, find which path it uses.
 4. **Android to backend.** Java calls a Go function through the `Backend` class, or it sends an HTTP request. Examples: `Backend.startServer` in [`ServerService.java`](../android/app/src/main/java/net/basov/omngo/ServerService.java), and `POST /api/quick` in [`ShareIn.java`](../android/app/src/main/java/net/basov/omngo/ShareIn.java).
 5. **Android to frontend.** Java opens a page with a parameter in the address, or it calls a script function. Examples: `?quicknote=1` in [`MainActivity.java`](../android/app/src/main/java/net/basov/omngo/MainActivity.java), and `omnGoInsertCapture` in [`IntentBridge.java`](../android/app/src/main/java/net/basov/omngo/IntentBridge.java).
 
-Android also reads four settings directly from the file `config.json`. See [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java).
+Android also reads six settings directly from the file `config.json`, with one parser. See [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java).
 
 The Go functions that Java can call are all in one file: [`backend/backend.go`](../backend/backend.go). The build tool gomobile makes the Java class `Backend` from that file.
 
@@ -232,7 +232,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 - Endpoints: `GET /api/config`, `POST /api/config`, `POST /api/restart`.
 - Go: `serveConfigPage`, `handleConfigPost`, `applyConfigChange` in [`app/config_handlers.go`](../backend/internal/app/config_handlers.go). The page: [`app/config_page.go`](../backend/internal/app/config_page.go).
 - The settings themselves: the type `Config` in [`config/config.go`](../backend/internal/config/config.go). `config.Load` reads `config.json`, and `config.Save` is its only writer. The table of the fields: `configFields` in [`config/fields.go`](../backend/internal/config/fields.go). The values of the page: [`config/page_values.go`](../backend/internal/config/page_values.go).
-- Android: [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java) reads `config.json` directly for four settings.
+- Android: [`OmnConfig.java`](../android/app/src/main/java/net/basov/omngo/OmnConfig.java) reads `config.json` directly for six settings. `ServerService` reads `share_lan` and `server_port` through it.
 
 ### 5.4 Git sync
 

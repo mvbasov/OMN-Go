@@ -10,11 +10,12 @@ import java.util.Map;
 // The Android reader of config.json
 // ----------------------------------------------------------------------
 //
-// Four settings reach the Android layer through the file and not through
-// the Go HTTP server: android_fullscreen, enable_intent_uri,
-// enable_termux_intent and max_upload_size_mb. MainActivity reads each one
-// at the moment it needs it. A change on the Config page therefore applies
+// Six settings reach the Android layer through the file and not through
+// the Go HTTP server. MainActivity reads android_fullscreen,
+// enable_intent_uri, enable_termux_intent and max_upload_size_mb at the
+// moment it needs each one. A change on the Config page therefore applies
 // at the next tap, and it needs no restart of the application.
+// ServerService reads share_lan and server_port before it starts the server.
 //
 // THIS CLASS IS THE ONE READER. A copy of the reader for each setting
 // would carry its own default. A change of a default would then be a
@@ -126,6 +127,16 @@ final class OmnConfig {
         if (!(v instanceof Number)) return DEFAULT_MAX_UPLOAD_MB;
         int mb = ((Number) v).intValue();
         return mb > 0 ? mb : DEFAULT_MAX_UPLOAD_MB;
+    }
+
+    // port answers the server_port of config.json. An absent key, a value
+    // that is not a number and a value below 1 each give def. def is the
+    // default port of the flavor, which only the caller knows.
+    static int port(String storageDir, int def) {
+        Object v = read(storageDir).get("server_port");
+        if (!(v instanceof Number)) return def;
+        int port = ((Number) v).intValue();
+        return port > 0 ? port : def;
     }
 
     // ------------------------------------------------------------------

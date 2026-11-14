@@ -36,6 +36,7 @@ public final class OmnConfigTest {
         aDamagedFile(dir);
         aValueOfTheWrongType(dir);
         theNestedValues(dir);
+        theServerSettings(dir);
         theEscapes();
 
         if (failures > 0) {
@@ -90,6 +91,29 @@ public final class OmnConfigTest {
 
         File off = write(dir, "off", "{\"android_fullscreen\":\"off\"}");
         eq("off: fullscreen", "off", OmnConfig.fullscreenMode(off.getPath()));
+    }
+
+    // The two settings that ServerService reads before it starts the
+    // server. A wrong port makes the WebView ask a port where nothing
+    // listens, thus each bad value must give the default of the flavor.
+    private static void theServerSettings(File dir) throws Exception {
+        File empty = new File(dir, "server-empty");
+        empty.mkdirs();
+        eq("no file: port", 8081, OmnConfig.port(empty.getPath(), 8081));
+        eq("no file: share_lan", false, OmnConfig.flag(empty.getPath(), "share_lan"));
+
+        File d = write(dir, "server", "{\"server_port\":9090,\"share_lan\":true}");
+        eq("port 9090", 9090, OmnConfig.port(d.getPath(), 8080));
+        eq("share_lan true", true, OmnConfig.flag(d.getPath(), "share_lan"));
+
+        File off = write(dir, "server-off", "{\"share_lan\":false}");
+        eq("share_lan false", false, OmnConfig.flag(off.getPath(), "share_lan"));
+
+        String[] bad = {"0", "-1", "\"8080\"", "null"};
+        for (int i = 0; i < bad.length; i++) {
+            File b = write(dir, "port-" + i, "{\"server_port\":" + bad[i] + "}");
+            eq("port " + bad[i], 8080, OmnConfig.port(b.getPath(), 8080));
+        }
     }
 
     // A file that a crash cut in half. Each reader answers its default,
