@@ -93,7 +93,7 @@ func (svc Service) HandleSync(w http.ResponseWriter, r *http.Request) {
 func (svc Service) HandleSyncPreview(w http.ResponseWriter, r *http.Request) {
 	action := r.URL.Query().Get("action")
 	if action != "upload" {
-		http.Error(w, "Only upload preview supported", 400)
+		svc.writeJSONError(w, http.StatusBadRequest, "Only upload preview supported")
 		return
 	}
 
@@ -103,12 +103,12 @@ func (svc Service) HandleSyncPreview(w http.ResponseWriter, r *http.Request) {
 
 	repo, err := svc.GetOrInitRepo()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Repo init failed: %v", err), 500)
+		svc.writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Repo init failed: %v", err))
 		return
 	}
 	wTree, err := Worktree(repo)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Worktree error: %v", err), 500)
+		svc.writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Worktree error: %v", err))
 		return
 	}
 
@@ -119,7 +119,7 @@ func (svc Service) HandleSyncPreview(w http.ResponseWriter, r *http.Request) {
 
 	status, err := wTree.Status()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Status error: %v", err), 500)
+		svc.writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Status error: %v", err))
 		return
 	}
 

@@ -161,6 +161,14 @@ func TestStatusSectionsParameter(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("unknown section: status %d, want 400", rec.Code)
 	}
+	// /api/status answers JSON, thus its error is JSON too, and it names
+	// the section that it does not know.
+	var got struct{ Status, Message string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || got.Status != "error" ||
+		!strings.Contains(got.Message, "sarch") {
+		t.Errorf("unknown section: the body is %q (%v), want a JSON error that names sarch",
+			rec.Body.String(), err)
+	}
 }
 
 // The storage section counts each group of files in one walk.

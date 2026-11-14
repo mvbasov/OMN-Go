@@ -94,15 +94,15 @@ A JSON endpoint answers an error in one of three shapes:
 
 1. `{"status": "error", "message": "..."}` with a 4xx or 5xx code.
    `writeJSONError` writes this shape. `/api/db/*`, `/api/sql`,
-   `/api/sync/trust-host-key` and the two note exchange endpoints use it.
+   `/api/sync/trust-host-key`, `/api/sync/preview`, `/api/status` and the two
+   note exchange endpoints use it.
    `/api/sql` can also send `failed_statement`.
 2. The same shape with the code `200`. `/api/sync` uses it, because the
    status word carries the result. Section 4.11 lists each status word.
 3. The normal answer object with `status` and `error` set. `/api/search`
    uses it.
 
-`/api/status`, `/api/sync/preview` and `/api/logs/history` answer an error
-with `http.Error`, as plain text.
+`/api/logs/history` has no error answer.
 
 **Cache-Control.** Each response carries `Cache-Control: no-cache`. The header
 is set in `connectionMiddleware` (`backend/internal/app/middleware.go`). That
@@ -1875,6 +1875,9 @@ there is anything to push. It commits nothing.
 | --- | --- | --- | --- |
 | `action` | string | yes | Must be `upload` — nothing else is supported |
 
+Another `action` answers `400`. A repository that the server cannot open or
+read answers `500`. Each error is `{"status": "error", "message": "..."}`.
+
 The endpoint takes the files from `git status`. It removes anything that
 the ignore rules match (see "The ignore rules" above), and it removes the
 root `config.json`. The
@@ -1968,7 +1971,7 @@ at once and run a progress bar over the slow request alone. `git_dirty`
 writes one `[status]` line to the log stream before it starts.
 
 `sections=all` selects each section, the two slow ones included. An unknown
-section name answers `400`.
+section name answers `400` with `{"status": "error", "message": "unknown section: <names>"}`.
 
 `format=md` answers with the same facts as a Markdown document, with the
 content type `text/plain; charset=utf-8`. A browser paints `text/plain`,

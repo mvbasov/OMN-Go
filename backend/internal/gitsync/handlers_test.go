@@ -809,6 +809,12 @@ func TestSyncPreviewAnswersARepositoryFault(t *testing.T) {
 		t.Errorf("the body is %q, and it does not name the step that failed",
 			w.Body.String())
 	}
+	// The route answers JSON, thus its error is JSON too. A caller then
+	// reads every answer of the route with one parser.
+	var got struct{ Status, Message string }
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil || got.Status != "error" {
+		t.Errorf("the error is not {\"status\":\"error\"}: %q (%v)", w.Body.String(), err)
+	}
 }
 
 // ghHas tells whether a list holds one exact value.

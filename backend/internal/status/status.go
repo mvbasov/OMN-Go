@@ -249,7 +249,10 @@ func (svc Service) HandleStatus(w http.ResponseWriter, r *http.Request) {
 
 	want, unknown := parseStatusSections(r.URL.Query().Get("sections"))
 	if len(unknown) > 0 {
-		http.Error(w, "unknown section: "+strings.Join(unknown, ", "), http.StatusBadRequest)
+		svc.writeJSON(w, http.StatusBadRequest, render.JSONStatus{
+			Status:  "error",
+			Message: "unknown section: " + strings.Join(unknown, ", "),
+		})
 		return
 	}
 
