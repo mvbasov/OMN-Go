@@ -309,10 +309,7 @@ if (window.location.protocol !== 'file:') {
         });
     }
 
-    omnLazyActions('omn-go-sync.js', [
-        'sync', 'sync-resolve', 'push-force', 'push-cancel',
-        'commit-upload', 'commit-cancel',
-    ]);
+    omnLazyActions('omn-go-sync.js', ['sync']);
     omnLazy('omn-go-bookmark.js', ['handleShare', 'showBookmarkPanel']);
     omnLazyActions('omn-go-bookmark.js', ['bookmark-panel']);
     omnLazy('omn-go-search.js', ['omnSearchOpen']);
@@ -893,13 +890,12 @@ if (window.location.protocol !== 'file:') {
     console.warn("OMN-Go: Page opened locally. Server Extensions (Sync/SSE) safely disabled.");
 
     // The actions of the guarded block above. A control that needs the
-    // server is hidden on such a page, thus a stub is enough. The last seven
+    // server is hidden on such a page, thus a stub is enough. The last two
     // names are the actions of the lazy files. A page from disk never loads
     // such a file.
     [
         'login', 'new-page', 'quick-note-save', 'bookmark-save', 'search',
-        'bookmark-panel', 'sync', 'sync-resolve', 'push-force', 'push-cancel',
-        'commit-upload', 'commit-cancel',
+        'bookmark-panel', 'sync',
     ].forEach(function (name) {
         window.OMN.action(name, function () { printDebug(name); });
     });

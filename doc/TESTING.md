@@ -149,9 +149,11 @@ A dialog of `omn-go-dialog.js` goes into `h.dialogs` as `{kind, text}`. After
 one timer turn, the page presses a button of the dialog. `h.confirm(text)`
 chooses OK or Cancel, `h.prompt(text, value)` gives the text of the field or
 null for Cancel, and `h.choose(text)` gives the label of a button.
-`h.fill(text, values)` gives the texts of the fields of a form, or null for
+`h.fill(text, values)` gives the texts of the fields of each other dialog
+with fields, for example the New page form or the commit dialog, or null for
 Cancel. The page types each text with an input event. A test that presses
-the buttons itself sets `h.keepDialogs = true`.
+the buttons itself sets `h.keepDialogs = true`. The attribute
+`data-omn-dialog` of the dialog holds its kind.
 
 `configPage()` builds the Config page from `config_page.html` and two git
 server cards, and it also loads `omn-go-config.js`. `mini-dom.js` has

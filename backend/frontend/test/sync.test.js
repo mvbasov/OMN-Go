@@ -108,8 +108,26 @@ test('the progress overlay shows the stage of the server and closes at the end',
     assert.strictEqual(h.$('.omn-progress-detail').textContent, 'Committing 3 files');
 });
 
-test('a conflict opens the modal with the files, and each button does its work', async () => {
+// openDialog answers the open dialog of a kind, or null. A test that
+// presses the buttons itself sets h.keepDialogs.
+function openDialog(h, kind) {
+    return h.document.querySelector('.omn-dialog[data-omn-dialog="' + kind + '"]');
+}
+
+// pressLabel presses the button of a dialog with that label. A button with
+// a hint holds the label in .omn-dialog-button-label.
+function pressLabel(dialog, label) {
+    const button = dialog.querySelectorAll('button').find(function (b) {
+        const first = b.querySelector('.omn-dialog-button-label');
+        return (first ? first.textContent : b.textContent) === label;
+    });
+    assert.ok(button, 'no button ' + label);
+    button.click();
+}
+
+test('a conflict shows the files, and each button does its work', async () => {
     const h = notePage();
+    h.keepDialogs = true;
     h.server = serverWith({
         '/api/sync': function (r) {
             return r.body === 'action=download'
@@ -119,77 +137,89 @@ test('a conflict opens the modal with the files, and each button does its work',
     });
     h.press(DOWNLOAD);
     await h.settle();
-    assert.strictEqual(h.hidden('#omn-conflict-modal'), false, 'the conflict modal did not open');
-    const items = h.document.querySelectorAll('#omn-conflict-file-list li');
-    assert.deepStrictEqual(items.map(function (li) { return li.textContent; }), ['md/A.md', 'md/<b>.md']);
+    let dialog = openDialog(h, 'conflict');
+    assert.ok(dialog, 'the conflict dialog did not open');
+    const items = dialog.querySelectorAll('.omn-dialog-list li').map(function (li) { return li.textContent; });
+    assert.strictEqual(items.join('|'), 'md/A.md|md/<b>.md');
     // A file name is text. It must not become markup.
-    assert.strictEqual(h.document.querySelectorAll('#omn-conflict-file-list b').length, 0);
+    assert.strictEqual(dialog.querySelectorAll('b').length, 0);
+    // Enter never starts a destructive action: Abort is the default.
+    assert.strictEqual(dialog.querySelector('[data-omn-default]').textContent, 'Abort');
+    assert.ok(dialog.querySelector('button').classList.contains('omn-btn-danger'), 'Force Pull is not red');
 
-    // Abort closes the modal and sends NOTHING.
-    h.press('[data-action="sync-resolve"][data-arg="abort"]');
+    // Abort closes the dialog and sends NOTHING.
+    pressLabel(dialog, 'Abort');
     await h.settle();
-    assert.strictEqual(h.hidden('#omn-conflict-modal'), true);
+    assert.strictEqual(openDialog(h, 'conflict'), null);
     assert.deepStrictEqual(syncPosts(h), ['action=download']);
 
     // Mark Conflicts sends pull_mark, and the page loads again.
-    h.$('#omn-conflict-modal').classList.remove('omn-hidden');
-    h.press('[data-action="sync-resolve"][data-arg="pull_mark"]');
+    h.press(DOWNLOAD);
     await h.settle();
-    assert.deepStrictEqual(syncPosts(h), ['action=download', 'action=pull_mark']);
+    pressLabel(openDialog(h, 'conflict'), 'Mark Conflicts in Files');
+    await h.settle();
+    assert.deepStrictEqual(syncPosts(h).slice(1), ['action=download', 'action=pull_mark']);
     assert.strictEqual(h.page.location.reloads, 1);
 
     // Force Pull sends pull_force.
-    h.press('[data-action="sync-resolve"][data-arg="pull_force"]');
+    h.press(DOWNLOAD);
     await h.settle();
-    assert.deepStrictEqual(syncPosts(h).slice(2), ['action=pull_force']);
+    pressLabel(openDialog(h, 'conflict'), 'Force Pull (Reset to Remote)');
+    await h.settle();
+    assert.deepStrictEqual(syncPosts(h).slice(3), ['action=download', 'action=pull_force']);
+    assert.strictEqual(h.page.location.reloads, 2);
 });
 
 test('a conflict with no file says that Force Pull is the answer', async () => {
     const h = notePage();
+    h.keepDialogs = true;
     h.server = serverWith({ '/api/sync': { status: 'conflict', files: [] } });
     h.press(DOWNLOAD);
     await h.settle();
-    const items = h.document.querySelectorAll('#omn-conflict-file-list li');
-    assert.strictEqual(items.length, 1);
-    assert.ok(items[0].textContent.indexOf('Force Pull') >= 0, items[0].textContent);
+    const dialog = openDialog(h, 'conflict');
+    assert.strictEqual(dialog.querySelector('.omn-dialog-list'), null);
+    const text = dialog.querySelector('.omn-dialog-p').textContent;
+    assert.ok(text.indexOf('Force Pull') >= 0, text);
 });
 
 test('an upload shows the files and sends the commit message', async () => {
     const h = notePage();
+    h.keepDialogs = true;
     h.server = serverWith({
         '/api/sync/preview': { files: ['md/A.md', 'md/B.md'], unpushed: false },
     });
     h.press(UPLOAD);
     await h.settle();
-    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'flex');
-    assert.strictEqual(h.$('#omn-commit-file-list').textContent, 'md/A.md\nmd/B.md');
+    const dialog = openDialog(h, 'commit');
+    assert.ok(dialog, 'the commit dialog did not open');
+    const items = dialog.querySelectorAll('.omn-dialog-list li').map(function (li) { return li.textContent; });
+    assert.strictEqual(items.join('|'), 'md/A.md|md/B.md');
     assert.deepStrictEqual(syncPosts(h), [], 'the upload went out before the person gave a message');
 
-    // An empty message sends nothing.
-    h.$('#omn-commit-message').value = '   ';
-    h.press('[data-action="commit-upload"]');
+    // An empty message sends nothing, and the dialog stays open.
+    const message = dialog.querySelector('textarea');
+    message.value = '   ';
+    pressLabel(dialog, 'Commit & Push');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), []);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Enter a commit message.');
+    assert.strictEqual(openDialog(h, 'commit'), dialog);
+    assert.strictEqual(dialog.querySelector('.omn-dialog-error').textContent, 'Enter a commit message.');
 
-    h.$('#omn-commit-message').value = '  two notes  ';
-    h.press('[data-action="commit-upload"]');
+    message.value = '  two notes  ';
+    pressLabel(dialog, 'Commit & Push');
     await h.settle();
     assert.deepStrictEqual(syncPosts(h), ['action=upload&message=two+notes']);
-    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'none');
-    assert.strictEqual(h.$('#omn-commit-message').value, '', 'the old message stays in the box');
+    assert.strictEqual(openDialog(h, 'commit'), null);
 });
 
-test('Cancel of the commit modal sends nothing', async () => {
+test('Cancel of the commit dialog sends nothing', async () => {
     const h = notePage();
     h.server = serverWith({ '/api/sync/preview': { files: ['md/A.md'] } });
+    h.fill = function () { return null; };
     h.press(UPLOAD);
     await h.settle();
-    h.$('#omn-commit-message').value = 'not this time';
-    h.press('[data-action="commit-cancel"]');
-    await h.settle();
-    assert.strictEqual(h.$('#omn-commit-modal').style.display, 'none');
-    assert.strictEqual(h.$('#omn-commit-message').value, '');
+    assert.strictEqual(h.dialogs[0].kind, 'commit');
+    assert.strictEqual(openDialog(h, 'commit'), null);
     assert.deepStrictEqual(syncPosts(h), []);
 });
 
@@ -198,9 +228,9 @@ test('an upload with a clean tree pushes the commits that the remote does not ha
     h.server = serverWith({ '/api/sync/preview': { files: [], unpushed: true } });
     h.press(UPLOAD);
     await h.settle();
-    // No commit, thus no message and no modal.
+    // No commit, thus no message and no commit dialog.
     assert.deepStrictEqual(syncPosts(h), ['action=upload']);
-    assert.notStrictEqual(h.$('#omn-commit-modal').style.display, 'flex');
+    assert.strictEqual(h.dialogs.filter(function (d) { return d.kind === 'commit'; }).length, 0);
 });
 
 test('an upload with nothing to do names the remote', async () => {
@@ -241,57 +271,70 @@ test('a rejected push keeps the message for the force push', async () => {
             return r.body.indexOf('action=upload') === 0 ? { status: 'push_conflict' } : { status: 'success' };
         },
     });
+    h.fill = function () { return ['my change']; };
+    h.choose = function (text) { return text.indexOf('rejected the push') >= 0 ? 'Force Push' : null; };
     h.press(UPLOAD);
-    await h.settle();
-    h.$('#omn-commit-message').value = 'my change';
-    h.press('[data-action="commit-upload"]');
-    await h.settle();
-    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), false, 'the push modal did not open');
-
-    h.press('[data-action="push-force"]');
-    await h.settle();
-    assert.deepStrictEqual(syncPosts(h).slice(1), ['action=push_force&message=my+change']);
-    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), true);
+    await h.settle(8);
+    assert.deepStrictEqual(syncPosts(h), ['action=upload&message=my+change', 'action=push_force&message=my+change']);
     // The person did not have to type the message again.
-    assert.strictEqual(h.dialogs.filter(function (d) { return d.kind === 'prompt'; }).length, 0);
+    assert.deepStrictEqual(h.dialogs.map(function (d) { return d.kind; }), ['commit', 'push-conflict', 'confirm']);
 });
 
-test('a force push with no message asks for one, and no message sends nothing', async () => {
-    const h = notePage();
-    h.server = serverWith({
+test('a force push with no message asks for one, and Cancel sends nothing', async () => {
+    const server = serverWith({
         '/api/sync/preview': { files: [], unpushed: true },
         '/api/sync': function (r) {
             return r.body === 'action=upload' ? { status: 'push_conflict' } : { status: 'success' };
         },
     });
-    h.press(UPLOAD);
-    await h.settle();
-    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), false);
+    const forcePush = function () { return 'Force Push'; };
 
     // The person cancels the question.
-    h.press('[data-action="push-force"]');
-    await h.settle();
-    assert.deepStrictEqual(syncPosts(h), ['action=upload']);
-    assert.strictEqual(h.dialogs[h.dialogs.length - 1].text, 'Force push canceled: no commit message.');
+    const no = notePage();
+    no.server = server;
+    no.choose = forcePush;
+    no.press(UPLOAD);
+    await no.settle(8);
+    assert.deepStrictEqual(syncPosts(no), ['action=upload']);
+    assert.strictEqual(no.dialogs[no.dialogs.length - 1].kind, 'force-push-message');
+
+    // An empty message keeps the dialog open with an error, and sends
+    // nothing.
+    const empty = notePage();
+    empty.server = server;
+    empty.choose = forcePush;
+    empty.fill = function () { return ['   ']; };
+    empty.press(UPLOAD);
+    await empty.settle(8);
+    assert.deepStrictEqual(syncPosts(empty), ['action=upload']);
+    const open = openDialog(empty, 'force-push-message');
+    assert.strictEqual(open.querySelector('.omn-dialog-error').textContent, 'Enter a commit message.');
 
     // The person gives a message.
-    h.$('#omn-push-conflict-modal').classList.remove('omn-hidden');
-    h.prompt = function () { return '  overwrite the remote '; };
-    h.press('[data-action="push-force"]');
-    await h.settle();
-    assert.deepStrictEqual(syncPosts(h).slice(1), ['action=push_force&message=overwrite+the+remote']);
+    const yes = notePage();
+    yes.server = server;
+    yes.choose = forcePush;
+    yes.fill = function () { return ['  overwrite the remote ']; };
+    yes.press(UPLOAD);
+    await yes.settle(8);
+    assert.deepStrictEqual(syncPosts(yes), ['action=upload', 'action=push_force&message=overwrite+the+remote']);
 });
 
-test('Abort of the push modal sends nothing', async () => {
+test('Abort of the push dialog sends nothing', async () => {
     const h = notePage();
-    h.press(DOWNLOAD);
+    h.keepDialogs = true;
+    h.server = serverWith({
+        '/api/sync/preview': { files: [], unpushed: true },
+        '/api/sync': { status: 'push_conflict' },
+    });
+    h.press(UPLOAD);
     await h.settle();
-    h.requests.length = 0;
-    h.$('#omn-push-conflict-modal').classList.remove('omn-hidden');
-    h.press('[data-action="push-cancel"]');
+    const dialog = openDialog(h, 'push-conflict');
+    assert.strictEqual(dialog.querySelector('[data-omn-default]').textContent, 'Abort');
+    pressLabel(dialog, 'Abort');
     await h.settle();
-    assert.strictEqual(h.hidden('#omn-push-conflict-modal'), true);
-    assert.deepStrictEqual(h.requests, []);
+    assert.strictEqual(openDialog(h, 'push-conflict'), null);
+    assert.deepStrictEqual(syncPosts(h), ['action=upload']);
 });
 
 test('a changed host key is stored only after OK, and the sync runs again', async () => {

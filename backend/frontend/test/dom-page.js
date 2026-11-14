@@ -238,10 +238,12 @@ function newDomPage(opts) {
     //	alert    OK.
     //	confirm  OK when h.confirm answers true, and else Cancel.
     //	prompt   OK with the text of h.prompt, or Cancel for null.
-    //	form     The texts of h.fill go into the fields, one after the other,
-    //	         each with an input event. Then OK, or Cancel for null. A
-    //	         field can be an input or a textarea.
-    //	choice   The button with the label of h.choose, or else Cancel.
+    //	fields   Each other dialog with fields, for example "form" or
+    //	         "commit". The texts of h.fill go into the fields, one after
+    //	         the other, each with an input event. Then OK, or Cancel for
+    //	         null. A field can be an input or a textarea.
+    //	choice   Each other dialog. The button with the label of h.choose,
+    //	         or else Cancel.
     //
     // h.keepDialogs = true leaves each dialog open for the test.
     const appendToBody = doc.body.appendChild.bind(doc.body);
@@ -272,7 +274,9 @@ function newDomPage(opts) {
                 input.value = String(value);
                 ok.click();
             }
-        } else if (kind === 'form') {
+        } else if (el.querySelector('.omn-dialog-input')) {
+            // A dialog with fields, for example the New page form or the
+            // commit dialog.
             const inputs = el.querySelectorAll('.omn-dialog-input');
             const values = h.fill(text, inputs.map(function (i) { return i.value; }));
             if (!values) {

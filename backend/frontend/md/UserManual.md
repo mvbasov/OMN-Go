@@ -668,7 +668,8 @@ automatically, a dialog gives three choices:
 - **Mark Conflicts in Files** — writes both versions into the affected
   files, between the `<<<<<<<`, `=======` and `>>>>>>>` markers. Edit the
   files, then upload them.
-- **Abort** — cancels the pull. Nothing has changed.
+- **Abort** — cancels the pull. Nothing has changed. Enter, Escape and
+  the Back key of Android also choose Abort.
 
 **The key of the server.** The first sync with a server stores the key of that server on this device. The [Config](Config) page shows it below the slot as `Server key: SHA256:…`. Compare it with the key that the owner of the server gives you. GitHub, for example, gives its keys in its documentation.
 
@@ -682,7 +683,8 @@ Each later sync checks that the server shows the same key. If the key changed, t
   purpose. If the rejected push had no commit message, the dialog asks
   for one before the force push runs.
 - **Abort** — cancels the push. Your local commit stays in place. Pull
-  the remote changes first, then push again.
+  the remote changes first, then push again. Enter, Escape and the Back
+  key of Android also choose Abort.
 
 ### Files that stay on this device
 

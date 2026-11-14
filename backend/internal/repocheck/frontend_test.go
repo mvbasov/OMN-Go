@@ -122,56 +122,66 @@ func TestDocumentedCoreAPIIsExported(t *testing.T) {
 // A modal that hides by class must have a rule that shows it again
 // ----------------------------------------------------------------------
 //
-// modals.html holds four overlays. Two of them start with the .omn-hidden
-// class, and JS shows each one with classList.remove('omn-hidden'). The other
-// two carry no class, and JS shows each one with style.display.
-//
-// .omn-overlay in omn-go-core.css sets display:none. A modal of the first kind
-// is thus invisible until a rule gives it a display value again.
-//
-// A modal with no such rule never appears. runSync finds the element, thus
-// the confirm() fallback beside it does not run either. A rejected push
-// then gives the reader nothing, and the only report is one line in the
-// log.
-//
-// This test reads the two files. It is a source test, because a browser is
-// what applies a CSS rule, and the test suite holds no CSS engine.
-func TestAnOverlayHiddenByClassCanBeShownAgain(t *testing.T) {
-	markup, err := frontend.Templates.ReadFile("templates/modals.html")
-	if err != nil {
-		t.Fatalf("modals.html is not embedded: %v", err)
-	}
-	css, err := frontend.Static.ReadFile("html/css/OMN-Go/omn-go-core.css")
-	if err != nil {
-		t.Fatalf("omn-go-core.css is not embedded: %v", err)
-	}
+// dialogMarkupAllowed names the overlays that a template can still hold.
+// The login overlay moves to omnDialog in a later version. Then this list
+// is empty.
+var dialogMarkupAllowed = map[string]bool{"omn-login-overlay": true}
 
-	divRe := regexp.MustCompile(`<div\s+id="([^"]+)"\s+class="([^"]*)"`)
-	checked := 0
-	for _, m := range divRe.FindAllStringSubmatch(string(markup), -1) {
-		overlay, hidden := false, false
-		for _, c := range strings.Fields(m[2]) {
-			switch c {
-			case "omn-overlay":
-				overlay = true
-			case "omn-hidden":
-				hidden = true
+// dialogClassRe finds the class omn-overlay or omn-modal as a whole word.
+// The class omn-modal-buttons-row of a panel does not match.
+var dialogClassRe = regexp.MustCompile(`(^|[\s"'])omn-(overlay|modal)([\s"']|$)`)
+
+// divIDRe finds the id of a div that starts on a line.
+var divIDRe = regexp.MustCompile(`<div\s+id="([^"]+)"`)
+
+// TestNoDialogMarkupOutsideOmnDialog keeps each dialog in omnDialog of
+// omn-go-dialog.js. A template or a script that builds an overlay of its
+// own is a second way to make a dialog. Such a dialog misses the queue, the
+// keys and the Back key of omnDialog.
+//
+// The test reads each template and each script of OMN-Go. A line with the
+// class omn-overlay or omn-modal fails, unless it is in omn-go-dialog.js or
+// in an overlay of dialogMarkupAllowed.
+func TestNoDialogMarkupOutsideOmnDialog(t *testing.T) {
+	type source struct{ dir, glob string }
+	scanned := 0
+	for _, src := range []source{{"templates", "templates/*.html"}, {"html/js/OMN-Go", "html/js/OMN-Go/*.js"}} {
+		fsys := frontend.Templates
+		if src.dir != "templates" {
+			fsys = frontend.Static
+		}
+		names, err := fs.Glob(fsys, src.glob)
+		if err != nil || len(names) == 0 {
+			t.Fatalf("no file matches %s: %v", src.glob, err)
+		}
+		for _, name := range names {
+			if strings.HasSuffix(name, ".min.js") || strings.HasSuffix(name, "/omn-go-dialog.js") {
+				continue
+			}
+			data, err := fs.ReadFile(fsys, name)
+			if err != nil {
+				t.Fatalf("read %s: %v", name, err)
+			}
+			scanned++
+			// inside is the id of the allowed overlay that the line is in.
+			inside := ""
+			for i, line := range strings.Split(string(data), "\n") {
+				if m := divIDRe.FindStringSubmatch(line); m != nil {
+					inside = ""
+					if dialogMarkupAllowed[m[1]] {
+						inside = m[1]
+					}
+				}
+				if !dialogClassRe.MatchString(line) || inside != "" {
+					continue
+				}
+				t.Errorf("%s:%d builds a dialog of its own. Use omnDialog of "+
+					"omn-go-dialog.js: %s", name, i+1, strings.TrimSpace(line))
 			}
 		}
-		if !overlay || !hidden {
-			continue
-		}
-		checked++
-		rule := "#" + m[1] + ":not(.omn-hidden)"
-		if !strings.Contains(string(css), rule) {
-			t.Errorf("%s starts hidden by class, and omn-go-core.css holds no "+
-				"%s rule. The overlay stays at display:none, thus the modal "+
-				"never appears.", m[1], rule)
-		}
 	}
-	if checked < 2 {
-		t.Fatalf("the scan found %d overlay that hides by class, and the file "+
-			"holds two. The pattern no longer matches the markup.", checked)
+	if scanned < 5 {
+		t.Fatalf("the scan read %d files. The globs no longer match the tree.", scanned)
 	}
 }
 

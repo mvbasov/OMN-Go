@@ -6,7 +6,7 @@ This document shows where each feature of OMN-Go is in the code. Use it to find 
 
 The document goes from the top to the details. Sections 1 to 4 give the whole picture. Section 5 is the map of the features. Sections 6 to 9 are a reference for each layer. Section 10 holds the procedures for common changes.
 
-State of the tree: version 26.11.19. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
+State of the tree: version 26.11.20. When the code changes, a file name in this document can become wrong. Section 11 shows how to find the place without this document.
 
 ## Contents
 
@@ -236,7 +236,7 @@ Each entry has the same lines. "Page" is what a person sees. "Endpoint" is the a
 
 ### 5.4 Git sync
 
-- Page: the two cloud buttons of the page header. The dialogs `#omn-commit-modal`, `#omn-conflict-modal`, `#omn-push-conflict-modal` in [`templates/modals.html`](../backend/frontend/templates/modals.html).
+- Page: the two cloud buttons of the page header. The dialogs Commit, Merge Conflict and Push Rejected come from `omnDialog`: `askCommitMessage`, `askConflict` and `askPushConflict` in [`omn-go-sync.js`](../backend/frontend/html/js/OMN-Go/omn-go-sync.js).
 - Script: [`omn-go-sync.js`](../backend/frontend/html/js/OMN-Go/omn-go-sync.js). The progress indicator: `OMNProgress` in [`omn-go-core.js`](../backend/frontend/html/js/OMN-Go/omn-go-core.js).
 - Endpoints: `POST /api/sync`, `GET /api/sync/preview`, `POST /api/sync/trust-host-key`.
 - Go: [`app/gitsync_app.go`](../backend/internal/app/gitsync_app.go), then `HandleSync` in [`gitsync/handlers.go`](../backend/internal/gitsync/handlers.go), then `SyncRepo` in [`gitsync/sync.go`](../backend/internal/gitsync/sync.go).

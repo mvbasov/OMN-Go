@@ -28,39 +28,6 @@
         <button data-action="hide-panel" data-arg="omn-bm-panel" class="omn-btn-cancel">Cancel</button>
     </div>
 </div>
-<div id="omn-commit-modal" class="omn-overlay" style="display:none;">
-    <div class="omn-modal" style="width:500px; max-height:80vh; overflow-y:auto;">
-        <h2>Commit Changes</h2>
-        <p>Files to be committed:</p>
-        <pre id="omn-commit-file-list" style="background: var(--omn-bg-inset); color: var(--omn-text); border: 1px solid var(--omn-border); padding:10px; max-height:200px; overflow-y:auto; white-space:pre-wrap;"></pre>
-        <textarea id="omn-commit-message" placeholder="Enter commit message..." style="width:100%; height:80px; margin-top:10px;"></textarea>
-        <div class="omn-modal-buttons-row" style="margin-top:10px;">
-            <button data-action="commit-upload">Commit &amp; Push</button>
-            <button data-action="commit-cancel" class="omn-btn-cancel">Cancel</button>
-        </div>
-    </div>
-</div>
-<div id="omn-conflict-modal" class="omn-overlay omn-hidden">
-    <div class="omn-modal">
-        <h2>Merge Conflict</h2>
-        <p>Local changes conflict with the remote repository. Choose how to resolve this:</p>
-        <div id="omn-conflict-files" class="omn-conflict-files omn-hidden">
-            <p class="omn-conflict-files-title">Files in contention:</p>
-            <ul id="omn-conflict-file-list"></ul>
-        </div>
-        <button data-action="sync-resolve" data-arg="pull_force">Force Pull (Reset to Remote)<br><small>Overwrites tracked files; also deletes local files that are neither tracked nor in .gitignore</small></button>
-        <button data-action="sync-resolve" data-arg="pull_mark">Mark Conflicts in Files<br><small>Injects &lt;&lt;&lt; ==== &gt;&gt;&gt; conflict markers for manual fixing</small></button>
-        <button data-action="sync-resolve" data-arg="abort" class="omn-btn-cancel">Abort Operation</button>
-    </div>
-</div>
-<div id="omn-push-conflict-modal" class="omn-overlay omn-hidden">
-    <div class="omn-modal">
-        <h2>Push Rejected</h2>
-        <p>The remote has newer commits and rejected the push. Pull the remote changes first, or overwrite the remote:</p>
-        <button data-action="push-force">Force Push<br><small>Overwrites the history on the remote to match this device — destructive. Prefer pulling the remote changes first.</small></button>
-        <button data-action="push-cancel" class="omn-btn-cancel">Abort</button>
-    </div>
-</div>
 <!--
   The receive box of the Incoming notes page (note exchange).
 
