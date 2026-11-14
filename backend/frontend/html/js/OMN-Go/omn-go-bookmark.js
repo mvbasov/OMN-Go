@@ -41,8 +41,8 @@ if (window.location.protocol !== 'file:') {
             if (!title) title = "Shared Link";
 
             document.getElementById('omn-bm-title').value = title;
+            // showBookmarkPanel also hides the Quick Note panel.
             window.showBookmarkPanel();
-            document.getElementById('omn-quick-panel').classList.add('omn-hidden');
         } else {
             // No URL -> Route to Quick Note Panel
             let content = '';
@@ -50,8 +50,7 @@ if (window.location.protocol !== 'file:') {
             if (text) content += text;
 
             document.getElementById('omn-quick-text').value = content.trim();
-            document.getElementById('omn-quick-panel').classList.remove('omn-hidden');
-            document.getElementById('omn-bm-panel').classList.add('omn-hidden');
+            window.omnShowPanel('omn-quick-panel');
         }
     };
     // --- Bookmark "Tags" autocomplete ---
@@ -76,10 +75,10 @@ if (window.location.protocol !== 'file:') {
     // every page load. Most page views never touch this panel.
     //
     // window.showBookmarkPanel() and the bookmark-panel action below are the
-    // only places that reveal #omn-bm-panel. The "add bookmark" button of the header,
-    // the URL drag-and-drop handler and window.handleShare all go through one
-    // of them now. None pokes the classList of #omn-bm-panel directly. "The modal
-    // is opening" is thus caught in exactly one place.
+    // only places that open #omn-bm-panel. The "add bookmark" button of the
+    // header, the URL drag-and-drop handler and window.handleShare all go
+    // through one of them. Each one opens the panel with omnShowPanel or
+    // omnTogglePanel of omn-go-core.js, and then prepares the tag list.
     (function () {
         var tagsCache = null;    // null until prepared; array once loaded (even if empty)
         var tagsPromise = null;  // in-flight fetch, if any
@@ -203,6 +202,10 @@ if (window.location.protocol !== 'file:') {
                     e.preventDefault();
                     pick(items[activeIndex].textContent);
                 } else if (e.key === 'Escape') {
+                    // The first Escape hides only the suggestions. The
+                    // listener of omn-go-api.js then skips this key, and
+                    // the panel stays open.
+                    e.preventDefault();
                     hide();
                 }
             });
@@ -215,9 +218,7 @@ if (window.location.protocol !== 'file:') {
         // Unconditionally shows #omn-bm-panel (used by drag-and-drop and
         // handleShare, which only ever want it open, never toggled).
         window.showBookmarkPanel = function () {
-            var panel = document.getElementById('omn-bm-panel');
-            if (!panel) return;
-            panel.classList.remove('omn-hidden');
+            if (!window.omnShowPanel('omn-bm-panel')) return;
             wireBookmarkTagAutocomplete();
             ensureTagsLoaded();
         };
@@ -227,11 +228,7 @@ if (window.location.protocol !== 'file:') {
         // transition into "visible" - closing the panel does nothing extra.
         // See OMN.action in omn-go-core.js.
         window.OMN.action('bookmark-panel', function () {
-            var panel = document.getElementById('omn-bm-panel');
-            if (!panel) return;
-            var opening = panel.classList.contains('omn-hidden');
-            panel.classList.toggle('omn-hidden');
-            if (opening) {
+            if (window.omnTogglePanel('omn-bm-panel')) {
                 wireBookmarkTagAutocomplete();
                 ensureTagsLoaded();
             }

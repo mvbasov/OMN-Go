@@ -329,13 +329,13 @@ public class MainActivity extends Activity {
             // Welcome.html with ?quicknote=1. This branch only pops the
             // panel open on whatever page is already showing. A reload here
             // would throw away the current page, which is what the
-            // shared-text branch below avoids for a warm start. The `p &&`
-            // guard makes a silent no-op when the current page has no
-            // #omn-quick-panel at all, for example mid-edit on editor.html. That
-            // mirrors the caveat noted for window.handleShare.
+            // shared-text branch below avoids for a warm start. omnShowPanel
+            // of omn-go-core.js opens the panel. A page without that
+            // function or without the panel, for example editor.html, does
+            // nothing.
             if (webView != null) {
                 webView.evaluateJavascript(
-                    "javascript:(function(){ var p=document.getElementById('omn-quick-panel'); if(p) p.classList.remove('omn-hidden'); })();",
+                    "(function(){ if (typeof window.omnShowPanel==='function') window.omnShowPanel('omn-quick-panel'); })();",
                     null);
             }
         } else if (shareIn.isSharedNoteIntent(intent)) {
@@ -374,9 +374,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    // The page gets the Back key first. omnCloseTopLayer in omn-go-dialog.js
-    // cancels an open dialog and answers true. A page without that file, or
-    // with no open dialog, answers false, and the WebView goes back.
+    // The page gets the Back key first. omnCloseTopLayer of omn-go-core.js
+    // closes the top layer (a dialog, the search overlay or a panel) and
+    // answers true. With no open layer it answers false, and the WebView goes
+    // back. The editor page has only the dialog part, in omn-go-dialog.js.
     private static final String CLOSE_TOP_LAYER_JS =
         "(function(){ try{ return typeof window.omnCloseTopLayer==='function' && "
         + "window.omnCloseTopLayer()===true; }catch(e){ return false; } })();";

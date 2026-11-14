@@ -174,7 +174,7 @@ loads `Bookmarker.js` after the scripts of `index.html`, with `bookmarks`
 as the list of the note. `opts.search` and `opts.hash` are the query and
 the fragment of the address, and `opts.storage` fills `localStorage`.
 
-Sixteen test files use these pages:
+Seventeen test files use these pages:
 
 | File | What it holds |
 | --- | --- |
@@ -189,7 +189,8 @@ Sixteen test files use these pages:
 | `bookmarker.test.js` | The bookmark page of `Bookmarker.js`: the list, the tags, the search, the address of the page and the options of the device. |
 | `nav.test.js` | The four answers to a press on a link of a note. The overlay of a slow page shows after 300 ms, and only for a press that leaves the page. |
 | `share.test.js` | The metadata panel writes each value as text. Send, the two copy controls, and the two ways to the clipboard. |
-| `dbbackups.test.js` | The Database Backups page: the list, and the dialogs of Backup and Restore. Cancel sends nothing, and Cancel is the default of Restore. |
+| `db.test.js` | The Database Backups page: the list, and the dialogs of Backup and Restore. Cancel sends nothing, and Cancel is the default of Restore. |
+| `panels.test.js` | One panel at a time, each way to open a panel, and the top layer: a dialog, then the search overlay, then a panel. Escape and the Back key. |
 | `status.test.js` | The Status page asks for a slow section only on a press. Each kind of value has its form, and each value is text. |
 | `logs-page.test.js` | The Log page: the history, the new lines, the boxes of the filter, and a copy of the lines that show. |
 | `compat.test.js` | The notice of an old browser: the limit of 85, one notice, and the close mark. |

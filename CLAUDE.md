@@ -433,8 +433,10 @@ fail when you skip one of these steps.
   (paragraph, warning, table, list), a check before the dialog closes, and a
   dialog that only a button closes. The comment above `omnDialog` lists each
   option. Cancel is a plain button. Give `danger` only to a button that
-  destroys data. The Android Back key cancels the open dialog through
-  `omnCloseTopLayer`. A native dialog of the Android layer stays native when it guards an
+  destroys data. The Android Back key and Escape close the top layer
+  through `omnCloseTopLayer` of `omn-go-core.js`: a dialog, then the search
+  overlay, then a panel. Open and close a panel only with `omnShowPanel`,
+  `omnHidePanel` or `omnTogglePanel`. Only one panel shows at a time. A native dialog of the Android layer stays native when it guards an
   action that a note script must not start, for example the Termux question
   of `IntentBridge.java`.
 * **A lazy file gives its work through `omnLazyActions`.** Call `OMN.action` in

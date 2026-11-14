@@ -105,6 +105,8 @@ A quick note is one short text with a timestamp. Each time that OMN-Go writes is
 
 *Copy* puts the text on the clipboard and saves nothing. A text can come into the box from a share or from a scan. Use *Copy* when you want only to paste that text into a different application.
 
+*Cancel*, Escape and the Back key of Android close the box. The text stays in the box until you save it or reload the page. Only one box shows at a time: the note box or the bookmark form.
+
 **With a browser bookmark on a desktop.** A query in the address also opens the note box. Make a bookmark of this address in your browser. Open that bookmark when you want to write a note. Use the port of your server:
 
 ```
@@ -127,6 +129,8 @@ A bookmark is a link with a title, tags and notes. OMN-Go keeps your bookmarks i
 2. Press <i class="material-icons">bookmark_add</i>.
 3. Write the address. A title, tags and notes are not necessary.
 4. Press *Save*.
+
+Escape and the Back key of Android close the form. When the list of tags is open, the first Escape closes only that list.
 
 Write a comma between two tags (`work, recipe`). Write a semicolon between two notes. The *Tags* field shows the tags that you used before.
 

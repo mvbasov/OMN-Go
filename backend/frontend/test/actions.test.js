@@ -251,23 +251,6 @@ test('no internal function of a control is a name of window', () => {
     }
 });
 
-test('hide-panel and toggle-panel work on the panel of data-arg', () => {
-    const { page, clicks } = loadPage();
-    const calls = [];
-    const panel = makeElement();
-    panel.classList = {
-        add: function (c) { calls.push('add ' + c); },
-        toggle: function (c) { calls.push('toggle ' + c); },
-    };
-    page.document.getElementById = function (id) { return id === 'omn-quick-panel' ? panel : null; };
-    click(clicks, control('hide-panel', 'omn-quick-panel'));
-    click(clicks, control('toggle-panel', 'omn-quick-panel'));
-    // An id that the page does not have must not throw. An exported page
-    // has no modal.
-    click(clicks, control('hide-panel', 'absent'));
-    assert.deepStrictEqual(calls, ['add omn-hidden', 'toggle omn-hidden']);
-});
-
 test('on a page from disk a server action does not throw', () => {
     const { page, clicks } = loadPage('file:');
     const debug = [];

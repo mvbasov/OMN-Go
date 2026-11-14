@@ -31,7 +31,7 @@ function list() {
 // open answers the page after its first load. more answers the requests
 // that are not the list, or null for a success.
 async function open(more) {
-    const h = systemPage('db_backups.html', 'omn-go-dbbackups.js', function (request) {
+    const h = systemPage('db_backups.html', 'omn-go-db.js', function (request) {
         if (request.url === '/api/db/backups') return list();
         return (more && more(request)) || { status: 'success' };
     });

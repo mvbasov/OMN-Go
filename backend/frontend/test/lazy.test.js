@@ -122,8 +122,9 @@ test('each lazy file gives every action that omn-go-api.js promises, and no othe
 
 // notLazy names a function of a lazy file whose answer a caller reads at
 // once. omnLazy must not give it a stub. Before the file loads, no dialog
-// is open, and MainActivity.java reads "no function" as false.
-const notLazy = { 'omn-go-dialog.js': ['omnCloseTopLayer'] };
+// is open, and omnCloseTopLayer of omn-go-core.js reads "no function" as
+// "no dialog".
+const notLazy = { 'omn-go-dialog.js': ['omnCloseDialog', 'omnCloseTopLayer'] };
 
 test('no function of a lazy file is a name of window, except the promised names', () => {
     for (const [file, promised] of Object.entries(lazyMap())) {

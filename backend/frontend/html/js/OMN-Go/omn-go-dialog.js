@@ -11,8 +11,9 @@
 //   omnPrompt(text, value, okLabel)        The text of the field. Null for Cancel.
 //   omnDialog(opts)                        The button and the fields. See omnDialog below.
 //
-// omnCloseTopLayer() answers a boolean at once. MainActivity.java calls it
-// for the Back key of Android. True means that the page used the key.
+// omnCloseDialog() answers a boolean at once. omnCloseTopLayer of
+// omn-go-core.js calls it for the Back key of Android and for Escape. True
+// means that a dialog is open.
 //
 // A note page and the Config page load this file on demand. omnLazy in
 // omn-go-api.js writes a stub for each of the four Promise names. The editor
@@ -31,7 +32,7 @@
     let busy = false;
 
     // The dialog on the screen: {cancel, closable, working}, or null.
-    // omnCloseTopLayer reads it.
+    // omnCloseDialog reads it.
     let current = null;
 
     // omnDialog shows one dialog. opts holds:
@@ -327,15 +328,18 @@
 
     window.omnDialog = omnDialog;
 
-    // omnCloseTopLayer is for the Back key of Android. It cancels the open
-    // dialog and answers true. A dialog that is not closable stays, and the
-    // answer is also true, thus the page under it does not go back. With no
-    // dialog it answers false, and the WebView goes back.
-    window.omnCloseTopLayer = function () {
+    // omnCloseDialog cancels the open dialog and answers true. A dialog
+    // that is not closable stays, and the answer is also true, thus the
+    // page under it does not change. With no dialog it answers false.
+    window.omnCloseDialog = function () {
         if (!current) return false;
         if (current.closable && !current.working) current.cancel();
         return true;
     };
+    // The editor page has no omn-go-core.js, thus no omnCloseTopLayer. On
+    // that page the dialog is the only layer. A page with omn-go-core.js
+    // loads that file first, and its omnCloseTopLayer stays.
+    if (typeof window.omnCloseTopLayer !== 'function') window.omnCloseTopLayer = window.omnCloseDialog;
 
     window.omnAlert = function (text, title) {
         return omnDialog({

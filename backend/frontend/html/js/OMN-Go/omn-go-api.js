@@ -409,7 +409,7 @@ if (window.location.protocol !== 'file:') {
         const res = await fetch('/api/quick', { method: 'POST', body: fd });
         if(res.ok) {
             document.getElementById('omn-quick-text').value = '';
-            document.getElementById('omn-quick-panel').classList.add('omn-hidden');
+            window.omnHidePanel('omn-quick-panel');
             await window.omnAlert('Saved.');
             window.location.reload();
         }
@@ -423,7 +423,7 @@ if (window.location.protocol !== 'file:') {
         fd.append('notes', document.getElementById('omn-bm-notes').value);
         const res = await fetch('/api/bookmark', { method: 'POST', body: fd });
         if(res.ok) {
-            document.getElementById('omn-bm-panel').classList.add('omn-hidden');
+            window.omnHidePanel('omn-bm-panel');
             document.querySelectorAll('#omn-bm-panel input, #omn-bm-panel textarea').forEach(el => el.value = '');
             await window.omnAlert('Saved.');
             window.location.reload();
@@ -446,16 +446,13 @@ if (window.location.protocol !== 'file:') {
     // is such a page, because it loads this file not at all.
     window.omnGoInsertCapture = function(text, label) {
         var q = document.getElementById('omn-quick-text');
-        var p = document.getElementById('omn-quick-panel');
-        if (!q || !p) { return false; }
+        if (!q || !document.getElementById('omn-quick-panel')) { return false; }
         var content = '';
         if (label) { content += label + "\n\n"; }
         if (text) { content += text; }
         q.value = content.trim();
-        p.classList.remove('omn-hidden');
-        var bm = document.getElementById('omn-bm-panel');
-        if (bm) { bm.classList.add('omn-hidden'); }
-        return true;
+        // omnShowPanel also hides the bookmark panel.
+        return window.omnShowPanel('omn-quick-panel');
     };
 
     // Global Drag & Drop for URLs (Bookmarks). It is registered on
@@ -697,10 +694,10 @@ if (window.location.protocol !== 'file:') {
     // desktop conventions in practice, and the header button is the route
     // on Android.
     //
-    // Escape asks the overlay whether it is open. omn-go-search.js exports
-    // omnSearchIsOpen and omnSearchClose for this listener. Neither one
-    // exists before the first open, and Escape then does nothing, which is
-    // the correct answer when no overlay is on screen.
+    // Escape closes the top layer: the search overlay or a panel. See
+    // omnCloseTopLayer in omn-go-core.js, which the Back key of Android also
+    // calls. A dialog takes its own Escape, thus it never reaches this
+    // listener.
     document.addEventListener('keydown', function (e) {
         if (e.defaultPrevented) return;
 
@@ -710,10 +707,7 @@ if (window.location.protocol !== 'file:') {
             return;
         }
         if (e.key === 'Escape') {
-            if (window.omnSearchIsOpen && window.omnSearchIsOpen()) {
-                e.preventDefault();
-                window.omnSearchClose();
-            }
+            if (window.omnCloseTopLayer()) e.preventDefault();
             return;
         }
         if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;

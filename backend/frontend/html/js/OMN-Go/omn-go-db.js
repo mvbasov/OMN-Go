@@ -1,4 +1,4 @@
-// omn-go-dbbackups.js - the script of the Database Backups page.
+// omn-go-db.js - the script of the Database Backups page.
 //
 // db_backups.html loads it with a script element. The page lists each
 // database with its backups from GET /api/db/backups. The buttons make a

@@ -337,17 +337,75 @@ window.OMN.action('replace-location', function (el) {
 window.OMN.action('edit-page', function () {
     window.location.href = window.location.pathname + '?edit=true';
 });
-// toggle-panel and hide-panel take the id of the panel in data-arg. The
-// panel can be absent. An exported page has no modal, because the server
-// adds each modal when it serves a page.
-window.OMN.action('toggle-panel', function (el) {
-    var p = document.getElementById(el.getAttribute('data-arg'));
-    if (p) p.classList.toggle('omn-hidden');
-});
-window.OMN.action('hide-panel', function (el) {
-    var p = document.getElementById(el.getAttribute('data-arg'));
-    if (p) p.classList.add('omn-hidden');
-});
+// --- The panels ---
+//
+// Quick Note and Bookmark are panels of modals.html, with the class
+// .omn-panel. A panel does not stop the page under it. Only one panel
+// shows at a time. These three functions are the only code that shows or
+// hides a panel. omn-go-api.js, omn-go-bookmark.js and MainActivity.java
+// call them.
+//
+// The metadata panel of index.html has no class .omn-panel. It opens and
+// closes with the same functions, but it does not hide the other panels.
+//
+// A page from disk has no panel, because the server adds modals.html when
+// it sends a page. Thus each function accepts a missing panel.
+
+// omnShowPanel shows a panel and hides each other .omn-panel. It answers
+// false when the page has no such panel.
+window.omnShowPanel = function (id) {
+    var panel = document.getElementById(id);
+    if (!panel) return false;
+    if (panel.classList.contains('omn-panel')) {
+        Array.prototype.forEach.call(document.querySelectorAll('.omn-panel'), function (p) {
+            if (p !== panel) p.classList.add('omn-hidden');
+        });
+    }
+    panel.classList.remove('omn-hidden');
+    return true;
+};
+window.omnHidePanel = function (id) {
+    var panel = document.getElementById(id);
+    if (panel) panel.classList.add('omn-hidden');
+};
+// omnTogglePanel answers true when the panel is open after the call.
+window.omnTogglePanel = function (id) {
+    var panel = document.getElementById(id);
+    if (!panel) return false;
+    if (panel.classList.contains('omn-hidden')) return window.omnShowPanel(id);
+    panel.classList.add('omn-hidden');
+    return false;
+};
+
+// omnCloseTopLayer closes the top layer of the page and answers true. With
+// no open layer it answers false. The Back key of Android (MainActivity.java)
+// and Escape (omn-go-api.js) call it. The order is the order on the screen:
+//
+//   1. A dialog of omn-go-dialog.js (z-index 80).
+//   2. The search overlay of omn-go-search.js (70).
+//   3. A panel (40).
+//
+// Each of the two files loads on demand. Before it loads, its layer cannot
+// be open, and the typeof test skips it. omnCloseDialog also answers true
+// for a dialog that it does not close, for example the login dialog. The
+// page under such a dialog must not change.
+window.omnCloseTopLayer = function () {
+    if (typeof window.omnCloseDialog === 'function' && window.omnCloseDialog() === true) return true;
+    if (typeof window.omnSearchIsOpen === 'function' && window.omnSearchIsOpen()) {
+        window.omnSearchClose();
+        return true;
+    }
+    var open = Array.prototype.find.call(document.querySelectorAll('.omn-panel'), function (p) {
+        return !p.classList.contains('omn-hidden');
+    });
+    if (!open) return false;
+    open.classList.add('omn-hidden');
+    return true;
+};
+
+// toggle-panel and hide-panel take the id of the panel in data-arg.
+window.OMN.action('toggle-panel', function (el) { window.omnTogglePanel(el.getAttribute('data-arg')); });
+window.OMN.action('hide-panel', function (el) { window.omnHidePanel(el.getAttribute('data-arg')); });
 
 // addEventListener, and NOT "window.onload = ...". A classic OMN note
 // often assigns window.onload itself, for example
@@ -371,8 +429,7 @@ window.addEventListener('load', () => {
             // evaluateJavascript in MainActivity.onNewIntent - this only
             // covers the cold-start case.
             if (params.has('quicknote')) {
-                const qp = document.getElementById('omn-quick-panel');
-                if (qp) qp.classList.remove('omn-hidden');
+                window.omnShowPanel('omn-quick-panel');
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
             }
             if (window.hljs) {

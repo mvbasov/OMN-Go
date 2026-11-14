@@ -193,7 +193,7 @@ var actionCallRe = regexp.MustCompile(`\baction\('([a-z0-9-]+)'`)
 
 // Each data-action of a template has a function. A shipped script gives it,
 // or the script block of a template does. A script can also build a control
-// in its markup, for example the list of omn-go-dbbackups.js. Such a control
+// in its markup, for example the list of omn-go-db.js. Such a control
 // is a use of its action, the same as a control of a template.
 func TestEachDataActionHasAFunction(t *testing.T) {
 	registered := map[string]bool{}
