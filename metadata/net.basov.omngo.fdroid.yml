@@ -743,7 +743,7 @@ Builds:
 
   - versionName: 26.11.16-fdroid
     versionCode: 26110161
-    commit: COMMIT_OF_v26.11.16f
+    commit: 2364a5e250e6bfd94348553db86c39b9a9040c21
     subdir: android/app
     sudo:
       - apt-get update
@@ -773,7 +773,7 @@ Builds:
 
   - versionName: 26.11.16-fdroid
     versionCode: 26110162
-    commit: COMMIT_OF_v26.11.16f
+    commit: 2364a5e250e6bfd94348553db86c39b9a9040c21
     subdir: android/app
     sudo:
       - apt-get update
@@ -803,7 +803,7 @@ Builds:
 
   - versionName: 26.11.16-fdroid
     versionCode: 26110163
-    commit: COMMIT_OF_v26.11.16f
+    commit: 2364a5e250e6bfd94348553db86c39b9a9040c21
     subdir: android/app
     sudo:
       - apt-get update
@@ -833,7 +833,7 @@ Builds:
 
   - versionName: 26.11.16-fdroid
     versionCode: 26110164
-    commit: COMMIT_OF_v26.11.16f
+    commit: 2364a5e250e6bfd94348553db86c39b9a9040c21
     subdir: android/app
     sudo:
       - apt-get update
