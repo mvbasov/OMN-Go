@@ -9,7 +9,7 @@
 #
 # THE STAGES.
 #
-#   sys_env         The Debian packages: the JDK, Node, wget and unzip.
+#   sys_env         Alpine with Go, the JDK, Node and the build packages.
 #   android_env     sys_env plus the Android SDK, the NDK and Gradle.
 #   go_env          sys_env plus the resolved go.mod and go.sum.
 #   base_env        android_env plus the files of go_env, gobind and gomobile.
@@ -27,11 +27,8 @@
 # The fast workflow (.github/workflows/test.yml) builds the test stage
 # alone. The gate thus has one definition for each build.
 #
-# THE IMAGE FOLLOWS THE F-DROID BUILD SERVER. The F-Droid server runs
-# Debian trixie with JDK 21. This image uses the same Debian and the same
-# JDK. The image is golang:1.26.0-trixie, and not the moving tag
-# golang:1.26-trixie. The F-Droid recipe builds with the srclib go@go1.26.0.
-# The two builds thus use the same compiler. Change both together.
+# The Docker build uses Alpine. The F-Droid server uses Debian trixie and
+# its own recipe. Both builds use Go 1.26.0 and JDK 21.
 #
 # THE GOMOBILE STEPS are in android/build_aar.sh, and not here. The F-Droid
 # recipe can run the same script. See
@@ -43,19 +40,19 @@
 # bad zip file in the cache.
 
 # ============================== STAGE 1 ===============================
-FROM golang:1.26.0-trixie AS sys_env
+FROM golang:1.26.0-alpine3.23 AS sys_env
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN apk add --no-cache \
+    cmake gcc git musl-dev ninja nodejs openjdk21-jdk unzip wget
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y \
-    openjdk-21-jdk nodejs wget unzip cmake ninja-build
-
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 WORKDIR /app
 
 # ============================== STAGE 2 ===============================
 FROM sys_env AS android_env
+
+# The Android host tools use glibc. The NDK also uses Bash and libstdc++.
+RUN apk add --no-cache bash gcompat libstdc++
 
 RUN --mount=type=cache,target=/tmp/dl,sharing=locked \
     zip=/tmp/dl/commandlinetools-linux-10406996_latest.zip && \

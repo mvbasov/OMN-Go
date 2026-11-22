@@ -54,8 +54,8 @@ had no `-trimpath`.
   the script with `tools`, `init` and `bind`, one step for each image layer.
 * The F-Droid recipe can call the script with no argument. That is a
   separate merge request to fdroiddata.
-* The image is `golang:1.26.0-trixie` with JDK 21, the Debian and the JDK of
-  the F-Droid server.
+* The initial Docker image used Debian trixie. It now uses Alpine.
+  Both the Docker build and the F-Droid build use JDK 21.
 * `android/app/build.gradle` pins `buildToolsVersion "34.0.0"`. That is the
   default of AGP 8.2.2, thus the F-Droid build does not change.
 

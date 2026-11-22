@@ -39,7 +39,7 @@ var (
 	pipeMinSdkRe     = regexp.MustCompile(`(?m)^\s*minSdk\s+(\d+)\s*$`)
 	pipeNdkGradleRe  = regexp.MustCompile(`(?m)^\s*ndkVersion\s+"([^"]+)"`)
 	pipeAndroidAPIRe = regexp.MustCompile(`-androidapi\s+(\d+)`)
-	pipeGoImageRe    = regexp.MustCompile(`(?m)^FROM golang:([0-9.]+)-trixie\b`)
+	pipeGoImageRe    = regexp.MustCompile(`(?m)^FROM golang:([0-9]+\.[0-9]+\.[0-9]+)-alpine[0-9]+\.[0-9]+ AS sys_env$`)
 	pipeNdkDockerRe  = regexp.MustCompile(`"ndk;([^"]+)"`)
 	pipeGoSrclibRe   = regexp.MustCompile(`go@go([0-9.]+)`)
 	pipeNdkRecipeRe  = regexp.MustCompile(`(?m)^\s*ndk:\s*(\S+)`)
@@ -150,12 +150,10 @@ func TestPipelinesAgreeOnTheAndroidAPILevel(t *testing.T) {
 
 // The Docker image and the F-Droid srclib must name the same Go version.
 // A second Go version can build a different binary from the same source.
-// The image must be a trixie image, because the F-Droid server runs
-// Debian trixie. The regular expression thus finds no other image.
 func TestPipelinesAgreeOnTheGoVersion(t *testing.T) {
 	got := pipeAll(pipeGoImageRe, pipeRead(t, pipeDockerfile))
 	if len(got) == 0 {
-		t.Fatal("the Dockerfile names no golang:<version>-trixie image")
+		t.Fatal("the sys_env stage needs an Alpine image with a fixed Go version")
 	}
 	want := got[0]
 	pipeSame(t, "the Go version", pipeDockerfile, want, got)

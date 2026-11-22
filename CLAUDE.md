@@ -131,10 +131,10 @@ update these files.
 
 * The module is `net.basov.omngo`. The language version is `go 1.25`. go-git v5.19.2
   needs Go 1.25 or later, thus the line cannot go lower.
-* The toolchain image is `golang:1.26.0-trixie`, with JDK 21. The F-Droid
-  server runs Debian trixie with JDK 21. The F-Droid recipe builds with the
-  srclib `go@go1.26.0`, thus the two builds use the same compiler. Change the
-  image, the recipe and
+* The Docker toolchain uses Alpine and JDK 21. The F-Droid server uses
+  Debian trixie and JDK 21. The F-Droid srclib sets the Go version for its build.
+  Keep the Docker Go version the same as the srclib version. When the Go
+  version changes, update the image, the recipe and
   `backend/internal/repocheck/testdata/binary_size_baseline.json` together.
 * `XMOBILE_VERSION` in `android/build_aar.sh` is the only pin of
   `golang.org/x/mobile`. Each build installs that version with `go get -tool`.
